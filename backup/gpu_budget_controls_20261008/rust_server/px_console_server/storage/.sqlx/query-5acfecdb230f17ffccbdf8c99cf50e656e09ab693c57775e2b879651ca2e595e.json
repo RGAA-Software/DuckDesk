@@ -1,0 +1,151 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET draining=$2,disabled=$3,max_instances=$4,revision=revision+1,\ngeneration=generation+CASE WHEN disabled IS DISTINCT FROM $3 THEN 1 ELSE 0 END,\nconnection_hash=CASE WHEN $3 THEN NULL ELSE connection_hash END,state=CASE WHEN $3 THEN 'offline' ELSE state END\n,reconciliation_id=CASE WHEN $3 THEN NULL ELSE reconciliation_id END,reconciliation_deadline=CASE WHEN $3 THEN NULL ELSE reconciliation_deadline END WHERE id=$1\nRETURNING id,device_id,product,revision,generation,control_epoch,state,draining,disabled,max_instances,report_sequence,last_seen,product_version_code,public_host,desktop_port,application_port_start,application_port_end,game_hook,webview,rdp,endpoint_revision,\n(connection_hash IS NOT NULL AND NOT disabled AND control_epoch=(SELECT epoch FROM pixels.control_runtime) AND last_seen>clock_timestamp()-interval '30 seconds') AS \"fresh!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "product",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "draining",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "max_instances",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "report_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "product_version_code",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "public_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "desktop_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "application_port_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "application_port_end",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "game_hook",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "webview",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 19,
+        "name": "rdp",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 20,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "fresh!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "5acfecdb230f17ffccbdf8c99cf50e656e09ab693c57775e2b879651ca2e595e"
+}

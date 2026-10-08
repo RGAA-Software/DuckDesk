@@ -8,6 +8,7 @@ rust-version = "1.88"
 pg-integration = ["dep:tokio", "dep:serde_json"]
 
 [dependencies]
+px_node_protocol = { path = "../../px_node_protocol" }
 px_credentials = { path = "../../px_credentials" }
 px_release_catalog = { path = "../../px_release_catalog" }
 px_private_files = { path = "../../px_private_files" }

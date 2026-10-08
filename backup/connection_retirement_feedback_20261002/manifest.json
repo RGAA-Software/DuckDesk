@@ -1,0 +1,23 @@
+[
+  {
+    "reason": "Distinguish connection occupancy and retirement; atomically release unadmitted sessions",
+    "original_path": "rust_server/px_console_server/storage/src/resource_sessions.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "archive_batch": "backup/connection_retirement_feedback_20261002"
+  },
+  {
+    "reason": "Distinguish connection occupancy and retirement; atomically release unadmitted sessions",
+    "original_path": "rust_server/px_console_server/runtime/src/resource_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "archive_batch": "backup/connection_retirement_feedback_20261002"
+  },
+  {
+    "reason": "Distinguish connection occupancy and retirement; atomically release unadmitted sessions",
+    "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "archive_batch": "backup/connection_retirement_feedback_20261002"
+  }
+]

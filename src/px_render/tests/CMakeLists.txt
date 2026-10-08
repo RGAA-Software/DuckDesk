@@ -1,5 +1,11 @@
 find_package(GTest CONFIG REQUIRED)
 
+add_executable(test_application_idle_lifecycle unit/test_application_idle_lifecycle.cpp)
+target_include_directories(test_application_idle_lifecycle PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+target_link_libraries(test_application_idle_lifecycle PRIVATE GTest::gtest GTest::gtest_main)
+add_test(NAME application_idle_lifecycle COMMAND test_application_idle_lifecycle)
+set_tests_properties(application_idle_lifecycle PROPERTIES TIMEOUT 10 LABELS "render-lifecycle")
+
 add_executable(test_annex_b_keyframe unit/test_annex_b_keyframe.cpp)
 target_include_directories(test_annex_b_keyframe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 target_link_libraries(test_annex_b_keyframe PRIVATE GTest::gtest GTest::gtest_main)

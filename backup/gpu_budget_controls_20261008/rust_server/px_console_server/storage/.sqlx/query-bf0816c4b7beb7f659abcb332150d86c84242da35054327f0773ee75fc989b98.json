@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.guest_events(id,guest_id,actor_id,revision,reason) VALUES($1,$2,$3,$4,$5)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bf0816c4b7beb7f659abcb332150d86c84242da35054327f0773ee75fc989b98"
+}

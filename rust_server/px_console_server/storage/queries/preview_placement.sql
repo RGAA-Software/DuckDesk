@@ -42,19 +42,7 @@ WITH raw_candidates AS (
   g.dedicated_memory_bytes,
   g.used_memory_bytes,
   g.utilization_per_mille,
-  g.encoder_utilization_per_mille,
-  d.gpu_memory_bytes,
-  d.gpu_compute_per_mille,
-  d.gpu_encoder_per_mille,
-  d.gpu_memory_reserve_bytes,
-  d.gpu_compute_limit_per_mille,
-  d.gpu_encoder_limit_per_mille,
-  gpu_usage.running_memory,
-  gpu_usage.pending_memory,
-  gpu_usage.running_compute,
-  gpu_usage.pending_compute,
-  gpu_usage.running_encoder,
-  gpu_usage.pending_encoder
+  g.encoder_utilization_per_mille
  FROM pixels.application_deployments d
  JOIN pixels.applications a ON a.id=d.application_id
  JOIN pixels.nodes n ON n.id=d.node_id
@@ -78,50 +66,22 @@ WITH raw_candidates AS (
   SELECT count(*) AS used FROM pixels.instances i
   WHERE i.application_id=a.id AND i.node_id=n.id AND i.ended_at IS NULL
  ) rdp_usage
- CROSS JOIN LATERAL (
-  SELECT
-   COALESCE(sum(i.gpu_memory_reservation_bytes) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_memory,
-   COALESCE(sum(i.gpu_memory_reservation_bytes) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_memory,
-   COALESCE(sum(i.gpu_compute_reservation_per_mille) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_compute,
-   COALESCE(sum(i.gpu_compute_reservation_per_mille) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_compute,
-   COALESCE(sum(i.gpu_encoder_reservation_per_mille) FILTER(WHERE i.state IN ('running','stopping','reconcile_required')),0)::bigint AS running_encoder,
-   COALESCE(sum(i.gpu_encoder_reservation_per_mille) FILTER(WHERE i.state IN ('reserved','starting')),0)::bigint AS pending_encoder
-  FROM pixels.instances i WHERE i.node_id=n.id AND i.gpu_key=g.stable_key AND i.ended_at IS NULL
- ) gpu_usage
  WHERE a.id=$1 AND ($2::uuid IS NULL OR d.id=$2)
 ), measured_candidates AS (
  SELECT raw_candidates.*,
-  CASE WHEN kind='rdp' OR dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL THEN NULL ELSE
-   dedicated_memory_bytes-gpu_memory_reserve_bytes-
-   GREATEST(used_memory_bytes,running_memory)-pending_memory-gpu_memory_bytes END AS gpu_memory_headroom_bytes,
-  CASE WHEN kind='rdp' OR utilization_per_mille IS NULL THEN NULL ELSE
-   gpu_compute_limit_per_mille::bigint-GREATEST(utilization_per_mille::bigint,running_compute)-pending_compute-gpu_compute_per_mille END
-   AS gpu_compute_headroom_per_mille,
-  CASE WHEN kind='rdp' OR encoder_utilization_per_mille IS NULL THEN NULL ELSE
-   gpu_encoder_limit_per_mille::bigint-GREATEST(encoder_utilization_per_mille::bigint,running_encoder)-pending_encoder-gpu_encoder_per_mille END
-   AS gpu_encoder_headroom_per_mille,
-  CASE WHEN kind='rdp' THEN 0::bigint
-   WHEN dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL
-    THEN NULL
-   ELSE GREATEST(
-    ((GREATEST(used_memory_bytes,running_memory)+pending_memory+gpu_memory_bytes)*1000)/
-     NULLIF(dedicated_memory_bytes-gpu_memory_reserve_bytes,0),
-    ((GREATEST(utilization_per_mille::bigint,running_compute)+pending_compute+gpu_compute_per_mille)*1000)/
-     NULLIF(gpu_compute_limit_per_mille,0),
-    ((GREATEST(encoder_utilization_per_mille::bigint,running_encoder)+pending_encoder+gpu_encoder_per_mille)*1000)/
-     NULLIF(gpu_encoder_limit_per_mille,0))
-  END AS dominant_pressure_per_mille,
-  CASE WHEN kind='rdp' THEN 0::bigint
-   WHEN dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL
-    THEN NULL
-   ELSE (
-    ((GREATEST(used_memory_bytes,running_memory)+pending_memory+gpu_memory_bytes)*1000)/
-     NULLIF(dedicated_memory_bytes-gpu_memory_reserve_bytes,0)+
-    ((GREATEST(utilization_per_mille::bigint,running_compute)+pending_compute+gpu_compute_per_mille)*1000)/
-     NULLIF(gpu_compute_limit_per_mille,0)+
-    ((GREATEST(encoder_utilization_per_mille::bigint,running_encoder)+pending_encoder+gpu_encoder_per_mille)*1000)/
-     NULLIF(gpu_encoder_limit_per_mille,0))/3
-  END AS average_pressure_per_mille
+  CASE WHEN kind='rdp' THEN NULL ELSE dedicated_memory_bytes-used_memory_bytes END AS gpu_memory_headroom_bytes,
+  CASE WHEN kind='rdp' THEN NULL ELSE 1000::bigint-utilization_per_mille END AS gpu_compute_headroom_per_mille,
+  CASE WHEN kind='rdp' THEN NULL ELSE 1000::bigint-encoder_utilization_per_mille END AS gpu_encoder_headroom_per_mille,
+CASE WHEN kind='rdp' THEN 0::bigint
+ WHEN dedicated_memory_bytes IS NULL OR dedicated_memory_bytes=0 OR used_memory_bytes IS NULL
+  OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL THEN NULL
+ ELSE GREATEST(used_memory_bytes*1000/dedicated_memory_bytes,
+  utilization_per_mille,encoder_utilization_per_mille) END AS dominant_pressure_per_mille,
+CASE WHEN kind='rdp' THEN 0::bigint
+ WHEN dedicated_memory_bytes IS NULL OR dedicated_memory_bytes=0 OR used_memory_bytes IS NULL
+  OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL THEN NULL
+ ELSE (used_memory_bytes*1000/dedicated_memory_bytes+
+  utilization_per_mille+encoder_utilization_per_mille)/3 END AS average_pressure_per_mille
  FROM raw_candidates
 ), evaluated_candidates AS (
  SELECT measured_candidates.*,
@@ -153,13 +113,7 @@ WITH raw_candidates AS (
    CASE WHEN kind<>'rdp' AND NOT gpu_inventory_current THEN 'gpu_inventory_unavailable' END,
    CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_pinned AND NOT gpu_present THEN 'pinned_gpu_missing' END,
    CASE WHEN kind<>'rdp' AND gpu_inventory_current AND NOT gpu_pinned AND NOT gpu_present THEN 'gpu_inventory_unavailable' END,
-   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_present AND NOT runtime_binding_ready THEN 'gpu_binding_unavailable' END,
-   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_present AND
-    (dedicated_memory_bytes IS NULL OR used_memory_bytes IS NULL OR utilization_per_mille IS NULL OR encoder_utilization_per_mille IS NULL)
-    THEN 'gpu_metrics_unknown' END,
-   CASE WHEN kind<>'rdp' AND gpu_memory_headroom_bytes<0 THEN 'gpu_memory_exhausted' END,
-   CASE WHEN kind<>'rdp' AND gpu_compute_headroom_per_mille<0 THEN 'gpu_compute_exhausted' END,
-   CASE WHEN kind<>'rdp' AND gpu_encoder_headroom_per_mille<0 THEN 'gpu_encoder_exhausted' END
+   CASE WHEN kind<>'rdp' AND gpu_inventory_current AND gpu_present AND NOT runtime_binding_ready THEN 'gpu_binding_unavailable' END
   ]::text[],NULL) AS rejection_reasons
  FROM measured_candidates
 )

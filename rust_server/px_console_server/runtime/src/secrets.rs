@@ -1,6 +1,6 @@
 use crate::{error::ApiError, GuestAdmission};
 use px_console_store::{WorkspaceKey, WorkspaceVault};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
@@ -22,8 +22,6 @@ impl RuntimeSecrets {
         active_workspace_key: Uuid,
         workspace_keys: Vec<WorkspaceKeyFile>,
         guest_source_key: PathBuf,
-        guests_enabled: bool,
-        guest_lifetime: Duration,
     ) -> Result<Self, ApiError> {
         if deployment.is_nil()
             || active_workspace_key.is_nil()
@@ -43,9 +41,7 @@ impl RuntimeSecrets {
             });
         }
         let vault = Arc::new(WorkspaceVault::new(active_workspace_key, keys)?);
-        let guests =
-            GuestAdmission::load(deployment, guest_source_key, guests_enabled, guest_lifetime)
-                .await?;
+        let guests = GuestAdmission::load(deployment, guest_source_key).await?;
         Ok(Self { vault, guests })
     }
 

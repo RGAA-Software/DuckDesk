@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.application_events SET delivered_at=clock_timestamp(),lease_id=NULL,lease_until=NULL\nWHERE id=$1 AND lease_id=$2 AND lease_until>clock_timestamp() AND delivered_at IS NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f15cd727d3bb35640fe0e8fa355ddbd00e59f66e6efef9ba55dbe9932e2a8462"
+}

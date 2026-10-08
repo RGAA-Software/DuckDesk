@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM pixels.group_app_grants WHERE application_id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1c188b42fe10cc6c427410d20d0d1657f8c23229cb7c6736b88a30ad339af0c1"
+}

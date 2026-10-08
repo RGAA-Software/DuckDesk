@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.cache_read_leases(id,blob_id,run_id,origin_user,login_session_id,owner_revision,client_type,access_scope,expires_at)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()+interval '30 seconds')\nRETURNING id,blob_id,run_id,expires_at,\nGREATEST(0,LEAST(30000,FLOOR(EXTRACT(EPOCH FROM (expires_at-clock_timestamp()))*1000)))::bigint AS \"remaining_ms!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "blob_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "run_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "remaining_ms!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "927134b688bd9ddf8836579eec0aa01bdbc709f239ca38bb74493f951a11db5f"
+}

@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useManagementRefresh } from "@/model/management_events.ts";
 import { Modal, message, type FormInstance } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
+import { isProtectedUser } from "@/util/managed_user_policy";
 import {
     blockGuestSession,
     createAdminUser,
@@ -100,6 +101,7 @@ function create() {
 }
 
 function edit(user: UserAdminView) {
+    if (isProtectedUser(user)) return;
     editing.value = user;
     Object.assign(form, {
         username: user.username,
@@ -112,11 +114,14 @@ function edit(user: UserAdminView) {
 }
 
 function requestError(error: unknown, fallbackKey: string): string {
-    const response = (error as { response?: { data?: { message?: string } } })?.response;
+    const response = (error as { response?: { data?: { code?: string; message?: string } } })
+        ?.response;
+    if (response?.data?.code === "protected_user") return t("identity.users.protectedAccount");
     return response?.data?.message || (error instanceof Error ? error.message : t(fallbackKey));
 }
 
 async function save() {
+    if (editing.value && isProtectedUser(editing.value)) return;
     try {
         await editorFormRef.value?.validate();
     } catch {
@@ -144,6 +149,7 @@ async function save() {
 }
 
 async function toggle(user: UserAdminView) {
+    if (isProtectedUser(user)) return;
     try {
         await patchAdminUser(user, { role: user.role, disabled: !user.disabled });
         await refresh();
@@ -202,6 +208,7 @@ function blockGuest(guest: GuestSessionView, includeSource: boolean) {
 }
 
 function remove(user: UserAdminView) {
+    if (isProtectedUser(user)) return;
     Modal.confirm({
         title: t("identity.users.deleteTitle", { username: user.username }),
         content: t("identity.users.deleteImpact"),
@@ -225,7 +232,6 @@ function formatTime(value?: string | null) {
 function guestState(guest: GuestSessionView) {
     if (guest.blocked) return t("identity.states.blocked");
     if (guest.revoked_at) return t("identity.states.revoked");
-    if (new Date(guest.expires_at).getTime() <= Date.now()) return t("identity.states.expired");
     return t("identity.states.active");
 }
 
@@ -276,10 +282,17 @@ useManagementRefresh(["identities"], refresh);
             <a-table-column :title="t('identity.users.actions')" width="390">
                 <template #default="{ record }">
                     <a-space wrap>
-                        <a-button size="small" @click="edit(record)">{{
-                            t("identity.actions.edit")
-                        }}</a-button>
-                        <a-button size="small" @click="toggle(record)">
+                        <a-button
+                            v-if="!isProtectedUser(record)"
+                            size="small"
+                            @click="edit(record)"
+                            >{{ t("identity.actions.edit") }}</a-button
+                        >
+                        <a-button
+                            v-if="!isProtectedUser(record)"
+                            size="small"
+                            @click="toggle(record)"
+                        >
                             {{
                                 t(
                                     record.disabled
@@ -295,9 +308,16 @@ useManagementRefresh(["identities"], refresh);
                         >
                             {{ t("identity.actions.resetPassword") }}
                         </a-button>
-                        <a-button size="small" danger @click="remove(record)">{{
-                            t("identity.actions.delete")
-                        }}</a-button>
+                        <a-button
+                            v-if="!isProtectedUser(record)"
+                            size="small"
+                            danger
+                            @click="remove(record)"
+                            >{{ t("identity.actions.delete") }}</a-button
+                        >
+                        <a-typography-text v-if="isProtectedUser(record)" type="secondary">
+                            {{ t("identity.users.protectedAccount") }}
+                        </a-typography-text>
                     </a-space>
                 </template>
             </a-table-column>
@@ -372,9 +392,6 @@ useManagementRefresh(["identities"], refresh);
             />
             <a-table-column :title="t('identity.guests.createdAt')" width="180">
                 <template #default="{ record }">{{ formatTime(record.created_at) }}</template>
-            </a-table-column>
-            <a-table-column :title="t('identity.guests.expiresAt')" width="180">
-                <template #default="{ record }">{{ formatTime(record.expires_at) }}</template>
             </a-table-column>
             <a-table-column :title="t('identity.users.status')" width="90">
                 <template #default="{ record }">{{ guestState(record) }}</template>

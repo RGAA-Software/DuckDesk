@@ -17,6 +17,13 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { throw 'Install
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.product -cne 'pixels-single-server' -or $manifest.distribution -cne 'official' -or
     $manifest.platform -cne 'windows-x86_64') { throw 'Installed product identity differs.' }
+$installedTray = [IO.Path]::GetFullPath((Join-Path $currentPath 'bin/px_server_tray.exe'))
+foreach ($trayProcess in @(Get-CimInstance Win32_Process -Filter "Name = 'px_server_tray.exe'")) {
+    if ($trayProcess.ExecutablePath -and
+        [IO.Path]::GetFullPath($trayProcess.ExecutablePath).Equals($installedTray, [StringComparison]::OrdinalIgnoreCase)) {
+        Stop-Process -Id $trayProcess.ProcessId -Force -ErrorAction Stop
+    }
+}
 $serviceNames = @('Pixels.Setup', 'Pixels.Console', 'Pixels.Relay')
 $serviceNames += @(Get-Service -Name 'Pixels.Backup.*' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)
 foreach ($serviceName in $serviceNames) {
@@ -77,3 +84,6 @@ if (Test-Path -LiteralPath $deploymentMarker -PathType Leaf) {
     Remove-Item -LiteralPath $deploymentMarker
 }
 Write-Output 'Pixels Server services and program files removed. Configuration, PostgreSQL and backup data were retained.'
+foreach ($ruleName in @('Pixels.Server.Setup.LAN', 'Pixels.Server.Console.LAN', 'Pixels.Server.Relay.LAN')) {
+    Get-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+}

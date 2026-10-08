@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET state='reconciling',reconciliation_id=$2,reconciliation_deadline=clock_timestamp()+interval '30 seconds'\nWHERE id=$1 RETURNING reconciliation_deadline AS \"deadline!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deadline!",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "0433eeac9c53b51a9bb2df4d0de05cccecdceca278f380e23a96476e10c6f241"
+}

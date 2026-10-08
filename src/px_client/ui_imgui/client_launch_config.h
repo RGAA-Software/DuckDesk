@@ -50,7 +50,6 @@ struct ClientLaunchConfig final {
     bool waitForDebugger{};
     std::string language{"zh-CN"};
     bool lightTheme{};
-    bool enhancedVisualEffects{true};
     std::string decoder{"Auto"};
     std::string recordingPath{};
     bool rdp{};

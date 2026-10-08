@@ -21,7 +21,7 @@ AND ((r.owner_user IS NOT NULL AND EXISTS(
     AND l.revoked_at IS NULL AND l.expires_at>clock_timestamp() AND l.absolute_expires_at>clock_timestamp()
 )) OR (r.owner_guest IS NOT NULL AND EXISTS(
     SELECT 1 FROM pixels.guest_sessions g WHERE g.id=r.owner_guest AND g.revision=r.owner_revision
-    AND g.client_type=r.client_type AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()
+    AND g.client_type=r.client_type AND g.revoked_at IS NULL
     AND NOT EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id)
     AND NOT EXISTS(SELECT 1 FROM pixels.guest_source_blocks b WHERE b.source_hash=g.source_hash AND b.expires_at>clock_timestamp())
 )))

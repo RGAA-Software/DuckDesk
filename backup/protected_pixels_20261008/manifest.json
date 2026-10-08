@@ -1,0 +1,65 @@
+[
+  {
+    "original_path": "web/px_console/src/views/UserManager.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/views/UserManager.vue",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/control.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/model.rs",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/control.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/error.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/error.rs",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "scripts/server_validation/postgres.ps1",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M scripts/server_validation/postgres.ps1",
+    "reason": "Protect the Pixels built-in account from edits, disable and deletion while allowing password reset",
+    "archive_batch": "protected_pixels_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/node_api.rs",
+    "reason": "Keep exhaustive API error code mapping complete for protected user rejection",
+    "archive_batch": "protected_pixels_20261008"
+  }
+]

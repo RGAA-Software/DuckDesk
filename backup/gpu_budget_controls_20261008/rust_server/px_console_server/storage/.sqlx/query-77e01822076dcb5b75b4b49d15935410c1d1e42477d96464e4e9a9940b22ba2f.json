@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kind,executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,\r\ngpu_memory_reservation_bytes,gpu_compute_reservation_per_mille,gpu_encoder_reservation_per_mille,gpu_memory_reserve_bytes,\r\ngpu_compute_limit_per_mille,gpu_encoder_limit_per_mille FROM pixels.instances WHERE id=$1\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "executable_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "arguments",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "entry_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "codec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "bitrate_kbps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "gpu_inventory_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_memory_reservation_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_compute_reservation_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "gpu_encoder_reservation_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "gpu_memory_reserve_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "gpu_compute_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 13,
+        "name": "gpu_encoder_limit_per_mille",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "77e01822076dcb5b75b4b49d15935410c1d1e42477d96464e4e9a9940b22ba2f"
+}

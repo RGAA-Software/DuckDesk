@@ -149,6 +149,238 @@ fn progress(sequence: u64, byte_count: u64) -> ChannelProgress {
         outcome: ChannelOutcome::Progress,
     }
 }
+
+#[tokio::test]
+async fn exact_runtime_exit_closes_occupancy_and_cannot_touch_a_replacement_launch() {
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let (launch_id, listen_port): (Uuid, i32) =
+        sqlx::query_as("SELECT launch_id,port FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    let listen_port = u16::try_from(listen_port).unwrap();
+    assert!(context
+        .fixture
+        .instances
+        .report_runtime_exit(
+            &context.node,
+            context.instance.id,
+            Uuid::new_v4(),
+            listen_port,
+            false
+        )
+        .await
+        .is_err());
+    assert!(context
+        .fixture
+        .instances
+        .report_runtime_exit(
+            &context.node,
+            context.instance.id,
+            launch_id,
+            listen_port + 1,
+            false
+        )
+        .await
+        .is_err());
+    context
+        .fixture
+        .instances
+        .report_runtime_exit(
+            &context.node,
+            context.instance.id,
+            launch_id,
+            listen_port,
+            false,
+        )
+        .await
+        .unwrap();
+    let ended_session = context
+        .session_store
+        .get(
+            ResourceCredential::User(&context.user),
+            context.client,
+            context.session.id,
+        )
+        .await
+        .unwrap();
+    assert_eq!(ended_session.state, "closed");
+    let (instance_state, instance_revision): (String, i64) =
+        sqlx::query_as("SELECT state,revision FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(instance_state, "stopped");
+    let application_id: Uuid =
+        sqlx::query_scalar("SELECT application_id FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    let replacement = context
+        .fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&context.user),
+            context.client,
+            context.node.epoch(),
+            &request(application_id),
+        )
+        .await
+        .unwrap();
+    let replacement_port: i32 = sqlx::query_scalar("SELECT port FROM pixels.instances WHERE id=$1")
+        .bind(replacement.id)
+        .fetch_one(&context.fixture.owner)
+        .await
+        .unwrap();
+    assert_eq!(replacement_port, i32::from(listen_port));
+    // Even a contradictory repeated exit cannot downgrade Stopped to Failed or
+    // release the newly reserved instance on the reused numeric port.
+    context
+        .fixture
+        .instances
+        .report_runtime_exit(
+            &context.node,
+            context.instance.id,
+            launch_id,
+            listen_port,
+            true,
+        )
+        .await
+        .unwrap();
+    let repeated_state: (String, i64) =
+        sqlx::query_as("SELECT state,revision FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(repeated_state, (instance_state, instance_revision));
+    let replacement_state: String =
+        sqlx::query_scalar("SELECT state FROM pixels.instances WHERE id=$1")
+            .bind(replacement.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(replacement_state, "reserved");
+    context.close().await;
+}
+
+#[tokio::test]
+async fn expired_transport_lease_closes_occupancy_without_stopping_the_application() {
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    sqlx::query("UPDATE pixels.resource_sessions SET descriptor_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1")
+        .bind(context.session.id).execute(&context.fixture.owner).await.unwrap();
+    let remaining = context
+        .session_store
+        .list_node(&context.node)
+        .await
+        .unwrap();
+    assert!(!remaining
+        .iter()
+        .any(|frontend| frontend.id == context.session.id));
+    let session = context
+        .session_store
+        .get(
+            ResourceCredential::User(&context.user),
+            context.client,
+            context.session.id,
+        )
+        .await
+        .unwrap();
+    assert_eq!(session.state, "closed");
+    let instance_state: String =
+        sqlx::query_scalar("SELECT state FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(instance_state, "running");
+    context.close().await;
+}
+
+#[tokio::test]
+async fn primary_disconnect_has_grace_and_retirement_but_media_close_does_not() {
+    let context = Context::new(DeploymentTarget::Webview, true).await;
+    let media = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Media))
+        .await
+        .unwrap();
+    let mut closure = progress(1, 0);
+    closure.outcome = ChannelOutcome::Closed {
+        reason: ChannelClose::PeerClosed,
+    };
+    context
+        .activity_store
+        .report_channel(&context.node, media.id, &closure)
+        .await
+        .unwrap();
+    assert_eq!(
+        context
+            .session_store
+            .list_node(&context.node)
+            .await
+            .unwrap()[0]
+            .state,
+        "connected"
+    );
+    let control = context
+        .activity_store
+        .open_channel(&context.node, &context.open(ChannelKind::Control))
+        .await
+        .unwrap();
+    context
+        .activity_store
+        .report_channel(&context.node, control.id, &closure)
+        .await
+        .unwrap();
+    assert_eq!(
+        context
+            .session_store
+            .list_node(&context.node)
+            .await
+            .unwrap()[0]
+            .state,
+        "connected"
+    );
+    sqlx::query("UPDATE pixels.connection_observations SET ended_at=clock_timestamp()-interval '6 seconds' WHERE id=$1")
+        .bind(control.id).execute(&context.fixture.owner).await.unwrap();
+    assert_eq!(
+        context
+            .session_store
+            .list_node(&context.node)
+            .await
+            .unwrap()[0]
+            .state,
+        "closing"
+    );
+    let retirement = context
+        .session_store
+        .begin_retirement(&context.node, context.session.id)
+        .await
+        .unwrap();
+    context
+        .session_store
+        .finish_retirement(&context.node, context.session.id, retirement.challenge_id)
+        .await
+        .unwrap();
+    assert!(context
+        .session_store
+        .list_node(&context.node)
+        .await
+        .unwrap()
+        .is_empty());
+    let instance_state: String =
+        sqlx::query_scalar("SELECT state FROM pixels.instances WHERE id=$1")
+            .bind(context.instance.id)
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(instance_state, "running");
+    context.close().await;
+}
 async fn permission(context: &Context, allow: bool) {
     sqlx::query(if allow {
         "GRANT INSERT ON pixels.connection_observation_events TO pixels_console_runtime"
@@ -379,36 +611,42 @@ async fn channel_limit_is_atomic_under_twenty_contenders_and_pages_do_not_leak_p
     context.close().await;
 }
 #[tokio::test]
-async fn node_rotation_preserves_unknown_history_and_never_adopts_old_source_identity() {
+async fn node_reconnection_preserves_unknown_history_and_never_adopts_old_source_identity() {
     let context = Context::new(DeploymentTarget::Webview, true).await;
     let open_request = context.open(ChannelKind::Media);
-    let row = context
+    let channel_record = context
         .activity_store
         .open_channel(&context.node, &open_request)
         .await
         .unwrap();
     context
         .activity_store
-        .report_channel(&context.node, row.id, &progress(1, 20))
-        .await
-        .unwrap();
-    let key = token();
-    context
-        .fixture
-        .nodes
-        .rotate_key(&context.fixture.admin, context.node.id(), 2, &key)
-        .await
-        .unwrap();
-    let current = context
-        .fixture
-        .nodes
-        .open_connection(context.node.epoch(), &key, &token())
+        .report_channel(&context.node, channel_record.id, &progress(1, 20))
         .await
         .unwrap();
     context
         .fixture
         .nodes
-        .report(&current, &node_report(1))
+        .close_connection(&context.node)
+        .await
+        .unwrap();
+    let credential_hash: Vec<u8> =
+        sqlx::query_scalar("SELECT credential_hash FROM pixels.nodes WHERE id=$1")
+            .bind(context.node.id())
+            .fetch_one(&context.fixture.owner)
+            .await
+            .unwrap();
+    let node_credential = TokenDigest::from_sha256(credential_hash.try_into().unwrap());
+    let current_connection = context
+        .fixture
+        .nodes
+        .open_connection(context.node.epoch(), &node_credential, &token())
+        .await
+        .unwrap();
+    context
+        .fixture
+        .nodes
+        .report(&current_connection, &node_report(1))
         .await
         .unwrap();
     let unknown = context.channels().await.remove(0);
@@ -417,22 +655,23 @@ async fn node_rotation_preserves_unknown_history_and_never_adopts_old_source_ide
     assert_eq!(unknown.sent_bytes, 20);
     assert!(context
         .activity_store
-        .open_channel(&current, &open_request)
+        .open_channel(&current_connection, &open_request)
         .await
         .is_err());
     assert!(context
         .activity_store
-        .report_channel(&current, row.id, &progress(2, 30))
+        .report_channel(&current_connection, channel_record.id, &progress(2, 30))
         .await
         .is_err());
     assert!(context
         .activity_store
-        .report_channel(&context.node, row.id, &progress(2, 30))
+        .report_channel(&context.node, channel_record.id, &progress(2, 30))
         .await
         .is_err());
     assert!(context.visits().await[0].session.closed_at.is_none());
     context.close().await;
 }
+
 #[tokio::test]
 async fn audit_failures_roll_back_channel_mutations_node_invalidation_and_frontend_retirement() {
     let context = Context::new(DeploymentTarget::Webview, true).await;

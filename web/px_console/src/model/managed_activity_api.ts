@@ -1,4 +1,5 @@
 import axiosHttp from "@/http";
+import type { AxiosRequestConfig } from "axios";
 
 export type ResourceOwner = { user: { user_id: string } } | { guest: { guest_id: string } };
 export type SessionTarget =
@@ -134,13 +135,15 @@ export function listManagedRecordings(node?: string): Promise<RecordingProfile[]
     return collectPages<RecordingProfile>("/api/console/managed/recordings", { node });
 }
 
-export async function listManagedRecordingCache(): Promise<RecordingCacheProfile[]> {
+export async function listManagedRecordingCache(
+    signal?: AbortSignal,
+): Promise<RecordingCacheProfile[]> {
     const records: RecordingCacheProfile[] = [];
     let after: string | undefined;
     for (;;) {
         const response = await axiosHttp.get<RecordingCacheProfile[]>(
             "/api/console/managed/recording-cache",
-            { params: { after, limit: 100 } },
+            { params: { after, limit: 100 }, ...(signal ? { signal } : {}) },
         );
         records.push(...response.data);
         if (response.data.length < 100) return records;
@@ -151,17 +154,22 @@ export async function listManagedRecordingCache(): Promise<RecordingCacheProfile
 
 export async function requestManagedRecordingCache(
     recordingId: string,
+    signal?: AbortSignal,
 ): Promise<RecordingCacheProfile> {
-    const response = await axiosHttp.post<RecordingCacheProfile>(
-        `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/cache`,
-    );
+    const path = `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/cache`;
+    const response = signal
+        ? await axiosHttp.post<RecordingCacheProfile>(path, undefined, { signal })
+        : await axiosHttp.post<RecordingCacheProfile>(path);
     return response.data;
 }
 
-export async function downloadManagedRecording(recordingId: string): Promise<Blob> {
+export async function downloadManagedRecording(
+    recordingId: string,
+    options: Pick<AxiosRequestConfig, "signal" | "onDownloadProgress" | "timeout"> = {},
+): Promise<Blob> {
     const response = await axiosHttp.get<Blob>(
         `/api/console/managed/recordings/${encodeURIComponent(recordingId)}/download`,
-        { responseType: "blob" },
+        { responseType: "blob", ...options },
     );
     return response.data;
 }

@@ -21,6 +21,16 @@ pub struct ApplicationCard {
     pub access_mode: String,
     pub revision: i64,
     pub access_revision: i64,
+    pub running_instance_count: i64,
+}
+#[derive(sqlx::FromRow)]
+struct VisibleApplicationRow {
+    id: Uuid,
+    name: String,
+    kind: String,
+    access_mode: String,
+    revision: i64,
+    access_revision: i64,
 }
 #[derive(sqlx::FromRow)]
 struct ApplicationRow {
@@ -29,7 +39,7 @@ struct ApplicationRow {
     kind: String,
     access_mode: String,
     entry_url: Option<String>,
-    executable_relative: Option<String>,
+    executable_path: Option<String>,
     arguments: Option<String>,
     bitrate_kbps: Option<i32>,
     codec: Option<String>,
@@ -60,7 +70,7 @@ impl ApplicationRow {
         };
         let launch = match self.kind.as_str() {
             "game_hook" => ApplicationLaunch::GameHook {
-                executable_relative: self.executable_relative.ok_or(invalid)?,
+                executable_path: self.executable_path.ok_or(invalid)?,
                 arguments: self.arguments.ok_or(invalid)?,
                 video: video.ok_or(invalid)?,
             },
@@ -243,16 +253,43 @@ impl ApplicationStore {
         limit: u32,
         id: Option<Uuid>,
     ) -> Result<Vec<ApplicationCard>, StoreError> {
-        Ok(sqlx::query_file_as!(
-            ApplicationCard,
+        let visible_applications = sqlx::query_file_as!(
+            VisibleApplicationRow,
             "queries/visible_applications.sql",
             user,
             after,
             i64::from(limit),
             id
         )
-        .fetch_all(connection)
-        .await?)
+        .fetch_all(&mut *connection)
+        .await?;
+        let application_ids: Vec<Uuid> = visible_applications
+            .iter()
+            .map(|application| application.id)
+            .collect();
+        let running_counts: std::collections::BTreeMap<Uuid, i64> =
+            sqlx::query_as::<_, (Uuid, i64)>(
+                "SELECT application_id, count(*) FROM pixels.instances
+             WHERE application_id = ANY($1) AND state = 'running' AND ended_at IS NULL
+             GROUP BY application_id",
+            )
+            .bind(&application_ids)
+            .fetch_all(&mut *connection)
+            .await?
+            .into_iter()
+            .collect();
+        Ok(visible_applications
+            .into_iter()
+            .map(|application| ApplicationCard {
+                running_instance_count: running_counts.get(&application.id).copied().unwrap_or(0),
+                id: application.id,
+                name: application.name,
+                kind: application.kind,
+                access_mode: application.access_mode,
+                revision: application.revision,
+                access_revision: application.access_revision,
+            })
+            .collect())
     }
     pub async fn update(
         &self,

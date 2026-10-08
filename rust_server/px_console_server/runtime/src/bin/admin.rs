@@ -1,7 +1,9 @@
 use px_console_runtime::{
-    check_postgresql_administrator, initialize_single_server, provision_fresh_console_database,
-    run_single_server_setup, upgrade_single_server_backup_control, ConsoleDatabaseCredentials,
-    ConsoleLaunchConfig, LicenseLaunchConfig, SingleServerLayout, SingleServerSetupInput,
+    check_postgresql_administrator, initialize_single_server, preflight_single_server_database,
+    provision_fresh_console_database, recover_single_server_database_owner,
+    run_single_server_setup, upgrade_single_server_backup_control, upgrade_single_server_database,
+    ConsoleDatabaseCredentials, ConsoleLaunchConfig, LicenseLaunchConfig, SingleServerLayout,
+    SingleServerSetupInput,
 };
 use px_console_store::{initialize_administrator, PasswordDigest, Username};
 use px_pg::{DatabaseConfig, Transport};
@@ -13,44 +15,10 @@ use zeroize::Zeroizing;
 
 #[tokio::main]
 async fn main() {
-    #[cfg(windows)]
-    if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("setup-service")) {
-        if let Err(error) = px_server_service::dispatch("Pixels.Setup", run_setup_windows_service) {
-            eprintln!("Pixels Setup service failed: {error}");
-            std::process::exit(1);
-        }
-        return;
-    }
     if let Err(error) = run().await {
         eprintln!("Console initialization failed: {error}");
         std::process::exit(1);
     }
-}
-
-#[cfg(windows)]
-fn run_setup_windows_service(
-    runtime: &tokio::runtime::Runtime,
-    stop_token: tokio_util::sync::CancellationToken,
-) -> Result<(), String> {
-    let arguments = env::args().skip(2).collect::<Vec<_>>();
-    let [configuration_root, data_root, runtime_root, package_root, manifest_hash] =
-        arguments.as_slice()
-    else {
-        return Err("Pixels Setup service arguments are invalid".into());
-    };
-    runtime
-        .block_on(run_single_server_setup(
-            SingleServerLayout {
-                config_root: PathBuf::from(configuration_root),
-                data_root: PathBuf::from(data_root),
-                runtime_root: PathBuf::from(runtime_root),
-                package_root: PathBuf::from(package_root),
-                linux_container: false,
-            },
-            manifest_hash.clone(),
-            stop_token,
-        ))
-        .map_err(|error| error.to_string())
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,6 +31,23 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         [command] if command == "initialize-recording-cache" => initialize_recording_cache(),
         [command] if command == "check-setup-database" => check_setup_database().await,
         [command] if command == "initialize-setup-database" => initialize_setup_database().await,
+        [command, configuration_root] if command == "preflight-single-server-database" => {
+            let status = preflight_single_server_database(&PathBuf::from(configuration_root)).await?;
+            println!("UPGRADE_READY current={} target={}", status.installed_version, status.target_version);
+            Ok(())
+        }
+        [command, configuration_root] if command == "upgrade-single-server-database" => {
+            let status = upgrade_single_server_database(&PathBuf::from(configuration_root)).await?;
+            println!("SCHEMA_READY version={}", status.target_version);
+            Ok(())
+        }
+        [command, configuration_root] if command == "recover-single-server-database-owner" => {
+            let administrator_url = Zeroizing::new(env::var("PIXELS_SETUP_DATABASE_URL")?);
+            env::remove_var("PIXELS_SETUP_DATABASE_URL");
+            recover_single_server_database_owner(&PathBuf::from(configuration_root), administrator_url).await?;
+            println!("Offline Console schema-owner credential recovered");
+            Ok(())
+        }
         [command, configuration_root, platform] if command == "upgrade-backup-control" => {
             upgrade_single_server_backup_control(&PathBuf::from(configuration_root), platform)?;
             Ok(())
@@ -100,7 +85,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             )
             .await
         }
-        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|validate-environment|validate-license|initialize-recording-cache|check-setup-database|initialize-setup-database|initialize-single-server|upgrade-backup-control>; explicit provisioning only; configuration via environment or setup JSON on stdin".into()),
+        _ => Err("usage: px_console_admin <bootstrap|generate-secrets|validate-environment|validate-license|initialize-recording-cache|check-setup-database|initialize-setup-database|initialize-single-server|setup-server|upgrade-backup-control|preflight-single-server-database|upgrade-single-server-database|recover-single-server-database-owner>; setup-server initializes automatically using the PostgreSQL defaults".into()),
     }
 }
 

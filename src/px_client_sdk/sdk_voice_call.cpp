@@ -43,7 +43,8 @@ void JoinVoiceTimer(std::jthread timer) {
 class VoiceCallController::Run final : public std::enable_shared_from_this<Run> {
   public:
     Run(std::weak_ptr<VoiceCallController> owner, VoiceCallConfig config, VoiceCallDependencies dependencies, std::uint64_t request_id)
-        : owner_(std::move(owner)), config_(std::move(config)), dependencies_(std::move(dependencies)), call_id_(GetUUID()), request_id_(request_id) {
+        : owner_(std::move(owner)), config_(std::move(config)), dependencies_(std::move(dependencies)), call_id_(GenerateRandomBase64Id()),
+          request_id_(request_id) {
         initialized_ = state_.BeginOutgoing(call_id_, request_id_, started_at_, static_cast<std::uint64_t>(config_.request_timeout.count()));
     }
 

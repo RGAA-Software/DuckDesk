@@ -19,7 +19,6 @@ namespace px::panel::ui {
 
 struct PanelPreviewAction final {
     std::optional<px::ui::Theme> selectedTheme{};
-    std::optional<bool> enhancedVisualEffects{};
     bool exitRequested{false};
 };
 
@@ -49,8 +48,6 @@ class PanelPreview final {
     px::ui::Localizer localizer_{};
     px::ui::Theme theme_{px::ui::Theme::Dark};
     bool initialThemePending_{true};
-    bool enhancedVisualEffects_{true};
-    bool initialEffectsPending_{true};
     std::shared_ptr<SettingsPort> settingsPort_{};
     std::shared_ptr<NotificationCenter> notifications_{};
     std::shared_ptr<VoiceCallConsentOverlay> voiceCallConsent_{};

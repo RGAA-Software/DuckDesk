@@ -126,7 +126,6 @@ int main() {
     }
     const bool darkTheme{!config->lightTheme};
     static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
-    static_cast<void>(shell.SetEnhancedVisualEffects(config->enhancedVisualEffects));
     auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
     if (!session) {
         static_cast<void>(px::client::imgui::ShowStartupDialog(
@@ -163,7 +162,6 @@ int main() {
                                                session,
                                                english,
                                                darkTheme,
-                                               config->enhancedVisualEffects,
                                                px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName)};
         result = shell.Run(
             [&window, &audioAcceptance, &fileTransferAcceptance] {

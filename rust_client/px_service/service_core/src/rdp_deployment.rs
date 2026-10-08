@@ -1,4 +1,4 @@
-//! Installer-supplied public trust material. Credentials are never deployment
+//! Automatically discovered local RDP host identity. Credentials are never host
 //! settings: they arrive exclusively in the authenticated Console start command.
 
 use crate::rdp_account::RdpAccountSpec;
@@ -8,7 +8,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use zeroize::Zeroizing;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct RdpDeployment {
     pub schema: u32,
@@ -20,7 +20,12 @@ pub struct RdpDeployment {
 
 impl RdpDeployment {
     pub fn load(directory: &Path) -> Result<Self, String> {
-        let file = std::fs::File::open(directory.join("px_rdp_deployment.json"))
+        let state_root = crate::rdp_host_identity::state_directory(directory)?;
+        Self::load_state(directory, &state_root)
+    }
+
+    pub(crate) fn load_state(directory: &Path, state_root: &Path) -> Result<Self, String> {
+        let file = std::fs::File::open(state_root.join("px_rdp_deployment.json"))
             .map_err(|_| "RDP trusted deployment manifest is not installed".to_string())?;
         let mut bytes = Vec::new();
         file.take(8193)
@@ -32,20 +37,20 @@ impl RdpDeployment {
         let deployment: Self =
             serde_json::from_slice(&bytes).map_err(|_| "RDP deployment invalid".to_string())?;
         deployment.validate()?;
-        for name in [
-            "px_rdp_proxy.exe",
-            "px_rdp_proxy.crt",
-            "px_rdp_proxy.key",
-            "proxy/px_rdp_policy.dll",
-        ] {
+        for name in ["px_rdp_proxy.exe", "proxy/px_rdp_policy.dll"] {
             if !directory.join(name).is_file() {
                 return Err("RDP required runtime/security component is missing".into());
+            }
+        }
+        for name in ["px_rdp_proxy.crt", "px_rdp_proxy.key"] {
+            if !state_root.join(name).is_file() {
+                return Err("RDP private host TLS material is missing".into());
             }
         }
         Ok(deployment)
     }
 
-    fn validate(&self) -> Result<(), String> {
+    pub(crate) fn validate(&self) -> Result<(), String> {
         if self.schema != 1
             || self.freerdp_revision != "aa8650b300aa4cabd85d9c72b431301509b9043f"
             || self.target_domain.is_empty()
@@ -124,6 +129,7 @@ impl RdpDeployment {
 /// failure. The Render consumes it on success. Workspace identity is persistent.
 pub struct StagedRdpBootstrap {
     path: PathBuf,
+    pub workspace_root: PathBuf,
     pub binding: RdpBootstrapBinding,
     pub account_identity: crate::rdp_account::RdpAccountIdentity,
 }
@@ -149,7 +155,8 @@ pub fn prepare_runtime(
         return Err("RDP runtime instance invalid".into());
     }
     let deployment = RdpDeployment::load(directory)?;
-    let store = WorkspaceStore::open(&directory.join("workspaces"))?;
+    let state_root = crate::rdp_host_identity::state_directory(directory)?;
+    let store = WorkspaceStore::open(&state_root.join("workspaces"))?;
     let account_identity = store.provision(spec, app_id, node_id, device_id)?.account;
     let listener = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0))
         .map_err(|_| "RDP loopback port reservation failed".to_string())?;
@@ -166,13 +173,14 @@ pub fn prepare_runtime(
         target_certificate_sha256: deployment.target_certificate_sha256.clone(),
         proxy_certificate_sha256: deployment.proxy_certificate_sha256.clone(),
     };
-    let config = deployment.configuration(directory, spec, proxy_port)?;
+    let config = deployment.configuration(&state_root, spec, proxy_port)?;
     let path = store.stage_bootstrap(&binding, config.as_bytes())?;
     // Upstream binds itself; Render verifies listener ownership against its child
     // PID, so an intervening port bind cannot impersonate successful readiness.
     drop(listener);
     Ok(StagedRdpBootstrap {
         path,
+        workspace_root: store.root().to_path_buf(),
         binding,
         account_identity,
     })
@@ -264,6 +272,7 @@ mod tests {
         };
         drop(StagedRdpBootstrap {
             path: path.clone(),
+            workspace_root: root.clone(),
             binding: binding.clone(),
             account_identity: account_identity.clone(),
         });
@@ -272,6 +281,7 @@ mod tests {
         // Missing files and repeated cleanup remain harmless.
         drop(StagedRdpBootstrap {
             path,
+            workspace_root: root.clone(),
             binding,
             account_identity,
         });

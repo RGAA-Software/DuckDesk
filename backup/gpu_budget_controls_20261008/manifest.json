@@ -1,0 +1,2291 @@
+[
+  {
+    "original_path": "web/px_console/src/views/apps/DeploymentInventoryCard.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/views/apps/DeploymentInventoryCard.vue",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_deployment_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/model/managed_deployment_api.ts",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/deployment_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/deployment_model.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/deployments.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/deployments.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/create_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/create_deployment.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/configure_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/configure_deployment.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/list_deployments.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/list_deployments.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/lock_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/lock_deployment.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/report_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/report_deployment.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_node_protocol/src/lib.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_node_protocol/src/lib.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/command_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/command_model.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/lib.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/lib.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_wire.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/node_wire.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_client/px_service/src/node_control_client.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_client/px_service/src/node_control_client.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/tests/node_control.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/instance_launch.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/instance_launch.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/reserve_instance.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/queries/reserve_instance.sql",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/preview_placement.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/instances.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/instances.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/tests/cn_license.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/commands.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/commands.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/deployments.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/deployments.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/instances.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/instances.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/support/node_fixture.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/support/node_fixture.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_catalog_api.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/model/managed_catalog_api.test.ts",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "scripts/server_validation/prepare_public_cloud_app.py",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "scripts/test_windows_cloud_app_public.ps1",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/model.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/instance_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/error.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/error.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/node_api.rs",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-011e25d2db00e9fc58f3e82dd6037c02160101d050b4d07aac11f85b7c727546.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0289edaa4f38d675c1255c3a28cdaf901adff4fdd4eec39556c420ee0655c1a6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0433eeac9c53b51a9bb2df4d0de05cccecdceca278f380e23a96476e10c6f241.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-043658f6a2033fa27318bf14be79f55ddb61bf716f9b696173b74080ca0142f5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0482710bedd0be0fca292c9b5bab87f3e740c7db3c0ebf3678b3f196804b881a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-04e890319b660aca327237e079639c3a72fa77fba6dad3b14be1eebc6c20eab5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-060a28c48ae0f79f1a41ab79965cc73065ea43a40dff9f20e47fb9d298306225.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-068aaa4d63809195d0ff7ef627fd64eaf16ee991f1e209e8170336b42a2b0cd4.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-08274d344022d6de0ced852f664fa64d22ad6d1ba43dcc9810920a223f0328f1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-08857a3ff10937e548a9e9dec727db551cf2422e47df640127820302acede7e9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-08bb5bb8ddb66d7c808be209019cb6d35937d1ab1a73c823596da1bb5fcd07cc.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-08e59ac07a7e93da5665ce982f4fa1ab85593077fb07e54276cc05da6178e7e6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0abd8d641bbe00d3d5f20b451b7cc477727d86dbe9e1cae8e7d9a377bed81153.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0cf5aedc9947f908fce792f869e38bffd168cd4a412c58f5dc2a3d0ec9fc1df3.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-0cf5aedc9947f908fce792f869e38bffd168cd4a412c58f5dc2a3d0ec9fc1df3.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0da525e95d86957709a2fae89d6f54ddff4c0bf085d1d4feb37058b0091bd610.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0e4bf4c269aebff469820eaf4cc44a0179fbb4a8f855740b5d1a6c84b49e6e26.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0f0e0a5b26ec34cfeb29ba7dcd759f3db8d10195a57d6affdddd478393bf3063.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0f7f729112bf9b506c6d521ae2af23382722fb88587b799bcbc6486ac73727dd.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1217e413cc1a798b1f0c6327436bdcead17233b3609a6075ef8b5caa422cc466.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-134e49843ab489e8ada3f7017817577dab66d1f61e90fc03367e877d1056f1d6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-14ceb9bf4425cbceba5772ffa0ac8c470363752a690360c934a18c5a87130d09.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-18edea7132f47f440df9cd476d9a96b636bf54cf926c09937cbfb2a88cfb83fa.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1c16ffbd819f3b4bf38b3cccf59e5e4078891dc4c5c65fe6f1d73d83c8bbe3fa.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-1c16ffbd819f3b4bf38b3cccf59e5e4078891dc4c5c65fe6f1d73d83c8bbe3fa.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1c188b42fe10cc6c427410d20d0d1657f8c23229cb7c6736b88a30ad339af0c1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1c76fe80cde79837728a839fb5301bf452cca1528c6d01e5c9e7b3f81dc64c68.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1d4c498de4f225f4ba240324a88ddd74b05124e8d6f61d35f589cf86ee993bd4.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1da85fa844fbf530eeed93234c558092676d41d1964f8796030653456a4ece5f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1e43450b4cf94127ec67fbe92e83121c2d1e33373370f9a840e91e4a73621e34.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1e492e2d7d4928e7fb6e91d3d16719a327bd33d02d1facef91a1013c46e8d10f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1f997787faa552e90f1c9201b992ea53dca7b06b4eaac0f9d8536fda62cd166f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-213335d9f53f11f9e85bf845ebd69be3c5622231f17bd2d728adfe8c455f48ea.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-2209a4e5fe32d87d1fdaadbbbd3979f8ed92b968637c5c61318c82e10a90f655.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-22196953e16127b2b2578066a0302dcc8ea0a6f8bf329e433d3dbbcbf5423182.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-22196953e16127b2b2578066a0302dcc8ea0a6f8bf329e433d3dbbcbf5423182.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-2382c5bfeffa2c0c5b19dea7be4b5844af3079f563e6e5e39d063b9e4bb10cc0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-23ee837f0056176bfb1651b6821f7ee51f917ad837feab62203c88c4dbf05789.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-24a1d7c6ed9f1c2d61d448cccd428409ae8545ce71c35f543d3f767513463a35.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-25dd227745ef4eacaa9d00a13eaaf7f578159c6c99eef62645b2fcb1a2f66f39.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-268ffa41a8331612b5339cb5e8e658353d7f314cb922fc700298093afeef1bd7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-27b98699c5e0441046e5b6e92255ab5f13b87d1b273911f47d379c6a2c905270.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-28c2e0a7ac33dd77a754ac466bc814972ba11724c710ef409b4d6ca76800a0c8.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-2949ea14eb5d0fb95859811f335b630ca6a3d444d5ea53539baecd47f0358d42.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-29929cbcf62be0e246b49340c5513186525a78c7ebd4bd8ec5d33dc58266f888.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3020254ec74435008328ff34611ee862a14b70193e771a95879cbae5bfef921b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3158b4dc9ef48be46f8a8ea50e367a1b287e1602bc6c420e080982d709a40031.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-317f218699712d098906c932d88736cfe746ad75bcd8c87f08020031084a97c4.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-32061fa4134b4ea410bf0b2609e5db2c7ef47aa92857d44be2a385d5dc88c565.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-331b3bbbdea1d2770a601025fe0d8c53c35649f0ff1ed206a22cda7c126dd225.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-331b3bbbdea1d2770a601025fe0d8c53c35649f0ff1ed206a22cda7c126dd225.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3425cb958790d97122ab9d39c1437c83afd31ba2cb0a7839a0d94af304dd15af.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-34c296bef620bd77a48f2470951d7f95fd0b13544f3e3f909b523025cd909204.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-35b9b6ac7a1fc5d8b5e0f30a021ff1e4e300662e114b73ba1eaba8695de48b67.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-38787ad2a523bc3a2f1e6b88211f76b7276f43c75e69d9bef68b10fad4f5da03.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-388c41df520dac9fd9013d82edcdf59fecb25a28574d56734e1813a8781e2268.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-39e04b0ec2ce247ef020e9dcc765cab5e6d8eed1a9de2f2c6969a21d2a77cee2.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-39e04b0ec2ce247ef020e9dcc765cab5e6d8eed1a9de2f2c6969a21d2a77cee2.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3b56d7f565e1acec43d1c28b39cde38d3056442d4c9eb289ed51f45bd5fe437c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-3b56d7f565e1acec43d1c28b39cde38d3056442d4c9eb289ed51f45bd5fe437c.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3b8c539af931ed97950c74980070c1a5ab52764b0acd884819ce52075ace1988.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3bf56feac5a953abfc99d0e335629bfa5438c0ea20d22cabb8bf87f87d725219.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3c0a0b721ba9af7bc22b8dccb8f2ac5924c299c3d72c75e9fdb29f8c624e6d7b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3c75e92b7b2733366fac636ce6f317668f71c386826296ae9ad6309786ad4bef.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3c90515ad9fc555e28ce4d75ba37756863c829e8b05dab142353171de3b4d5df.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3cd2bc9d0dfadebc64dc998d62c30e9c11dc01945894ae0789d0713c5f487588.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3d010473835677b581259477412328ef5b59a09fccfc2638f48794727027026e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3dc0b89bbc9dadb261e0643b12d43836c7e3eebbec096eb294389f8970706341.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3e4763e31c5de3687f9dd7978b360c44d1518b75ea85cc89dd7783cf6cdf2461.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3e4fd2e5599252e9fee664a0f6328613492665592ac3038d85f931f07b1f51ec.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3edebacedc045ff9da4e4985218beee90cefd63210e8b1039ed087356b648adb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-407f9855652e4acc8b166928738600675a65f6c3253e71c8fdffc6ba3d97b3a6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-41d73d537522ae8f74d9ea6a1dbeef85f21cdfd5fec64a8c9dd9b7159b672838.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-423d88dcdb79bbf91a6cd3e9c25b7e7379722103a6b85ec952de1d6c62afc8ee.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-42d74633810285bcc14e0c367142b9c058c1d75b2864da4d1c99b28bbef4b2f0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-442247d7d7ec15b75d0396abfafc027ade5ffd1f73ed49f3af690e29a064fa38.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-44495d3628de60d419e1193463b7654b7e8413906e5e8599a7cc14fb3e6fb31e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4592e06fba1936142a162c87ae86f9338201b7036f26697eb8e58ca0242d0a5e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-46ac53924fca39f8bf325087414eb4a356f5e61b52a049052400a57bbab13541.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4721d810508126255e3129260082f4cdef5812ce154de3a99d9e85aca1e198b9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4726e61c48bb1a96a50e9febd67ed928be5794c9fd87ad8d7eb4ebcec09a6baa.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-47e8d6026cf840d0726339fcce77007a4272bdd132011990c2435250169c7e1f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4805d4a9864c4485a51100cb03c9ce73742c906fedb9ca11babdb8c48616bd44.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4892688a7b97627c84ae038a4db786091645b6eeb88ad6653ece09855c311ba6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4a647bedc84df73c1d02fe2689d37f4f61b48aef269dfd9043d92a7e525e46aa.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4b04201045361156739645f5cff3ed3a963e4b51f28e1b234091e5970091b3b7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-4b04201045361156739645f5cff3ed3a963e4b51f28e1b234091e5970091b3b7.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4b974c80e29790f15b271ea7df0baaeae210b2455dc5ba32f197ac2e6b3ba7d6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4bade23f26000a3e851603c366064d0e161c199e6c35066636ea68ff0166943d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4ddf55257f411a2f1bd9fd2beec000f7ed1149f3cfd37b242509f3c08bbfe120.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4e702643db03fffd4dbadbfd2f5f115e14629e80cb9193d7759495f37b11a693.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4e88df5abec2637c8fa5002c231f555f0cf1f8ad1b8bd649a637da4d5d1804fe.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4ea601b2185bd06af2a565a948a6e66e5348ae1e237213804d26e958e9d2a5a3.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-4ea601b2185bd06af2a565a948a6e66e5348ae1e237213804d26e958e9d2a5a3.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4ee787f2a258629a8b81ee6813f059f41325c7ebc992d1d3c1cd24b63185abfe.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-4f7e32c1bc2900365f581f66e74e3857c687b2348866c90bdb516fd49eb06504.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-50d3124290fb32f28bca92e542d4b62ced3492398a78b02aee5b568eb3ac26f3.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-514da7fdbd6aec81e4965ac8189e3aa9917acc6c48b9505b659bc4e84c715d1c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5199abed66d4977d276b86325ce1f4da28c34ed40d4cc68eebdc32e59746dd4a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-523b467ad6b15347ec12ff6e6023ee41d5304323982a7d873d8c03364feee0e9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-53020b25f5ce606d91fa9b4fa309484cdc91224ab77ae56c251bff1960420b1f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5327f5bda500ab5a9b116712e1d51f4601a1f7be2ac0f59b828ea9eee14e5d0b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-533f4f191c2a29e383694edc62e22c2d5050e10d1b6faa893935606e689c7d27.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-534850d55804f51dc623480c95d8dd1b8fb457c594e1a58112ca365e2b2f5617.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-53b59e052e77b2e0ec0914606f6c00f3bb3ce727ce7cc0fccf177ec1256b3efb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5505193234586058acada94731fa12565b8b277d694618552abc60d15ff7f2fa.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-552a7188cc7e609ef0cc2c135cf712081d68f19c5d9b4860381c020da9e7508f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5747ed3743d1aab24b9243745ce01e0d5bd77b7c5a502e60db0a9c8ffdcababc.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-57f46469a06443fb6b3205b6b05e25578cf8399d9d02f14470874bd9f316bc4a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-59fc4a8fd9d71b7e18f8903cffbb6931d3d9d8928ba4358e825fa79ac29d6933.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5acfecdb230f17ffccbdf8c99cf50e656e09ab693c57775e2b879651ca2e595e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5af9bd106a027422d2d1db273dee8d08ab7d372e148e3aa2be560d114ed045f8.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5c7ba4ed7a504046a6ad1321ba7b436cbee067ae9842c2740245924a01c5fab9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5c7bf129c971a5da96116d0f517e90e34426fb22608f204afbc75877f86f181a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5cb22085c69f04841c0fbd1d580502fd627df2990674c1d4588473186d267bfe.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5dcf834b187f48f37d891f394367f1374f34cd97f0ef7b3bb2b95aa3a2fa4ce1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5f3a6a799cb4bfa9e0dbe528fbdb837ac3f67baed17ccbb389ab3734a47b22ef.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-5f75b68f2a0fb5d245d1ee5b9a47fe595f17bcb57f0eec7837e0e35ac11585ab.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6088f69b9a6c7b2fe88ed1ba4230c2e5d279a81f138fbbb9d524aea419afadae.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-6088f69b9a6c7b2fe88ed1ba4230c2e5d279a81f138fbbb9d524aea419afadae.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-60cd255154c7a1fcd4db0907f93f29416d2424dd11041ce510e49c0298a2d204.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-60cd255154c7a1fcd4db0907f93f29416d2424dd11041ce510e49c0298a2d204.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6128cb0cc55268afc5fb23628aba1c71d037246c7a1cd029aa9ca7a91537ba9e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-619d833e1be5ad80f8f1f23ef2cf7d0ebbcd8b705da63daf8022c69e59dd454a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-619d833e1be5ad80f8f1f23ef2cf7d0ebbcd8b705da63daf8022c69e59dd454a.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-61b4509caa887e3b5ec6d313eab12f2997bebcd98ba242a3308aca162d7c0b28.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-61b4509caa887e3b5ec6d313eab12f2997bebcd98ba242a3308aca162d7c0b28.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-63369b0f472daddae3926d71c7a9e885c4fa1dc83513d5b641f84d45525ab1a1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-650b01381386998d51654f8f58fe3f17c6c872e58850bd1e59a736810eb2a905.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-657f992c480669019634ae6cea64b467b7f452da528ea4c6542b6ce1fa6986f5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6613c72c94acce5f57b5db0d7498c2a382cb76d72eec901ddd3023de79221ccb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-66f30a60692921a62508a8939bf46ab8210ba37447c2772728915978a8fa3ad8.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-69ae1d3ce12de993149d1c640985be0b6b3187a5ab0c28ede7cffdfc69b7ebec.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6b71559a72215672316f3f76d649344689e254f734b3cf97462b8f84a72cb71f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6bf9478ed4bbe18d922208d53f93779b19dabd116ae16d33fc9f50dff10eb2e4.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6c46044c85db02fe5ab899d885da4096972ca4567f60f3637d038e4e15bddc2a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6c7bd34391f95453c46f8039967d6b8fdff57100ce9199df2fbf7f6e22898260.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6c911d1ed69bbbf65f0ff35c8426598fbd17310487094c0a8ec66fb7ad8ecfcd.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-6e09316065182eb14f1873f383aa29e6e5af64cdd1d7123f25ef57562701b7e1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7000831b37a33969d284ab58e1acd5908b940cb8590b817661429eea985fa587.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-70a7a09ad170a0361929094b00ef94d49be9a2f1b54090ada293da17581ac414.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-71a97c3c29096467bc3efda6f19a64b9fbbc299cfddb7f7ccd2f281f48a1d20f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-735a41eb0db2757ec2808116b6444d30431ec8bb81a9902379b0c4a233e2e7b6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-73fa368244597f56aaeb299b74f277ab7f3e1dd745b8024597df7dd4ba0572e7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-74346c357ae55455faba02105d235ca514a5bb78a9b8cb07b03e742e0274003d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-745d11a6b728e3321fd332ab2bdc1c37ece84aefd58235075e16aec1a4883524.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-745d11a6b728e3321fd332ab2bdc1c37ece84aefd58235075e16aec1a4883524.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7532fbda60e1c6c2c92a616589cb2dbfe3b0f1737c395743fb4a38cca59a9019.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-75f410b687825211f83faa7e56d15d4622659b73d452804e469bdd59869c6852.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-77adf0515183c678e2b9fe0daaf3f6e058f5343e161c3d59fb31763fe66797e5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-77b7392d008d8fa4476c38e50c09427b6f5b17a96638084f0b7cb9c1696ace4b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-77e01822076dcb5b75b4b49d15935410c1d1e42477d96464e4e9a9940b22ba2f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-77e01822076dcb5b75b4b49d15935410c1d1e42477d96464e4e9a9940b22ba2f.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7822cbfc701a7425948f361e97ce36a98978f4ff6bfeada825318437aa3c651e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-78cc6781a7f92c34bcbb027a01b6b81d66aaa5807b2b2d9fd19b46518523321e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-79351c14751a4abad2c960aebbf8c73d3a0b2418d77f2576b007806f0afb8706.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-79ecebb21b5f05b1226822a14d7e8e685a569b9c5f2f1af0cb4fa26180c54c6c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7ab0fee2af1a58b56300b2bcf19ac8c1b5f98c25169663a48d01d1660a266d87.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7af58a50152e25479d7b1de14ce1689170f3aa13ea84458d3d3958493528e853.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7b159e84e53357bfe6558179ec3467b26453bf064343e6d7f121613e3f3a4cf8.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7c93fa836704f663727937288dccdaa46f0cd181371472761b7d7755b7dc0bdb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7ce9fd89e297df658e784f4c835c6857918f1620c76ee7e9254e60696616d22c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7de2f27f0d84f32f4e7c462b08fc344aad372f18c96b6cab588b691ddc93b5db.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7e8119ad5e349553bfeaa6f69be70bedde390eeb88595f973327b24b33eb6fd7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7fdf2a3d8d53cc70e524386f2bc2fcd7370843d010997212bb15dc0134145606.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-80726ea067e0cb90ee99220332202bba8c55a035cf1f970dbaa3d5511336c8d5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8381ecf8b00409f5e9a30c3ec6b6bd66efc1061b618facaddf52a0f9814a1594.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-842509b934b52cf0671bb815c8b0862d6c5b40afba0cc8a27ca2a782d14739f4.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-854ecc5506cbf3db567eaab21f47f614ac614d007b2f7709d2351496be5088e6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-87949e0b94cf03648243693261d9a3643eddbd66271e45f6ff2ca9a7e6867a3a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-89886bc6c0fbdb60e9de38810876c03e19c0e51bb4e16a93c3e4af15b3f4a10d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-89d009c9aceb027f1133cea2fc69abe6f060c2538898f587cb6f4e017f440888.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8ade8e766c813c87ff203da1d902d9ddce7ed5ac2a5dd5f826a6ccef04107146.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8b356559b6edebdca8a452a88cdb722f8c65b9c1145a0867a46ddbcf07c62dad.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8cacb308309456718789e0bca8e4885dbbceb813a2932c7e27f014e3fbee6045.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8cbfa2516fe7e6b9bbd2405d2e3ef103ec15e56e89fa7b00a8d6980e7b59ec3f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8db6f55c12bac35131b64a5d9c804cd2693c5f080cc5b64517a021ff503ae088.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8e043dff06bc556be0a34b4ad8d3a242a207ceaf7fcd3442524916a88f850798.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-927134b688bd9ddf8836579eec0aa01bdbc709f239ca38bb74493f951a11db5f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9424f010650f56bd75ad8ccbde0c7592782d74d5dfba8edf95982c99e2082646.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-94a34f53ce79b15ef31e6038b18e89f4c85e74e31dea861c8b3e70beda8c0f12.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9564adac0338745e7a0c388166a0145af355ddf2902aaf227d4247703a1c7d86.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-95997136d49a13149c5cf7a15993e217bb7cc3199adeef2bf75a0031588138af.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9660ee5511a68ac4ca6e3f834f1a6eff8ba35bc6d83cfaadbf9de897253fa738.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9828176d597fbdc20b9b1c5b68b62d45d2ec84a4ee5993bb454f3c33ed0e7526.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-98b7bc857b89ac06c3eb29bd7e9c7eeda2f26bbd055f835065cf28a10cf832b2.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-98d6b4524483853f5b5990c94bf9e7c4e215955f4ae1d6826c8bfa50cff48635.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-98fedb1421ecf7dbe5e696d22acef69569684541719f1339e6ba1d3109de0487.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9a9936e40fcba103f3c8c63da6161910e50d78f2eb26483f58718c4e6bc1b4c0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9b45b2f792c17c679876f6b67d9211dbdfeeae2fbc44aadc98fa34372c201a7c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9cc1b9e987f9fc7a9c8caf036a1efbdeb5d18c698a37b0933d921df0ef2c7d56.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9e446a89dfc30e4c7695c3ae4bac08645d2a5e7b56fcd9ce69a332f546b0da05.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-9ec491e1ee6115fa8ac1dcb3b89b9270d1ebdd072e8bffb5ad111e15976f3d3d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a0dedc66a8166625461450d5ee0492408181120409e2b19b8835a8c73454c581.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a23b2b84feac07060739f3d30950fce8bf885eb61df8b9c4be3cebc8d38e65f5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a2ca0847bd082c36e11137c0f9be93719af176f269f0731e325e2be7159fd068.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a340f75d8c092b6cee465f2fea85429bb6f127485f51bc615cff84bcc5075e85.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a34eff1b2ed559519619c6a853c7019f4a1200e687f3ebc9051ebc89a4c0f594.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a51a724c7eca1a71698a73f7df125f79468f49a916d50152d88313c4142b0474.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-a51a724c7eca1a71698a73f7df125f79468f49a916d50152d88313c4142b0474.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a5f7d919098e24861be5dcdb871ce4728a3e7eff161f1dc30c5ded74d02161ca.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a792aa25b94b0743f8a60afeb32069ec770ef81278e4f259f81d11cf62d8b84f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a7fcd6a99b43da8aa6781c2957a9f63f1767c9b7a0c81b01bf09950632bc747f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-a7fcd6a99b43da8aa6781c2957a9f63f1767c9b7a0c81b01bf09950632bc747f.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-aad5070fcd0d16bd6933876656f8a4438186f27097436ff655d62ba201fb3f10.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ab9c274c6a83d937da542b0ca0d83eb57a8d15aedb6b8b4436222d709e6cf44e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ac10701eb9354c1dc547828eb636467446c824c47b6a092fc477e715ecd1cd81.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-acec3c401ff44799b6a91731685cb8b85eaad8123f4ed3dff1b372ba483b85d6.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-acfac8a40ff5cf664deac5e9ef17d91e933ddd784eb88666c8593eafd0214d4b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b16d5d3766f10e335c291431ce2dd1bee8544e2e3f995c197691236989853431.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b2d18ef1582402e362115ee8977ead180609a97ef84741b2e364d16541bb3e9a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b490cb1bb43eb2fbfbf8b1d1ac39fc039f16e70f826f2b1d9f432719c86317d0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-b490cb1bb43eb2fbfbf8b1d1ac39fc039f16e70f826f2b1d9f432719c86317d0.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b5a1143f76944fff9a28b4f68b1d6ccc5f79b25531c031469fefaa661fdc5494.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b63727547527ffc25245dcf84fa336cd658c4a193d31ac08e15be42048255f8f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b65744a367e5a7bb6fbc814ada9d160ea84fb4fe365659b69b9d0a19f3b445fe.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b67e4adc1c37db6b90d1eed364a5bf698c8cc723e72ade2e2136e879ce386225.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b87ac6039040e3feb039f8f449be10bd71af8d37aea61a523945a131fc227a11.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-bd8b32c07a0c2d557ff44c2af7690f677a047bb6bb14903b57f6f89189dbc4b1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-bdb5546f4a2068379102f11d52339f4d9f15683557a5e0d0b5c5555b561c3029.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-bf0816c4b7beb7f659abcb332150d86c84242da35054327f0773ee75fc989b98.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-bfd5e1ea1afb1bcf259021b54a22a2bab3203df13ed00f66a817e014ae4a974d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-bff16bc8fb27251b0b1f7d1deb1390ec650179a3cf3d762f442304b45e44a3c5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c0254e23229025644894ffb53f942413b42b748f651a90eb32ca5dd4e9b24baf.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c09f9b7cf19607e3bb51d36ebabc56e9960de88869ddbcaffcdfa2b1b8a88837.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c1663f311f4516e549896f4a24ebffe4a38db37dad736691d098e9c504afdc99.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c16b6587ca46b32ece08677e97b5f30d82abe4578ae05ffdd1684ee8ee216789.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c4e7ef7d0f6a3837ed1f8d234e2edb540a9b28befcdbd0b44413c472e5a009a1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-c4e7ef7d0f6a3837ed1f8d234e2edb540a9b28befcdbd0b44413c472e5a009a1.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c5c3f96bef3090e131afede16d1fb3f052f1e53bc34b267050b9c21c493a1bcb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c63722aa4d6aa581b625ada084fa89538a479163116ad3fa29d766e4cea0e124.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c6a1090a5cc315ac5054dcb9ee8c0736069b27b8afd0bd778008421c24f59cac.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c8a05bd0e077857d3b524d7de02fc3992f498c1c5a193d1615e0037daa8dce4e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c90abe8d447f63a91b6e88f5e1501bec8e5c0f550aeaad09d92ab907e0bc9838.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c99f05f55cdc45fb44e16919688bf3fa0733924a7d2166a3fe45f8665a515fe3.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ca1173883d522e03b0493b4f829541cda746a57431e597dba12f8d13c4740adf.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ca43313f2c156f0e9565aa813302a89d4621e1296a733a806396843ddf3a64bd.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ca468a6a62c51e2635438f724a1632b67e4e168d798300de0629c86354c415c7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-cabfee630b4827ddfe6642797024967ae644b6067f13063354dbd94953e9e6ca.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-cabfee630b4827ddfe6642797024967ae644b6067f13063354dbd94953e9e6ca.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-cb415c1a227663e4e95d67ae040e3b6d2d1ad17eb6d5bc66e377682538f90026.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-cbd72c6036daf3f95a77f74fd0eaa6be920a6f8b2c2797843f98ba00c410dc4d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ccfe13a19c7804faf80388361e9a5e5b8fa852b896db5c028af64ccb40516005.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ce3f5617a7b9e4112be3cca7f0811b20f7f1b155b41b62a5a06647c9d608193e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ce462e7d0f3e8765b1f55f028ce6a17a62b672b5405383e7746e4c3d53bc98ba.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-ce462e7d0f3e8765b1f55f028ce6a17a62b672b5405383e7746e4c3d53bc98ba.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ce4ec0af0c023745b8c7c2656d09d942b1f26b173be3499c622746dc23fb2d5a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-cf152775b79b22f5a7f6de9835c777b04bcc84393ebd075d7a651753d8ad117c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d1dac0c71622882d25a8e2487cdb84dac5d549dc3a1bc445c3c3363db1819801.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d28fc7b29a037c0f7aef6f1003068c7219dfc10d7029cd6ef0991e659ea848eb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d3194a3f22fb54714600b958465abf3ddeff583116a9f44271dfda144f2d8d53.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d385d13469f2947f527ba8eea2f5f5ea7d51139c741db6f249102a2d95959dd9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d6329e7a6cda6ec22eb6431a3cf313da88c0188b0fc5e13941bed549b2e7b843.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d6ab3d5a5eb0b9ac9b64150729eb68682c0d468694d97a0159f9ccfa7188ed4d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d72379b177c6150def37c9aafdadf9e43be6892eef88171cf1b01a10dd8b81b2.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d7ed9904cd03cec27ffb0a55460b49260191f9bbfe199aa40fda90dd202a72c0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d82fabaa29829ad7ac0b3deffcf109cf41151d222c8d7445fca6adc0e593c034.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d871966b4b4e72f95df67f15000c67b978572e2f0306482bedcc3d08402a3c43.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d9120512236ecf59ce26b4cf8e74a7c9ebf220f88f3b4fabd0a47b0d8cff4921.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-d97457d0dd85eefe546c21ea1daf611d90303cab9291c25215e7b04b0038ba9f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-dca881c17c0eea6bcc9686cd40a2af3bf81212abf9fe7a2fd3d9c30cb492b891.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-df704838607fed453ef4ae653fb283b3084a69ddbb88d8e956b49840929e89d1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-df76ede5f6cdb8793d53b4e26649dab01599d3e9e9889fdafe64bfc3f16b21e1.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e0d163f62f0d01763ba529abd5593844c07c2a09a3599d176b0c7e7dde47b045.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e28700a5f8514d59d5bc407c1ba694754bfd6a68120774e7b56f49dd7b4b3db5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-e28700a5f8514d59d5bc407c1ba694754bfd6a68120774e7b56f49dd7b4b3db5.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e33e7f75c723cd2f37a5136cc545e94285a8306747d56e1cff4a25e677621960.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e491949edb6d87c9c820cf252bd8ff0ea429622b9f72d66d04536665b6bc872b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e49b3b49b1e0c9226235b0437468b2e0497ad9c2cf9db20f66fecce8b0d7eeba.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e4b04286dab641f8586bf803ad96f7f62dc866dc8b59a7df9fa1c21612ef42c5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-e4b04286dab641f8586bf803ad96f7f62dc866dc8b59a7df9fa1c21612ef42c5.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e770222e061bcc2318d6e47888101fa7c7e2927b2dad947ef005829060261553.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e7aa878123347e67b14719a5a83a5c9ae127afb66b19000aa2e7e137dca431a9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-e828649b3a72a4d0278be65b82f261171228e7470c06a79048f49459a809f9ff.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ea1021d900a7605ddb30fef7b060598208716e7cb5e98618019fb7031dc62d29.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ed3c29c77180d3990e4e7233e8d0fc6fe523a98d004dea2ab8c8767b5bde6610.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-edb70969e36fbf7038d54b2e5690cd1beccb978925a55761b4836560a8d1271e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-eeb5089fcbe3fadc67302b6466ec46aacdb6455ac5c1e25c0a6064f0d626fee9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-efbc4a476a6c76d776b58e891f8ccab9218cad6fb04a3c42b7dce4422c7beaa7.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f04a7c357f38ed86fe19d982e4f25352b37f0eb19892c4d9cd52bc2f8b1c377c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f05258dc7600ea25ee0fb649c42c9d78e060f8c38591723da134dfa49b294048.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f125d7fbbbf4ee81f854545f7b46f7ab1c9ceb3bc308e49d724f65fa08710cbc.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f15cd727d3bb35640fe0e8fa355ddbd00e59f66e6efef9ba55dbe9932e2a8462.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f19f3020993d1d9ba56aa53ccf2e2a31b7d3cf08be2e515aca22e4e8aed7b11e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f1d6cf70102e8364703c84a075cf2a40b9831f371392e53ae5386bf846eb4e14.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f2bdee9cc6df80dd5986578c944db4e10423e0fbfb17a256963e6e4de9b4ffd5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f2ca9ee7576f0f5e20ab81a6c0f3a585379aa3bbead84c68fcdf553618891798.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f31c2e85a2b9d93581c078c15c4d5855befbc243046fc3950ddc934df491dae9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f3599b45f2a1c080e16bb88f52ecd8ae499f687c0358cbd866c095b9e25fa55e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f3c830b40e1f3e0c46b539a4dc3c36c0db0d6cd319d0a3f3737a08949d9ca51f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f4ca764cc3f1595d12e126153c26a991167ca72be33838313bbcd06e1a83a5eb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f554e9f133b0b09fcbfacb746dd3d51a84e8914176119943900e366ecccb4732.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f5e150c4a2fc67cd3dd6cdce03ea55884dbf150752e490c3983382415decbb2f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f6777fd8d8ccd8edb44ae9be83f9a614fb2773a006890e33be231906204afd5c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f689c7eb734b72e9652b2cdca13840fae94aebb6f0f7da0558c263036a92f420.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f717636f0fd6f8477c91d9d0b76e604ae64ab65ccabc6f99910401d91f47f8d0.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-f717636f0fd6f8477c91d9d0b76e604ae64ab65ccabc6f99910401d91f47f8d0.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f71b2ab501972c333939e388e16fac389bfa666f9747d73b8bea04bb0e4eed1a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f7a0657353017f4e1224927f7291f177c00eb10e03d6e24439225124f32c5654.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f8f250a15087095a40f60d2735231e1c96d9b0d353b69da2bcd868c6e65a326b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-f9cc301b0f4d21f3950ec0cf1c98a106117fb4b8be4c97dd7bce10225952f97f.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fa6b2a72952da2786cbf5133e2e1f3f7a310feedb6a6960a48f89a342a78b30a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fa6c83ea9a77fb080ffe5d80b1360f7715b749bfdd5240698594921a4e67040a.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fa7a2a1693f749ffe4c72a4144188a914fb622a638cdce054fb4d55685a905fb.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fbac6ac52f11f4ca910141de20f2ade38f2ed7630f221fa099425dae44a7d538.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fbb7c92e22a288b577898e2d78a4ffc7a62e9d6894b6fafc748e868e623fe099.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fcddb95b0c3717839b81ea5036994e7067eddd838a01afe848c69715d56af347.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fd7d87265e4c84c7b498fca9fb117dba990ff1501a99d8a4c4086216778a0c72.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fde4d972ae3f83211925215b33fad845f15cfab2559ea90e1e1b355cb7f1064b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? rust_server/px_console_server/storage/.sqlx/query-fde4d972ae3f83211925215b33fad845f15cfab2559ea90e1e1b355cb7f1064b.json",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fdffaca5bc98fcf0e636fe51f448c9264f1310bd6adea57679e1d2e8ec7c82da.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fe216c1ea5110dd9a7c7838408102c3435376c3dc197a1241e331c986c3fc14d.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fe6027b8d38aefe7bad536bd9b35a735481239aa2b380597ed303a6df0db6d39.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fec7532118da8791abb3556faa2a3db0168b62d95a3ee7a9dd56ea2c1db6c32c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ff1c19441c2563c71b946213d1e38d42dd12e36e67f8e5b5f65f0be48644c9c2.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ff845c3c9026a2647d45192694d746c8e497534c81a4c4873b468e0cbbec2a16.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Preserve generated query metadata before GPU budget schema removal",
+    "archive_batch": "gpu_budget_controls_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_scheduling_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "User retired manual GPU memory/compute/encoder budgets and admission thresholds",
+    "archive_batch": "gpu_budget_controls_20261008"
+  }
+]

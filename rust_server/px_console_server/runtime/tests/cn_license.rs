@@ -218,7 +218,7 @@ async fn cn_signed_customer_license_controls_live_console_api() {
         "/api/console/managed/deployments",
         "admin_web",
         Some(&administrator_token),
-        json!({"application_id":application["id"],"node_id":node["node"]["id"],"configuration":{"target":{"kind":"webview"},"gpu_key":null,"gpu_profile":{"memory_bytes":1073741824_u64,"compute_per_mille":100,"encoder_per_mille":100,"memory_reserve_bytes":1073741824_u64,"compute_limit_per_mille":900,"encoder_limit_per_mille":900},"capacity":4,"disabled":false}}),
+        json!({"application_id":application["id"],"node_id":node["node"]["id"],"configuration":{"target":{"kind":"webview"},"gpu_key":null,"capacity":4,"disabled":false}}),
     )
     .await;
     assert_eq!(deployment_status, StatusCode::CREATED, "{deployment}");

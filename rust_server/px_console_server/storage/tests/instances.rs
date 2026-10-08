@@ -5,12 +5,11 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
-    NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
-    PasswordDigest, PlacementPreviewRequest, PlacementRejectionReason, PreparationState,
-    RelayNodeConfiguration, RelayNodeProfile, RelayNodeReport, RelayNodeSpec, RelayNodeStore,
-    RuntimeEntitlement, StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec,
-    VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeGpuTelemetry,
+    NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, PlacementPreviewRequest,
+    PlacementRejectionReason, PreparationState, RelayNodeConfiguration, RelayNodeProfile,
+    RelayNodeReport, RelayNodeSpec, RelayNodeStore, RuntimeEntitlement, StoreError,
+    TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_console_store::{
     GuestStore, InstanceStore, NodeConfiguration, OriginFingerprint, ResourceCredential,
@@ -57,21 +56,10 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
-        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
-    }
-}
-fn test_gpu_profile() -> GpuResourceProfile {
-    GpuResourceProfile {
-        memory_bytes: 512 * 1024 * 1024,
-        compute_per_mille: 100,
-        encoder_per_mille: 100,
-        memory_reserve_bytes: 512 * 1024 * 1024,
-        compute_limit_per_mille: 900,
-        encoder_limit_per_mille: 900,
     }
 }
 fn node_report(sequence: u64) -> NodeReport {
@@ -227,7 +215,7 @@ impl Fixture {
         };
         let launch = match target {
             DeploymentTarget::GameHook { .. } => ApplicationLaunch::GameHook {
-                executable_relative: r"子目录\Game.exe".into(),
+                executable_path: r"D:\游戏 根目录\子目录\Game.exe".into(),
                 arguments: r#""含空格 参数""#.into(),
                 video,
             },
@@ -352,7 +340,6 @@ impl Fixture {
                 &OriginFingerprint::from_hmac_sha256(source),
                 &key,
                 ClientType::Android,
-                Duration::from_secs(3600),
             )
             .await
             .unwrap();
@@ -439,7 +426,8 @@ async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bin
     )
     .await
     .unwrap();
-    let (first_node, application, _) = fixture.prepared(DeploymentTarget::Webview, 2).await;
+    let (first_node, application, first_deployment) =
+        fixture.prepared(DeploymentTarget::Webview, 2).await;
     let (second_node_id, second_node_credential) = fixture.node().await;
     let second_node = fixture
         .nodes
@@ -501,6 +489,27 @@ async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bin
         .execute(&fixture.owner)
         .await
         .unwrap();
+
+    let preview = fixture
+        .instances
+        .preview_placement(
+            &fixture.admin,
+            first_node.epoch(),
+            &PlacementPreviewRequest {
+                application_id: application.id,
+                deployment_id: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        preview
+            .candidates
+            .iter()
+            .filter(|candidate| candidate.eligible)
+            .count(),
+        2
+    );
 
     let busier_relay = ready_relay(
         &relay_nodes,
@@ -579,6 +588,17 @@ async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bin
         .await
         .unwrap();
     let mut commands = Vec::new();
+    assert_eq!(first_instance.application_id, application.id);
+    assert_eq!(second_instance.application_id, application.id);
+    let assigned_nodes: Vec<Uuid> =
+        sqlx::query_scalar("SELECT node_id FROM pixels.instances WHERE id IN ($1,$2)")
+            .bind(first_instance.id)
+            .bind(second_instance.id)
+            .fetch_all(&fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(assigned_nodes.len(), 2);
+    assert_ne!(assigned_nodes[0], assigned_nodes[1]);
     for node_connection in [&first_node, &second_node] {
         if let Some(command) = fixture
             .instances
@@ -607,6 +627,36 @@ async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bin
     assert_eq!(second_binding.relay_node_id, busier_relay.id);
     assert_eq!(second_binding.public_host, "busier-relay.example.test");
     assert_eq!(second_binding.public_port, 4710);
+
+    let mut removed_target = settings(DeploymentTarget::Webview);
+    removed_target.capacity = 2;
+    removed_target.disabled = true;
+    fixture
+        .deployments
+        .configure(
+            &fixture.admin,
+            first_deployment.id,
+            first_deployment.revision,
+            &removed_target,
+        )
+        .await
+        .unwrap();
+    let next_instance = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&second_user),
+            ClientType::Android,
+            first_node.epoch(),
+            &request(application.id),
+        )
+        .await
+        .unwrap();
+    let next_node: Uuid = sqlx::query_scalar("SELECT node_id FROM pixels.instances WHERE id=$1")
+        .bind(next_instance.id)
+        .fetch_one(&fixture.owner)
+        .await
+        .unwrap();
+    assert_eq!(next_node, second_node_id);
 
     relay_nodes.close().await;
     fixture.close().await;
@@ -664,19 +714,12 @@ async fn licensed_services_reject_cloud_and_rdp_reservations_before_commands_exi
 }
 
 #[tokio::test]
-async fn pinned_gpu_admission_accounts_for_measured_and_pending_pressure() {
+async fn pinned_gpu_binding_preserves_deployment_capacity_without_pressure_budgets() {
     let fixture = Fixture::new().await;
     let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 4).await;
     let mut configuration = settings(DeploymentTarget::Webview);
+    configuration.capacity = 2;
     configuration.gpu_key = Some("gpu-idle".into());
-    configuration.gpu_profile = Some(GpuResourceProfile {
-        memory_bytes: 512 * 1024 * 1024,
-        compute_per_mille: 300,
-        encoder_per_mille: 200,
-        memory_reserve_bytes: 512 * 1024 * 1024,
-        compute_limit_per_mille: 600,
-        encoder_limit_per_mille: 600,
-    });
     let deployment = fixture
         .deployments
         .configure(
@@ -695,7 +738,7 @@ async fn pinned_gpu_admission_accounts_for_measured_and_pending_pressure() {
                 2,
                 vec![
                     gpu("gpu-busy", Some(350), Some(100)),
-                    gpu("gpu-idle", Some(100), Some(100)),
+                    gpu("gpu-idle", Some(1000), Some(1000)),
                 ],
             ),
         )
@@ -722,17 +765,23 @@ async fn pinned_gpu_admission_accounts_for_measured_and_pending_pressure() {
         )
         .await
         .unwrap();
-    let reserved: (String, i64, i64, i16, i16) = sqlx::query_as(
-        "SELECT gpu_key,gpu_inventory_revision,gpu_memory_reservation_bytes,gpu_compute_reservation_per_mille,gpu_encoder_reservation_per_mille FROM pixels.instances WHERE id=$1",
-    )
-    .bind(first.id)
-    .fetch_one(&fixture.owner)
-    .await
-    .unwrap();
-    assert_eq!(
-        reserved,
-        ("gpu-idle".into(), 2, 512 * 1024 * 1024, 300, 200)
-    );
+    let reserved: (String, i64) =
+        sqlx::query_as("SELECT gpu_key,gpu_inventory_revision FROM pixels.instances WHERE id=$1")
+            .bind(first.id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    assert_eq!(reserved, ("gpu-idle".into(), 2));
+    fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .unwrap();
     assert_eq!(
         fixture
             .instances
@@ -798,7 +847,7 @@ async fn unpinned_multi_gpu_inventory_selects_a_concrete_adapter_binding() {
 }
 
 #[tokio::test]
-async fn unknown_gpu_pressure_is_not_treated_as_free_capacity() {
+async fn unknown_gpu_pressure_does_not_block_a_ready_adapter() {
     let fixture = Fixture::new().await;
     let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Webview, 2).await;
     fixture
@@ -820,19 +869,16 @@ async fn unknown_gpu_pressure_is_not_treated_as_free_capacity() {
         .await
         .unwrap();
     let user = fixture.session("user", ClientType::Android).await;
-    assert_eq!(
-        fixture
-            .instances
-            .reserve(
-                ResourceCredential::User(&user),
-                ClientType::Android,
-                connection.epoch(),
-                &request(app.id),
-            )
-            .await
-            .unwrap_err(),
-        StoreError::NoCapacity
-    );
+    assert!(fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            connection.epoch(),
+            &request(app.id),
+        )
+        .await
+        .is_ok());
     fixture.close().await;
 }
 
@@ -895,7 +941,7 @@ async fn placement_preview_explains_current_candidates_without_reserving_capacit
         .unwrap();
     assert_eq!(
         unknown_metrics.candidates[0].rejection_reasons,
-        vec![PlacementRejectionReason::GpuMetricsUnknown]
+        Vec::<PlacementRejectionReason>::new()
     );
     assert_eq!(
         unknown_metrics.candidates[0].gpu_encoder_headroom_per_mille,
@@ -1036,26 +1082,27 @@ async fn disconnect_invalidation_is_atomic_cancels_commands_and_preserves_occupa
         .unwrap();
     assert_eq!(unknown.state, "reconcile_required");
     assert!(unknown.ended_at.is_none());
-    let key = token();
-    let revision: i64 = sqlx::query_scalar("SELECT revision FROM pixels.nodes WHERE id=$1")
-        .bind(connection.id())
-        .fetch_one(&fixture.owner)
+    // Reconnect with the existing fixture credential, as a real node does after disconnect.
+    let credential_hash: Vec<u8> =
+        sqlx::query_scalar("SELECT credential_hash FROM pixels.nodes WHERE id=$1")
+            .bind(connection.id())
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let node_credential = TokenDigest::from_sha256(credential_hash.try_into().unwrap());
+    let new_connection = fixture
+        .nodes
+        .open_connection(connection.epoch(), &node_credential, &token())
         .await
         .unwrap();
     fixture
         .nodes
-        .rotate_key(&fixture.admin, connection.id(), revision, &key)
+        .report(&new_connection, &node_report(1))
         .await
         .unwrap();
-    let new = fixture
-        .nodes
-        .open_connection(connection.epoch(), &key, &token())
-        .await
-        .unwrap();
-    fixture.nodes.report(&new, &node_report(1)).await.unwrap();
     fixture
         .deployments
-        .report(&new, deployment.id, &observation(&deployment, 1))
+        .report(&new_connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
     // Even a synthetic Ready reset cannot free the unknown reservation.
@@ -1487,6 +1534,56 @@ async fn guest_user_client_and_rdp_busy_boundaries_are_explicit() {
 }
 
 #[tokio::test]
+async fn saturated_gpu_metrics_do_not_block_launch_but_node_draining_does() {
+    let fixture = Fixture::new().await;
+    let user = fixture.session("user", ClientType::Panel).await;
+    for target in [DeploymentTarget::Webview, DeploymentTarget::GameHook] {
+        let (connection, application, _) = fixture.prepared(target, 4).await;
+        let launch_request = request(application.id);
+        sqlx::query("UPDATE pixels.node_gpu_latest SET used_memory_bytes=dedicated_memory_bytes WHERE node_id=$1")
+            .bind(connection.id())
+            .execute(&fixture.owner)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE pixels.nodes SET draining=true WHERE id=$1")
+            .bind(connection.id())
+            .execute(&fixture.owner)
+            .await
+            .unwrap();
+        assert_eq!(
+            fixture
+                .instances
+                .reserve(
+                    ResourceCredential::User(&user),
+                    ClientType::Panel,
+                    connection.epoch(),
+                    &launch_request
+                )
+                .await
+                .unwrap_err(),
+            StoreError::NoCapacity
+        );
+        sqlx::query("UPDATE pixels.nodes SET draining=false WHERE id=$1")
+            .bind(connection.id())
+            .execute(&fixture.owner)
+            .await
+            .unwrap();
+        let admitted = fixture
+            .instances
+            .reserve(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                connection.epoch(),
+                &launch_request,
+            )
+            .await
+            .unwrap();
+        assert_eq!(admitted.application_id, application.id);
+    }
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn all_readiness_maintenance_capacity_and_acl_gates_are_checked_inside_reservation() {
     let fixture = Fixture::new().await;
     let (connection, mut app, deployment) = fixture.prepared(DeploymentTarget::Webview, 4).await;
@@ -1637,14 +1734,7 @@ async fn command_or_event_failure_rolls_back_reservation_and_does_not_consume_ca
 #[tokio::test]
 async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart() {
     let fixture = Fixture::new().await;
-    let (connection, mut app, _) = fixture
-        .prepared(
-            DeploymentTarget::GameHook {
-                install_root: r"D:\游戏 根目录".into(),
-            },
-            1,
-        )
-        .await;
+    let (connection, mut app, _) = fixture.prepared(DeploymentTarget::GameHook, 1).await;
     let user = fixture.session("user", ClientType::Android).await;
     let req = request(app.id);
     let instance = fixture
@@ -1657,18 +1747,16 @@ async fn launch_snapshot_and_ownership_survive_configuration_changes_and_restart
         )
         .await
         .unwrap();
-    let snapshot: (String, String, String) = sqlx::query_as(
-        "SELECT install_root,executable_relative,arguments FROM pixels.instances WHERE id=$1",
-    )
-    .bind(instance.id)
-    .fetch_one(&fixture.owner)
-    .await
-    .unwrap();
+    let snapshot: (String, String) =
+        sqlx::query_as("SELECT executable_path,arguments FROM pixels.instances WHERE id=$1")
+            .bind(instance.id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
     assert_eq!(
         snapshot,
         (
-            r"D:\游戏 根目录".into(),
-            r"子目录\Game.exe".into(),
+            r"D:\游戏 根目录\子目录\Game.exe".into(),
             r#""含空格 参数""#.into()
         )
     );
@@ -1784,5 +1872,127 @@ async fn port_budget_and_unknown_occupancy_are_not_released_by_timeout() {
         StoreError::NoCapacity
     );
     assert_eq!(fixture.count(connection.id()).await, 1);
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn visible_application_counts_all_running_owners_but_not_pending_or_stopped_instances() {
+    let fixture = Fixture::new().await;
+    let (connection, application, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let first_user = fixture.session("user", ClientType::Android).await;
+    let second_user = fixture.session("user", ClientType::Android).await;
+    let (guest, _) = fixture.guest().await;
+    let mut instance_ids = Vec::new();
+    for credential in [
+        ResourceCredential::User(&first_user),
+        ResourceCredential::User(&second_user),
+        ResourceCredential::Guest(&guest),
+    ] {
+        instance_ids.push(
+            fixture
+                .instances
+                .reserve(
+                    credential,
+                    ClientType::Android,
+                    connection.epoch(),
+                    &request(application.id),
+                )
+                .await
+                .unwrap()
+                .id,
+        );
+    }
+    let initial = fixture
+        .apps
+        .get_visible_guest(&guest, ClientType::Android, application.id)
+        .await
+        .unwrap();
+    assert_eq!(initial.running_instance_count, 0);
+    sqlx::query("UPDATE pixels.instances SET state='running' WHERE id=ANY($1)")
+        .bind(&instance_ids[..2])
+        .execute(&fixture.owner)
+        .await
+        .unwrap();
+    let guest_card = fixture
+        .apps
+        .get_visible_guest(&guest, ClientType::Android, application.id)
+        .await
+        .unwrap();
+    assert_eq!(guest_card.running_instance_count, 2);
+    let summary = fixture
+        .instances
+        .managed_summary(&fixture.admin)
+        .await
+        .unwrap();
+    let running = summary
+        .iter()
+        .find(|entry| entry.application_id == application.id && entry.state == "running")
+        .unwrap();
+    assert_eq!(running.node_id, connection.id());
+    assert_eq!(running.count, 2);
+    assert_eq!(
+        summary
+            .iter()
+            .filter(|entry| entry.application_id == application.id)
+            .map(|entry| entry.count)
+            .sum::<i64>(),
+        3
+    );
+    assert!(fixture
+        .instances
+        .managed_summary(&first_user)
+        .await
+        .is_err());
+    assert!(fixture.instances.managed_summary(&guest).await.is_err());
+    let user_cards = fixture
+        .apps
+        .list_visible(&first_user, ClientType::Android, None, 100)
+        .await
+        .unwrap();
+    assert_eq!(
+        user_cards
+            .iter()
+            .find(|card| card.id == application.id)
+            .unwrap()
+            .running_instance_count,
+        2
+    );
+    sqlx::query(
+        "UPDATE pixels.instances SET state='stopped',ended_at=clock_timestamp() WHERE id=$1",
+    )
+    .bind(instance_ids[0])
+    .execute(&fixture.owner)
+    .await
+    .unwrap();
+    let stopped_card = fixture
+        .apps
+        .get_visible_guest(&guest, ClientType::Android, application.id)
+        .await
+        .unwrap();
+    assert_eq!(stopped_card.running_instance_count, 1);
+    let summary = fixture
+        .instances
+        .managed_summary(&fixture.admin)
+        .await
+        .unwrap();
+    assert_eq!(
+        summary
+            .iter()
+            .filter(|entry| entry.application_id == application.id && entry.state == "running")
+            .map(|entry| entry.count)
+            .sum::<i64>(),
+        1
+    );
+    assert_eq!(
+        summary
+            .iter()
+            .filter(|entry| entry.application_id == application.id)
+            .map(|entry| entry.count)
+            .sum::<i64>(),
+        2
+    );
+    let payload = serde_json::to_value(stopped_card).unwrap();
+    assert_eq!(payload["running_instance_count"], 1);
+    assert!(payload.get("owner").is_none());
     fixture.close().await;
 }

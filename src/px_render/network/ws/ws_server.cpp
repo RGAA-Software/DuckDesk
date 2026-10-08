@@ -212,7 +212,7 @@ static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWebSocketAsync(std
 
     auto admitted = co_await owner->AdmitFrontend(
         ConsoleFrontendAdmissionRequest{
-            .request_id = GetUUID(),
+            .request_id = GenerateRandomBase64Id(),
             .session_id = descriptor->session_id,
             .revision = descriptor->revision,
             .frontend_token = descriptor->token->Copy(),

@@ -78,8 +78,8 @@ class ConsoleApiClient private constructor(
         request(endpoint, "/api/console/guest-sessions", "POST", body = JSONObject())?.parseObject { payload ->
             val token = payload.requiredString("token") ?: return@parseObject invalidResponse()
             val session = payload.optJSONObject("session") ?: return@parseObject invalidResponse()
-            val expiresAt = session.requiredInstantMillis("expires_at") ?: return@parseObject invalidResponse()
-            AccountResult.Success(GuestSession(endpoint, token, expiresAt))
+            if (session.requiredString("id") == null) return@parseObject invalidResponse()
+            AccountResult.Success(GuestSession(endpoint, token))
         } ?: failure(AccountFailure.NetworkUnavailable)
     }
 

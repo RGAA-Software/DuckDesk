@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.cache_blobs SET state='deleting',verified_run=NULL,updated_at=clock_timestamp() WHERE id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3bf56feac5a953abfc99d0e335629bfa5438c0ea20d22cabb8bf87f87d725219"
+}

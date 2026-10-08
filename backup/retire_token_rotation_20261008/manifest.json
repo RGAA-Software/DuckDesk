@@ -1,0 +1,156 @@
+[
+  {
+    "original_path": "web/px_console/src/views/DevicesList.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/views/DevicesList.vue",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/views/devices/DeviceRuntimeDetails.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? web/px_console/src/views/devices/DeviceRuntimeDetails.vue",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/views/devices/DeviceRuntimeDetails.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? web/px_console/src/views/devices/DeviceRuntimeDetails.test.ts",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_device_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_device_api.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_node_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/device_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/src/node_api.rs",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/devices.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/nodes.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/devices.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/nodes.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/commands.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/commands.rs",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/instances.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/instances.rs",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/activity.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/activity.rs",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/rotate_device_key.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/rotate_node_key.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-34c296bef620bd77a48f2470951d7f95fd0b13544f3e3f909b523025cd909204.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-fec7532118da8791abb3556faa2a3db0168b62d95a3ee7a9dd56ea2c1db6c32c.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Retire operator-triggered device and node credential rotation while preserving enrollment and connection authentication",
+    "archive_batch": "retire_token_rotation_20261008"
+  }
+]

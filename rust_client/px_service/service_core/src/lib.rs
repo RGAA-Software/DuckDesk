@@ -6,6 +6,7 @@ pub mod process;
 pub mod proto;
 pub mod rdp_account;
 pub mod rdp_deployment;
+pub mod rdp_host_identity;
 pub mod rdp_workspace;
 pub mod state;
 pub mod storage;

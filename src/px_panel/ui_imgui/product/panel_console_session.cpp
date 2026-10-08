@@ -174,22 +174,22 @@ std::optional<px_console::ConsoleNativeDeviceConnection> PanelConsoleSession::Qu
     return result ? std::optional{std::move(result.value())} : std::nullopt;
 }
 
-std::vector<px_console::ConsoleUserApplication> PanelConsoleSession::QueryApplications() {
+px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError> PanelConsoleSession::QueryApplications() {
     const auto endpoint = config_->Console();
-    if (!endpoint) return {};
+    if (!endpoint) return std::unexpected{px_console::ConsoleApiError::kInvalidHostAddress};
     auto [token, guest] = ResourceToken(*endpoint);
-    if (token.empty()) return {};
+    if (token.empty()) return std::unexpected{px_console::ConsoleApiError::kAuthenticationRequired};
     auto result = px_console::ConsoleUserAppApi::QueryApps(endpoint->host, endpoint->port, token, guest);
     if (!result) {
-        return {};
+        return std::unexpected{result.error()};
     }
     auto applications = std::move(result.value());
     const auto instances = px_console::ConsoleUserAppApi::QueryInstances(endpoint->host, endpoint->port, token, guest);
     if (!instances) {
-        return applications;
+        return std::unexpected{instances.error()};
     }
     for (const auto& instance : instances.value()) {
-        if (instance.state != "starting" && instance.state != "running" && instance.state != "stopping") {
+        if (instance.state != "reserved" && instance.state != "starting" && instance.state != "running" && instance.state != "stopping") {
             continue;
         }
         const auto application = std::ranges::find(applications, instance.app_id, &px_console::ConsoleUserApplication::app_id);
@@ -201,12 +201,12 @@ std::vector<px_console::ConsoleUserApplication> PanelConsoleSession::QueryApplic
 }
 
 px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> PanelConsoleSession::StartApplication(const std::string& appId,
-                                                                                                                  const std::string& nonce) {
+                                                                                                                  const std::string& requestId) {
     const auto endpoint = config_->Console();
     if (!endpoint) return std::unexpected{px_console::ConsoleApiError::kInvalidHostAddress};
     auto [token, guest] = ResourceToken(*endpoint);
     if (token.empty()) return std::unexpected{px_console::ConsoleApiError::kAuthenticationRequired};
-    return px_console::ConsoleUserAppApi::StartApp(endpoint->host, endpoint->port, token, appId, nonce, guest);
+    return px_console::ConsoleUserAppApi::StartApp(endpoint->host, endpoint->port, token, appId, requestId, guest);
 }
 
 px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleApiError> PanelConsoleSession::QueryNativeApplicationConnection(
@@ -224,6 +224,15 @@ bool PanelConsoleSession::CloseResourceConnection(const std::string& sessionId, 
     auto [token, guest] = ResourceToken(*endpoint);
     return !token.empty() &&
            px_console::ClosePanelResourceConnection(endpoint->host, endpoint->port, token, guest, sessionId, sessionRevision).value_or(false);
+}
+
+px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> PanelConsoleSession::QueryApplicationInstance(
+    const std::string& instanceId) {
+    const auto endpoint = config_->Console();
+    if (!endpoint) return std::unexpected{px_console::ConsoleApiError::kInvalidHostAddress};
+    auto [token, guest] = ResourceToken(*endpoint);
+    if (token.empty()) return std::unexpected{px_console::ConsoleApiError::kAuthenticationRequired};
+    return px_console::ConsoleUserAppApi::ReadInstance(endpoint->host, endpoint->port, token, instanceId, guest);
 }
 
 bool PanelConsoleSession::StopApplication(const std::string& instanceId) {

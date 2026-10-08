@@ -4,14 +4,12 @@
 from __future__ import annotations
 
 import argparse
-import ipaddress
 import json
 import os
 import shutil
 import sys
 import tempfile
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from oem_release_profile import load_oem_release_profile, sha256_bytes
 
@@ -58,48 +56,12 @@ def load_tuf_update_root(path: Path) -> bytes:
     return root_bytes
 
 
-def canonical_https_origin(value: str) -> str:
-    parsed = urlsplit(value)
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or parsed.path
-        or parsed.query
-        or parsed.fragment
-    ):
-        raise RuntimeError("PIXELS_OFFICIAL_CONSOLE_URL must be a canonical HTTPS origin without credentials, path, query, or fragment")
-    try:
-        port = parsed.port
-    except ValueError as error:
-        raise RuntimeError("PIXELS_OFFICIAL_CONSOLE_URL has an invalid port") from error
-    host = parsed.hostname
-    try:
-        ip_address = ipaddress.ip_address(host)
-        normalized_host = f"[{ip_address.compressed}]" if ip_address.version == 6 else ip_address.compressed
-    except ValueError:
-        normalized_host = host.lower()
-        labels = normalized_host.split(".")
-        if any(not label or len(label) > 63 or label.startswith("-") or label.endswith("-") for label in labels):
-            raise RuntimeError("PIXELS_OFFICIAL_CONSOLE_URL has an invalid DNS host")
-        if any(not all(character.isascii() and (character.isalnum() or character == "-") for character in label) for label in labels):
-            raise RuntimeError("PIXELS_OFFICIAL_CONSOLE_URL has an invalid DNS host")
-    normalized = f"https://{normalized_host}"
-    if port not in (None, 443):
-        normalized += f":{port}"
-    if normalized != value:
-        raise RuntimeError("PIXELS_OFFICIAL_CONSOLE_URL must already be in canonical form")
-    return value
-
-
-def validate_distribution_inputs(distribution: str, update_root_bytes: bytes) -> None:
+def validate_distribution_inputs(product: str, distribution: str, update_root_bytes: bytes) -> None:
     official_origin = os.environ.get("PIXELS_OFFICIAL_CONSOLE_URL", "").strip()
     oem_profile_value = os.environ.get("PIXELS_OEM_RELEASE_PROFILE", "").strip()
     if distribution == "official":
-        if not official_origin:
-            raise RuntimeError("Pixels Windows builds require PIXELS_OFFICIAL_CONSOLE_URL")
-        canonical_https_origin(official_origin)
+        if official_origin:
+            raise RuntimeError("Pixels Windows packages configure Console after installation; clear PIXELS_OFFICIAL_CONSOLE_URL")
         if oem_profile_value:
             raise RuntimeError("Pixels Windows builds must not configure an OEM release profile")
         return
@@ -133,7 +95,7 @@ def main() -> int:
     if not update_root_path.is_file():
         raise RuntimeError("PIXELS_UPDATE_ROOT_FILE does not identify a regular file")
     update_root_bytes = load_tuf_update_root(update_root_path)
-    validate_distribution_inputs(arguments.distribution, update_root_bytes)
+    validate_distribution_inputs(arguments.product, arguments.distribution, update_root_bytes)
     if arguments.validate_only:
         if arguments.output_dir is not None:
             raise RuntimeError("--output-dir cannot be combined with --validate-only")

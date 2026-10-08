@@ -83,7 +83,6 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
                                   .waitForDebugger = Value<bool>(values, "wait_debug"),
                                   .language = Value<std::string>(values, "language", "zh-CN"),
                                   .lightTheme = Value<std::string>(values, "theme", "dark") == "light",
-                                  .enhancedVisualEffects = Value<bool>(values, "enhanced_visual_effects", true),
                                   .decoder = Value<std::string>(values, "decoder", "Auto"),
                                   .recordingPath = Value<std::string>(values, "recording_path")};
         auto frontendToken = Value<std::string>(values, "frontend_token");

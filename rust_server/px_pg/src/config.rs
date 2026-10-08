@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy)]
 pub enum Transport {
     VerifyFull,
+    PreferTls,
     /// Explicit opt-in, only accepts literal loopback addresses or localhost.
     LocalDevelopment,
 }
@@ -40,11 +41,14 @@ impl DatabaseConfig {
             return Err(DatabaseError::Configuration);
         }
         // No URL options that can override host, schema, timeouts or credentials.
-        if parsed.query_pairs().any(|(key, _)| key != "sslrootcert") {
+        if parsed.query_pairs().any(|(key, _)| key != "sslrootcert")
+            || (matches!(transport, Transport::PreferTls) && parsed.query().is_some())
+        {
             return Err(DatabaseError::Configuration);
         }
         let ssl = match transport {
             Transport::VerifyFull => PgSslMode::VerifyFull,
+            Transport::PreferTls => PgSslMode::Prefer,
             Transport::LocalDevelopment => {
                 if !matches!(parsed.host_str(), Some("127.0.0.1" | "localhost" | "[::1]")) {
                     return Err(DatabaseError::Configuration);
@@ -209,5 +213,15 @@ mod tests {
             Transport::VerifyFull
         )
         .is_ok());
+        assert!(DatabaseConfig::parse(
+            "postgres://u:p@192.168.31.6/pixels_console",
+            Transport::PreferTls
+        )
+        .is_ok());
+        assert!(DatabaseConfig::parse(
+            "postgres://u:p@192.168.31.6/pixels_console?sslrootcert=ca.pem",
+            Transport::PreferTls
+        )
+        .is_err());
     }
 }

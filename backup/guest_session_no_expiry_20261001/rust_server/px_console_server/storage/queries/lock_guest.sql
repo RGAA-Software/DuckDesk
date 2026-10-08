@@ -1,0 +1,1 @@
+SELECT id,client_type,created_at,expires_at,revoked_at,revision,source_hash,EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id) AS "blocked!" FROM pixels.guest_sessions g WHERE id=$1 FOR UPDATE

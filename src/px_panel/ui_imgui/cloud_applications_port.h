@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "cloud_application_progress.h"
+
 namespace px::panel::ui {
 
 enum class CloudApplicationKind { Remote, Game, WebView, Rdp };
@@ -13,6 +15,7 @@ struct CloudApplicationCard final {
     std::string streamId{};
     std::string name{};
     std::string instanceState{};
+    std::int64_t runningInstanceCount{};
     CloudApplicationKind kind{CloudApplicationKind::Remote};
     bool rdpMode{false};
     bool forceTcp{false};
@@ -30,6 +33,8 @@ class CloudApplicationsPort {
     virtual std::vector<CloudApplicationCard> Snapshot() = 0;
     virtual void Refresh() = 0;
     virtual void Start(const std::string& streamId, bool viewOnly) = 0;
+    [[nodiscard]] virtual std::optional<ApplicationLaunchProgress> LaunchProgress() const = 0;
+    virtual void LaunchPrepared(std::uint64_t generation) = 0;
     [[nodiscard]] virtual std::optional<CloudApplicationPasswordRequest> PendingPasswordRequest() const = 0;
     virtual void SubmitPassword(const std::string& streamId, std::string password) = 0;
     virtual void CancelPassword(const std::string& streamId) = 0;

@@ -1,0 +1,63 @@
+#pragma once
+
+#include <array>
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <unordered_map>
+
+#include "client_input_mapper.h"
+#include "client_session.h"
+#include "px_desktop_shell/desktop_shell.h"
+#include "rdp/rdp_windows_clipboard.h"
+
+namespace px::client::imgui {
+
+class ClientToolbar;
+class ClientUiSettings;
+
+class ClientWindow final {
+public:
+    ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, bool english, bool darkTheme,
+                 bool enhancedVisualEffects, ClientUiSettings settings);
+    ~ClientWindow();
+    void Draw();
+    void HandleInput(const px::desktop::DesktopInputEvent& event);
+
+private:
+    [[nodiscard]] bool InVideo(float x, float y) const noexcept;
+    void ReleasePressedInput();
+    void SynchronizeClipboard();
+    void DrawExitConfirmation();
+
+    std::reference_wrapper<px::desktop::DesktopShell> shell_;
+    std::shared_ptr<ClientSession> session_{};
+    std::unique_ptr<ClientToolbar> toolbar_{};
+    std::unique_ptr<px::rdp::WindowsClipboard> rdpClipboard_{};
+    std::optional<px::rdp::ClipboardContent> pendingRemoteClipboard_{};
+    std::shared_ptr<ClientVideoFrame> uploadedFrame_{};
+    float videoLeft_{};
+    float videoTop_{};
+    float videoWidth_{};
+    float videoHeight_{};
+    float lastMouseXRatio_{0.5F};
+    float lastMouseYRatio_{0.5F};
+    std::unordered_map<std::uint32_t, WindowsKey> pressedKeys_{};
+    std::array<bool, 4> pressedMouseButtons_{};
+    std::array<bool, 4> localPointerButtons_{};
+    bool english_{};
+    bool darkTheme_{true};
+    bool windowVisible_{};
+    bool terminalErrorShown_{};
+    bool terminalErrorPopupOpened_{};
+    bool mediaWarningLatched_{};
+    bool mediaWarningPopupOpened_{};
+    bool openExitConfirmation_{};
+    bool textCompositionActive_{};
+    std::string clipboardText_{};
+    std::chrono::steady_clock::time_point nextClipboardCheck_{};
+    std::chrono::steady_clock::time_point nextMouseRouteLog_{};
+};
+
+}  // namespace px::client::imgui

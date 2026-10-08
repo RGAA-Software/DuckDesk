@@ -176,7 +176,7 @@ PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::Run(std::weak_ptr<We
         }
         const auto request_started_at = std::chrono::steady_clock::now();
         const auto request_deadline = std::min(request_started_at + std::chrono::seconds(12), lease_deadline);
-        auto renewed = co_await transport->AdmitFrontend(ConsoleFrontendAdmissionRequest{.request_id = GetUUID(),
+        auto renewed = co_await transport->AdmitFrontend(ConsoleFrontendAdmissionRequest{.request_id = GenerateRandomBase64Id(),
                                                                                          .session_id = identity.descriptor_session_id,
                                                                                          .revision = identity.descriptor_revision,
                                                                                          .frontend_token = token->Copy()},

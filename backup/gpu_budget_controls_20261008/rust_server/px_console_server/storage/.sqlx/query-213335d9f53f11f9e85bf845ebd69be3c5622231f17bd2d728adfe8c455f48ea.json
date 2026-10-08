@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.resource_session_retirements\n(session_id,node_id,challenge_id,session_revision,node_generation,control_epoch,deadline)\nVALUES($1,$2,$3,$4,$5,$6,clock_timestamp()+interval '30 seconds')\nON CONFLICT(session_id) DO UPDATE SET challenge_id=EXCLUDED.challenge_id,session_revision=EXCLUDED.session_revision,\nnode_generation=EXCLUDED.node_generation,control_epoch=EXCLUDED.control_epoch,deadline=EXCLUDED.deadline,completed_at=NULL\nRETURNING deadline\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "deadline",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "213335d9f53f11f9e85bf845ebd69be3c5622231f17bd2d728adfe8c455f48ea"
+}

@@ -44,6 +44,7 @@ const Consumer = defineComponent({
 
 beforeEach(() => {
     vi.useFakeTimers();
+    localStorage.clear();
     sessionStorage.clear();
     SyntheticWebSocket.instances = [];
     vi.stubGlobal("WebSocket", SyntheticWebSocket);
@@ -54,6 +55,7 @@ afterEach(() => {
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    localStorage.clear();
     sessionStorage.clear();
 });
 

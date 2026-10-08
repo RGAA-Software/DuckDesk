@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use px_license::{
     LicenseError, LicensePayload, LicenseSigner, LicenseTrustStore, LicenseVerifierSet,
-    LicensedService, VerifyContext,
+    LicensedService, VerifyContext, STARTER_DEPLOYMENT_ID,
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -48,7 +48,7 @@ fn fixed_openssl_vector_matches_signer_and_verifier() {
 }
 
 #[test]
-fn deployment_and_expiration_are_the_only_runtime_bindings() {
+fn ordinary_licenses_remain_bound_to_deployment_and_expiration() {
     let contract_vector = vector();
     let verifier = LicenseVerifierSet::new([signer().public_key().try_into().unwrap()]).unwrap();
     assert_eq!(
@@ -61,10 +61,16 @@ fn deployment_and_expiration_are_the_only_runtime_bindings() {
     assert_eq!(
         verifier.verify(
             &contract_vector.wire,
-            &VerifyContext::new(contract_vector.payload.deployment_id, 1_699_999_999),
+            &VerifyContext::new(contract_vector.payload.deployment_id, 1_699_999_960),
         ),
         Err(LicenseError::Rejected)
     );
+    assert!(verifier
+        .verify(
+            &contract_vector.wire,
+            &VerifyContext::new(contract_vector.payload.deployment_id, 1_699_999_980),
+        )
+        .is_ok());
     assert_eq!(
         verifier.verify(
             &contract_vector.wire,
@@ -72,6 +78,56 @@ fn deployment_and_expiration_are_the_only_runtime_bindings() {
         ),
         Err(LicenseError::Rejected)
     );
+}
+
+#[test]
+fn portable_starter_accepts_only_the_exact_signed_baseline() {
+    let signing_key = signer();
+    let verifier = LicenseVerifierSet::new([signing_key.public_key().try_into().unwrap()]).unwrap();
+    let baseline = LicensePayload {
+        schema: 2,
+        license_id: Uuid::new_v4(),
+        deployment_id: STARTER_DEPLOYMENT_ID,
+        revision: 1,
+        issued_at: 1_700_000_000,
+        expires_at: 2_000_000_000,
+        max_streams: 4,
+        services: vec![
+            LicensedService::CloudApplications,
+            LicensedService::Desktop,
+            LicensedService::Rdp,
+        ],
+        key_id: signing_key.key_id(),
+    };
+    let actual_deployment = Uuid::new_v4();
+    assert!(verifier
+        .verify(
+            &signing_key.sign(&baseline).unwrap(),
+            &VerifyContext::new(actual_deployment, 1_800_000_000),
+        )
+        .is_ok());
+    for invalid in [
+        LicensePayload {
+            max_streams: 5,
+            ..baseline.clone()
+        },
+        LicensePayload {
+            services: vec![LicensedService::CloudApplications],
+            ..baseline.clone()
+        },
+        LicensePayload {
+            revision: 2,
+            ..baseline.clone()
+        },
+    ] {
+        assert_eq!(
+            verifier.verify(
+                &signing_key.sign(&invalid).unwrap(),
+                &VerifyContext::new(actual_deployment, 1_800_000_000),
+            ),
+            Err(LicenseError::Rejected)
+        );
+    }
 }
 
 #[test]

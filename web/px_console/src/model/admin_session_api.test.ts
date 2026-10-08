@@ -23,10 +23,13 @@ function installAdapter(responseData: unknown) {
     return () => request;
 }
 
-afterEach(() => sessionStorage.clear());
+afterEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+});
 
 describe("PostgreSQL Console administrator session", () => {
-    it("logs in without a legacy cookie or CSRF header and stores the bearer in this tab", async () => {
+    it("logs in without a legacy cookie or CSRF header and shares the bearer across tabs", async () => {
         const profile = {
             id: "11111111-1111-1111-1111-111111111111",
             username: "administrator",
@@ -44,7 +47,8 @@ describe("PostgreSQL Console administrator session", () => {
         expect(request()?.headers.get("X-Pixels-Client-Type")).toBe("admin_web");
         expect(request()?.headers.has("Authorization")).toBe(false);
         expect(request()?.headers.has("X-CSRF-Token")).toBe(false);
-        expect(sessionStorage.getItem("pixels.admin_web.token")).toBe("a".repeat(64));
+        expect(localStorage.getItem("pixels.admin_web.token")).toBe("a".repeat(64));
+        expect(sessionStorage.getItem("pixels.admin_web.token")).toBeNull();
     });
 
     it("uses the exact bearer for profile and logout then clears it", async () => {
@@ -64,7 +68,7 @@ describe("PostgreSQL Console administrator session", () => {
         await logoutAdmin();
         expect(request()?.method).toBe("delete");
         expect(request()?.url).toBe("/api/console/session");
-        expect(sessionStorage.getItem("pixels.admin_web.token")).toBeNull();
+        expect(localStorage.getItem("pixels.admin_web.token")).toBeNull();
     });
 
     it("changes the password through the PostgreSQL identity endpoint", async () => {
@@ -79,5 +83,20 @@ describe("PostgreSQL Console administrator session", () => {
             current_password: "current-passphrase",
             new_password: "replacement-passphrase",
         });
+    });
+
+    it("keeps an existing shared session after a failed login but clears an expired session", async () => {
+        const existingToken = "d".repeat(64);
+        setAdminToken(existingToken);
+        axiosHttp.defaults.adapter = async config => Promise.reject({
+            config,
+            response: { status: 401 },
+        });
+
+        await expect(loginAdmin("administrator", "wrong-password")).rejects.toBeDefined();
+        expect(localStorage.getItem("pixels.admin_web.token")).toBe(existingToken);
+
+        await expect(queryAdminSession()).resolves.toBeNull();
+        expect(localStorage.getItem("pixels.admin_web.token")).toBeNull();
     });
 });

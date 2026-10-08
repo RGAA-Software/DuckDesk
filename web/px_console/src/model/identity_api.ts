@@ -46,7 +46,6 @@ export interface GuestSessionView {
     id: string;
     client_type: string;
     created_at: string;
-    expires_at: string;
     revoked_at: string | null;
     revision: number;
     blocked: boolean;

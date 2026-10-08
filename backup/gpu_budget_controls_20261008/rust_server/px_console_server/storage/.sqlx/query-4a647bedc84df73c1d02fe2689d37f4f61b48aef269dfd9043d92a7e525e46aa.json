@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT node_id,revision,cpu_warning_per_mille,cpu_critical_per_mille,memory_warning_per_mille,memory_critical_per_mille,\n disk_warning_per_mille,disk_critical_per_mille,gpu_warning_per_mille,gpu_critical_per_mille,trigger_samples,recovery_samples,\n recovery_hysteresis_per_mille,updated_at\nFROM pixels.node_telemetry_alert_policies\nWHERE node_id=$1\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "cpu_warning_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 3,
+        "name": "cpu_critical_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 4,
+        "name": "memory_warning_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "memory_critical_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "disk_warning_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "disk_critical_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_warning_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_critical_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "trigger_samples",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "recovery_samples",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 12,
+        "name": "recovery_hysteresis_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 13,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4a647bedc84df73c1d02fe2689d37f4f61b48aef269dfd9043d92a7e525e46aa"
+}

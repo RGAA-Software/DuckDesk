@@ -1,0 +1,153 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.relay_nodes\nSET state = 'ready',\n    reported_draining = $5,\n    report_sequence = $4,\n    last_seen = clock_timestamp(),\n    product_version_code = $6,\n    max_connections = $7,\n    current_connections = $8,\n    max_rooms = $9,\n    current_rooms = $10,\n    uploaded_bytes = $11,\n    forwarded_bytes = $12\nWHERE connection_hash = $1\n    AND generation = $2\n    AND control_epoch = $3\n    AND $3 = (SELECT epoch FROM pixels.control_runtime)\n    AND $4 > report_sequence\n    AND NOT disabled\n    AND deleted_at IS NULL\nRETURNING id, name, public_host, public_port, revision, generation, control_epoch, state,\ndesired_draining, reported_draining, disabled, report_sequence, last_seen, product_version_code,\nmax_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes,\ntrue AS \"fresh!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "public_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "public_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "desired_draining",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "reported_draining",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "report_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "last_seen",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "product_version_code",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "max_connections",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "current_connections",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "max_rooms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "current_rooms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "uploaded_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "forwarded_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 20,
+        "name": "fresh!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Bool",
+        "Int8",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "a0dedc66a8166625461450d5ee0492408181120409e2b19b8835a8c73454c581"
+}

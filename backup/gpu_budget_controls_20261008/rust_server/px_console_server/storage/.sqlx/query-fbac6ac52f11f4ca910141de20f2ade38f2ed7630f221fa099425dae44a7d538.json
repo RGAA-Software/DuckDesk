@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.resource_session_retirements SET completed_at=COALESCE(completed_at,clock_timestamp())\nWHERE session_id=$1 AND challenge_id=$2 AND session_revision=$3 AND node_generation=$4 AND control_epoch=$5\nAND (completed_at IS NOT NULL OR deadline>clock_timestamp()) RETURNING session_id\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "session_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fbac6ac52f11f4ca910141de20f2ade38f2ed7630f221fa099425dae44a7d538"
+}

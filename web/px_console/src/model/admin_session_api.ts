@@ -11,7 +11,6 @@ export interface AdminProfile {
 }
 
 export async function loginAdmin(username: string, password: string): Promise<AdminProfile | null> {
-    setAdminToken("");
     const response = await axiosHttp.post<{ token: string; profile: AdminProfile }>(
         "/api/console/sessions",
         { username, password },

@@ -20,7 +20,7 @@ class ClientUiSettings;
 class ClientWindow final {
 public:
     ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, bool english, bool darkTheme,
-                 bool enhancedVisualEffects, ClientUiSettings settings);
+                 ClientUiSettings settings);
     ~ClientWindow();
     void Draw();
     void HandleInput(const px::desktop::DesktopInputEvent& event);

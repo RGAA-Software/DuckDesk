@@ -134,7 +134,6 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
             {"frontend_token", request.frontendToken ? std::string{request.frontendToken->View()} : std::string{}},
             {"language", settings.language == ::px::ui::Language::English ? "en-US" : "zh-CN"},
             {"theme", settings.theme == ::px::ui::Theme::Light ? "light" : "dark"},
-            {"enhanced_visual_effects", settings.enhancedVisualEffects},
             {"decoder", request.forceSoftware ? "Software" : decoderNames[static_cast<std::size_t>(settings.controller.preferredDecoder)]},
             {"recording_path", settings.controller.recordingPath},
             {"only_viewing", request.viewOnly},
@@ -218,7 +217,6 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
                           {"frontend_token", request.frontendToken ? std::string{request.frontendToken->View()} : std::string{}},
                           {"language", settings.language == ::px::ui::Language::English ? "en-US" : "zh-CN"},
                           {"theme", settings.theme == ::px::ui::Theme::Light ? "light" : "dark"},
-                          {"enhanced_visual_effects", settings.enhancedVisualEffects},
                           {"audio", true},
                           {"clipboard", true},
                           {"rdp", nlohmann::json::parse(request.rdpConfiguration->View())}};

@@ -91,10 +91,8 @@ if(NOT PX_DISTRIBUTION STREQUAL "development")
 endif()
 
 set(PX_OFFICIAL_CONSOLE_ORIGIN "" CACHE STRING "Canonical HTTPS origin used by the Pixels Official distribution")
-if((PX_DISTRIBUTION STREQUAL "official" OR PX_DISTRIBUTION STREQUAL "customer") AND PX_OFFICIAL_CONSOLE_ORIGIN STREQUAL "")
-    message(FATAL_ERROR "Official and Customer release builds require PX_OFFICIAL_CONSOLE_ORIGIN")
-elseif(PX_DISTRIBUTION STREQUAL "development" AND NOT PX_OFFICIAL_CONSOLE_ORIGIN STREQUAL "")
-    message(FATAL_ERROR "Development builds must not configure PX_OFFICIAL_CONSOLE_ORIGIN")
+if(NOT PX_OFFICIAL_CONSOLE_ORIGIN STREQUAL "")
+    message(FATAL_ERROR "Pixels products configure the Console address after installation; PX_OFFICIAL_CONSOLE_ORIGIN must be empty")
 endif()
 
 set(PX_PRODUCT_MANIFEST_PATH "${CMAKE_SOURCE_DIR}/packaging/products/${PX_PRODUCT}.toml")

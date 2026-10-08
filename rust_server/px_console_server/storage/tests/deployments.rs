@@ -5,10 +5,10 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
-    NodeConnection, NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
-    PasswordDigest, PreparationFailure, PreparationState, StoreError, TelemetryProbeState,
-    TokenDigest, Username, VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection,
+    NodeDeploymentPreparation, NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest,
+    PreparationFailure, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
+    VideoCodec, VideoSpec,
 };
 use px_pg::{DatabaseConfig, Transport};
 use std::{env, sync::OnceLock, time::Duration};
@@ -51,21 +51,10 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
-        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
-    }
-}
-fn test_gpu_profile() -> GpuResourceProfile {
-    GpuResourceProfile {
-        memory_bytes: 512 * 1024 * 1024,
-        compute_per_mille: 100,
-        encoder_per_mille: 100,
-        memory_reserve_bytes: 512 * 1024 * 1024,
-        compute_limit_per_mille: 900,
-        encoder_limit_per_mille: 900,
     }
 }
 fn node_report(sequence: u64) -> NodeReport {
@@ -184,7 +173,7 @@ impl Fixture {
         };
         let launch = match target {
             DeploymentTarget::GameHook { .. } => ApplicationLaunch::GameHook {
-                executable_relative: r"子目录\Game.exe".into(),
+                executable_path: r"D:\游戏 根目录\子目录\Game.exe".into(),
                 arguments: r#""含空格 参数""#.into(),
                 video,
             },
@@ -267,9 +256,7 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
     let (node, node_key) = fixture.node().await;
     let mut created = Vec::new();
     for target in [
-        DeploymentTarget::GameHook {
-            install_root: r"D:\游戏 根目录".into(),
-        },
+        DeploymentTarget::GameHook,
         DeploymentTarget::Webview,
         DeploymentTarget::Rdp,
     ] {
@@ -368,6 +355,60 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         .list_node(&connection, None, 0)
         .await
         .is_err());
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn deleted_applications_do_not_block_preparation_of_new_deployments() {
+    let fixture = Fixture::new().await;
+    let (node_id, node_key) = fixture.node().await;
+    let (deleted_application, deleted_deployment) = fixture
+        .deployment(node_id, DeploymentTarget::GameHook)
+        .await;
+    let (_, active_deployment) = fixture
+        .deployment(node_id, DeploymentTarget::GameHook)
+        .await;
+    fixture
+        .apps
+        .delete(
+            &fixture.admin,
+            deleted_application.id,
+            deleted_application.revision,
+        )
+        .await
+        .unwrap();
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let connection = fixture
+        .nodes
+        .open_connection(epoch, &node_key, &token())
+        .await
+        .unwrap();
+    fixture
+        .nodes
+        .report(&connection, &node_report(1))
+        .await
+        .unwrap();
+    let assignments = fixture
+        .deployments
+        .list_node(&connection, None, 50)
+        .await
+        .unwrap();
+    assert_eq!(assignments.len(), 1);
+    assert_eq!(assignments[0].id, active_deployment.id);
+    assert!(assignments
+        .iter()
+        .all(|assignment| assignment.id != deleted_deployment.id));
+    let managed = fixture
+        .deployments
+        .list_managed(&fixture.admin, None, 100)
+        .await
+        .unwrap();
+    let managed: Vec<_> = managed
+        .into_iter()
+        .filter(|deployment| deployment.node_id == node_id)
+        .collect();
+    assert_eq!(managed.len(), 1);
+    assert_eq!(managed[0].id, active_deployment.id);
     fixture.close().await;
 }
 

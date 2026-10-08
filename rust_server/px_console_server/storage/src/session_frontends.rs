@@ -28,8 +28,53 @@ impl ResourceSessionStore {
         node: &NodeConnection,
     ) -> Result<Vec<ExpectedFrontend>, StoreError> {
         let mut tx = self.pool.begin().await?;
-        control::read_gate(&mut tx).await?;
+        control::write_gate(&mut tx).await?;
         let authority = node_lifecycle::authorize(&mut tx, node).await?;
+        // The existing thirty-second transport lease is a safety boundary, not
+        // an account/session expiry. Once it has elapsed no old grant can remain
+        // authorized, including a lost final disconnect report or crashed client.
+        let expired_sessions = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM pixels.resource_sessions WHERE node_id=$1 AND state IN ('pending','connected') \
+             AND COALESCE(descriptor_expires_at,created_at+interval '30 seconds')<=clock_timestamp() \
+             ORDER BY id LIMIT 129 FOR UPDATE",
+        )
+        .bind(authority.id)
+        .fetch_all(&mut *tx)
+        .await?;
+        if expired_sessions.len() > 128 {
+            return Err(StoreError::Rejected);
+        }
+        for session_id in expired_sessions {
+            let session = Self::lock(&mut tx, session_id).await?;
+            crate::file_transfers::invalidate(&mut tx, Some(authority.id), Some(session_id))
+                .await?;
+            crate::activity::invalidate(&mut tx, Some(authority.id), Some(session_id)).await?;
+            Self::change(&mut tx, &session, "closed").await?;
+        }
+        // A media/audio/file channel closing alone must never end the frontend.
+        // Give primary-transport reconnection the existing five-second grace,
+        // then use the regular fenced retirement/drain workflow.
+        let disconnected_sessions = sqlx::query_scalar::<_, Uuid>(
+            "SELECT session.id FROM pixels.resource_sessions AS session WHERE session.node_id=$1 \
+             AND session.state='connected' \
+             AND EXISTS(SELECT 1 FROM pixels.connection_observations AS channel WHERE channel.session_id=session.id \
+                        AND channel.kind IN ('control','rdp') AND channel.ended_at IS NOT NULL) \
+             AND NOT EXISTS(SELECT 1 FROM pixels.connection_observations AS channel WHERE channel.session_id=session.id \
+                            AND channel.kind IN ('control','rdp') AND channel.state='active') \
+             AND (SELECT max(channel.ended_at) FROM pixels.connection_observations AS channel \
+                  WHERE channel.session_id=session.id AND channel.kind IN ('control','rdp')) \
+                 <clock_timestamp()-interval '5 seconds' ORDER BY session.id LIMIT 129 FOR UPDATE OF session",
+        )
+        .bind(authority.id)
+        .fetch_all(&mut *tx)
+        .await?;
+        if disconnected_sessions.len() > 128 {
+            return Err(StoreError::Rejected);
+        }
+        for session_id in disconnected_sessions {
+            let session = Self::lock(&mut tx, session_id).await?;
+            Self::change(&mut tx, &session, "closing").await?;
+        }
         let rows = sqlx::query_file_as!(
             ExpectedFrontend,
             "queries/node_resource_sessions.sql",

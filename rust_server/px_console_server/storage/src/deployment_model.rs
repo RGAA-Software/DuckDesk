@@ -5,9 +5,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DeploymentTarget {
-    GameHook {
-        install_root: String,
-    },
+    #[serde(deserialize_with = "crate::strict_wire::empty")]
+    GameHook,
     #[serde(deserialize_with = "crate::strict_wire::empty")]
     Webview,
     #[serde(deserialize_with = "crate::strict_wire::empty")]
@@ -16,15 +15,9 @@ pub enum DeploymentTarget {
 impl DeploymentTarget {
     pub(crate) fn kind(&self) -> &'static str {
         match self {
-            Self::GameHook { .. } => "game_hook",
+            Self::GameHook => "game_hook",
             Self::Webview => "webview",
             Self::Rdp => "rdp",
-        }
-    }
-    pub(crate) fn root(&self) -> Option<&str> {
-        match self {
-            Self::GameHook { install_root } => Some(install_root),
-            _ => None,
         }
     }
 }
@@ -33,54 +26,10 @@ impl DeploymentTarget {
 pub struct DeploymentConfiguration {
     pub target: DeploymentTarget,
     pub gpu_key: Option<String>,
-    pub gpu_profile: Option<GpuResourceProfile>,
     pub capacity: u32,
     pub disabled: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GpuResourceProfile {
-    pub memory_bytes: u64,
-    pub compute_per_mille: u16,
-    pub encoder_per_mille: u16,
-    pub memory_reserve_bytes: u64,
-    pub compute_limit_per_mille: u16,
-    pub encoder_limit_per_mille: u16,
-}
-
-const MAX_GPU_MEMORY_BUDGET_BYTES: u64 = 16 * 1024 * 1024 * 1024 * 1024;
-
-impl GpuResourceProfile {
-    fn validate(&self) -> Result<(), StoreError> {
-        if self.memory_bytes == 0
-            || self.memory_bytes > MAX_GPU_MEMORY_BUDGET_BYTES
-            || self.memory_reserve_bytes > MAX_GPU_MEMORY_BUDGET_BYTES
-            || self
-                .memory_bytes
-                .checked_add(self.memory_reserve_bytes)
-                .is_none_or(|total| total > MAX_GPU_MEMORY_BUDGET_BYTES)
-            || !(1..=1000).contains(&self.compute_per_mille)
-            || !(self.compute_per_mille..=1000).contains(&self.compute_limit_per_mille)
-            || !(1..=1000).contains(&self.encoder_per_mille)
-            || !(self.encoder_per_mille..=1000).contains(&self.encoder_limit_per_mille)
-        {
-            return Err(StoreError::InvalidInput);
-        }
-        Ok(())
-    }
-
-    pub(crate) fn database_values(&self) -> (i64, i16, i16, i64, i16, i16) {
-        (
-            self.memory_bytes as i64,
-            self.compute_per_mille as i16,
-            self.encoder_per_mille as i16,
-            self.memory_reserve_bytes as i64,
-            self.compute_limit_per_mille as i16,
-            self.encoder_limit_per_mille as i16,
-        )
-    }
-}
 impl DeploymentConfiguration {
     pub(crate) fn validate(&self) -> Result<(), StoreError> {
         if !(1..=64).contains(&self.capacity)
@@ -97,32 +46,11 @@ impl DeploymentConfiguration {
         }) {
             return Err(StoreError::InvalidInput);
         }
-        match (&self.target, &self.gpu_profile) {
-            (DeploymentTarget::Rdp, None) if self.gpu_key.is_none() => {}
-            (DeploymentTarget::GameHook { .. } | DeploymentTarget::Webview, Some(profile)) => {
-                profile.validate()?;
-            }
-            _ => return Err(StoreError::InvalidInput),
-        }
-        if let Some(root) = self.target.root() {
-            absolute_install_root(root)?;
+        if self.target == DeploymentTarget::Rdp && self.gpu_key.is_some() {
+            return Err(StoreError::InvalidInput);
         }
         Ok(())
     }
-}
-pub(crate) fn absolute_install_root(root: &str) -> Result<(), StoreError> {
-    let bytes = root.as_bytes();
-    if bytes.len() < 3
-        || bytes.len() > 2048
-        || !bytes[0].is_ascii_alphabetic()
-        || &bytes[1..3] != b":\\"
-    {
-        return Err(StoreError::InvalidInput);
-    }
-    if bytes.len() > 3 {
-        crate::application_model::windows_relative_components(&root[3..])?;
-    }
-    Ok(())
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -194,14 +122,7 @@ pub struct DeploymentProfile {
     pub application_id: Uuid,
     pub node_id: Uuid,
     pub kind: String,
-    pub install_root: Option<String>,
     pub gpu_key: Option<String>,
-    pub gpu_memory_bytes: Option<i64>,
-    pub gpu_compute_per_mille: Option<i16>,
-    pub gpu_encoder_per_mille: Option<i16>,
-    pub gpu_memory_reserve_bytes: Option<i64>,
-    pub gpu_compute_limit_per_mille: Option<i16>,
-    pub gpu_encoder_limit_per_mille: Option<i16>,
     pub capacity: i32,
     pub disabled: bool,
     pub revision: i64,
@@ -218,8 +139,7 @@ pub struct DeploymentProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NodeDeploymentPreparation {
     GameHook {
-        install_root: String,
-        executable_relative: String,
+        executable_path: String,
         gpu_key: Option<String>,
     },
     Webview {
@@ -245,45 +165,16 @@ mod tests {
     #[test]
     fn deployment_paths_capacity_and_binding_are_explicit_and_bounded() {
         let mut config = DeploymentConfiguration {
-            target: DeploymentTarget::GameHook {
-                install_root: r"D:\游戏 目录".into(),
-            },
+            target: DeploymentTarget::GameHook,
             gpu_key: Some("GPU-001:0".into()),
-            gpu_profile: Some(GpuResourceProfile {
-                memory_bytes: 512 * 1024 * 1024,
-                compute_per_mille: 200,
-                encoder_per_mille: 250,
-                memory_reserve_bytes: 256 * 1024 * 1024,
-                compute_limit_per_mille: 900,
-                encoder_limit_per_mille: 900,
-            }),
             capacity: 4,
             disabled: false,
         };
         assert!(config.validate().is_ok());
-        for root in [
-            r"relative\path",
-            r"\\server\share",
-            r"C:relative",
-            r"D:\..\secret",
-            r"D:\CON",
-            r"D:\bad.",
-            r"D:\bad ",
-            r"D:\a/b",
-            r"D:\a*",
-            r"D:\a:stream",
-            "D:\\a\nb",
-        ] {
-            config.target = DeploymentTarget::GameHook {
-                install_root: root.into(),
-            };
-            assert!(config.validate().is_err(), "{root}");
-        }
         config.target = DeploymentTarget::Rdp;
         assert!(config.validate().is_err());
         config.capacity = 1;
         config.gpu_key = None;
-        config.gpu_profile = None;
         assert!(config.validate().is_ok());
         config.gpu_key = Some("".into());
         assert!(config.validate().is_err());

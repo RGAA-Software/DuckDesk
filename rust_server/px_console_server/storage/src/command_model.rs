@@ -8,23 +8,16 @@ pub enum NodeCommandAction {
     Start {
         port: u16,
         launch: ApplicationLaunch,
-        install_root: Option<String>,
-        gpu_reservation: Option<GpuReservation>,
+        gpu_binding: Option<GpuBinding>,
     },
     /// Stop only this launch identity. No PID/path/port cleanup selector.
     Stop,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub struct GpuReservation {
+pub struct GpuBinding {
     pub stable_key: String,
     pub inventory_revision: i64,
-    pub memory_bytes: i64,
-    pub compute_per_mille: i16,
-    pub encoder_per_mille: i16,
-    pub memory_reserve_bytes: i64,
-    pub compute_limit_per_mille: i16,
-    pub encoder_limit_per_mille: i16,
 }
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct NodeCommand {
@@ -98,20 +91,13 @@ pub(crate) struct CommandRow {
 #[derive(sqlx::FromRow)]
 pub(crate) struct LaunchRow {
     pub kind: String,
-    pub install_root: Option<String>,
-    pub executable_relative: Option<String>,
+    pub executable_path: Option<String>,
     pub arguments: Option<String>,
     pub entry_url: Option<String>,
     pub codec: Option<String>,
     pub bitrate_kbps: Option<i32>,
     pub gpu_key: Option<String>,
     pub gpu_inventory_revision: Option<i64>,
-    pub gpu_memory_reservation_bytes: Option<i64>,
-    pub gpu_compute_reservation_per_mille: Option<i16>,
-    pub gpu_encoder_reservation_per_mille: Option<i16>,
-    pub gpu_memory_reserve_bytes: Option<i64>,
-    pub gpu_compute_limit_per_mille: Option<i16>,
-    pub gpu_encoder_limit_per_mille: Option<i16>,
 }
 impl LaunchRow {
     pub(crate) fn action(self, port: i32) -> Result<NodeCommandAction, StoreError> {
@@ -134,7 +120,7 @@ impl LaunchRow {
         };
         let launch = match self.kind.as_str() {
             "game_hook" => ApplicationLaunch::GameHook {
-                executable_relative: self.executable_relative.ok_or(invalid)?,
+                executable_path: self.executable_path.ok_or(invalid)?,
                 arguments: self.arguments.ok_or(invalid)?,
                 video: video.ok_or(invalid)?,
             },
@@ -146,53 +132,23 @@ impl LaunchRow {
             _ => return Err(invalid),
         };
         launch.validate()?;
-        if matches!(launch, ApplicationLaunch::GameHook { .. }) {
-            crate::deployment_model::absolute_install_root(
-                self.install_root.as_deref().ok_or(invalid)?,
-            )?;
-        } else if self.install_root.is_some() {
-            return Err(invalid);
-        }
-        let gpu_reservation = match (
-            self.gpu_key,
-            self.gpu_inventory_revision,
-            self.gpu_memory_reservation_bytes,
-            self.gpu_compute_reservation_per_mille,
-            self.gpu_encoder_reservation_per_mille,
-            self.gpu_memory_reserve_bytes,
-            self.gpu_compute_limit_per_mille,
-            self.gpu_encoder_limit_per_mille,
-        ) {
-            (None, None, None, None, None, None, None, None) => None,
-            (
-                Some(stable_key),
-                Some(inventory_revision),
-                Some(memory_bytes),
-                Some(compute_per_mille),
-                Some(encoder_per_mille),
-                Some(memory_reserve_bytes),
-                Some(compute_limit_per_mille),
-                Some(encoder_limit_per_mille),
-            ) => Some(GpuReservation {
-                stable_key,
-                inventory_revision,
-                memory_bytes,
-                compute_per_mille,
-                encoder_per_mille,
-                memory_reserve_bytes,
-                compute_limit_per_mille,
-                encoder_limit_per_mille,
-            }),
+        let gpu_binding = match (self.gpu_key, self.gpu_inventory_revision) {
+            (None, None) => None,
+            (Some(stable_key), Some(inventory_revision)) if inventory_revision > 0 => {
+                Some(GpuBinding {
+                    stable_key,
+                    inventory_revision,
+                })
+            }
             _ => return Err(invalid),
         };
-        if (self.kind == "rdp") != gpu_reservation.is_none() {
+        if (self.kind == "rdp") != gpu_binding.is_none() {
             return Err(invalid);
         }
         Ok(NodeCommandAction::Start {
             port: port.try_into().map_err(|_| invalid)?,
             launch,
-            install_root: self.install_root,
-            gpu_reservation,
+            gpu_binding,
         })
     }
 }

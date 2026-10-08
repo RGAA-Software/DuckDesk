@@ -28,7 +28,6 @@ pub struct SingleServerSetupInput {
     pub postgresql_port: u16,
     pub postgresql_administrator: String,
     pub postgresql_password: String,
-    pub postgresql_ca_pem: String,
     pub public_host: String,
     pub initial_username: String,
     pub initial_password: String,
@@ -148,7 +147,7 @@ pub fn activate_single_server_relay(
 
 #[derive(Debug, thiserror::Error)]
 pub enum SingleServerSetupError {
-    #[error("invalid setup fields, PostgreSQL CA, or destination paths")]
+    #[error("invalid setup fields or destination paths")]
     Invalid,
     #[error("this deployment is already initialized")]
     Existing,
@@ -158,7 +157,7 @@ pub enum SingleServerSetupError {
     Console,
     #[error("private configuration or TLS certificate creation failed")]
     Private,
-    #[error("bundled PostgreSQL tools or license trust key are unavailable")]
+    #[error("bundled PostgreSQL tools, license trust key, or starter license are unavailable")]
     Package,
 }
 
@@ -189,14 +188,6 @@ pub async fn initialize_single_server(
         make_private_directory(&layout.data_root.join(relative_directory))?;
     }
 
-    let postgresql_ca_path = layout.config_root.join("postgresql-ca.crt");
-    if postgresql_ca_path.exists() {
-        private::replace_private(&postgresql_ca_path, input.postgresql_ca_pem.as_bytes())
-            .map_err(|_| SingleServerSetupError::Private)?;
-    } else {
-        private::create_private(&postgresql_ca_path, input.postgresql_ca_pem.as_bytes())
-            .map_err(|_| SingleServerSetupError::Private)?;
-    }
     let mut administrator_url = Url::parse("postgresql://localhost/postgres")
         .map_err(|_| SingleServerSetupError::Invalid)?;
     administrator_url
@@ -212,12 +203,32 @@ pub async fn initialize_single_server(
     administrator_url
         .set_password(Some(&administrator_password))
         .map_err(|_| SingleServerSetupError::Invalid)?;
-    administrator_url.query_pairs_mut().append_pair(
-        "sslrootcert",
-        &postgresql_ca_path.to_string_lossy().replace('\\', "/"),
-    );
     let administrator_url = Zeroizing::new(administrator_url.to_string());
     let deployment_id = Uuid::new_v4();
+    let bundled_trust = fs::read(layout.package_root.join("assets/license-trust.json"))
+        .map_err(|_| SingleServerSetupError::Package)?;
+    let trust_bytes = bundled_trust.strip_suffix(b"\n").unwrap_or(&bundled_trust);
+    let trust_store = px_license::LicenseTrustStore::from_canonical_bytes(trust_bytes)
+        .map_err(|_| SingleServerSetupError::Package)?;
+    let starter_wire =
+        fs::read_to_string(layout.package_root.join("assets/starter-license.pxlic2"))
+            .map_err(|_| SingleServerSetupError::Package)?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|_| SingleServerSetupError::Package)?
+        .as_secs() as i64;
+    let starter = trust_store
+        .verifier_set()
+        .and_then(|verifier| {
+            verifier.verify(
+                starter_wire.trim_end(),
+                &px_license::VerifyContext::new(deployment_id, now),
+            )
+        })
+        .map_err(|_| SingleServerSetupError::Package)?;
+    if starter.deployment_id != px_license::STARTER_DEPLOYMENT_ID {
+        return Err(SingleServerSetupError::Package);
+    }
     let database_credentials = ConsoleDatabaseCredentials::generate();
     let (owner_url, runtime_url) = provision_fresh_console_database(
         administrator_url.clone(),
@@ -226,8 +237,10 @@ pub async fn initialize_single_server(
     )
     .await
     .map_err(SingleServerSetupError::Database)?;
-    let owner_configuration = DatabaseConfig::parse(&owner_url, Transport::VerifyFull)
+    let owner_configuration = DatabaseConfig::parse(&owner_url, Transport::PreferTls)
         .map_err(|_| SingleServerSetupError::Console)?;
+    crate::database_upgrade::save_console_owner_credential(&layout.config_root, &owner_url)
+        .map_err(|_| SingleServerSetupError::Private)?;
     migrate(
         &owner_configuration,
         Service::Console,
@@ -256,7 +269,7 @@ pub async fn initialize_single_server(
         Url::parse(&administrator_url).map_err(|_| SingleServerSetupError::Console)?;
     backup_admin_url.set_path("/pixels_console");
     let backup_configuration =
-        DatabaseConfig::parse(backup_admin_url.as_str(), Transport::VerifyFull)
+        DatabaseConfig::parse(backup_admin_url.as_str(), Transport::PreferTls)
             .map_err(|_| SingleServerSetupError::Console)?;
     provision_backup_role(
         &backup_configuration,
@@ -287,13 +300,11 @@ pub async fn initialize_single_server(
         .map_err(|_| SingleServerSetupError::Private)?;
     private::create_private(&console_key_path, server_key.as_bytes())
         .map_err(|_| SingleServerSetupError::Private)?;
-    let bundled_trust = fs::read(layout.package_root.join("assets/license-trust.json"))
-        .map_err(|_| SingleServerSetupError::Package)?;
-    let trust_bytes = bundled_trust.strip_suffix(b"\n").unwrap_or(&bundled_trust);
-    px_license::LicenseTrustStore::from_canonical_bytes(&trust_bytes)
-        .map_err(|_| SingleServerSetupError::Package)?;
     let trust_path = layout.config_root.join("license-trust.json");
     private::create_private(&trust_path, &trust_bytes)
+        .map_err(|_| SingleServerSetupError::Private)?;
+    let license_path = layout.config_root.join("console/license/console.license");
+    private::create_private(&license_path, starter_wire.trim_end().as_bytes())
         .map_err(|_| SingleServerSetupError::Private)?;
 
     let guest_key_path = layout.config_root.join("guest-source.key");
@@ -310,11 +321,7 @@ pub async fn initialize_single_server(
     let relay_control_key = random_secret();
     let relay_token = random_secret();
     let backup_control_token = random_secret();
-    let relay_control_host = if layout.linux_container {
-        "console"
-    } else {
-        "localhost"
-    };
+    let relay_control_host = "127.0.0.1";
     let static_directory = layout.runtime_root.join("static/console");
     let workspace_keys = serde_json::json!([{
         "id":workspace_key_id,
@@ -325,6 +332,7 @@ pub async fn initialize_single_server(
          PIXELS_CONSOLE_DISTRIBUTION=official\n\
          PIXELS_CONSOLE_RELEASE_NAMESPACE=pixels.official\n\
          PIXELS_CONSOLE_LOCAL_DEVELOPMENT=0\n\
+         PIXELS_CONSOLE_DATABASE_TLS=prefer\n\
          PIXELS_CONSOLE_DATABASE_URL={}\n\
          PIXELS_CONSOLE_LISTEN=0.0.0.0:4600\n\
          PIXELS_CONSOLE_STATIC_DIRECTORY={}\n\
@@ -332,9 +340,7 @@ pub async fn initialize_single_server(
          PIXELS_CONSOLE_TLS_KEY={}\n\
          PIXELS_CONSOLE_PUBLIC_ORIGIN={console_origin}\n\
          PIXELS_CONSOLE_REGISTRATION=0\n\
-         PIXELS_CONSOLE_GUESTS=0\n\
          PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS=3600\n\
-         PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS=3600\n\
          PIXELS_CONSOLE_GUEST_SOURCE_KEY={}\n\
          PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY={workspace_key_id}\n\
          PIXELS_CONSOLE_WORKSPACE_KEYS='{workspace_keys}'\n\
@@ -394,15 +400,8 @@ pub async fn initialize_single_server(
     )
     .map_err(|_| SingleServerSetupError::Private)?;
     if layout.linux_container {
-        private::create_private(
-            &layout.config_root.join("backup.env"),
-            format!(
-                "PIXELS_BACKUP_PG_SSL_ROOT_CERT={}\n",
-                postgresql_ca_path.display()
-            )
-            .as_bytes(),
-        )
-        .map_err(|_| SingleServerSetupError::Private)?;
+        private::create_private(&layout.config_root.join("backup.env"), b"")
+            .map_err(|_| SingleServerSetupError::Private)?;
         assign_linux_service_permissions(layout)?;
         let marker = layout.config_root.join("setup.ready");
         fs::write(&marker, b"ready\n").map_err(|_| SingleServerSetupError::Private)?;
@@ -442,6 +441,11 @@ fn assign_linux_service_permissions(
             .map_err(|_| SingleServerSetupError::Private)?;
     }
     assign(layout.config_root.join("console/license"), 10001, 0o700)?;
+    assign(
+        layout.config_root.join("console/license/console.license"),
+        10001,
+        0o600,
+    )?;
     for relative_path in [
         "console.env",
         "license-trust.json",
@@ -455,12 +459,7 @@ fn assign_linux_service_permissions(
     for relative_path in ["backup.json", "backup/console.pgpass"] {
         assign(layout.config_root.join(relative_path), 10003, 0o600)?;
     }
-    for relative_path in [
-        "postgresql-ca.crt",
-        "console-ca.crt",
-        "console-tls.crt",
-        "backup.env",
-    ] {
+    for relative_path in ["console-ca.crt", "console-tls.crt", "backup.env"] {
         fs::set_permissions(
             layout.config_root.join(relative_path),
             fs::Permissions::from_mode(0o644),
@@ -501,10 +500,6 @@ fn validate_input(
 ) -> Result<(), SingleServerSetupError> {
     if input.postgresql_port == 0
         || input.postgresql_password.is_empty()
-        || input.postgresql_ca_pem.len() > 4096
-        || !input
-            .postgresql_ca_pem
-            .contains("-----BEGIN CERTIFICATE-----")
         || !px_credentials::valid_password(&input.initial_password)
         || Username::parse(&input.initial_username).is_err()
         || input.public_host.is_empty()
@@ -528,7 +523,7 @@ fn validate_input(
     Ok(())
 }
 
-fn make_private_directory(path: &Path) -> Result<(), SingleServerSetupError> {
+pub(crate) fn make_private_directory(path: &Path) -> Result<(), SingleServerSetupError> {
     fs::create_dir_all(path).map_err(|_| SingleServerSetupError::Private)?;
     #[cfg(unix)]
     {
@@ -680,6 +675,8 @@ fn tool_hash(path: &Path) -> Result<String, SingleServerSetupError> {
 #[cfg(test)]
 mod tests {
     use super::generate_console_certificate;
+    use px_license::{LicenseTrustStore, VerifyContext, STARTER_DEPLOYMENT_ID};
+    use uuid::Uuid;
     use x509_parser::{parse_x509_certificate, pem::parse_x509_pem};
 
     #[test]
@@ -703,5 +700,31 @@ mod tests {
         server_certificate
             .verify_signature(Some(authority_certificate.public_key()))
             .expect("server signature");
+    }
+
+    #[test]
+    fn console_certificate_accepts_private_deployment_hosts() {
+        generate_console_certificate("localhost").expect("local Console certificate");
+        generate_console_certificate("192.168.1.20").expect("LAN Console certificate");
+    }
+
+    #[test]
+    fn packaged_starter_license_is_officially_signed_and_portable() {
+        let assets = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../deploy/single_server/assets");
+        let trust_bytes = std::fs::read(assets.join("license-trust.json")).unwrap();
+        let trust = LicenseTrustStore::from_canonical_bytes(trust_bytes.trim_ascii_end()).unwrap();
+        let wire = std::fs::read_to_string(assets.join("starter-license.pxlic2")).unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64;
+        let payload = trust
+            .verifier_set()
+            .unwrap()
+            .verify(wire.trim_end(), &VerifyContext::new(Uuid::new_v4(), now))
+            .unwrap();
+        assert_eq!(payload.deployment_id, STARTER_DEPLOYMENT_ID);
+        assert_eq!(payload.max_streams, 4);
     }
 }

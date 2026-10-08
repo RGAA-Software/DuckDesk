@@ -1,0 +1,37 @@
+[
+  {
+    "original_path": "web/px_console/src/views/SecurityInternal.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Restore authorized inline recording playback with preparation, progress, and cancellation",
+    "archive_batch": "recording_preview_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_activity_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Restore authorized inline recording playback with preparation, progress, and cancellation",
+    "archive_batch": "recording_preview_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "reason": "Restore authorized inline recording playback with preparation, progress, and cancellation",
+    "archive_batch": "recording_preview_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "reason": "Restore authorized inline recording playback with preparation, progress, and cancellation",
+    "archive_batch": "recording_preview_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/user/UserRecordings.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Allow authorized downloads to perform cache verification after Console restart",
+    "archive_batch": "recording_preview_20261008"
+  }
+]

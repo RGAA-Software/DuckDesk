@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.cache_blobs SET state='published',received_bytes=size_bytes,verified_run=$2,updated_at=clock_timestamp()\nWHERE id=$1 RETURNING id,recording_id,root_id,run_id,node_generation,lease_id,lease_until,state,size_bytes,source_sha256,received_bytes,verified_run,\n(lease_until<=clock_timestamp() OR deadline<=clock_timestamp()) AS \"expired!\",\nGREATEST(0,LEAST(30000,FLOOR(EXTRACT(EPOCH FROM (LEAST(lease_until,deadline)-clock_timestamp()))*1000)))::bigint AS \"remaining_ms!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "recording_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "root_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "run_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "lease_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "lease_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "source_sha256",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "received_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "verified_run",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "expired!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "remaining_ms!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "9828176d597fbdc20b9b1c5b68b62d45d2ec84a4ee5993bb454f3c33ed0e7526"
+}

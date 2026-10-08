@@ -44,4 +44,15 @@ docker compose config --quiet
 docker compose run --rm --no-deps -T --user 0:0 setup \
     /opt/pixels/bin/px_console_admin upgrade-backup-control /etc/pixels linux
 docker compose up -d
-echo 'On first install, open http://127.0.0.1:4700/ on this host to finish setup.'
+setup_container="$(docker compose ps -a -q setup)"
+if [[ -z "$setup_container" ]]; then
+    echo 'Pixels automatic setup container is missing.' >&2
+    exit 1
+fi
+setup_exit="$(docker wait "$setup_container")"
+if [[ "$setup_exit" != 0 ]]; then
+    docker logs "$setup_container" >&2
+    echo 'Pixels automatic setup failed; configuration and PostgreSQL were retained.' >&2
+    exit 1
+fi
+docker logs "$setup_container" 2>&1 | tail -n 1

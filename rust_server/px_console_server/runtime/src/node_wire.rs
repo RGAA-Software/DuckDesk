@@ -152,12 +152,10 @@ pub fn assignment(value: store::NodeDeploymentAssignment) -> wire::DeploymentAss
         disabled: value.disabled,
         preparation: match value.preparation {
             store::NodeDeploymentPreparation::GameHook {
-                install_root,
-                executable_relative,
+                executable_path,
                 gpu_key,
             } => wire::DeploymentPreparation::GameHook {
-                install_root,
-                executable_relative,
+                executable_path,
                 gpu_key,
             },
             store::NodeDeploymentPreparation::Webview { gpu_key } => {
@@ -346,23 +344,15 @@ pub fn command(value: store::NodeCommand, relay_app_key: Option<&str>) -> wire::
             store::NodeCommandAction::Start {
                 port,
                 launch,
-                install_root,
-                gpu_reservation,
+                gpu_binding,
             } => {
                 let rdp = matches!(&launch, store::ApplicationLaunch::Rdp);
                 wire::NodeCommandAction::Start {
                     port,
                     launch: application(launch),
-                    install_root,
-                    gpu_reservation: gpu_reservation.map(|reservation| wire::GpuReservation {
-                        stable_key: reservation.stable_key,
-                        inventory_revision: reservation.inventory_revision,
-                        memory_bytes: reservation.memory_bytes,
-                        compute_per_mille: reservation.compute_per_mille,
-                        encoder_per_mille: reservation.encoder_per_mille,
-                        memory_reserve_bytes: reservation.memory_reserve_bytes,
-                        compute_limit_per_mille: reservation.compute_limit_per_mille,
-                        encoder_limit_per_mille: reservation.encoder_limit_per_mille,
+                    gpu_binding: gpu_binding.map(|binding| wire::GpuBinding {
+                        stable_key: binding.stable_key,
+                        inventory_revision: binding.inventory_revision,
                     }),
                     relay: value.relay.filter(|_| !rdp).zip(relay_app_key).and_then(
                         |(binding, app_key)| {
@@ -383,11 +373,11 @@ pub fn command(value: store::NodeCommand, relay_app_key: Option<&str>) -> wire::
 fn application(value: store::ApplicationLaunch) -> wire::ApplicationLaunch {
     match value {
         store::ApplicationLaunch::GameHook {
-            executable_relative,
+            executable_path,
             arguments,
             video,
         } => wire::ApplicationLaunch::GameHook {
-            executable_relative,
+            executable_path,
             arguments,
             video: video_spec(video),
         },
@@ -450,8 +440,7 @@ mod tests {
                         bitrate_kbps: 8_000,
                     },
                 },
-                install_root: None,
-                gpu_reservation: None,
+                gpu_binding: None,
             },
         };
         let mapped = command(stored_command, Some("deployment-relay-signing-key"));

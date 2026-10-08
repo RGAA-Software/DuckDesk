@@ -15,8 +15,10 @@ services:
     image: *pixels-image
     user: "0:0"
     command: [/opt/pixels/bin/px_console_admin, setup-server, /etc/pixels, /var/lib/pixels, /opt/pixels, /opt/pixels, linux, -]
-    ports:
-      - "127.0.0.1:4700:4700"
+    network_mode: host
+    environment:
+      PIXELS_SERVER_ACCESS_HOST: ${PIXELS_SERVER_ACCESS_HOST:-}
+      PIXELS_SETUP_POSTGRESQL_HOST: ${PIXELS_SETUP_POSTGRESQL_HOST:-localhost}
     volumes:
       - *pixels-config
       - *pixels-data
@@ -26,8 +28,7 @@ services:
     image: *pixels-image
     user: "10001:10001"
     command: [/opt/pixels/bin/px_console, --wait-env-file, /etc/pixels/console.env, --wait-marker, /etc/pixels/setup.ready]
-    ports:
-      - "4600:4600"
+    network_mode: host
     volumes:
       - *pixels-config
       - *pixels-data
@@ -38,8 +39,7 @@ services:
     image: *pixels-image
     user: "10002:10002"
     command: [/opt/pixels/bin/px_relay, --wait-env-file, /etc/pixels/relay.env, --wait-marker, /etc/pixels/relay.ready]
-    ports:
-      - "4605:4605"
+    network_mode: host
     volumes:
       - *pixels-config
     depends_on:
@@ -52,6 +52,7 @@ services:
     image: *pixels-image
     user: "10003:10003"
     command: [/opt/pixels/bin/px_backup, run, /etc/pixels/backup.json, --wait-env-file, /etc/pixels/backup.env, --wait-marker, /etc/pixels/setup.ready]
+    network_mode: host
     volumes:
       - *pixels-config
       - *pixels-data

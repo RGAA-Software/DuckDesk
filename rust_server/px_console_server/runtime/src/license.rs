@@ -1,4 +1,6 @@
-use px_license::{LicensePayload, LicenseTrustStore, VerifyContext};
+use px_license::{
+    LicensePayload, LicenseTrustStore, VerifyContext, MAX_ISSUED_AT_CLOCK_SKEW_SECONDS,
+};
 use px_private_files::private::{create_private, read_private_bounded, replace_private};
 use serde::Serialize;
 use std::{
@@ -31,6 +33,7 @@ pub struct LicenseStatus {
     pub expires_at: i64,
     pub max_streams: u32,
     pub services: Vec<px_license::LicensedService>,
+    pub starter_license: bool,
 }
 
 impl LicenseLaunchConfig {
@@ -119,7 +122,9 @@ impl LicenseLaunchConfig {
 impl LicenseEntitlement {
     pub fn validate_now(&self) -> Result<(), LicenseAdmissionError> {
         let now = current_unix_time()?;
-        if now < self.payload.issued_at || now >= self.payload.expires_at {
+        if self.payload.issued_at > now.saturating_add(MAX_ISSUED_AT_CLOCK_SKEW_SECONDS)
+            || now >= self.payload.expires_at
+        {
             return Err(LicenseAdmissionError);
         }
         Ok(())
@@ -132,6 +137,7 @@ impl LicenseEntitlement {
             expires_at: self.payload.expires_at,
             max_streams: self.payload.max_streams,
             services: self.payload.services.clone(),
+            starter_license: self.payload.deployment_id == px_license::STARTER_DEPLOYMENT_ID,
         }
     }
 

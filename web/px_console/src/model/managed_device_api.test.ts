@@ -4,7 +4,6 @@ import {
     createManagedDevice,
     listManagedDevices,
     replaceManagedDeviceAccess,
-    rotateManagedDeviceCredential,
     type ManagedDevice,
 } from "./managed_device_api";
 
@@ -45,24 +44,16 @@ describe("PostgreSQL managed device API", () => {
         });
     });
 
-    it("returns the one-time enrollment credential only from create and rotate", async () => {
+    it("returns the one-time enrollment credential only when creating a device", async () => {
         const response = { device: device(1), enrollment_token: "secret" };
         vi.mocked(axiosHttp.post).mockResolvedValue({ data: response } as never);
 
         await expect(createManagedDevice("Render 1", "windows")).resolves.toEqual(response);
-        await expect(rotateManagedDeviceCredential(response.device)).resolves.toEqual(response);
 
         expect(axiosHttp.post).toHaveBeenNthCalledWith(1, "/api/console/managed/devices", {
             name: "Render 1",
             platform: "windows",
         });
-        expect(axiosHttp.post).toHaveBeenNthCalledWith(
-            2,
-            `/api/console/managed/devices/${response.device.id}/credential`,
-            {
-                revision: 3,
-            },
-        );
     });
 
     it("replaces access using the device revision", async () => {

@@ -12,8 +12,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARIES = ("px_console.exe", "px_console_admin.exe", "px_db.exe", "px_relay.exe", "px_backup.exe")
+BINARIES = ("px_console.exe", "px_console_admin.exe", "px_db.exe", "px_relay.exe", "px_backup.exe", "px_server_tray.exe")
 PG_MANIFEST = ROOT / "deploy/production/windows-backup/postgresql-client-18.6.json"
+TRAY_ICON = ROOT / "src/px_panel/icon.ico"
 
 
 def digest(path: Path) -> str:
@@ -83,6 +84,7 @@ def assemble(binary_directory: Path, static_directory: Path, postgresql_director
     try:
         for binary_name in BINARIES:
             copy_file(binary_directory / binary_name, output_directory / "bin" / binary_name)
+        copy_file(TRAY_ICON, output_directory / "assets/tray.ico")
         for source in sorted(static_directory.rglob("*")):
             if source.is_symlink():
                 raise ValueError(f"Console Web contains a symlink: {source}")
@@ -92,8 +94,10 @@ def assemble(binary_directory: Path, static_directory: Path, postgresql_director
             copy_file(postgresql_directory / relative_path, output_directory / "postgresql" / relative_path)
         copy_file(ROOT / "deploy/single_server/assets/license-trust.json",
                   output_directory / "assets/license-trust.json")
+        copy_file(ROOT / "deploy/single_server/assets/starter-license.pxlic2",
+                  output_directory / "assets/starter-license.pxlic2")
         copy_file(ROOT / "docs/single_server_console_restore.md", output_directory / "restore_console.md")
-        for script_name in ("install.ps1", "uninstall.ps1", "stage_setup.ps1", "restore_console.ps1"):
+        for script_name in ("install.ps1", "uninstall.ps1", "stage_setup.ps1", "restore_console.ps1", "upgrade_console_database.ps1"):
             copy_file(ROOT / "deploy" / "single_server" / "windows" / script_name,
                       output_directory / script_name)
         files = {

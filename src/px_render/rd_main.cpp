@@ -95,6 +95,7 @@ DEFINE_string(rdp_instance_id, "", "Console RDP runtime instance id");
 DEFINE_string(rdp_workspace_id, "", "Persistent Console RDP workspace id");
 DEFINE_string(rdp_node_id, "", "Pinned Console RDP node id");
 DEFINE_string(rdp_device_id, "", "Pinned Service RDP device id");
+DEFINE_string(rdp_private_root, "", "Service-owned persistent RDP workspace directory");
 DEFINE_int32(rdp_proxy_port, 0, "Service-selected loopback proxy port");
 DEFINE_string(rdp_target_certificate_sha256, "", "Service-provisioned RDS certificate identity");
 DEFINE_string(rdp_proxy_certificate_sha256, "", "Service-provisioned proxy certificate identity");
@@ -235,6 +236,7 @@ bool UpdateSettings(RdSettings& settings) {
         settings.rdp_launch_.instance_id = FLAGS_rdp_instance_id;
         settings.rdp_launch_.node_id = FLAGS_rdp_node_id;
         settings.rdp_launch_.device_id = FLAGS_rdp_device_id;
+        settings.rdp_launch_.private_root = std::filesystem::u8path(FLAGS_rdp_private_root);
         settings.device_id_ = FLAGS_rdp_device_id;
         settings.rdp_launch_.proxy_port =
             FLAGS_rdp_proxy_port > 0 && FLAGS_rdp_proxy_port <= 65535 ? static_cast<std::uint16_t>(FLAGS_rdp_proxy_port) : std::uint16_t{};

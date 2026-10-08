@@ -3,6 +3,7 @@ import { message } from "ant-design-vue";
 import { onMounted, ref } from "vue";
 import { useManagementRefresh } from "@/model/management_events.ts";
 import { useI18n } from "vue-i18n";
+import ManagedRecordingPlayer from "@/views/recordings/ManagedRecordingPlayer.vue";
 import {
     listManagedChannels,
     listManagedFileTransfers,
@@ -28,6 +29,7 @@ const transfers = ref<FileTransferRecord[]>([]);
 const recordings = ref<RecordingProfile[]>([]);
 const recordingCache = ref<Record<string, RecordingCacheProfile>>({});
 const recordingAction = ref("");
+const previewRecording = ref<RecordingProfile>();
 
 async function refresh() {
     loading.value = true;
@@ -67,7 +69,8 @@ async function downloadRecording(recording: RecordingProfile) {
     try {
         const cache = await requestManagedRecordingCache(recording.id);
         recordingCache.value[recording.id] = cache;
-        if (cache.state !== "ready") {
+        // The authorized download verifies published caches again after a Console restart.
+        if (cache.state !== "ready" && cache.state !== "verifying") {
             message.info(t("activity.recordingPreparing"));
             return;
         }
@@ -122,7 +125,7 @@ async function evictRecording(recording: RecordingProfile) {
 }
 
 onMounted(refresh);
-useManagementRefresh(["guests"], refresh);
+useManagementRefresh(["guests", "recordings"], refresh);
 </script>
 
 <template>
@@ -258,6 +261,9 @@ useManagementRefresh(["guests"], refresh);
                     <a-table-column :title="t('activity.action')">
                         <template #default="{ record }">
                             <a-space>
+                                <a-button type="link" @click="previewRecording = record">
+                                    {{ t("recordingPreview.play") }}
+                                </a-button>
                                 <a-button
                                     type="link"
                                     :loading="recordingAction === record.id"
@@ -308,4 +314,10 @@ useManagementRefresh(["guests"], refresh);
             </a-tab-pane>
         </a-tabs>
     </a-card>
+    <ManagedRecordingPlayer
+        v-if="previewRecording"
+        :key="previewRecording.id"
+        :recording="previewRecording"
+        @close="previewRecording = undefined"
+    />
 </template>

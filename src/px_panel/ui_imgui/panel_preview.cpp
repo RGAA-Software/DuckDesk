@@ -29,7 +29,6 @@ PanelPreview::PanelPreview(PanelPreviewServices services)
     const auto appearance = settingsPort_->Snapshot();
     localizer_.SetLanguage(appearance.language);
     theme_ = appearance.theme;
-    enhancedVisualEffects_ = appearance.enhancedVisualEffects;
 }
 
 PanelPreviewAction PanelPreview::DrawSettingsPage() {
@@ -37,11 +36,6 @@ PanelPreviewAction PanelPreview::DrawSettingsPage() {
     ImGui::BeginChild("SettingsPage", ImVec2{-px::ui::Scale(10.0F), -layout::PageBottomInset()}, ImGuiChildFlags_None);
     px::ui::PageTitle(localizer_.Text(px::ui::TextId::Settings));
     action.selectedTheme = settings_.Draw(localizer_, theme_);
-    const bool currentEffects{settingsPort_->Snapshot().enhancedVisualEffects};
-    if (currentEffects != enhancedVisualEffects_) {
-        enhancedVisualEffects_ = currentEffects;
-        action.enhancedVisualEffects = currentEffects;
-    }
     ImGui::EndChild();
     return action;
 }
@@ -54,10 +48,6 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
         if (initialThemePending_) {
             action.selectedTheme = theme_;
             initialThemePending_ = false;
-        }
-        if (initialEffectsPending_) {
-            action.enhancedVisualEffects = enhancedVisualEffects_;
-            initialEffectsPending_ = false;
         }
         action.exitRequested = navigationAction.exitRequested;
         notifications_->Draw();
@@ -94,10 +84,6 @@ PanelPreviewAction PanelPreview::Draw(const px::desktop::PlatformIconAtlas& plat
     if (initialThemePending_) {
         action.selectedTheme = theme_;
         initialThemePending_ = false;
-    }
-    if (initialEffectsPending_) {
-        action.enhancedVisualEffects = enhancedVisualEffects_;
-        initialEffectsPending_ = false;
     }
     return action;
 }

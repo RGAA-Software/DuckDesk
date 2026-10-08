@@ -6,7 +6,7 @@ use crate::{
 use axum::{
     extract::{ConnectInfo, State},
     http::{HeaderMap, StatusCode},
-    routing::{get, patch, post},
+    routing::{get, patch},
     Json, Router,
 };
 use px_console_store::{DeviceAccess, DevicePlatform};
@@ -26,7 +26,6 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/devices/{id}/access",
             get(access).put(replace_access),
         )
-        .route("/api/console/managed/devices/{id}/credential", post(rotate))
         .route("/api/console/devices", get(visible))
         .route("/api/console/devices/{id}", get(device))
         .route(
@@ -159,23 +158,6 @@ async fn remove(
         )
         .await?;
     Ok(StatusCode::NO_CONTENT)
-}
-async fn rotate(
-    State(state): State<Arc<StateData>>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
-    Input(input): Input<Revision>,
-) -> Result<Json<Value>, ApiError> {
-    let actor = request::administrator(&state, &headers)?;
-    let (secret, digest) = request::mint();
-    let device = state
-        .db
-        .devices()
-        .rotate_key(&actor, id, input.revision, &digest)
-        .await?;
-    Ok(Json(
-        json!({"device":device,"enrollment_token":secret.as_str()}),
-    ))
 }
 async fn access(
     State(state): State<Arc<StateData>>,

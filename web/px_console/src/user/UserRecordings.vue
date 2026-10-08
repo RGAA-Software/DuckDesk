@@ -57,7 +57,8 @@ async function saveRecording(recording: RecordingView) {
     activeRecording.value = recording.id;
     try {
         const cache = await requestRecordingCache(recording.id);
-        if (cache.state !== "ready") {
+        // The authorized download verifies published caches again after a Console restart.
+        if (cache.state !== "ready" && cache.state !== "verifying") {
             message.info(t("userPortal.recordings.preparing"));
             return;
         }

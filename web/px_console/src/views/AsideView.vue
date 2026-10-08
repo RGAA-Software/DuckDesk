@@ -4,8 +4,10 @@ import PixelsBrand from "@/components/PixelsBrand.vue";
 import {
     ApiOutlined,
     AppstoreOutlined,
+    ClusterOutlined,
     BellOutlined,
     DesktopOutlined,
+    DatabaseOutlined,
     HomeOutlined,
     LockOutlined,
     TeamOutlined,
@@ -22,15 +24,17 @@ const route = useRoute();
 const { isDark } = useTheme();
 const { t } = useI18n();
 
-// 计算属性，自动获取当前路由路径
+// Current node alerts and telemetry history belong to the same navigation section.
 const activeMenu = computed(() => {
-    const path = route.path;
+    const path = route.path === "/node-alerts" ? "/telemetry-alerts" : route.path;
 
     const menuPaths = [
         "/resources",
         "/devices-list",
         "/online-connection",
         "/apps",
+        "/relays",
+        "/database-backup",
         "/security-internal",
         "/telemetry-alerts",
         "/user-manager",
@@ -89,9 +93,19 @@ const handleClickLogo = async () => {
                 <span>{{ t("navigation.applications") }}</span>
             </a-menu-item>
 
+            <a-menu-item key="/relays">
+                <template #icon><ClusterOutlined /></template>
+                <span>{{ t("navigation.relays") }}</span>
+            </a-menu-item>
+
             <a-menu-item key="/security-internal">
                 <template #icon><LockOutlined /></template>
                 <span>{{ t("navigation.security") }}</span>
+            </a-menu-item>
+
+            <a-menu-item key="/database-backup">
+                <template #icon><DatabaseOutlined /></template>
+                <span>{{ t("navigation.databaseBackup") }}</span>
             </a-menu-item>
 
             <a-menu-item key="/telemetry-alerts">

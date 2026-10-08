@@ -90,6 +90,20 @@ px::Result<std::vector<json>, ConsoleApiError> QueryPages(const std::string& hos
 
 }  // namespace
 
+px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::ReadInstance(
+    const std::string& host, const int port, const std::string& access_token, const std::string& instance_id, const bool guest) {
+    const auto response = QueryInstance(host, port, access_token, instance_id, guest);
+    if (!response) return TcErr(response.error());
+    try {
+        auto instance = ParseInstance(*response);
+        if (instance.instance_id != instance_id || instance.app_id.empty() || instance.revision <= 0)
+            return TcErr(ConsoleApiError::kParseJsonFailed);
+        return instance;
+    } catch (const std::exception&) {
+        return TcErr(ConsoleApiError::kParseJsonFailed);
+    }
+}
+
 px::Result<std::vector<ConsoleUserAppInstance>, ConsoleApiError> ConsoleUserAppApi::QueryInstances(const std::string& host, const int port,
                                                                                                    const std::string& access_token,
                                                                                                    const bool guest) {
@@ -135,13 +149,17 @@ px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> ConsoleUserAppA
     }
     std::vector<ConsoleUserApplication> applications{};
     for (const auto& application_row : rows.value()) {
+        if (!application_row.contains("running_instance_count") || !application_row["running_instance_count"].is_number_integer())
+            return TcErr(ConsoleApiError::kParseJsonFailed);
         ConsoleUserApplication application{.app_id = application_row.value("id", ""),
                                            .app_type = application_row.value("kind", ""),
                                            .name = application_row.value("name", ""),
                                            .access_mode = application_row.value("access_mode", ""),
                                            .cover_url = {},
-                                           .version = application_row.value("revision", 0LL)};
-        if (application.app_id.empty() || application.name.empty() || application.app_type.empty() || application.version <= 0) {
+                                           .version = application_row.value("revision", 0LL),
+                                           .running_instance_count = application_row.value("running_instance_count", 0LL)};
+        if (application.app_id.empty() || application.name.empty() || application.app_type.empty() || application.version <= 0 ||
+            application.running_instance_count < 0) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
         applications.push_back(std::move(application));
@@ -151,11 +169,15 @@ px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> ConsoleUserAppA
 
 px::Result<ConsoleUserAppInstance, ConsoleApiError> ConsoleUserAppApi::StartApp(const std::string& host, const int port,
                                                                                 const std::string& access_token, const std::string& app_id,
-                                                                                const std::string& client_nonce, const bool guest) {
+                                                                                const std::string& request_id, const bool guest) {
+    if (!px::IsCanonicalUUID(request_id)) {
+        LOGE("StartApp rejected locally: field=request_id code=invalid_uuid_format");
+        return TcErr(ConsoleApiError::kInvalidParams);
+    }
     const auto client = MakeConsoleHttpClient(host, port, "/api/console/instances", 30'000);
     SetPanelRequestHeaders(client, access_token, guest ? "guest" : "user");
     const auto response =
-        client->Post({}, json{{"request_id", client_nonce}, {"application_id", app_id}, {"deployment_id", nullptr}}.dump(), "application/json");
+        client->Post({}, json{{"request_id", request_id}, {"application_id", app_id}, {"deployment_id", nullptr}}.dump(), "application/json");
     if (response.status != 201 || response.body.empty()) {
         return HttpError<ConsoleUserAppInstance>("StartApp", response);
     }

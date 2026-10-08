@@ -258,13 +258,6 @@ async fn role_client_type_and_resource_identity_are_not_interchangeable() {
             fixture.devices.delete(denied, device.id, 1).await,
             Err(StoreError::Rejected)
         );
-        assert_eq!(
-            fixture
-                .devices
-                .rotate_key(denied, device.id, 1, &token())
-                .await,
-            Err(StoreError::Rejected)
-        );
     }
     assert_eq!(
         fixture
@@ -575,13 +568,17 @@ async fn twenty_competing_writes_have_one_revision_winner_and_one_audit() {
 }
 
 #[tokio::test]
-async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_relationships() {
+async fn disable_and_delete_never_resurrect_credentials_or_remove_relationships() {
     let fixture = Fixture::new().await;
-    let key = token();
-    let next = token();
+    let enrollment_key = token();
     let device = fixture
         .devices
-        .create(&fixture.admin, "Lifecycle", DevicePlatform::Windows, &key)
+        .create(
+            &fixture.admin,
+            "Lifecycle",
+            DevicePlatform::Windows,
+            &enrollment_key,
+        )
         .await
         .unwrap();
     let user = fixture.user().await;
@@ -598,20 +595,23 @@ async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_r
         )
         .await
         .unwrap();
-    let user_key = fixture.session(user, ClientType::Android).await;
+    let user_session = fixture.session(user, ClientType::Android).await;
     fixture
         .devices
         .update(&fixture.admin, device.id, 2, "Lifecycle", true)
         .await
         .unwrap();
     assert_eq!(
-        fixture.devices.authenticate_enrollment(&key).await,
+        fixture
+            .devices
+            .authenticate_enrollment(&enrollment_key)
+            .await,
         Err(StoreError::Rejected)
     );
     assert_eq!(
         fixture
             .devices
-            .get_visible(&user_key, ClientType::Android, device.id)
+            .get_visible(&user_session, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
@@ -620,64 +620,51 @@ async fn disable_key_rotation_and_delete_never_resurrect_credentials_or_remove_r
         .update(&fixture.admin, device.id, 3, "Lifecycle", false)
         .await
         .unwrap();
-    assert!(fixture.devices.authenticate_enrollment(&key).await.is_ok());
+    assert!(fixture
+        .devices
+        .authenticate_enrollment(&enrollment_key)
+        .await
+        .is_ok());
     assert_eq!(
         fixture
             .devices
-            .get_visible(&user_key, ClientType::Android, device.id)
+            .get_visible(&user_session, ClientType::Android, device.id)
             .await,
         Err(StoreError::Rejected)
     );
-    let current = fixture.session(user, ClientType::Android).await;
+    let current_session = fixture.session(user, ClientType::Android).await;
+    assert!(fixture
+        .devices
+        .get_visible(&current_session, ClientType::Android, device.id)
+        .await
+        .is_ok());
     fixture
         .devices
-        .rotate_key(&fixture.admin, device.id, 4, &next)
+        .delete(&fixture.admin, device.id, 4)
         .await
         .unwrap();
     assert_eq!(
-        fixture.devices.authenticate_enrollment(&key).await,
-        Err(StoreError::Rejected)
-    );
-    assert_eq!(
         fixture
             .devices
-            .authenticate_enrollment(&next)
-            .await
-            .unwrap()
-            .revision,
-        5
-    );
-    assert_eq!(
-        fixture
-            .devices
-            .get_visible(&current, ClientType::Android, device.id)
+            .authenticate_enrollment(&enrollment_key)
             .await,
         Err(StoreError::Rejected)
     );
-    fixture
-        .devices
-        .delete(&fixture.admin, device.id, 5)
-        .await
-        .unwrap();
-    assert_eq!(
-        fixture.devices.authenticate_enrollment(&next).await,
-        Err(StoreError::Rejected)
-    );
     assert_eq!(
         fixture
             .devices
-            .update(&fixture.admin, device.id, 6, "revive", false)
+            .update(&fixture.admin, device.id, 5, "revive", false)
             .await,
         Err(StoreError::Rejected)
     );
-    let retained: i64 =
+    let retained_relationship_count: i64 =
         sqlx::query_scalar("SELECT count(*) FROM pixels.user_devices WHERE device_id=$1")
             .bind(device.id)
             .fetch_one(&fixture.owner)
             .await
             .unwrap();
-    assert_eq!(retained, 1);
-    assert_eq!(fixture.audits(device.id).await, 6);
+    assert_eq!(retained_relationship_count, 1);
+    assert_eq!(fixture.audits(device.id).await, 5);
     fixture.close().await;
 }
 

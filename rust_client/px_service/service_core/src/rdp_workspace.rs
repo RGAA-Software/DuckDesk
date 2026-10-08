@@ -208,7 +208,7 @@ fn read_identity(path: &Path) -> Result<Option<WorkspaceIdentity>, String> {
         .map_err(|_| "RDP persisted identity damaged; refusing account replacement".into())
 }
 
-fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
+pub(crate) fn atomic_replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let nonce = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| "RDP clock invalid".to_string())?

@@ -39,6 +39,7 @@
 namespace px::panel::product {
 
 TEST(PanelDevicePresence, RecentAndBoundCardsUseLivePublicLookupAndRefreshTheEndpoint) {
+    PanelDevicePresence presence{};
     std::vector<ui::RemoteDeviceCard> devices{{.streamId = "direct-device-uuid",
                                                .deviceId = "device-uuid",
                                                .publicDeviceCode = "934886467",
@@ -50,10 +51,10 @@ TEST(PanelDevicePresence, RecentAndBoundCardsUseLivePublicLookupAndRefreshTheEnd
                                                .publicDeviceCode = "934886467",
                                                .consoleOrigin = "https://console.example.test"}};
     int lookupCount{};
-    RefreshConsoleDevicePresence(devices, "https://console.example.test", [&lookupCount](const std::string& publicDeviceCode) {
+    presence.Refresh(devices, "https://console.example.test", [&lookupCount](const std::string& publicDeviceCode) {
         ++lookupCount;
-        return std::optional{px_console::ConsolePublicDeviceEndpoint{
-            .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "current-host", .port = 4613}};
+        return px_console::ConsolePublicDeviceEndpoint{
+            .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "current-host", .port = 4613};
     });
     EXPECT_EQ(lookupCount, 1);
     for (const auto& device : devices) {
@@ -63,32 +64,34 @@ TEST(PanelDevicePresence, RecentAndBoundCardsUseLivePublicLookupAndRefreshTheEnd
     }
 }
 
-TEST(PanelDevicePresence, OfflineAndUnavailableLookupClearPreviouslyOnlineStatus) {
+TEST(PanelDevicePresence, UnconfirmedCardsAndUnavailableResolversCannotReportOnline) {
+    PanelDevicePresence presence{};
     std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
                                                .publicDeviceCode = "934886467",
                                                .consoleOrigin = "https://console.example.test",
                                                .online = true,
                                                .host = "last-known-host",
                                                .port = 4601}};
-    RefreshConsoleDevicePresence(devices, "https://console.example.test",
-                                 [](const std::string&) { return std::optional<px_console::ConsolePublicDeviceEndpoint>{}; });
+    presence.Refresh(devices, "https://console.example.test",
+                     [](const std::string&) -> PanelDevicePresence::LookupResult { return TcErr(px_console::ConsoleApiError::kNotFound); });
     EXPECT_FALSE(devices.front().online);
     EXPECT_EQ(devices.front().host, "last-known-host");
     devices.front().online = true;
-    RefreshConsoleDevicePresence(devices, "https://console.example.test", {});
+    presence.Refresh(devices, "https://console.example.test", {});
     EXPECT_FALSE(devices.front().online);
 }
 
 TEST(PanelDevicePresence, DoesNotQueryAnotherConsoleOrAnInvalidBinding) {
+    PanelDevicePresence presence{};
     std::vector<ui::RemoteDeviceCard> devices{
         {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://other-console.example.test", .online = true},
         {.deviceId = "device-uuid", .publicDeviceCode = "93488646", .consoleOrigin = "https://console.example.test", .online = true},
         {.deviceId = "device-uuid", .publicDeviceCode = "93488646X", .consoleOrigin = "https://console.example.test", .online = true},
         {.publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test", .online = true}};
     int lookupCount{};
-    RefreshConsoleDevicePresence(devices, "https://console.example.test", [&lookupCount](const std::string&) {
+    presence.Refresh(devices, "https://console.example.test", [&lookupCount](const std::string&) -> PanelDevicePresence::LookupResult {
         ++lookupCount;
-        return std::optional<px_console::ConsolePublicDeviceEndpoint>{};
+        return TcErr(px_console::ConsoleApiError::kNotFound);
     });
     EXPECT_EQ(lookupCount, 0);
     for (const auto& device : devices) EXPECT_FALSE(device.online);
@@ -96,12 +99,13 @@ TEST(PanelDevicePresence, DoesNotQueryAnotherConsoleOrAnInvalidBinding) {
 
 TEST(PanelDevicePresence, RejectsReassignedCodesAndInvalidResolvedEndpoints) {
     const auto endpointIsOnline = [](const px_console::ConsolePublicDeviceEndpoint& endpoint) {
+        PanelDevicePresence presence{};
         std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
                                                    .publicDeviceCode = "934886467",
                                                    .consoleOrigin = "https://console.example.test",
                                                    .host = "old-host",
                                                    .port = 4601}};
-        RefreshConsoleDevicePresence(devices, "https://console.example.test", [endpoint](const std::string&) { return std::optional{endpoint}; });
+        presence.Refresh(devices, "https://console.example.test", [endpoint](const std::string&) { return endpoint; });
         if (!devices.front().online) EXPECT_EQ(devices.front().host, "old-host");
         return devices.front().online;
     };
@@ -114,14 +118,14 @@ TEST(PanelDevicePresence, RejectsReassignedCodesAndInvalidResolvedEndpoints) {
 }
 
 TEST(PanelDevicePresence, RepeatedRefreshTracksOnlineOfflineAndReconnectWithoutCreatingSessions) {
+    PanelDevicePresence presence{};
     std::vector<ui::RemoteDeviceCard> devices{
         {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test"}};
     for (int refreshIndex{}; refreshIndex < 6; ++refreshIndex) {
         const bool online{refreshIndex % 2 == 0};
-        RefreshConsoleDevicePresence(devices, "https://console.example.test", [online](const std::string& publicDeviceCode) {
-            return online ? std::optional{px_console::ConsolePublicDeviceEndpoint{
-                                .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "host", .port = 4601}}
-                          : std::nullopt;
+        presence.Refresh(devices, "https://console.example.test", [online](const std::string& publicDeviceCode) -> PanelDevicePresence::LookupResult {
+            if (!online) return TcErr(px_console::ConsoleApiError::kNotFound);
+            return px_console::ConsolePublicDeviceEndpoint{.device_id = "device-uuid", .public_code = publicDeviceCode, .host = "host", .port = 4601};
         });
         EXPECT_EQ(devices.front().online, online);
     }
@@ -654,6 +658,18 @@ TEST(PanelConfigStoreTest, UnifiedPixelsPackageSelectsOfficialOrCustomConsole) {
     EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
     ASSERT_TRUE(config->SaveOfficialNetwork());
     EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test");
+}
+
+TEST(PanelConsoleSessionTest, MissingConsoleIsAnApplicationQueryFailureNotAnEmptyDirectory) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "application-query-preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto session = PanelConsoleSession::Create(config);
+    const auto applications = session->QueryApplications();
+    ASSERT_FALSE(applications.has_value());
+    EXPECT_EQ(applications.error(), px_console::ConsoleApiError::kInvalidHostAddress);
+    preferences->Release();
 }
 
 TEST(PanelConsoleSessionTest, ConsoleOriginChangeClearsThePreviousAccountBinding) {

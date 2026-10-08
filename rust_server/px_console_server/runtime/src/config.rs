@@ -33,8 +33,6 @@ pub struct ConsoleLaunchConfig {
     static_directory: PathBuf,
     tls: Option<(PathBuf, PathBuf)>,
     policy: IngressPolicy,
-    guests_enabled: bool,
-    guest_lifetime: Duration,
     guest_source_key: PathBuf,
     active_workspace_key: Uuid,
     workspace_keys: Vec<WorkspaceKeyFile>,
@@ -84,6 +82,8 @@ impl ConsoleLaunchConfig {
             &Zeroizing::new(required("PIXELS_CONSOLE_DATABASE_URL")?),
             if local {
                 Transport::LocalDevelopment
+            } else if get("PIXELS_CONSOLE_DATABASE_TLS").as_deref() == Some("prefer") {
+                Transport::PreferTls
             } else {
                 Transport::VerifyFull
             },
@@ -107,9 +107,7 @@ impl ConsoleLaunchConfig {
             _ => return Err(ConfigurationError),
         };
         let registration = flag(get("PIXELS_CONSOLE_REGISTRATION"), false)?;
-        let guests_enabled = flag(get("PIXELS_CONSOLE_GUESTS"), false)?;
         let session_lifetime = seconds(required("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS")?)?;
-        let guest_lifetime = seconds(required("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS")?)?;
         let policy = IngressPolicy::new(
             &required("PIXELS_CONSOLE_PUBLIC_ORIGIN")?,
             registration,
@@ -117,9 +115,6 @@ impl ConsoleLaunchConfig {
             local,
         )
         .map_err(|_| ConfigurationError)?;
-        if !(60..=86400).contains(&guest_lifetime.as_secs()) {
-            return Err(ConfigurationError);
-        }
         let guest_source_key = PathBuf::from(required("PIXELS_CONSOLE_GUEST_SOURCE_KEY")?);
         let active_workspace_key = required("PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY")?
             .parse::<Uuid>()
@@ -174,8 +169,6 @@ impl ConsoleLaunchConfig {
             static_directory,
             tls,
             policy,
-            guests_enabled,
-            guest_lifetime,
             guest_source_key,
             active_workspace_key,
             workspace_keys,
@@ -208,8 +201,6 @@ impl ConsoleLaunchConfig {
             self.active_workspace_key,
             self.workspace_keys,
             self.guest_source_key,
-            self.guests_enabled,
-            self.guest_lifetime,
         )
         .await
         .map_err(|_| ConfigurationError)?;
@@ -290,13 +281,8 @@ mod tests {
                 "http://127.0.0.1:8443".into(),
             ),
             ("PIXELS_CONSOLE_REGISTRATION".into(), "1".into()),
-            ("PIXELS_CONSOLE_GUESTS".into(), "1".into()),
             (
                 "PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS".into(),
-                "3600".into(),
-            ),
-            (
-                "PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS".into(),
                 "3600".into(),
             ),
             (
@@ -345,13 +331,22 @@ mod tests {
     }
 
     #[test]
+    fn guest_access_does_not_read_a_deployment_toggle() {
+        let configuration = valid();
+        let parsed_configuration = ConsoleLaunchConfig::parse(|configuration_key| {
+            assert_ne!(configuration_key, "PIXELS_CONSOLE_GUESTS");
+            configuration.get(configuration_key).cloned()
+        });
+        assert!(parsed_configuration.is_ok());
+    }
+
+    #[test]
     fn new_configuration_is_explicit_and_has_no_retired_endpoint_fallback() {
         assert!(parse(&valid()).is_ok());
         for (key, value) in [
             ("PIXELS_CONSOLE_LISTEN", "0.0.0.0:8443"),
             ("PIXELS_CONSOLE_REGISTRATION", "true"),
             ("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "0"),
-            ("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "86401"),
             ("PIXELS_CONSOLE_PUBLIC_ORIGIN", "http://public.example.test"),
             ("PIXELS_CONSOLE_RECORDING_CACHE_BYTES", "not-a-number"),
             ("PIXELS_CONSOLE_RECORDING_CACHE_DOWNLOADS", "0"),

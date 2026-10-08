@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n SELECT 1 FROM pixels.resource_sessions s WHERE s.id=$1 AND s.owner_user=$2\n) AS \"owned!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "owned!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1e43450b4cf94127ec67fbe92e83121c2d1e33373370f9a840e91e4a73621e34"
+}

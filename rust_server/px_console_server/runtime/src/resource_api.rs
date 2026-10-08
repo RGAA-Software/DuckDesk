@@ -52,6 +52,10 @@ struct DescriptorResponse {
 
 pub(crate) fn routes() -> Router<Arc<StateData>> {
     Router::new()
+        .route(
+            "/api/console/managed/instance-summary",
+            get(managed_instance_summary),
+        )
         .route("/api/console/instances", get(instances).post(start))
         .route("/api/console/instances/{id}", get(instance))
         .route("/api/console/instances/{id}/stop", post(stop))
@@ -70,6 +74,16 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/instances/{id}/stop",
             post(managed_stop),
         )
+}
+
+async fn managed_instance_summary(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<px_console_store::InstanceSummary>>, ApiError> {
+    let administrator = request::administrator(&state, &headers)?;
+    Ok(Json(
+        state.db.instances().managed_summary(&administrator).await?,
+    ))
 }
 
 async fn instances(
@@ -103,7 +117,17 @@ async fn start(
             &value,
             state.entitlement()?,
         )
-        .await?;
+        .await
+        .map_err(|error| {
+            tracing::warn!(
+                request_id = %value.request_id,
+                application_id = %value.application_id,
+                deployment_id = ?value.deployment_id,
+                reason = %error,
+                "application launch admission rejected"
+            );
+            ApiError::from(error)
+        })?;
     Ok((StatusCode::CREATED, Json(result)))
 }
 
@@ -175,7 +199,12 @@ async fn open(
             &value,
             state.entitlement()?,
         )
-        .await?;
+        .await
+        .map_err(|error| {
+            tracing::warn!(request_id = %value.request_id, target = ?value.target, reason = %error, "resource connection admission rejected");
+            ApiError::from(error)
+        })?;
+    tracing::info!(session_id = %result.id, request_id = %value.request_id, state = %result.state, "resource connection reserved");
     Ok((StatusCode::CREATED, Json(result)))
 }
 
@@ -282,13 +311,15 @@ async fn close(
     Input(value): Input<Revision>,
 ) -> Result<Json<ResourceSession>, ApiError> {
     let context = request::resource_context(&state, &headers)?;
-    Ok(Json(
-        state
-            .db
-            .resource_sessions()
-            .request_close(context.credential(), context.client, id, value.revision)
-            .await?,
-    ))
+    let result = state.db.resource_sessions()
+        .request_close(context.credential(), context.client, id, value.revision)
+        .await.map_err(|error| {
+            tracing::warn!(session_id = %id, requested_revision = value.revision, reason = %error, "resource connection close rejected");
+            ApiError::from(error)
+        })?;
+    tracing::info!(session_id = %id, requested_revision = value.revision, revision = result.revision, state = %result.state,
+        "resource connection close processed; closed releases capacity, closing awaits node retirement");
+    Ok(Json(result))
 }
 
 async fn managed_sessions(

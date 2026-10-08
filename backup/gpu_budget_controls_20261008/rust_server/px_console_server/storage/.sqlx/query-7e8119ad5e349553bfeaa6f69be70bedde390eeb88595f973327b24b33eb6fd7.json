@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_gpu_history(\n node_id,node_generation,report_sequence,stable_key,inventory_revision,name,runtime_binding_ready,dedicated_memory_bytes,\n used_memory_bytes,utilization_per_mille,encoder_utilization_per_mille,sampled_at,received_at\n) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Text",
+        "Int8",
+        "Text",
+        "Bool",
+        "Int8",
+        "Int8",
+        "Int2",
+        "Int2",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7e8119ad5e349553bfeaa6f69be70bedde390eeb88595f973327b24b33eb6fd7"
+}

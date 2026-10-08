@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.resource_sessions\nSET descriptor_expires_at=clock_timestamp()+interval '30 seconds'\nWHERE id=$1 AND revision=$2 AND descriptor_hash=$3\nAND state IN ('pending','connected') AND descriptor_expires_at>clock_timestamp()\nRETURNING descriptor_expires_at AS \"expires_at!\",\nGREATEST(0,LEAST(30000,FLOOR(EXTRACT(EPOCH FROM descriptor_expires_at-clock_timestamp())*1000)))::bigint AS \"valid_for_ms!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expires_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 1,
+        "name": "valid_for_ms!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "1f997787faa552e90f1c9201b992ea53dca7b06b4eaac0f9d8536fda62cd166f"
+}

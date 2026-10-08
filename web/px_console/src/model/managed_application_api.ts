@@ -9,7 +9,7 @@ export interface VideoSpec {
 }
 
 export type ApplicationLaunch =
-    | { kind: "game_hook"; executable_relative: string; arguments: string; video: VideoSpec }
+    | { kind: "game_hook"; executable_path: string; arguments: string; video: VideoSpec }
     | { kind: "webview"; entry_url: string; video: VideoSpec }
     | { kind: "rdp" };
 

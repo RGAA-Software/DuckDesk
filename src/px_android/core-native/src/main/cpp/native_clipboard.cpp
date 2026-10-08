@@ -87,7 +87,7 @@ bool NativeClipboard::PublishLocalFiles(std::string generation, std::vector<Nati
     if (generation.empty() || generation.size() > 128U) {
         return false;
     }
-    const auto offer_id = px::GetUUID();
+    const auto offer_id = px::GenerateRandomBase64Id();
     for (std::size_t index = 0; index < files.size(); ++index) {
         files[index].transfer_name = "pixels-clipboard://" + offer_id + "/" + std::to_string(index);
     }

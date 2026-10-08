@@ -176,13 +176,3 @@ export async function deleteManagedNode(node: ManagedNode): Promise<void> {
         params: { revision: node.revision },
     });
 }
-
-export async function rotateManagedNodeCredential(
-    node: ManagedNode,
-): Promise<NodeCredentialResponse> {
-    const response = await axiosHttp.post<NodeCredentialResponse>(
-        `/api/console/managed/nodes/${encodeURIComponent(node.id)}/credential`,
-        { revision: node.revision },
-    );
-    return response.data;
-}

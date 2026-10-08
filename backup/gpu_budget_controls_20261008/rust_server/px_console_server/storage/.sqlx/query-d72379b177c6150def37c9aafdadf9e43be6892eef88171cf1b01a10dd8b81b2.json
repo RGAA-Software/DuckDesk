@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.file_transfer_events(id,transfer_id,revision,sequence,transferred_bytes,kind) VALUES($1,$2,$3,$4,$5,$6)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d72379b177c6150def37c9aafdadf9e43be6892eef88171cf1b01a10dd8b81b2"
+}

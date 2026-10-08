@@ -330,34 +330,6 @@ impl DeviceStore {
         tx.commit().await?;
         Ok(result)
     }
-    pub async fn rotate_key(
-        &self,
-        token: &TokenDigest,
-        id: Uuid,
-        revision: i64,
-        key: &TokenDigest,
-    ) -> Result<DeviceProfile, StoreError> {
-        let mut tx = self.pool.begin().await?;
-        control::write_gate(&mut tx).await?;
-        let actor = control::authorize(&mut tx, token, true).await?;
-        Self::lock(&mut tx, id, Some(revision)).await?;
-        let affected: Vec<_> = Self::effective_users(&mut tx, id)
-            .await?
-            .into_iter()
-            .collect();
-        Self::invalidate(&mut tx, &affected).await?;
-        let result = sqlx::query_file_as!(
-            DeviceProfile,
-            "queries/rotate_device_key.sql",
-            id,
-            key.0.as_slice()
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        Self::audit(&mut tx, actor, id, result.revision, "key_rotated").await?;
-        tx.commit().await?;
-        Ok(result)
-    }
     pub async fn delete(
         &self,
         token: &TokenDigest,

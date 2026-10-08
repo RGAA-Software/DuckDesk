@@ -1,0 +1,9 @@
+{
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "reason": "Retire manually provisioned RDP identity and workspace state inside the replaceable application installation directory. Automatic Service initialization uses protected persistent ProgramData state instead.",
+    "reference_only": true,
+    "files": [
+        {"original_path": "rust_client/px_service/service_core/src/rdp_deployment.rs", "locally_modified_before_archival": false},
+        {"original_path": "src/px_render/rdp/rdp_application.cpp", "locally_modified_before_archival": false}
+    ]
+}

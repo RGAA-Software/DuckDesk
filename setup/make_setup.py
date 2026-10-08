@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -76,6 +77,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--oem-profile", type=Path, help="Immutable OEM release profile; required only for OEM builds")
     parser.add_argument("--dist-dir", type=Path, help="Verified product dist directory")
     parser.add_argument("--output-root", type=Path, help="Installer output root")
+    parser.add_argument("--candidate-id", help="Unpublished validation package ID; isolates output from immutable release installers")
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args()
@@ -372,6 +374,10 @@ def main() -> int:
         return 0
 
     expected_output_root = (repo_root / "build_official" / args.product / distribution_directory / "installer").resolve()
+    if args.candidate_id is not None:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", args.candidate_id):
+            raise RuntimeError("candidate ID must contain only lowercase letters, digits and hyphens (maximum 64 characters)")
+        expected_output_root = expected_output_root.parent / "candidates" / args.candidate_id / "installer"
     output_root = (args.output_root or expected_output_root).resolve()
     if output_root != expected_output_root:
         raise RuntimeError(f"installer output must be the isolated product directory {expected_output_root}; got {output_root}")

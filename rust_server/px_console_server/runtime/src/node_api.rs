@@ -11,7 +11,7 @@ use axum::{
     },
     http::{header, HeaderMap, StatusCode},
     response::Response,
-    routing::{get, patch, post},
+    routing::{get, patch},
     Json, Router,
 };
 use chrono::{DateTime, Utc};
@@ -48,7 +48,6 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/nodes/{id}/telemetry/trend",
             get(telemetry_trend),
         )
-        .route("/api/console/managed/nodes/{id}/credential", post(rotate))
 }
 
 #[derive(Deserialize)]
@@ -385,6 +384,20 @@ async fn operation(
                     .await?;
                 Ok(NodeResponse::Reconciled { request_id })
             }
+            NodeRequest::ReportRuntimeExit {
+                instance_id,
+                launch_id,
+                port,
+                failed,
+                ..
+            } => {
+                state
+                    .db
+                    .instances()
+                    .report_runtime_exit(connection, instance_id, launch_id, port, failed)
+                    .await?;
+                Ok(NodeResponse::RuntimeExitReported { request_id })
+            }
             NodeRequest::PollCommand { .. } => Ok(NodeResponse::Command {
                 request_id,
                 command: state
@@ -705,6 +718,9 @@ fn management_event(message: &NodeRequest, node_id: Uuid) -> Option<(&'static st
         NodeRequest::ReportDeployment { deployment_id, .. } => {
             Some(("deployments", Some(*deployment_id)))
         }
+        NodeRequest::ReportRuntimeExit { instance_id, .. } => {
+            Some(("instances", Some(*instance_id)))
+        }
         NodeRequest::AdmitFrontend { session_id, .. }
         | NodeRequest::BeginFrontendRetirement { session_id, .. }
         | NodeRequest::FinishFrontendRetirement { session_id, .. } => {
@@ -780,8 +796,11 @@ fn error_code(error: ApiError) -> &'static str {
         ApiError::Invalid => "invalid_input",
         ApiError::Unauthorized => "unauthorized",
         ApiError::Rejected => "rejected",
+        ApiError::ProtectedUser => "protected_user",
         ApiError::NotFound => "not_found",
         ApiError::Conflict => "conflict",
+        ApiError::ConnectionRetiring => "connection_retiring",
+        ApiError::ConnectionBusy => "connection_busy",
         ApiError::RateLimited => "rate_limited",
         ApiError::Unavailable => "unavailable",
         ApiError::Internal => "internal",
@@ -875,19 +894,4 @@ async fn remove(
         )
         .await?;
     Ok(StatusCode::NO_CONTENT)
-}
-async fn rotate(
-    State(state): State<Arc<StateData>>,
-    headers: HeaderMap,
-    Path(id): Path<Uuid>,
-    Input(input): Input<Revision>,
-) -> Result<Json<Value>, ApiError> {
-    let token = request::administrator(&state, &headers)?;
-    let (secret, digest) = request::mint();
-    let node = state
-        .db
-        .nodes()
-        .rotate_key(&token, id, input.revision, &digest)
-        .await?;
-    Ok(Json(json!({"node":node,"node_token":secret.as_str()})))
 }

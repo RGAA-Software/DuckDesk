@@ -11,10 +11,16 @@ pub enum StoreError {
     InvalidInput,
     #[error("access or revision rejected")]
     Rejected,
+    #[error("the built-in Pixels account only permits password changes")]
+    ProtectedUser,
     #[error("requested object not found")]
     NotFound,
     #[error("no ready capacity")]
     NoCapacity,
+    #[error("connection capacity is awaiting retirement")]
+    ConnectionRetiring,
+    #[error("connection capacity is occupied")]
+    ConnectionBusy,
     #[error("license entitlement rejected the operation")]
     LicenseRestriction,
     #[error("protected workspace requires recovery")]

@@ -1,0 +1,148 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.saved_connections SET deleted_at=clock_timestamp(),updated_at=clock_timestamp(),revision=revision+1\nWHERE id=$1 RETURNING id,owner_id,client_type,request_id,request_hash,name,device_id,application_id,video_bitrate_bps,video_fps,audio_enabled,clipboard_enabled,view_only,maximize,split_windows,prefer_peer_to_peer,audio_capture,background_rgb,revision,created_at,updated_at,deleted_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "request_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "video_bitrate_bps",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "video_fps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "audio_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "clipboard_enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "view_only",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "maximize",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "split_windows",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 15,
+        "name": "prefer_peer_to_peer",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 16,
+        "name": "audio_capture",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "background_rgb",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 21,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "18edea7132f47f440df9cd476d9a96b636bf54cf926c09937cbfb2a88cfb83fa"
+}

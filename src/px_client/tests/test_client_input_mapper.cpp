@@ -1,4 +1,5 @@
 #include "client_input_mapper.h"
+#include "../rdp/rdp_keyboard.h"
 
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_scancode.h>
@@ -6,6 +7,16 @@
 #include <gtest/gtest.h>
 
 namespace px::client::imgui {
+
+TEST(ClientInputMapperTest, ConvertsWindowsExtendedKeysToRdpWireScanCodes) {
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0x001EU), 0x01EU); // A
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0x001DU), 0x01DU); // Left Ctrl
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0xE01DU), 0x11DU); // Right Ctrl
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0xE04BU), 0x14BU); // Left arrow
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0xE053U), 0x153U); // Delete / secure attention
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0xE01CU), 0x11CU); // Keypad Enter
+    EXPECT_EQ(px::rdp::RdpScanCodeFromWindows(0xE05BU), 0x15BU); // Left Windows key
+}
 
 TEST(ClientInputMapperTest, MapsNavigationAndFunctionKeys) {
     EXPECT_EQ(WindowsVirtualKey(SDLK_A), 'A');

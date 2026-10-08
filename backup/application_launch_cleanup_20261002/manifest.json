@@ -1,0 +1,23 @@
+[
+  {
+    "archive_batch": "backup/application_launch_cleanup_20261002",
+    "original_path": "src/px_deps/px_console_client/console_resource_api.cpp",
+    "local_status": "M src/px_deps/px_console_client/console_resource_api.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "reason": "Replace incomplete reservation cleanup and stale asynchronous launch transitions"
+  },
+  {
+    "archive_batch": "backup/application_launch_cleanup_20261002",
+    "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "local_status": "?? src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "reason": "Replace incomplete reservation cleanup and stale asynchronous launch transitions"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_console_session.cpp",
+    "local_status": "M src/px_panel/ui_imgui/product/panel_console_session.cpp",
+    "reason": "Recognize reserved cloud application instances during retry",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "archive_batch": "backup/application_launch_cleanup_20261002"
+  }
+]

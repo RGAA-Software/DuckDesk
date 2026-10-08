@@ -25,6 +25,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Console Web build failed.' }
 & cargo.exe build --locked --release --manifest-path (Join-Path $repositoryRoot 'rust_server/Cargo.toml') `
     -p px_console_runtime --bin px_console --bin px_console_admin `
     -p px_pg --bin px_db -p px_relay_server --bin px_relay -p px_backup --bin px_backup `
+    -p px_server_tray --bin px_server_tray `
     --target-dir $targetDirectory
 if ($LASTEXITCODE -ne 0) { throw 'Optimized Windows Server build failed.' }
 

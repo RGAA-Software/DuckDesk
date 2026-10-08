@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.recording_cache SET pinned=$2,revision=revision+1,updated_at=clock_timestamp()\nWHERE recording_id=$1 RETURNING recording_id,active_blob_id,pinned,revision,updated_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recording_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "active_blob_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5f3a6a799cb4bfa9e0dbe528fbdb837ac3f67baed17ccbb389ab3734a47b22ef"
+}

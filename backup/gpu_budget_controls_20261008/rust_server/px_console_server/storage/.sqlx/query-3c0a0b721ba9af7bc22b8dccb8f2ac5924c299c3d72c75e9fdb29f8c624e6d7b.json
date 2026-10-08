@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"active!\" FROM pixels.connection_observations WHERE session_id=$1 AND state='active'\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "active!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3c0a0b721ba9af7bc22b8dccb8f2ac5924c299c3d72c75e9fdb29f8c624e6d7b"
+}

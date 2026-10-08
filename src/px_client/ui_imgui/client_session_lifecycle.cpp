@@ -21,6 +21,7 @@
 #include "px_client_sdk/sdk_params.h"
 #include "px_client_sdk/sdk_recording_session.h"
 #include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_timer.h"
 #include "px_client_sdk/sdk_voice_call.h"
 #include "px_client_sdk/thunder_sdk.h"
 #include "px_common/data.h"
@@ -41,10 +42,12 @@ namespace px::client::imgui {
 
 void ClientSession::Start() {
     if (!started_.exchange(true)) {
-        if (config_.rdp && rdpNetwork_)
+        if (config_.rdp && rdpNetwork_) {
             rdpNetwork_->Start();
-        else if (sdk_)
+            rdpTimer_->StartTimers();
+        } else if (sdk_) {
             sdk_->Start();
+        }
     }
 }
 
@@ -54,6 +57,10 @@ void ClientSession::Stop() {
     }
     if (audio_) {
         audio_->Stop();
+    }
+    if (rdpTimer_) {
+        rdpTimer_->Exit();
+        rdpTimer_.reset();
     }
     std::shared_ptr<px::rdp::RdpSession> rdpSession{};
     std::shared_ptr<px::rdp::RdpClientEndpoint> rdpEndpoint{};

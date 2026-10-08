@@ -16,8 +16,8 @@ mod control;
 mod database;
 mod deployment_model;
 mod deployments;
-mod direct_streams;
 mod devices;
+mod direct_streams;
 mod file_metadata;
 mod file_transfers;
 mod groups;
@@ -28,6 +28,7 @@ mod instance_commands;
 mod instance_model;
 mod instance_state;
 mod instance_stop;
+mod instance_summary;
 mod instances;
 mod model;
 mod node_lifecycle;
@@ -43,6 +44,7 @@ mod relay_nodes;
 mod relay_selection;
 mod resource_policy;
 mod resource_sessions;
+mod runtime_exits;
 mod saved_connection_model;
 mod saved_connections;
 mod session_frontends;
@@ -68,26 +70,26 @@ pub use application_model::{
     ApplicationAccess, ApplicationLaunch, ApplicationSpec, VideoCodec, VideoSpec,
 };
 pub use applications::{ApplicationCard, ApplicationDefinition, ApplicationStore};
+pub use instance_summary::InstanceSummary;
 pub use bootstrap::initialize_administrator;
 pub use cache_model::{
     CacheAttempt, CacheCredential, CacheOptions, CacheProfile, CacheReadLease, CacheRuntime,
     CachedFile,
 };
 pub use command_model::{
-    CommandOutcome, CommandReceipt, GpuReservation, NodeCommand, NodeCommandAction,
+    CommandOutcome, CommandReceipt, GpuBinding, NodeCommand, NodeCommandAction,
 };
 pub use control::{ControlStore, ManagedUser, Role};
 pub use database::{ConsoleDatabase, PoolStatus};
 pub use deployment_model::{
     DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentTarget,
-    GpuResourceProfile, NodeDeploymentAssignment, NodeDeploymentPreparation, PreparationFailure,
-    PreparationState,
+    NodeDeploymentAssignment, NodeDeploymentPreparation, PreparationFailure, PreparationState,
 };
 pub use deployments::DeploymentStore;
-pub use direct_streams::DirectStreamStore;
 pub use devices::{
     DeviceAccess, DeviceIdentity, DevicePlatform, DeviceProfile, DeviceStore, PublicDeviceEndpoint,
 };
+pub use direct_streams::DirectStreamStore;
 pub use file_transfers::FileTransferStore;
 pub use groups::{GroupProfile, GroupStore};
 pub use guest_events::GuestEvent;

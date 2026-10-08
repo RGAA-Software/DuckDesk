@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.relay_node_audit(id, relay_node_id, actor_id, revision, action)\nVALUES ($1, $2, $3, $4, $5)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a23b2b84feac07060739f3d30950fce8bf885eb61df8b9c4be3cebc8d38e65f5"
+}

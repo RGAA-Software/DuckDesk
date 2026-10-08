@@ -1,0 +1,1 @@
+SELECT id,name,kind,access_mode,entry_url,executable_relative,arguments,bitrate_kbps,codec,allow_observer,allow_takeover,disabled,revision,access_revision FROM pixels.applications WHERE id=$1 AND deleted_at IS NULL FOR UPDATE

@@ -39,7 +39,7 @@ struct AuditState final {
 
 class TestDirectory final {
 public:
-    TestDirectory() : path_(std::filesystem::temp_directory_path() / ("pixels-ft-service-" + GetUUID())) {
+    TestDirectory() : path_(std::filesystem::temp_directory_path() / ("pixels-ft-service-" + GetCanonicalUUID())) {
         std::filesystem::create_directories(path_);
     }
 

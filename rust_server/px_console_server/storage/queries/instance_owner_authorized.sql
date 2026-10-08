@@ -13,7 +13,7 @@ SELECT EXISTS(
   ))
   OR (i.owner_guest IS NOT NULL AND a.access_mode='public' AND EXISTS(
    SELECT 1 FROM pixels.guest_sessions g WHERE g.id=i.owner_guest AND g.revision=i.owner_revision
-   AND g.client_type=i.client_type AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()
+   AND g.client_type=i.client_type AND g.revoked_at IS NULL
    AND NOT EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id)
    AND NOT EXISTS(SELECT 1 FROM pixels.guest_source_blocks b WHERE b.source_hash=g.source_hash AND b.expires_at>clock_timestamp())
   ))

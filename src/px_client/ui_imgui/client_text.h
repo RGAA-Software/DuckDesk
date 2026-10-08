@@ -71,7 +71,6 @@ enum class ClientText : std::uint8_t {
     Control,
     Tools,
     Settings,
-    EnhancedVisualEffects,
     Monitor,
     FrameRate,
     ControlDescription,

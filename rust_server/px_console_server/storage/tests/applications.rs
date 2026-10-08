@@ -49,7 +49,7 @@ fn spec() -> ApplicationSpec {
         name: "云应用".into(),
         access: ApplicationAccess::Acl,
         launch: ApplicationLaunch::GameHook {
-            executable_relative: "游戏 1\\启动器.exe".into(),
+            executable_path: "D:\\游戏 1\\启动器.exe".into(),
             arguments: "--name \"甲 乙\" --path \"C:\\有空格 的路径\"".into(),
             video: VideoSpec {
                 codec: VideoCodec::H264,

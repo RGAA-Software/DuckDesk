@@ -21,6 +21,7 @@
 #include "px_client_sdk/sdk_params.h"
 #include "px_client_sdk/sdk_recording_session.h"
 #include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/sdk_timer.h"
 #include "px_client_sdk/sdk_voice_call.h"
 #include "px_client_sdk/thunder_sdk.h"
 #include "px_common/data.h"
@@ -56,6 +57,7 @@ bool ClientSession::InitializeRdp() {
     params.connection_instance_id_ = config_.instanceId;
     params.media_path_ = BuildClientMediaPath(config_);
     rdpNetwork_ = std::make_shared<px::NetClient>(std::move(params), notifier_);
+    rdpTimer_ = std::make_shared<px::SdkTimer>(notifier_);
     const std::weak_ptr<ClientSession> weakSelf{shared_from_this()};
     rdpNetwork_->SetOnConnectCallback([weakSelf] {
         if (const auto self = weakSelf.lock()) self->SetState(ClientConnectionState::Connecting, "RDP transport connected");

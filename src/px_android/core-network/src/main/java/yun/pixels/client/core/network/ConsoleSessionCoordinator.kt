@@ -152,7 +152,7 @@ class ConsoleSessionCoordinator(
         ?.takeIf { it.expiresAtEpochMillis > now() }
 
     internal suspend fun guestSession(): AccountResult<GuestSession> = guestMutex.withLock {
-        guestSession?.takeIf { it.expiresAtEpochMillis > now() && it.endpoint == mutableEndpoint.value }
+        guestSession?.takeIf { it.endpoint == mutableEndpoint.value }
             ?.let { return AccountResult.Success(it) }
         val endpoint = mutableEndpoint.value ?: return AccountResult.Failure(AccountFailure.InvalidEndpoint)
         when (val result = api.guestSession(endpoint)) {
@@ -165,7 +165,7 @@ class ConsoleSessionCoordinator(
     }
 
     internal suspend fun currentGuestSession(): GuestSession? = guestMutex.withLock {
-        guestSession?.takeIf { session -> session.expiresAtEpochMillis > now() && session.endpoint == mutableEndpoint.value }
+        guestSession?.takeIf { session -> session.endpoint == mutableEndpoint.value }
     }
 
     internal suspend fun invalidateGuest() {

@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n EXISTS(SELECT 1 FROM pixels.nodes WHERE id=$1 AND NOT draining)\n AND NOT EXISTS(SELECT 1 FROM pixels.resource_sessions WHERE closed_at IS NULL AND access_role='controller' AND $4='controller'\n AND (device_id=$2 OR instance_id=$3))\n AND (SELECT count(*) FROM pixels.resource_sessions WHERE node_id=$1 AND closed_at IS NULL)<128\n AND (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL AND (device_id=$2 OR instance_id=$3))<32\n AS \"available!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "available!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9cc1b9e987f9fc7a9c8caf036a1efbdeb5d18c698a37b0933d921df0ef2c7d56"
+}

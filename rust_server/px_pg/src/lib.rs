@@ -11,5 +11,5 @@ pub use config::{DatabaseConfig, Transport};
 pub use error::DatabaseError;
 pub use lease::{LeaseStatus, ServiceLease};
 pub use runtime::runtime_readiness;
-pub use schema::{migrate, readiness, Service};
+pub use schema::{migrate, migration_preflight, readiness, MigrationStatus, Service};
 pub use sqlx::PgPool;

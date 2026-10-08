@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_telemetry_latest AS telemetry(\n node_id,node_generation,report_sequence,probe_state,sampled_at,logical_processors,cpu_utilization_per_mille,\n memory_total_bytes,memory_available_bytes,disk_total_bytes,disk_free_bytes,gpu_inventory_revision\n) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)\nON CONFLICT(node_id) DO UPDATE SET\n node_generation=excluded.node_generation,report_sequence=excluded.report_sequence,probe_state=excluded.probe_state,\n sampled_at=excluded.sampled_at,received_at=clock_timestamp(),logical_processors=excluded.logical_processors,\n cpu_utilization_per_mille=excluded.cpu_utilization_per_mille,memory_total_bytes=excluded.memory_total_bytes,\n memory_available_bytes=excluded.memory_available_bytes,disk_total_bytes=excluded.disk_total_bytes,\n disk_free_bytes=excluded.disk_free_bytes,gpu_inventory_revision=excluded.gpu_inventory_revision\nWHERE (telemetry.node_generation,telemetry.report_sequence)<(excluded.node_generation,excluded.report_sequence)\nRETURNING received_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "received_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Text",
+        "Timestamptz",
+        "Int2",
+        "Int2",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "735a41eb0db2757ec2808116b6444d30431ec8bb81a9902379b0c4a233e2e7b6"
+}

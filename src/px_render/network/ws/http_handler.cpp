@@ -153,7 +153,7 @@ private:
             const auto request_deadline = std::min(request_started_at + std::chrono::seconds(12), lease_deadline);
             auto renewed = co_await transport->AdmitFrontend(
                 ConsoleFrontendAdmissionRequest{
-                    .request_id = GetUUID(),
+                    .request_id = GenerateRandomBase64Id(),
                     .session_id = identity.descriptor_session_id,
                     .revision = identity.descriptor_revision,
                     .frontend_token = token->Copy(),
@@ -456,7 +456,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         params.erase(token_entry);
         auto admitted = co_await transport->AdmitFrontend(
             ConsoleFrontendAdmissionRequest{
-                .request_id = GetUUID(),
+                .request_id = GenerateRandomBase64Id(),
                 .session_id = session_id,
                 .revision = revision,
                 .frontend_token = frontend_token->Copy(),
@@ -542,7 +542,7 @@ PxAwaitable<void> HttpHandler::AllocateLocalRtcAsync(std::weak_ptr<HttpHandler> 
         return value && (*value == "1" || *value == "true");
     }();
     const auto admitted_binding_id = std::string("rtc-local:") + authentication.stream_id_;
-    const auto rtc_allocation_id = GetUUID();
+    const auto rtc_allocation_id = GenerateRandomBase64Id();
     const auto admission_grant = LogicalSessionGrant{
         .logical_session_id = authentication.logical_session_id_,
         .stream_id = authentication.stream_id_,

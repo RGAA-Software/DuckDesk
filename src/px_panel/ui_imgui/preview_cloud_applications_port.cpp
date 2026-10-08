@@ -4,7 +4,9 @@ namespace px::panel::ui {
 namespace {
 
 class PreviewCloudApplicationsPort final : public CloudApplicationsPort {
-  public:
+public:
+    std::optional<ApplicationLaunchProgress> LaunchProgress() const override { return std::nullopt; }
+    void LaunchPrepared(std::uint64_t) override {}
     std::vector<CloudApplicationCard> Snapshot() override {
         return {{.streamId = "preview-app", .name = "2dAdventure", .instanceState = "running", .kind = CloudApplicationKind::Game}};
     }

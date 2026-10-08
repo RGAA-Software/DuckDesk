@@ -12,7 +12,7 @@ fn spec(kind: &str, access: &str) -> Value {
             json!({"kind":"webview","entry_url":"https://example.test/app","video":{"codec":"h264","bitrate_kbps":8000}})
         }
         _ => {
-            json!({"kind":"game_hook","executable_relative":"游戏 目录\\game.exe","arguments":"--title \"应用 名称\"","video":{"codec":"h265","bitrate_kbps":8000}})
+            json!({"kind":"game_hook","executable_path":"D:\\游戏 目录\\game.exe","arguments":"--title \"应用 名称\"","video":{"codec":"h265","bitrate_kbps":8000}})
         }
     };
     json!({"name":Uuid::new_v4().to_string(),"launch":launch,"access":access,"allow_observer":false,"allow_takeover":false,"disabled":false})
@@ -461,6 +461,121 @@ async fn issue_guest(router: &axum::Router) -> Value {
 }
 
 #[tokio::test]
+async fn panel_guest_catalog_uses_public_access_not_deployment_readiness() {
+    let runtime = start().await;
+    let router = runtime.router();
+    let administrator_token = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let mut public_application_ids = Vec::new();
+    for application_kind in ["game_hook", "webview", "rdp"] {
+        let (creation_status, application_record) = call(
+            &router,
+            "POST",
+            "/api/console/managed/applications",
+            "admin_web",
+            Some(&administrator_token),
+            spec(application_kind, "public"),
+        )
+        .await;
+        assert_eq!(creation_status, StatusCode::CREATED, "{application_record}");
+        public_application_ids.push(application_record["id"].clone());
+    }
+    let (restricted_status, restricted_application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&administrator_token),
+        spec("rdp", "acl"),
+    )
+    .await;
+    assert_eq!(
+        restricted_status,
+        StatusCode::CREATED,
+        "{restricted_application}"
+    );
+    let mut disabled_specification = spec("webview", "public");
+    disabled_specification["disabled"] = json!(true);
+    let (disabled_status, disabled_application) = call(
+        &router,
+        "POST",
+        "/api/console/managed/applications",
+        "admin_web",
+        Some(&administrator_token),
+        disabled_specification,
+    )
+    .await;
+    assert_eq!(
+        disabled_status,
+        StatusCode::CREATED,
+        "{disabled_application}"
+    );
+    // The shared database also tests source bans; use the independent resource-test peer.
+    let (guest_status, guest_session) = resource_call(
+        &router,
+        "POST",
+        "/api/console/guest-sessions",
+        "panel",
+        None,
+        None,
+        json!({}),
+    )
+    .await;
+    assert_eq!(guest_status, StatusCode::CREATED, "{guest_session}");
+    let guest_token = guest_session["token"].as_str().unwrap();
+    let (catalog_status, application_catalog) = call(
+        &router,
+        "GET",
+        "/api/console/guest/applications?limit=100",
+        "panel",
+        Some(guest_token),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(catalog_status, StatusCode::OK, "{application_catalog}");
+    let application_cards = application_catalog.as_array().unwrap();
+    for public_application_id in public_application_ids {
+        assert!(application_cards
+            .iter()
+            .any(|application_card| application_card["id"] == public_application_id));
+    }
+    for inaccessible_application in [restricted_application, disabled_application] {
+        assert!(!application_cards
+            .iter()
+            .any(|application_card| application_card["id"] == inaccessible_application["id"]));
+        let application_path = format!(
+            "/api/console/guest/applications/{}",
+            inaccessible_application["id"].as_str().unwrap()
+        );
+        assert_eq!(
+            call(
+                &router,
+                "GET",
+                &application_path,
+                "panel",
+                Some(guest_token),
+                Value::Null
+            )
+            .await
+            .0,
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            resource_call(
+                &router,
+                "POST",
+                "/api/console/instances",
+                "panel",
+                Some(guest_token),
+                Some("guest"),
+                json!({"request_id":Uuid::new_v4(),"application_id":inaccessible_application["id"],"deployment_id":null}),
+            ).await.0,
+            StatusCode::FORBIDDEN
+        );
+    }
+    runtime.shutdown().await;
+}
+
+#[tokio::test]
 async fn guest_ingress_uses_direct_source_public_catalog_and_explicit_operator_blocks() {
     let runtime = start().await;
     let router = runtime.router();
@@ -518,6 +633,8 @@ async fn guest_ingress_uses_direct_source_public_catalog_and_explicit_operator_b
 
     let first = issue_guest(&router).await;
     let second = issue_guest(&router).await;
+    assert!(first["session"].get("expires_at").is_none());
+    assert!(second["session"].get("expires_at").is_none());
     let first_token = first["token"].as_str().unwrap();
     let second_token = second["token"].as_str().unwrap();
     assert_eq!(
@@ -1030,7 +1147,7 @@ async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_fai
         .0,
         StatusCode::FORBIDDEN
     );
-    let (status, rotated) = call(
+    let (status, _) = call(
         &router,
         "POST",
         &format!("{managed}/credential"),
@@ -1039,8 +1156,10 @@ async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_fai
         json!({"revision":2}),
     )
     .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_ne!(created["enrollment_token"], rotated["enrollment_token"]);
+    assert!(matches!(
+        status,
+        StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED
+    ));
     let (status, list) = call(
         &router,
         "GET",
@@ -1055,7 +1174,6 @@ async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_fai
         "enrollment_token",
         "enrollment_hash",
         created["enrollment_token"].as_str().unwrap(),
-        rotated["enrollment_token"].as_str().unwrap(),
     ] {
         assert!(!list.to_string().contains(forbidden))
     }
@@ -1090,7 +1208,7 @@ async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_fai
         call(
             &router,
             "DELETE",
-            &format!("{managed}?revision=3"),
+            &format!("{managed}?revision=2"),
             "admin_web",
             Some(&admin),
             Value::Null
@@ -1116,6 +1234,7 @@ async fn device_directory_enforces_live_acl_cas_secret_boundaries_and_atomic_fai
     owner.close().await;
     runtime.shutdown().await;
 }
+
 #[tokio::test]
 async fn cloud_catalog_is_independent_typed_and_never_falls_back_to_device_identity() {
     let runtime = start().await;
@@ -1181,7 +1300,7 @@ async fn cloud_catalog_is_independent_typed_and_never_falls_back_to_device_ident
             StatusCode::FORBIDDEN
         );
     }
-    assert!(!cards.to_string().contains("executable_relative"));
+    assert!(!cards.to_string().contains("executable_path"));
     assert!(!cards.to_string().contains("entry_url"));
     let mut wrong = spec("rdp", "public");
     wrong["launch"]["video"] = json!({"codec":"h264","bitrate_kbps":8000});
@@ -1295,6 +1414,39 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
     let runtime = start().await;
     let router = runtime.router();
     let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let summary_path = "/api/console/managed/instance-summary";
+    assert_eq!(
+        call(&router, "GET", summary_path, "admin_web", None, Value::Null)
+            .await
+            .0,
+        StatusCode::UNAUTHORIZED
+    );
+    let (summary_status, summary) = call(
+        &router,
+        "GET",
+        summary_path,
+        "admin_web",
+        Some(&admin),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(summary_status, StatusCode::OK);
+    assert!(summary.is_array());
+    let username = register(&router).await;
+    let user_token = login(&router, &username, PASSWORD, "android").await;
+    assert_eq!(
+        call(
+            &router,
+            "GET",
+            summary_path,
+            "android",
+            Some(&user_token),
+            Value::Null
+        )
+        .await
+        .0,
+        StatusCode::FORBIDDEN
+    );
     let device = create_device(&router, &admin).await;
     let (status, node) = call(
         &router,
@@ -1322,7 +1474,6 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
     let configuration = json!({
         "target":{"kind":"rdp"},
         "gpu_key":null,
-        "gpu_profile":null,
         "capacity":1,
         "disabled":false
     });
@@ -1373,7 +1524,7 @@ async fn node_and_deployment_management_cannot_manufacture_readiness_or_change_t
         "/api/console/managed/deployments/{}",
         deployment["id"].as_str().unwrap()
     );
-    let invalid = json!({"revision":1,"configuration":{"target":{"kind":"webview"},"gpu_key":null,"gpu_profile":null,"capacity":1,"disabled":false}});
+    let invalid = json!({"revision":1,"configuration":{"target":{"kind":"webview"},"gpu_key":null,"capacity":0,"disabled":false}});
     assert_ne!(
         call(&router, "PATCH", &path, "admin_web", Some(&admin), invalid)
             .await

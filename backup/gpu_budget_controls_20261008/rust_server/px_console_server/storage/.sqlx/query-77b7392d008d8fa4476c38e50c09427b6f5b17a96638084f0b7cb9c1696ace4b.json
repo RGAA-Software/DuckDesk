@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.instance_commands SET state='cancelled',lease_id=NULL,lease_until=NULL,completed_at=clock_timestamp()\nWHERE id=$1 AND state IN ('pending','claimed')\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77b7392d008d8fa4476c38e50c09427b6f5b17a96638084f0b7cb9c1696ace4b"
+}

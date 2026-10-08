@@ -12,6 +12,7 @@
 #include <misc/cpp/imgui_stdlib.h>
 
 #include <algorithm>
+#include <format>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -66,9 +67,10 @@ px::ui::VectorIcon ApplicationIcon(const CloudApplicationKind kind) noexcept {
 
 } // namespace
 
-CloudApplicationsPage::CloudApplicationsPage(std::shared_ptr<CloudApplicationsPort> port) : port_{std::move(port)} {}
+CloudApplicationsPage::CloudApplicationsPage(std::shared_ptr<CloudApplicationsPort> port) : port_{std::move(port)}, progressDialog_{port_} {}
 
 void CloudApplicationsPage::Draw(const px::ui::Localizer& localizer) {
+    progressDialog_.Draw(localizer);
     if (const auto request = port_->PendingPasswordRequest(); request && passwordStreamId_.empty()) {
         passwordStreamId_ = request->streamId;
         password_.clear();
@@ -105,7 +107,7 @@ void CloudApplicationsPage::DrawApplicationCard(const CloudApplicationCard& appl
     const ImVec2 minimum{ImGui::GetCursorScreenPos()};
     const ImVec2 maximum{minimum.x + cardSize.x, minimum.y + cardSize.y};
     const std::string id{"cloud-application-" + std::to_string(index) + "-" + application.streamId};
-    const bool running{application.instanceState == "running"};
+    const bool running{application.runningInstanceCount > 0};
     const bool busy{application.instanceState == "starting" || application.instanceState == "stopping"};
     ImGui::PushID(id.c_str());
     ImGui::InvisibleButton("##card", cardSize);
@@ -128,7 +130,8 @@ void CloudApplicationsPage::DrawApplicationCard(const CloudApplicationCard& appl
     draw.PushClipRect({textLeft, minimum.y}, {textRight, maximum.y}, true);
     draw.AddText({textLeft, minimum.y + px::ui::Scale(8.0F)}, ImGui::GetColorU32(ImGuiCol_Text), label.c_str());
     draw.PopClipRect();
-    const std::string state{localizer.Text(running ? px::ui::TextId::Running : px::ui::TextId::Stopped)};
+    const std::string state{std::vformat(localizer.Text(px::ui::TextId::ApplicationRunningCount),
+                                         std::make_format_args(application.runningInstanceCount))};
     const ImVec2 stateSize{ImGui::CalcTextSize(state.c_str())};
     const ImVec2 badgeMin{textLeft, maximum.y - px::ui::Scale(25.0F)};
     const ImVec2 badgeMax{badgeMin.x + stateSize.x + px::ui::Scale(14.0F), badgeMin.y + stateSize.y + px::ui::Scale(4.0F)};

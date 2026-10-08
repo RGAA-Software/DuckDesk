@@ -1,0 +1,14 @@
+SELECT EXISTS(
+SELECT 1 FROM pixels.resource_sessions r WHERE r.id=$1 AND (
+(r.owner_user IS NOT NULL AND EXISTS(
+ SELECT 1 FROM pixels.login_sessions s JOIN pixels.users u ON u.id=s.user_id
+ WHERE s.id=r.login_session_id AND u.id=r.owner_user AND u.role IN ('user','admin')
+ AND NOT u.disabled AND u.deleted_at IS NULL AND u.authorization_revision=r.owner_revision
+ AND s.authorization_revision=r.owner_revision AND s.client_type=r.client_type
+ AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND s.absolute_expires_at>clock_timestamp()
+)) OR (r.owner_guest IS NOT NULL AND EXISTS(
+ SELECT 1 FROM pixels.guest_sessions g WHERE g.id=r.owner_guest AND g.revision=r.owner_revision
+ AND g.client_type=r.client_type AND g.revoked_at IS NULL AND g.expires_at>clock_timestamp()
+ AND NOT EXISTS(SELECT 1 FROM pixels.guest_blocks b WHERE b.guest_id=g.id)
+ AND NOT EXISTS(SELECT 1 FROM pixels.guest_source_blocks b WHERE b.source_hash=g.source_hash AND b.expires_at>clock_timestamp())
+)))) AS "authorized!"

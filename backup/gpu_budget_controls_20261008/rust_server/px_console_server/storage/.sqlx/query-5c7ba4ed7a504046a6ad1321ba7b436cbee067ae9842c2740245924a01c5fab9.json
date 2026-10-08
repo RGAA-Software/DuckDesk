@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_telemetry_alert_events(\n id,node_id,metric,resource_key,resource_name,severity,state,threshold_per_mille,first_value_per_mille,\n latest_value_per_mille,peak_value_per_mille,first_sampled_at,last_sampled_at\n)\nVALUES($1,$2,$3,$4,$5,$6,'active',$7,$8,$8,$8,$9,$9)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int2",
+        "Int2",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c7ba4ed7a504046a6ad1321ba7b436cbee067ae9842c2740245924a01c5fab9"
+}

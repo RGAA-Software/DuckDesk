@@ -16,6 +16,7 @@
 #include <utility>
 
 #include "app/app_messages.h"
+#include "app/application_idle_lifecycle.h"
 #include "app_global_messages.h"
 #include "architecture/pipeline/captured_media_pipeline.h"
 #include "network/transport_types.h"
@@ -212,6 +213,8 @@ private:
     int RunRdp();
     int RunMessageLoop();
     void InitConnectionLifecycle();
+    void StartApplicationIdleLifecycle();
+    void ScheduleApplicationIdleExit(ApplicationIdleLifecycle::Deadline deadline);
     void RequestRestartMe() const;
     void ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit);
     void ReportFileTransferAuditProgress(const render::FileTransferAuditProgress& audit);
@@ -300,22 +303,7 @@ protected:
 
     std::atomic_uint32_t restart_counter_ = 0;
 
-    // Incremented whenever the WebRTC client set changes.  Delayed
-    // game-hook shutdowns capture this generation so an old disconnect
-    // cannot terminate a newly reconnected session.
-    std::atomic_uint64_t client_disconnect_generation_ = 0;
-    // A stale transport close can be delivered while a game-hook instance
-    // is starting. Do not treat it as "the last viewer left" until this
-    // instance has observed a real client connection.
-    std::atomic_bool game_hook_has_seen_client_ = false;
-    // The injected game needs a few seconds to bring up its local web
-    // listener. Ignore transport churn during that startup window.
-    std::atomic_bool game_hook_startup_grace_complete_ = false;
-    // Network plugins can report an old disconnect after a newer client
-    // has already connected.  Keep the event connection ids here instead
-    // of basing the game lifetime on a transient plugin aggregate.
-    mutable std::mutex game_hook_clients_mutex_;
-    std::unordered_set<std::string> game_hook_client_ids_;
+    ApplicationIdleLifecycle application_idle_lifecycle_{};
     // A game can render its only initial frame before the first viewer
     // finishes RTC setup, then pause Present while it is unfocused. Keep
     // that shared-texture descriptor available for the connection event.

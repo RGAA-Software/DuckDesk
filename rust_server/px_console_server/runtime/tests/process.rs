@@ -253,9 +253,7 @@ async fn native_process_starts_serves_and_exits_after_database_authority_loss() 
             .env("PIXELS_CONSOLE_STATIC_DIRECTORY", &static_directory)
             .env("PIXELS_CONSOLE_PUBLIC_ORIGIN", format!("http://{address}"))
             .env("PIXELS_CONSOLE_REGISTRATION", "1")
-            .env("PIXELS_CONSOLE_GUESTS", "1")
             .env("PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS", "3600")
-            .env("PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS", "3600")
             .env("PIXELS_CONSOLE_GUEST_SOURCE_KEY", &guest_key_path)
             .env(
                 "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY",

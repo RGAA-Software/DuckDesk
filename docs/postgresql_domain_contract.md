@@ -16,7 +16,7 @@ JSONB 只允许版本化、限长且经过 DTO 验证的事件详情/遥测附�
 |---|---|---|
 | 用户与管理角色 | users 增加明确 role=user/admin/viewer；沿用身份契约的 hash、禁用/删除、双 revision | 公开注册只能 user；请求的 client_type 不是 role。首个管理员由专用初始化工具创建，不由注册接口抢占 |
 | 用户会话 | login_sessions；签发角色从 users 读取；用户或管理终端类型显式 | 管理操作每次联查实时 role/state/revision；角色变化同时递增授权版本 |
-| 访客 | guest_sessions：id、token_hash、可信来源 HMAC、client_type、revision、created/expires/revoked；guest_blocks 与 guest_source_blocks：guest FK、原因码、操作者、时间/期限；guest_events | 与 users 分表、分身份类型；已阻止/过期访客不得因重连生成同身份有效授权；来源阻止与签发共用事务 gate；不将 IP 当 owner |
+| 访客 | guest_sessions：id、token_hash、可信来源 HMAC、client_type、revision、created/revoked；guest_blocks 与 guest_source_blocks：guest FK、原因码、操作者、时间/期限；guest_events | 与 users 分表、分身份类型；已阻止/撤销访客不得因重连生成同身份有效授权；来源阻止与签发共用事务 gate；不将 IP 当 owner |
 | 设备 | devices：UUID id、独立 12 位 public_code、name、platform、registered_at、disabled/deleted、revision、enrollment hash | 公开编号不是身份/口令；设备登记身份与用户关联分离；不保存供管理员查看的明文远控密码；所有配置改变 CAS；已实现子集见[设备契约](postgresql_device_contract.md) |
 | 用户设备与授权 | user_devices(user,device)；group_device_grants(group,device)；group_app_grants(group,application) | 双 FK/复合 PK/资源反向索引；关联与组授权不是同一概念，访问使用统一策略 |
 | 节点控制身份 | nodes：id、device FK、credential hash/fingerprint、generation、last_seen、reconciliation_state | node 与设备/连接 PID 不混同；报告携带节点身份和代际，过期/未知状态不准入；启动不能用旧在线快照恢复健康 |

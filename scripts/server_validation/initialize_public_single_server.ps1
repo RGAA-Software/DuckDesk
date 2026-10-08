@@ -21,11 +21,9 @@ try {
         $configRoot = 'C:\ProgramData\Pixels\Server\config'
         $administratorPasswordFile = Join-Path $configRoot 'initial-admin-password'
         $postgresPasswordFile = 'D:\PixelsServer\config\pg-admin-password'
-        $postgresCertificateAuthority = 'D:\PixelsServer\app\tls\console-ca.pem'
         if ((Get-Service -Name Pixels.Setup -ErrorAction Stop).Status -ne 'Running' -or
             (Test-Path -LiteralPath (Join-Path $configRoot 'setup.complete')) -or
-            -not (Test-Path -LiteralPath $postgresPasswordFile -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $postgresCertificateAuthority -PathType Leaf)) {
+            -not (Test-Path -LiteralPath $postgresPasswordFile -PathType Leaf)) {
             throw 'Single Server setup is not in the expected first-run state.'
         }
         if (-not (Test-Path -LiteralPath $administratorPasswordFile -PathType Leaf)) {
@@ -47,7 +45,6 @@ try {
             postgresql_port = 54329
             postgresql_administrator = 'postgres'
             postgresql_password = (Get-Content -LiteralPath $postgresPasswordFile -Raw).Trim()
-            postgresql_ca_pem = [string](Get-Content -LiteralPath $postgresCertificateAuthority -Raw)
             public_host = $publicHost
             initial_username = 'admin'
             initial_password = $initialPassword

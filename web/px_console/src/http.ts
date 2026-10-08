@@ -37,29 +37,31 @@ const axiosHttp = axios.create({
 const ADMIN_TOKEN_KEY = "pixels.admin_web.token";
 
 export function setAdminToken(token: string) {
-    if (token) sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
-    else sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
 }
 
 export function hasAdminToken(): boolean {
-    return Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY));
+    return Boolean(localStorage.getItem(ADMIN_TOKEN_KEY));
 }
 
 export function getAdminToken(): string {
-    return sessionStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
+    return localStorage.getItem(ADMIN_TOKEN_KEY) ?? "";
 }
 
 axiosHttp.interceptors.request.use(config => {
     config.headers.set("X-Pixels-Client-Type", "admin_web");
-    const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
-    if (token) config.headers.set("Authorization", `Bearer ${token}`);
+    if (config.url !== "/api/console/sessions") {
+        const token = getAdminToken();
+        if (token) config.headers.set("Authorization", `Bearer ${token}`);
+    }
     return config;
 });
 
 axiosHttp.interceptors.response.use(
     response => response,
     error => {
-        if (error?.response?.status === 401) setAdminToken("");
+        if (error?.response?.status === 401 && error?.config?.url !== "/api/console/sessions") setAdminToken("");
         return Promise.reject(error);
     },
 );

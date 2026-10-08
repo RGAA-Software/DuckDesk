@@ -10,6 +10,55 @@ use uuid::Uuid;
 pub(crate) const SCHEMA_LOCK: i64 = 22091701;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MigrationStatus {
+    pub installed_version: i64,
+    pub target_version: i64,
+}
+
+/// Read-only owner preflight accepts only a checksum-exact prefix of the incoming schema.
+/// It does not change roles, run DDL, or admit an old runtime against a newer schema.
+pub async fn migration_preflight(
+    config: &DatabaseConfig,
+    service: Service,
+    deployment: Uuid,
+    expected: &Migrator,
+) -> Result<MigrationStatus, DatabaseError> {
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let mut connection = PgConnection::connect_with(&config.options()).await?;
+        identity(&mut connection, service, deployment).await?;
+        crate::runtime::require_owner(&mut connection, service).await?;
+        let rows: Vec<(i64, bool, Vec<u8>)> = sqlx::query_as(
+            "SELECT version, success, checksum FROM pixels._sqlx_migrations ORDER BY version",
+        )
+        .fetch_all(&mut connection)
+        .await?;
+        let status = validate_migration_prefix(&rows, expected)?;
+        connection.close().await?;
+        Ok(status)
+    })
+    .await
+    .map_err(|_| DatabaseError::Unavailable)?
+}
+
+fn validate_migration_prefix(
+    rows: &[(i64, bool, Vec<u8>)],
+    expected: &Migrator,
+) -> Result<MigrationStatus, DatabaseError> {
+    if rows.is_empty()
+        || rows.len() > expected.iter().count()
+        || rows.iter().zip(expected.iter()).any(|(row, migration)| {
+            row.0 != migration.version || !row.1 || row.2.as_slice() != migration.checksum.as_ref()
+        })
+    {
+        return Err(DatabaseError::Schema);
+    }
+    Ok(MigrationStatus {
+        installed_version: rows.last().ok_or(DatabaseError::Schema)?.0,
+        target_version: expected.iter().last().ok_or(DatabaseError::Schema)?.version,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Service {
     Console,
     Auth,
@@ -129,4 +178,71 @@ pub async fn migrate(
     })
     .await
     .map_err(|_| DatabaseError::Unavailable)?
+}
+
+#[cfg(test)]
+mod upgrade_tests {
+    use super::*;
+    use sqlx::migrate::{Migration, MigrationType};
+    use std::borrow::Cow;
+
+    fn expected_migrations() -> Migrator {
+        let migrations = (1..=2)
+            .map(|version| {
+                Migration::new(
+                    version,
+                    Cow::Borrowed("upgrade-test"),
+                    MigrationType::Simple,
+                    Cow::Borrowed("SELECT 1;"),
+                    false,
+                )
+            })
+            .collect();
+        Migrator {
+            migrations: Cow::Owned(migrations),
+            ..Migrator::DEFAULT
+        }
+    }
+
+    #[test]
+    fn exact_prefix_and_current_schema_are_accepted() {
+        let expected = expected_migrations();
+        let rows: Vec<_> = expected
+            .iter()
+            .map(|migration| (migration.version, true, migration.checksum.to_vec()))
+            .collect();
+        assert_eq!(
+            validate_migration_prefix(&rows[..1], &expected).unwrap(),
+            MigrationStatus {
+                installed_version: 1,
+                target_version: 2
+            }
+        );
+        assert_eq!(
+            validate_migration_prefix(&rows, &expected).unwrap(),
+            MigrationStatus {
+                installed_version: 2,
+                target_version: 2
+            }
+        );
+    }
+
+    #[test]
+    fn missing_failed_modified_or_future_history_is_rejected() {
+        let expected = expected_migrations();
+        let checksum = expected.iter().next().unwrap().checksum.to_vec();
+        for invalid_rows in [
+            vec![],
+            vec![(1, false, checksum.clone())],
+            vec![(1, true, vec![0])],
+            vec![(2, true, checksum.clone())],
+            vec![
+                (1, true, checksum.clone()),
+                (2, true, checksum.clone()),
+                (3, true, checksum),
+            ],
+        ] {
+            assert!(validate_migration_prefix(&invalid_rows, &expected).is_err());
+        }
+    }
 }

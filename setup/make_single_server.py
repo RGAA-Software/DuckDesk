@@ -19,10 +19,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SETUP = Path(__file__).resolve().parent
 REQUIRED_FILES = {
     "bin/px_console.exe", "bin/px_console_admin.exe", "bin/px_db.exe",
-    "bin/px_relay.exe", "bin/px_backup.exe", "static/console/index.html",
+    "bin/px_relay.exe", "bin/px_backup.exe", "bin/px_server_tray.exe", "static/console/index.html",
     "postgresql/bin/pg_dump.exe", "postgresql/bin/pg_restore.exe", "install.ps1", "uninstall.ps1",
     "stage_setup.ps1", "restore_console.ps1", "postgresql/bin/createdb.exe", "postgresql/bin/psql.exe",
-    "assets/license-trust.json", "restore_console.md",
+    "assets/license-trust.json", "assets/starter-license.pxlic2", "assets/tray.ico", "restore_console.md", "upgrade_console_database.ps1",
 }
 
 

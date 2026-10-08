@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
+mod executable_path;
+pub use executable_path::is_absolute_windows_executable_path;
+
 fn serialize_secret<S>(value: &Zeroizing<String>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
@@ -41,7 +44,7 @@ pub struct VideoSpec {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ApplicationLaunch {
     GameHook {
-        executable_relative: String,
+        executable_path: String,
         arguments: String,
         video: VideoSpec,
     },
@@ -59,8 +62,7 @@ pub enum NodeCommandAction {
     Start {
         port: u16,
         launch: ApplicationLaunch,
-        install_root: Option<String>,
-        gpu_reservation: Option<GpuReservation>,
+        gpu_binding: Option<GpuBinding>,
         relay: Option<RelayEndpoint>,
     },
     #[serde(deserialize_with = "strict_empty::deserialize")]
@@ -77,15 +79,9 @@ pub struct RelayEndpoint {
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct GpuReservation {
+pub struct GpuBinding {
     pub stable_key: String,
     pub inventory_revision: i64,
-    pub memory_bytes: i64,
-    pub compute_per_mille: i16,
-    pub encoder_per_mille: i16,
-    pub memory_reserve_bytes: i64,
-    pub compute_limit_per_mille: i16,
-    pub encoder_limit_per_mille: i16,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -266,8 +262,7 @@ pub struct DeploymentObservation {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DeploymentPreparation {
     GameHook {
-        install_root: String,
-        executable_relative: String,
+        executable_path: String,
         gpu_key: Option<String>,
     },
     Webview {
@@ -503,6 +498,13 @@ pub enum NodeRequest {
         request_id: u64,
         inventory: RuntimeInventory,
     },
+    ReportRuntimeExit {
+        request_id: u64,
+        instance_id: Uuid,
+        launch_id: Uuid,
+        port: u16,
+        failed: bool,
+    },
     PollCommand {
         request_id: u64,
     },
@@ -596,6 +598,7 @@ impl NodeRequest {
             | Self::ReportTelemetryBackfill { request_id, .. }
             | Self::BeginReconciliation { request_id }
             | Self::Reconcile { request_id, .. }
+            | Self::ReportRuntimeExit { request_id, .. }
             | Self::PollCommand { request_id }
             | Self::FetchRdpWorkspace { request_id, .. }
             | Self::ConfirmRdpWorkspace { request_id, .. }
@@ -664,6 +667,9 @@ pub enum NodeResponse {
         challenge: ReconciliationChallenge,
     },
     Reconciled {
+        request_id: u64,
+    },
+    RuntimeExitReported {
         request_id: u64,
     },
     Command {
@@ -769,6 +775,7 @@ impl NodeResponse {
             | Self::TelemetryBackfilled { request_id, .. }
             | Self::ReconciliationStarted { request_id, .. }
             | Self::Reconciled { request_id }
+            | Self::RuntimeExitReported { request_id }
             | Self::Command { request_id, .. }
             | Self::RdpWorkspace { request_id, .. }
             | Self::RdpWorkspaceConfirmed { request_id, .. }

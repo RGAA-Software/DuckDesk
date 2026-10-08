@@ -23,7 +23,6 @@ TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunch) {
     EXPECT_EQ(config->port, 4601);
     EXPECT_EQ(config->remotePasswordHash, "password-hash");
     EXPECT_FALSE(config->lightTheme);
-    EXPECT_TRUE(config->enhancedVisualEffects);
     EXPECT_FALSE(config->forceTcp);
     EXPECT_FALSE(config->forceRelay);
 }
@@ -47,12 +46,11 @@ TEST(ClientImguiLaunchConfigTest, ParsesAppearanceWithoutChangingConnectionRequi
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema":1,"host":"127.0.0.1","port":4601,"stream_id":"direct-2","device_id":"100",
         "remote_device_id":"200","connection_nonce":"nonce","remote_password_hash":"password-hash",
-        "language":"en-US","theme":"light","enhanced_visual_effects":false,"console_origin":"https://console.example:4600"
+        "language":"en-US","theme":"light","console_origin":"https://console.example:4600"
     })");
     ASSERT_TRUE(config);
     EXPECT_EQ(config->language, "en-US");
     EXPECT_TRUE(config->lightTheme);
-    EXPECT_FALSE(config->enhancedVisualEffects);
     EXPECT_EQ(config->consoleOrigin, "https://console.example:4600");
 }
 

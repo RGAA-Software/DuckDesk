@@ -73,10 +73,10 @@ ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
 }  // namespace
 
 ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session, const bool english,
-                           const bool darkTheme, const bool enhancedVisualEffects, ClientUiSettings settings)
+                           const bool darkTheme, ClientUiSettings settings)
     : shell_{shell},
       session_{std::move(session)},
-      toolbar_{std::make_unique<ClientToolbar>(enhancedVisualEffects, std::move(settings))},
+      toolbar_{std::make_unique<ClientToolbar>(std::move(settings))},
       english_{english},
       darkTheme_{darkTheme} {
     if (session_->UsesRdp()) rdpClipboard_ = std::make_unique<px::rdp::WindowsClipboard>();
@@ -116,7 +116,6 @@ void ClientWindow::Draw() {
         darkTheme_ = !darkTheme_;
         static_cast<void>(shell_.get().SetTheme(darkTheme_ ? px::ui::Theme::Dark : px::ui::Theme::Light));
     }
-    if (toolbarAction.toggleEnhancedVisualEffects) static_cast<void>(shell_.get().SetEnhancedVisualEffects(!px::ui::EnhancedVisualEffectsEnabled()));
     if (toolbarAction.toggleFullscreen) static_cast<void>(shell_.get().ToggleFullscreen());
     if (toolbarAction.requestExit) openExitConfirmation_ = true;
 

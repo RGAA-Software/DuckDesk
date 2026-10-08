@@ -15,8 +15,7 @@ struct NodeDeploymentRow {
     id: Uuid,
     application_id: Uuid,
     kind: String,
-    install_root: Option<String>,
-    executable_relative: Option<String>,
+    executable_path: Option<String>,
     gpu_key: Option<String>,
     disabled: bool,
     deployment_revision: i64,
@@ -28,20 +27,15 @@ impl NodeDeploymentRow {
         let invalid = StoreError::Database(px_pg::DatabaseError::Operation);
         let preparation = match self.kind.as_str() {
             "game_hook" => NodeDeploymentPreparation::GameHook {
-                install_root: self.install_root.ok_or(invalid)?,
-                executable_relative: self.executable_relative.ok_or(invalid)?,
+                executable_path: self.executable_path.ok_or(invalid)?,
                 gpu_key: self.gpu_key,
             },
-            "webview" if self.install_root.is_none() && self.executable_relative.is_none() => {
-                NodeDeploymentPreparation::Webview {
-                    gpu_key: self.gpu_key,
-                }
-            }
-            "rdp" if self.install_root.is_none() && self.executable_relative.is_none() => {
-                NodeDeploymentPreparation::Rdp {
-                    gpu_key: self.gpu_key,
-                }
-            }
+            "webview" if self.executable_path.is_none() => NodeDeploymentPreparation::Webview {
+                gpu_key: self.gpu_key,
+            },
+            "rdp" if self.executable_path.is_none() => NodeDeploymentPreparation::Rdp {
+                gpu_key: self.gpu_key,
+            },
             _ => return Err(invalid),
         };
         Ok(NodeDeploymentAssignment {
@@ -80,10 +74,6 @@ impl DeploymentStore {
         control::write_gate(&mut tx).await?;
         let actor = control::authorize(&mut tx, admin, true).await?;
         let capacity = i32::try_from(config.capacity).map_err(|_| StoreError::InvalidInput)?;
-        let gpu_values = config
-            .gpu_profile
-            .as_ref()
-            .map(crate::GpuResourceProfile::database_values);
         let result = sqlx::query_file_as!(
             DeploymentProfile,
             "queries/create_deployment.sql",
@@ -91,14 +81,7 @@ impl DeploymentStore {
             application,
             node,
             config.target.kind(),
-            config.target.root(),
             config.gpu_key.as_deref(),
-            gpu_values.map(|values| values.0),
-            gpu_values.map(|values| values.1),
-            gpu_values.map(|values| values.2),
-            gpu_values.map(|values| values.3),
-            gpu_values.map(|values| values.4),
-            gpu_values.map(|values| values.5),
             capacity,
             config.disabled
         )
@@ -186,18 +169,7 @@ impl DeploymentStore {
         .await?
         .ok_or(StoreError::Rejected)?;
         let capacity = i32::try_from(config.capacity).map_err(|_| StoreError::InvalidInput)?;
-        let gpu_values = config
-            .gpu_profile
-            .as_ref()
-            .map(crate::GpuResourceProfile::database_values);
-        if previous.install_root.as_deref() == config.target.root()
-            && previous.gpu_key == config.gpu_key
-            && previous.gpu_memory_bytes == gpu_values.map(|values| values.0)
-            && previous.gpu_compute_per_mille == gpu_values.map(|values| values.1)
-            && previous.gpu_encoder_per_mille == gpu_values.map(|values| values.2)
-            && previous.gpu_memory_reserve_bytes == gpu_values.map(|values| values.3)
-            && previous.gpu_compute_limit_per_mille == gpu_values.map(|values| values.4)
-            && previous.gpu_encoder_limit_per_mille == gpu_values.map(|values| values.5)
+        if previous.gpu_key == config.gpu_key
             && previous.capacity == capacity
             && previous.disabled == config.disabled
             && previous.application_revision == app_revision
@@ -209,14 +181,7 @@ impl DeploymentStore {
             DeploymentProfile,
             "queries/configure_deployment.sql",
             id,
-            config.target.root(),
             config.gpu_key.as_deref(),
-            gpu_values.map(|values| values.0),
-            gpu_values.map(|values| values.1),
-            gpu_values.map(|values| values.2),
-            gpu_values.map(|values| values.3),
-            gpu_values.map(|values| values.4),
-            gpu_values.map(|values| values.5),
             capacity,
             config.disabled,
             config.target.kind()

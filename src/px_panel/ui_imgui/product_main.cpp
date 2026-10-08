@@ -134,9 +134,6 @@ int main(int argc, char* argv[]) {  // NOLINT(pixels-raw-pointer-boundary): proc
             if (action.selectedTheme.has_value()) {
                 activeShell->SetTheme(*action.selectedTheme);
             }
-            if (action.enhancedVisualEffects.has_value()) {
-                activeShell->SetEnhancedVisualEffects(*action.enhancedVisualEffects);
-            }
             if (action.exitRequested) {
                 activeShell->RequestExit();
             }

@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT c.recording_id,c.pinned,c.revision,c.updated_at,r.size_bytes,COALESCE(b.received_bytes,0) AS \"received_bytes!\",\nCASE WHEN b.id IS NULL THEN 'missing' WHEN b.state='published' AND b.verified_run=$1 THEN 'ready'\nWHEN b.state='published' THEN 'verifying' WHEN b.state='fetching' AND b.run_id=$1 AND b.lease_until>clock_timestamp()\nAND b.deadline>clock_timestamp() THEN 'fetching' ELSE 'retry_required' END AS \"state!\"\nFROM pixels.recording_cache c JOIN pixels.recordings r ON r.id=c.recording_id LEFT JOIN pixels.cache_blobs b ON b.id=c.active_blob_id\nWHERE ($2::uuid IS NULL OR c.recording_id>$2) ORDER BY c.recording_id LIMIT $3\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "recording_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "pinned",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "received_bytes!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "state!",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "79ecebb21b5f05b1226822a14d7e8e685a569b9c5f2f1af0cb4fa26180c54c6c"
+}

@@ -5,10 +5,9 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
-    NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
-    PasswordDigest, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
-    VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeGpuTelemetry,
+    NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, PreparationState,
+    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_console_store::{
     ApplicationInstance, CommandOutcome, CommandReceipt, NodeCommand, NodeCommandAction,
@@ -59,21 +58,10 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
-        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
-    }
-}
-fn test_gpu_profile() -> GpuResourceProfile {
-    GpuResourceProfile {
-        memory_bytes: 512 * 1024 * 1024,
-        compute_per_mille: 100,
-        encoder_per_mille: 100,
-        memory_reserve_bytes: 512 * 1024 * 1024,
-        compute_limit_per_mille: 900,
-        encoder_limit_per_mille: 900,
     }
 }
 fn node_report(sequence: u64) -> NodeReport {
@@ -208,7 +196,7 @@ impl Fixture {
         };
         let launch = match target {
             DeploymentTarget::GameHook { .. } => ApplicationLaunch::GameHook {
-                executable_relative: r"子目录\Game.exe".into(),
+                executable_path: r"D:\游戏 根目录\子目录\Game.exe".into(),
                 arguments: r#""含空格 参数""#.into(),
                 video,
             },
@@ -342,7 +330,6 @@ impl Fixture {
                 &OriginFingerprint::from_hmac_sha256(source),
                 &key,
                 ClientType::Android,
-                Duration::from_secs(3600),
             )
             .await
             .unwrap();
@@ -804,24 +791,15 @@ async fn state(fixture: &Fixture, id: Uuid) -> (String, Option<chrono::DateTime<
 #[tokio::test]
 async fn start_ack_stop_and_duplicate_receipts_never_touch_reused_capacity() {
     let fixture = Fixture::new().await;
-    let (connection, app, _) = fixture
-        .prepared(
-            DeploymentTarget::GameHook {
-                install_root: r"D:\游戏 根目录".into(),
-            },
-            1,
-        )
-        .await;
+    let (connection, app, _) = fixture.prepared(DeploymentTarget::GameHook, 1).await;
     let (user, instance, start) = fixture.started(&connection, app.id).await;
     assert!(matches!(instance.owner, ResourceOwner::User { .. }));
     assert_eq!(start.instance_revision, 2);
     match &start.action {
         NodeCommandAction::Start {
-            install_root,
             launch: ApplicationLaunch::GameHook { arguments, .. },
             ..
         } => {
-            assert_eq!(install_root.as_deref(), Some(r"D:\游戏 根目录"));
             assert_eq!(arguments, r#""含空格 参数""#);
         }
         _ => panic!("typed game launch required"),
@@ -1468,29 +1446,34 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
     let (connection, app, deployment) = fixture.prepared(DeploymentTarget::Rdp, 1).await;
     let (user, instance, start) = fixture.started(&connection, app.id).await;
     fixture.nodes.close_connection(&connection).await.unwrap();
-    let key = token();
-    let revision: i64 = sqlx::query_scalar("SELECT revision FROM pixels.nodes WHERE id=$1")
-        .bind(connection.id())
-        .fetch_one(&fixture.owner)
+    // Reconnect with the existing fixture credential, as a real node does after disconnect.
+    let credential_hash: Vec<u8> =
+        sqlx::query_scalar("SELECT credential_hash FROM pixels.nodes WHERE id=$1")
+            .bind(connection.id())
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let node_credential = TokenDigest::from_sha256(credential_hash.try_into().unwrap());
+    let new_connection = fixture
+        .nodes
+        .open_connection(connection.epoch(), &node_credential, &token())
         .await
         .unwrap();
     fixture
         .nodes
-        .rotate_key(&fixture.admin, connection.id(), revision, &key)
+        .report(&new_connection, &node_report(1))
         .await
         .unwrap();
-    let new = fixture
-        .nodes
-        .open_connection(connection.epoch(), &key, &token())
-        .await
-        .unwrap();
-    fixture.nodes.report(&new, &node_report(1)).await.unwrap();
     fixture
         .deployments
-        .report(&new, deployment.id, &observation(&deployment, 1))
+        .report(&new_connection, deployment.id, &observation(&deployment, 1))
         .await
         .unwrap();
-    let challenge = fixture.instances.begin_reconciliation(&new).await.unwrap();
+    let challenge = fixture
+        .instances
+        .begin_reconciliation(&new_connection)
+        .await
+        .unwrap();
     assert_eq!(challenge.launches.len(), 1);
     assert!(challenge.launches[0].reject_through_revision > start.instance_revision);
     assert_eq!(challenge.launches[0].launch_id, start.launch_id);
@@ -1505,7 +1488,7 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
     fixture
         .instances
         .reconcile(
-            &new,
+            &new_connection,
             &RuntimeInventory {
                 challenge_id: challenge.id,
                 runtimes: vec![observed(&start)],
@@ -1526,7 +1509,7 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
     assert_eq!(running.owner, instance.owner);
     assert!(fixture
         .instances
-        .next_command(&new)
+        .next_command(&new_connection)
         .await
         .unwrap()
         .is_none());
@@ -1540,16 +1523,26 @@ async fn reconnect_reconciles_exact_rdp_runtime_without_replaying_start_or_chang
     assert_eq!(count, 1);
     fixture
         .instances
-        .stop_managed(&fixture.admin, new.epoch(), instance.id, running.revision)
+        .stop_managed(
+            &fixture.admin,
+            new_connection.epoch(),
+            instance.id,
+            running.revision,
+        )
         .await
         .unwrap();
-    let stop = fixture.instances.next_command(&new).await.unwrap().unwrap();
-    assert_eq!(stop.node_generation, new.generation());
+    let stop = fixture
+        .instances
+        .next_command(&new_connection)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stop.node_generation, new_connection.generation());
     assert!(matches!(stop.action, NodeCommandAction::Stop));
     assert_eq!(
         fixture
             .instances
-            .acknowledge_command(&new, &receipt(&stop, CommandOutcome::Absent))
+            .acknowledge_command(&new_connection, &receipt(&stop, CommandOutcome::Absent))
             .await
             .unwrap()
             .state,

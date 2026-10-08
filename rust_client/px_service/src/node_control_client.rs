@@ -7,9 +7,9 @@ use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use px_node_protocol::{
     ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
-    CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation,
-    GpuReservation, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
-    ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
+    CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation, GpuBinding,
+    NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
+    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
     RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
     TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
 };
@@ -131,6 +131,11 @@ struct PendingFrontendRetirement {
     deadline: chrono::DateTime<Utc>,
     render_name: Option<String>,
     fail_closed_at: Instant,
+}
+
+struct FrontendRenderOwner {
+    render_name: String,
+    last_seen_at: Instant,
 }
 
 struct FrontendObservation {
@@ -298,6 +303,16 @@ pub async fn node_control_loop(
     recording_inventory: Arc<std::sync::Mutex<RecordingInventory>>,
 ) -> Result<(), String> {
     let product = ProductDescriptor::load_for_current_executable()?;
+    if product
+        .capabilities
+        .iter()
+        .any(|capability| capability == "rdp_host")
+    {
+        match crate::rdp_host_setup::initialize().await {
+            Ok(()) => info!("RDP host initialized automatically; persistent TLS identity and workspaces preserved"),
+            Err(error) => warn!(%error, "RDP host initialization failed; other application modes remain available"),
+        }
+    }
     let (store, file_transfer_outbox, mut stop_rx, mut operations) = {
         let mut guard = runtime.lock().await;
         (
@@ -483,11 +498,13 @@ async fn run_connection(
     .await?;
     reconcile(&mut socket, &mut session, runtime).await?;
     let mut pending_frontend_retirements = HashMap::new();
+    let mut frontend_render_owners = HashMap::new();
     synchronize_frontend_retirements(
         &mut socket,
         &mut session,
         runtime,
         &mut pending_frontend_retirements,
+        &mut frontend_render_owners,
     )
     .await?;
     let inventory_for_connection = recording_inventory.clone();
@@ -502,6 +519,7 @@ async fn run_connection(
     sync_recordings(&mut socket, &mut session, recording_inventory).await?;
 
     let mut report_sequence = 1_u64;
+    let mut reported_runtime_exits = HashSet::new();
     let mut reports = tokio::time::interval(REPORT_INTERVAL);
     reports.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     reports.tick().await;
@@ -534,6 +552,7 @@ async fn run_connection(
                 report_sequence = report_sequence.checked_add(1)
                     .ok_or_else(|| "node report sequence exhausted".to_string())?;
                 ServiceRuntime::refresh_app_processes(runtime).await;
+                synchronize_runtime_exits(&mut socket, &mut session, runtime, &mut reported_runtime_exits).await?;
                 let report_outcome = report(
                     &mut socket,
                     &mut session,
@@ -559,6 +578,8 @@ async fn run_connection(
                 sync_recordings(&mut socket, &mut session, recording_inventory).await?;
             }
             _ = command_polls.tick() => {
+                ServiceRuntime::refresh_observed_app_exits(runtime).await;
+                synchronize_runtime_exits(&mut socket, &mut session, runtime, &mut reported_runtime_exits).await?;
                 let request = NodeRequest::PollCommand {
                     request_id: session.request_id()?,
                 };
@@ -655,6 +676,7 @@ async fn run_connection(
                     &mut session,
                     runtime,
                     &mut pending_frontend_retirements,
+                    &mut frontend_render_owners,
                 ).await?;
             }
             operation = operations.recv() => {
@@ -677,6 +699,73 @@ async fn run_connection(
             }
         }
     }
+}
+
+async fn synchronize_runtime_exits(
+    socket: &mut NodeSocket,
+    session: &mut ProtocolSession,
+    runtime: &Arc<Mutex<ServiceRuntime>>,
+    reported: &mut HashSet<(Uuid, Uuid)>,
+) -> Result<(), String> {
+    let exited_launches = {
+        let guard = runtime.lock().await;
+        guard
+            .app_registry
+            .list()
+            .into_iter()
+            .filter_map(|record| {
+                record.exit_detail.as_ref()?;
+                if !matches!(
+                    record.state,
+                    AppInstanceState::Stopped | AppInstanceState::Failed
+                ) {
+                    return None;
+                }
+                Some((
+                    Uuid::parse_str(&record.instance_id).ok()?,
+                    Uuid::parse_str(&record.request_id).ok()?,
+                    record.listen_port,
+                    record.state == AppInstanceState::Failed,
+                ))
+            })
+            .collect::<Vec<_>>()
+    };
+    let retained = exited_launches
+        .iter()
+        .map(|(instance_id, launch_id, _, _)| (*instance_id, *launch_id))
+        .collect::<HashSet<_>>();
+    reported.retain(|identity| retained.contains(identity));
+    for (instance_id, launch_id, port, failed) in exited_launches {
+        if reported.contains(&(instance_id, launch_id)) {
+            continue;
+        }
+        let request = NodeRequest::ReportRuntimeExit {
+            request_id: session.request_id()?,
+            instance_id,
+            launch_id,
+            port,
+            failed,
+        };
+        let expected = request.request_id();
+        match exchange(socket, request).await? {
+            NodeResponse::RuntimeExitReported { request_id } if request_id == expected => {
+                reported.insert((instance_id, launch_id));
+                info!(%instance_id, %launch_id, failed, "application exit reached durable Console state");
+            }
+            // A reconnect reconciles the prior generation first; it can already
+            // have retired this exact launch. Never let that stale receipt alter
+            // another launch or cause endless node reconnects.
+            NodeResponse::Error { code, .. } if code == "rejected" => {
+                reported.insert((instance_id, launch_id));
+                warn!(%instance_id, %launch_id, "stale application exit receipt rejected");
+            }
+            NodeResponse::Error { code, .. } => {
+                return Err(format!("application exit report failed: {code}"))
+            }
+            _ => return Err("unexpected application exit report response".into()),
+        }
+    }
+    Ok(())
 }
 
 async fn sync_recordings(
@@ -1233,7 +1322,7 @@ async fn sync_deployments(
     endpoint_revision: i64,
     sequence: u64,
 ) -> Result<(), String> {
-    let telemetry = telemetry_sampler.sample().await;
+    let telemetry = telemetry_sampler.sample_gpu().await;
     let mut after = None;
     loop {
         let request = NodeRequest::ListDeployments {
@@ -1285,7 +1374,7 @@ async fn sync_deployments(
 fn preparation_state(
     product: &ProductDescriptor,
     deployment: &DeploymentAssignment,
-    telemetry: &px_node_protocol::NodeTelemetry,
+    telemetry: &crate::hardware_probe::GpuSnapshot,
 ) -> PreparationState {
     if deployment.disabled {
         return PreparationState::Pending;
@@ -1293,8 +1382,7 @@ fn preparation_state(
     let capability = |name: &str| product.capabilities.iter().any(|value| value == name);
     match &deployment.preparation {
         DeploymentPreparation::GameHook {
-            install_root,
-            executable_relative,
+            executable_path,
             gpu_key,
         } => {
             if !capability("game_hook") {
@@ -1307,7 +1395,7 @@ fn preparation_state(
                     reason: PreparationFailure::BindingUnverified,
                 };
             }
-            match service_core::resolve_game_path(install_root, executable_relative) {
+            match service_core::resolve_game_path(executable_path) {
                 Ok(path) if path.is_file() => PreparationState::Ready,
                 Ok(_) => PreparationState::Failed {
                     reason: PreparationFailure::MissingFiles,
@@ -1354,7 +1442,7 @@ fn preparation_state(
 }
 
 fn gpu_binding_is_available(
-    telemetry: &px_node_protocol::NodeTelemetry,
+    telemetry: &crate::hardware_probe::GpuSnapshot,
     requested_stable_key: Option<&str>,
 ) -> bool {
     if telemetry.gpu_inventory_revision.is_none() {
@@ -1440,6 +1528,20 @@ fn frontend_observation_drained(
     }
 }
 
+fn observed_frontend_disconnected(
+    session_id: Uuid,
+    owner: &FrontendRenderOwner,
+    observation: &FrontendObservation,
+) -> bool {
+    owner.last_seen_at.elapsed() >= Duration::from_secs(5)
+        && !observation.duplicate_sessions.contains(&session_id)
+        && observation.connected_renders.contains(&owner.render_name)
+        && observation
+            .sessions_by_render
+            .get(&owner.render_name)
+            .is_some_and(|session_ids| !session_ids.contains(&session_id))
+}
+
 async fn begin_frontend_retirement(
     socket: &mut NodeSocket,
     session: &mut ProtocolSession,
@@ -1513,6 +1615,7 @@ async fn synchronize_frontend_retirements(
     session: &mut ProtocolSession,
     runtime: &Arc<Mutex<ServiceRuntime>>,
     pending_retirements: &mut HashMap<Uuid, PendingFrontendRetirement>,
+    frontend_render_owners: &mut HashMap<Uuid, FrontendRenderOwner>,
 ) -> Result<(), String> {
     let request = NodeRequest::ListFrontends {
         request_id: session.request_id()?,
@@ -1528,9 +1631,34 @@ async fn synchronize_frontend_retirements(
         }
         _ => return Err("unexpected frontend inventory response".into()),
     };
+    let observation = observe_frontends(runtime).await?;
+    let expected_ids = frontends
+        .iter()
+        .map(|frontend| frontend.id)
+        .collect::<HashSet<_>>();
+    frontend_render_owners.retain(|session_id, _| expected_ids.contains(session_id));
+    for (session_id, render_name) in &observation.render_by_session {
+        if expected_ids.contains(session_id) {
+            frontend_render_owners.insert(
+                *session_id,
+                FrontendRenderOwner {
+                    render_name: render_name.clone(),
+                    last_seen_at: Instant::now(),
+                },
+            );
+        }
+    }
     let retiring_ids = frontends
         .iter()
-        .filter(|frontend| matches!(frontend.state.as_str(), "closing" | "reconcile_required"))
+        .filter(|frontend| {
+            matches!(frontend.state.as_str(), "closing" | "reconcile_required")
+                || (frontend.state == "connected"
+                    && frontend_render_owners
+                        .get(&frontend.id)
+                        .is_some_and(|owner| {
+                            observed_frontend_disconnected(frontend.id, owner, &observation)
+                        }))
+        })
         .map(|frontend| frontend.id)
         .collect::<HashSet<_>>();
     pending_retirements.retain(|session_id, _| retiring_ids.contains(session_id));
@@ -1538,7 +1666,6 @@ async fn synchronize_frontend_retirements(
         return Ok(());
     }
 
-    let observation = observe_frontends(runtime).await?;
     for session_id in retiring_ids {
         let challenge_needs_refresh =
             pending_retirements
@@ -1551,7 +1678,11 @@ async fn synchronize_frontend_retirements(
             let render_name = previous
                 .as_ref()
                 .and_then(|retirement| retirement.render_name.clone())
-                .or_else(|| observation.render_by_session.get(&session_id).cloned());
+                .or_else(|| {
+                    frontend_render_owners
+                        .get(&session_id)
+                        .map(|owner| owner.render_name.clone())
+                });
             let fail_closed_at = previous
                 .map(|retirement| retirement.fail_closed_at)
                 .unwrap_or_else(|| Instant::now() + FRONTEND_FAIL_CLOSED_LEASE);
@@ -1781,8 +1912,7 @@ async fn execute_command_before_deadline(
         NodeCommandAction::Start {
             port,
             launch,
-            install_root,
-            gpu_reservation,
+            gpu_binding,
             relay,
         } => {
             let rdp = matches!(launch, ApplicationLaunch::Rdp);
@@ -1791,13 +1921,11 @@ async fn execute_command_before_deadline(
                 return CommandOutcome::Absent;
             }
             if !rdp {
-                let Some(gpu_reservation) = gpu_reservation else {
-                    warn!(command_id = %command.id, "node start command has no GPU reservation");
+                let Some(gpu_binding) = gpu_binding else {
+                    warn!(command_id = %command.id, "node start command has no GPU binding");
                     return CommandOutcome::Absent;
                 };
-                if let Err(error) =
-                    validate_gpu_reservation(gpu_reservation, telemetry_sampler).await
-                {
+                if let Err(error) = validate_gpu_binding(gpu_binding, telemetry_sampler).await {
                     warn!(command_id = %command.id, %error, "node GPU admission rejected the start command");
                     return CommandOutcome::Absent;
                 }
@@ -1829,8 +1957,7 @@ async fn execute_command_before_deadline(
                 command,
                 *port,
                 launch,
-                install_root.as_deref(),
-                gpu_reservation.as_ref(),
+                gpu_binding.as_ref(),
                 relay.as_ref(),
                 StartSecurityContext {
                     rdp_workspace,
@@ -1884,67 +2011,32 @@ async fn execute_command_before_deadline(
     }
 }
 
-async fn validate_gpu_reservation(
-    reservation: &GpuReservation,
+async fn validate_gpu_binding(
+    binding: &GpuBinding,
     telemetry_sampler: &crate::node_telemetry::NodeTelemetrySampler,
 ) -> Result<(), String> {
-    validate_gpu_reservation_against(&telemetry_sampler.sample().await, reservation)
+    validate_gpu_binding_against(&telemetry_sampler.sample_gpu().await, binding)
 }
 
-fn validate_gpu_reservation_against(
-    telemetry: &px_node_protocol::NodeTelemetry,
-    reservation: &GpuReservation,
+fn validate_gpu_binding_against(
+    telemetry: &crate::hardware_probe::GpuSnapshot,
+    binding: &GpuBinding,
 ) -> Result<(), String> {
-    if reservation.inventory_revision < 1
-        || reservation.memory_bytes < 1
-        || reservation.compute_per_mille < 1
-        || reservation.encoder_per_mille < 1
-        || reservation.memory_reserve_bytes < 0
-        || reservation.compute_limit_per_mille < reservation.compute_per_mille
-        || reservation.compute_limit_per_mille > 1000
-        || reservation.encoder_limit_per_mille < reservation.encoder_per_mille
-        || reservation.encoder_limit_per_mille > 1000
-    {
-        return Err("GPU reservation values are invalid".into());
+    if binding.inventory_revision < 1 || binding.stable_key.is_empty() {
+        return Err("GPU binding values are invalid".into());
     }
-    if telemetry.gpu_inventory_revision != u64::try_from(reservation.inventory_revision).ok() {
+    if telemetry.gpu_inventory_revision != u64::try_from(binding.inventory_revision).ok() {
         return Err("GPU inventory revision changed".into());
     }
     let mut matching_gpus = telemetry
         .gpus
         .iter()
-        .filter(|gpu| gpu.stable_key == reservation.stable_key);
+        .filter(|gpu| gpu.stable_key == binding.stable_key);
     let gpu = matching_gpus
         .next()
-        .ok_or_else(|| "reserved GPU is no longer present".to_string())?;
+        .ok_or_else(|| "selected GPU is no longer present".to_string())?;
     if matching_gpus.next().is_some() || !gpu.runtime_binding_ready {
         return Err("GPU binding cannot be proven for this inventory".into());
-    }
-    let total_memory = gpu
-        .dedicated_memory_bytes
-        .and_then(|value| i64::try_from(value).ok())
-        .ok_or_else(|| "GPU memory capacity is unknown".to_string())?;
-    let used_memory = gpu
-        .used_memory_bytes
-        .and_then(|value| i64::try_from(value).ok())
-        .ok_or_else(|| "GPU memory use is unknown".to_string())?;
-    let required_memory = used_memory
-        .checked_add(reservation.memory_bytes)
-        .and_then(|value| value.checked_add(reservation.memory_reserve_bytes))
-        .ok_or_else(|| "GPU memory reservation overflowed".to_string())?;
-    let projected_compute = i64::from(
-        gpu.utilization_per_mille
-            .ok_or_else(|| "GPU pressure is unknown".to_string())?,
-    ) + i64::from(reservation.compute_per_mille);
-    let projected_encoder = i64::from(
-        gpu.encoder_utilization_per_mille
-            .ok_or_else(|| "GPU encoder pressure is unknown".to_string())?,
-    ) + i64::from(reservation.encoder_per_mille);
-    if required_memory > total_memory
-        || projected_compute > i64::from(reservation.compute_limit_per_mille)
-        || projected_encoder > i64::from(reservation.encoder_limit_per_mille)
-    {
-        return Err("GPU reservation no longer fits current capacity".into());
     }
     Ok(())
 }
@@ -1971,19 +2063,18 @@ fn start_request(
     command: &NodeCommand,
     port: u16,
     launch: &ApplicationLaunch,
-    install_root: Option<&str>,
-    gpu_reservation: Option<&GpuReservation>,
+    gpu_binding: Option<&GpuBinding>,
     relay: Option<&px_node_protocol::RelayEndpoint>,
     security: StartSecurityContext,
 ) -> Result<StartAppRequest, String> {
     let (mode, executable, arguments, webview, bitrate, codec) = match launch {
         ApplicationLaunch::GameHook {
-            executable_relative,
+            executable_path,
             arguments,
             video,
         } => (
             service_core::app_instance::APP_MODE_GAME_HOOK,
-            executable_relative.clone(),
+            executable_path.clone(),
             arguments.clone(),
             String::new(),
             video.bitrate_kbps,
@@ -2006,16 +2097,6 @@ fn start_request(
             VideoCodec::H264,
         ),
     };
-    let install_root = match launch {
-        ApplicationLaunch::GameHook { .. } => install_root
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| "game-hook install root is missing".to_string())?
-            .to_string(),
-        _ if install_root.is_some() => {
-            return Err("non-game launch supplied an install root".into())
-        }
-        _ => String::new(),
-    };
     let rdp_account =
         security
             .rdp_workspace
@@ -2027,15 +2108,14 @@ fn start_request(
                 expected_sid: workspace.expected_sid,
             });
     let rdp = matches!(launch, ApplicationLaunch::Rdp);
-    if rdp != rdp_account.is_some() || rdp != gpu_reservation.is_none() {
-        return Err("RDP workspace and GPU reservation boundary mismatch".into());
+    if rdp != rdp_account.is_some() || rdp != gpu_binding.is_none() {
+        return Err("RDP workspace and GPU binding boundary mismatch".into());
     }
     Ok(StartAppRequest {
         request_id: command.launch_id.to_string(),
         instance_id: command.instance_id.to_string(),
         app_id: command.application_id.to_string(),
-        install_root,
-        game_exe_rel: executable,
+        executable_path: executable,
         game_arguments: arguments,
         listen_port: i32::from(port),
         encoder_fps: 60,
@@ -2050,7 +2130,7 @@ fn start_request(
         websocket_enabled: true,
         app_mode: mode.into(),
         webview_url_b64: webview,
-        gpu_stable_key: gpu_reservation.map(|reservation| reservation.stable_key.clone()),
+        gpu_stable_key: gpu_binding.map(|binding| binding.stable_key.clone()),
         rdp_node_id: if rdp {
             security.node_identity.node_id.to_string()
         } else {
@@ -2164,6 +2244,63 @@ mod tests {
     use super::*;
     use chrono::TimeDelta;
     use px_node_protocol::{TransferProgress, VideoSpec};
+
+    #[test]
+    fn disconnected_frontend_needs_observed_ownership_grace_and_complete_render_snapshot() {
+        let session_id = Uuid::new_v4();
+        let render_name = "render_4613".to_string();
+        let mut owner = FrontendRenderOwner {
+            render_name: render_name.clone(),
+            last_seen_at: Instant::now(),
+        };
+        let mut observation = FrontendObservation {
+            connected_renders: HashSet::from([render_name.clone()]),
+            sessions_by_render: HashMap::from([(render_name.clone(), HashSet::new())]),
+            render_by_session: HashMap::new(),
+            duplicate_sessions: HashSet::new(),
+        };
+        assert!(!observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+        owner.last_seen_at = Instant::now().checked_sub(Duration::from_secs(6)).unwrap();
+        assert!(observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+        observation
+            .sessions_by_render
+            .insert(render_name.clone(), HashSet::from([session_id]));
+        assert!(!observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+        observation.sessions_by_render.remove(&render_name);
+        assert!(!observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+        observation
+            .sessions_by_render
+            .insert(render_name.clone(), HashSet::new());
+        observation.duplicate_sessions.insert(session_id);
+        assert!(!observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+        observation.duplicate_sessions.clear();
+        observation.connected_renders.clear();
+        assert!(!observed_frontend_disconnected(
+            session_id,
+            &owner,
+            &observation
+        ));
+    }
 
     #[test]
     fn console_websocket_connector_accepts_untrusted_certificates() {
@@ -2300,29 +2437,16 @@ mod tests {
         }
     }
 
-    fn gpu_reservation() -> GpuReservation {
-        GpuReservation {
+    fn gpu_binding() -> GpuBinding {
+        GpuBinding {
             stable_key: "gpu-1".into(),
             inventory_revision: 7,
-            memory_bytes: 1024,
-            compute_per_mille: 200,
-            encoder_per_mille: 200,
-            memory_reserve_bytes: 1024,
-            compute_limit_per_mille: 800,
-            encoder_limit_per_mille: 800,
         }
     }
 
-    fn gpu_telemetry() -> px_node_protocol::NodeTelemetry {
-        px_node_protocol::NodeTelemetry {
+    fn gpu_telemetry() -> crate::hardware_probe::GpuSnapshot {
+        crate::hardware_probe::GpuSnapshot {
             sampled_at: Utc::now(),
-            probe_state: px_node_protocol::TelemetryProbeState::Ready,
-            logical_processors: Some(8),
-            cpu_utilization_per_mille: Some(100),
-            memory_total_bytes: Some(16_384),
-            memory_available_bytes: Some(8_192),
-            disk_total_bytes: Some(16_384),
-            disk_free_bytes: Some(8_192),
             gpu_inventory_revision: Some(7),
             gpus: vec![px_node_protocol::NodeGpuTelemetry {
                 stable_key: "gpu-1".into(),
@@ -2337,23 +2461,32 @@ mod tests {
     }
 
     #[test]
-    fn gpu_reservation_rechecks_identity_revision_metrics_and_headroom() {
-        let reservation = gpu_reservation();
+    fn gpu_binding_rechecks_identity_without_resource_budget_limits() {
+        let binding = gpu_binding();
         let telemetry = gpu_telemetry();
-        assert!(validate_gpu_reservation_against(&telemetry, &reservation).is_ok());
+        assert!(validate_gpu_binding_against(&telemetry, &binding).is_ok());
         let mut changed_revision = telemetry.clone();
         changed_revision.gpu_inventory_revision = Some(8);
-        assert!(validate_gpu_reservation_against(&changed_revision, &reservation).is_err());
+        assert!(validate_gpu_binding_against(&changed_revision, &binding).is_err());
         let mut unknown_encoder = telemetry.clone();
         unknown_encoder.gpus[0].encoder_utilization_per_mille = None;
-        assert!(validate_gpu_reservation_against(&unknown_encoder, &reservation).is_err());
+        assert!(validate_gpu_binding_against(&unknown_encoder, &binding).is_ok());
+        let mut saturated = telemetry.clone();
+        saturated.gpus[0].used_memory_bytes = saturated.gpus[0].dedicated_memory_bytes;
+        saturated.gpus[0].utilization_per_mille = Some(1000);
+        saturated.gpus[0].encoder_utilization_per_mille = Some(1000);
+        assert!(validate_gpu_binding_against(&saturated, &binding).is_ok());
+        saturated.gpus[0].runtime_binding_ready = false;
+        assert!(validate_gpu_binding_against(&saturated, &binding).is_err());
+        saturated.gpus.clear();
+        assert!(validate_gpu_binding_against(&saturated, &binding).is_err());
         let mut second_gpu = telemetry.clone();
         let mut additional_gpu = second_gpu.gpus[0].clone();
         additional_gpu.stable_key = "gpu-2".into();
         second_gpu.gpus.push(additional_gpu);
-        assert!(validate_gpu_reservation_against(&second_gpu, &reservation).is_ok());
+        assert!(validate_gpu_binding_against(&second_gpu, &binding).is_ok());
         second_gpu.gpus[1].stable_key = "gpu-1".into();
-        assert!(validate_gpu_reservation_against(&second_gpu, &reservation).is_err());
+        assert!(validate_gpu_binding_against(&second_gpu, &binding).is_err());
     }
 
     #[test]
@@ -2403,32 +2536,24 @@ mod tests {
         let command = command(NodeCommandAction::Start {
             port: 4613,
             launch: ApplicationLaunch::GameHook {
-                executable_relative: "游戏 目录\\game.exe".into(),
+                executable_path: "D:\\Cloud Games\\游戏 目录\\game.exe".into(),
                 arguments: "--name \"two words\"".into(),
                 video: VideoSpec {
                     codec: VideoCodec::H265,
                     bitrate_kbps: 24_000,
                 },
             },
-            install_root: Some("D:\\Cloud Games".into()),
-            gpu_reservation: None,
+            gpu_binding: None,
             relay: None,
         });
-        let NodeCommandAction::Start {
-            port,
-            launch,
-            install_root,
-            ..
-        } = &command.action
-        else {
+        let NodeCommandAction::Start { port, launch, .. } = &command.action else {
             unreachable!();
         };
         let request = start_request(
             &command,
             *port,
             launch,
-            install_root.as_deref(),
-            Some(&gpu_reservation()),
+            Some(&gpu_binding()),
             None,
             StartSecurityContext {
                 rdp_workspace: None,
@@ -2437,7 +2562,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(request.request_id, command.launch_id.to_string());
-        assert_eq!(request.game_exe_rel, "游戏 目录\\game.exe");
+        assert_eq!(
+            request.executable_path,
+            "D:\\Cloud Games\\游戏 目录\\game.exe"
+        );
         assert_eq!(request.game_arguments, "--name \"two words\"");
         assert_eq!(request.encoder_format, "h265");
         assert_eq!(request.encoder_bitrate_kbps, 24_000);
@@ -2446,7 +2574,7 @@ mod tests {
     }
 
     #[test]
-    fn webview_conversion_uses_url_safe_payload_and_rejects_install_root() {
+    fn webview_conversion_uses_url_safe_payload_without_executable() {
         let command = command(NodeCommandAction::Start {
             port: 4614,
             launch: ApplicationLaunch::Webview {
@@ -2456,8 +2584,7 @@ mod tests {
                     bitrate_kbps: 8_000,
                 },
             },
-            install_root: None,
-            gpu_reservation: None,
+            gpu_binding: None,
             relay: Some(px_node_protocol::RelayEndpoint {
                 host: "relay.example.test".into(),
                 port: 4605,
@@ -2473,13 +2600,12 @@ mod tests {
         else {
             unreachable!();
         };
-        let reservation = gpu_reservation();
+        let binding = gpu_binding();
         let request = start_request(
             &command,
             *port,
             launch,
-            None,
-            Some(&reservation),
+            Some(&binding),
             relay.as_ref(),
             StartSecurityContext {
                 rdp_workspace: None,
@@ -2491,19 +2617,7 @@ mod tests {
             URL_SAFE_NO_PAD.decode(request.webview_url_b64).unwrap(),
             "https://example.com/云应用".as_bytes()
         );
-        assert!(start_request(
-            &command,
-            *port,
-            launch,
-            Some("D:\\wrong"),
-            Some(&reservation),
-            relay.as_ref(),
-            StartSecurityContext {
-                rdp_workspace: None,
-                node_identity: node_identity(),
-            },
-        )
-        .is_err());
+        assert!(request.executable_path.is_empty());
         assert_eq!(request.relay_device_id, command.instance_id.to_string());
         assert_eq!(request.relay_server_host, "relay.example.test");
         assert_eq!(request.relay_server_port, 4605);
@@ -2515,8 +2629,7 @@ mod tests {
         let command = command(NodeCommandAction::Start {
             port: 4615,
             launch: ApplicationLaunch::Rdp,
-            install_root: None,
-            gpu_reservation: None,
+            gpu_binding: None,
             relay: Some(px_node_protocol::RelayEndpoint {
                 host: "relay.example.test".into(),
                 port: 4605,
@@ -2538,7 +2651,6 @@ mod tests {
             &command,
             *port,
             launch,
-            None,
             None,
             relay.as_ref(),
             StartSecurityContext {
@@ -2569,7 +2681,6 @@ mod tests {
             *port,
             launch,
             None,
-            None,
             relay.as_ref(),
             StartSecurityContext {
                 rdp_workspace: None,
@@ -2583,7 +2694,13 @@ mod tests {
     fn deployment_preparation_is_fail_closed_and_checks_real_files() {
         let product = cloud_product();
         let telemetry = gpu_telemetry();
-        let executable = std::env::current_exe().unwrap();
+        let canonical_executable = std::env::current_exe().unwrap().canonicalize().unwrap();
+        let canonical_text = canonical_executable.to_string_lossy();
+        let executable = std::path::PathBuf::from(
+            canonical_text
+                .strip_prefix(r"\\?\")
+                .unwrap_or(&canonical_text),
+        );
         let game = DeploymentAssignment {
             id: Uuid::new_v4(),
             application_id: Uuid::new_v4(),
@@ -2591,12 +2708,7 @@ mod tests {
             application_revision: 1,
             disabled: false,
             preparation: DeploymentPreparation::GameHook {
-                install_root: executable.parent().unwrap().to_string_lossy().into_owned(),
-                executable_relative: executable
-                    .file_name()
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
+                executable_path: executable.to_string_lossy().into_owned(),
                 gpu_key: None,
             },
         };
@@ -2606,8 +2718,12 @@ mod tests {
         ));
         let missing = DeploymentAssignment {
             preparation: DeploymentPreparation::GameHook {
-                install_root: executable.parent().unwrap().to_string_lossy().into_owned(),
-                executable_relative: "missing.exe".into(),
+                executable_path: executable
+                    .parent()
+                    .unwrap()
+                    .join("missing.exe")
+                    .to_string_lossy()
+                    .into_owned(),
                 gpu_key: None,
             },
             ..game

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.users SET deleted_at=clock_timestamp(),authorization_revision=authorization_revision+1,revision=revision+1,updated_at=clock_timestamp()\nWHERE id=$1 RETURNING authorization_revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "authorization_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "89d009c9aceb027f1133cea2fc69abe6f060c2538898f587cb6f4e017f440888"
+}

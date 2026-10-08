@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixels Server Setup</title>
+  <style>
+    :root { color-scheme: light dark; --surface: #fff; --canvas: #f4f6f8; --text: #202733; --muted: #586575; --border: #d7dde5; --accent: #087b64; --error: #b42318; }
+    @media (prefers-color-scheme: dark) { :root { --surface: #202733; --canvas: #111820; --text: #f4f6f8; --muted: #b8c3d0; --border: #3d4a59; --accent: #37b99a; --error: #ff8b80; } }
+    * { box-sizing: border-box; }
+    body { background: var(--canvas); color: var(--text); font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 32px 16px; }
+    main { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin: auto; max-width: 760px; padding: 28px; }
+    h1 { margin: 0 0 8px; font-size: 27px; }
+    p { color: var(--muted); margin: 0 0 24px; }
+    form { display: grid; gap: 16px; }
+    label { display: grid; gap: 6px; font-weight: 600; }
+    input, textarea { background: var(--canvas); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; padding: 10px 12px; width: 100%; }
+    button { background: var(--accent); border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: inherit; font-weight: 600; padding: 11px 20px; }
+    button.secondary { background: var(--canvas); border: 1px solid var(--border); color: var(--text); white-space: nowrap; }
+    button:disabled { cursor: wait; opacity: .6; }
+    .field-note { color: var(--muted); font-size: 14px; font-weight: 400; }
+    #status { color: var(--muted); margin-top: 20px; white-space: pre-wrap; }
+    #status.error { color: var(--error); }
+    .pair { display: grid; gap: 16px; grid-template-columns: 1fr 160px; }
+    .password-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; }
+    @media (max-width: 600px) { .pair { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1 data-i18n="title"></h1>
+  <p data-i18n="intro"></p>
+  <form id="setup-form" autocomplete="off">
+    <div class="pair">
+      <label><span data-i18n="pgHost"></span><input name="postgresql_host" value="localhost" required autocomplete="off"></label>
+      <label><span data-i18n="pgPort"></span><input name="postgresql_port" type="number" min="1" max="65535" value="5432" required></label>
+    </div>
+    <label><span data-i18n="pgUser"></span><input name="postgresql_administrator" value="Pixels" required autocomplete="off"></label>
+    <label><span data-i18n="pgPassword"></span><span class="password-row"><input name="postgresql_password" type="password" value="Pixels@123" required autocomplete="off"><button class="secondary" type="button" data-toggle-password="postgresql_password" data-i18n="showPassword"></button></span><span class="field-note" data-i18n="pgPasswordHelp"></span></label>
+    <label><span data-i18n="accessHost"></span><input name="public_host" required autocomplete="off"><span class="field-note" data-i18n="accessHostHelp"></span></label>
+    <label><span data-i18n="adminUser"></span><input name="initial_username" value="Pixels" required autocomplete="off"></label>
+    <label><span data-i18n="adminPassword"></span><span class="password-row"><input name="initial_password" type="password" value="Pixels@123" required autocomplete="off"><button class="secondary" type="button" data-toggle-password="initial_password" data-i18n="showPassword"></button><button class="secondary" id="copy-admin-password" type="button" data-i18n="copyPassword"></button></span><span class="field-note" data-i18n="adminPasswordHelp"></span></label>
+    <button type="submit" data-i18n="submit"></button>
+  </form>
+  <div id="status" role="status" aria-live="polite"></div>
+</main>
+<script>
+  const catalogs = {
+    zh: {
+      title: "Pixels Server 首次初始化",
+      intro: "PostgreSQL 18 需单独安装，默认端口为 5432。数据库和 Pixels 管理员账号密码已预填。数据库连接优先使用 TLS，未启用时也能连接，无需提供 CA。初始化页允许从本机或局域网访问；Console 与 Relay 监听所有网卡。",
+      pgHost: "PostgreSQL 主机名", pgPort: "PostgreSQL 端口", pgUser: "PostgreSQL 超级用户", pgPassword: "PostgreSQL 密码",
+      pgPasswordHelp: "必须与已安装的 PostgreSQL 账号密码一致；此页面不会创建或修改数据库账号。",
+      accessHost: "服务器访问地址", accessHostHelp: "默认建议服务器内网 IP；需要从其他设备访问时，不要填 localhost 或 127.0.0.1。此地址不是服务监听地址。",
+      adminUser: "Pixels 初始管理员用户名", adminPassword: "Pixels 初始管理员密码", adminPasswordHelp: "已预填，可显示或修改。",
+      showPassword: "显示", hidePassword: "隐藏", copyPassword: "复制密码", copiedPassword: "已复制", submit: "初始化并启动服务", working: "正在初始化，请勿关闭此页面……",
+      success: "初始化完成。部署 ID：{id}\nConsole：{origin}\n请在 Console 管理页导入 PXLIC2 许可证。",
+      error: "初始化失败：{reason}。请检查输入和服务器日志；已创建的数据库资源不会自动删除。"
+    },
+    en: {
+      title: "Pixels Server first-time setup",
+      intro: "Install PostgreSQL 18 separately; its default port is 5432. Database and Pixels administrator credentials are prefilled. Database connections prefer TLS but also work without it, and no CA field is needed. Setup is available from this machine or its LAN; Console and Relay listen on all interfaces.",
+      pgHost: "PostgreSQL host", pgPort: "PostgreSQL port", pgUser: "PostgreSQL superuser", pgPassword: "PostgreSQL password",
+      pgPasswordHelp: "These must match the installed PostgreSQL account. This page does not create or change database credentials.",
+      accessHost: "Server access address", accessHostHelp: "Suggests the server's LAN IP. Do not use localhost or 127.0.0.1 when other devices need access. This is not the service bind address.",
+      adminUser: "Initial Pixels administrator name", adminPassword: "Initial Pixels administrator password", adminPasswordHelp: "Prefilled; reveal or change it if needed.",
+      showPassword: "Show", hidePassword: "Hide", copyPassword: "Copy password", copiedPassword: "Copied", submit: "Initialize and start services", working: "Initializing; keep this page open…",
+      success: "Setup complete. Deployment ID: {id}\nConsole: {origin}\nImport the PXLIC2 license in Console administration.",
+      error: "Setup failed: {reason}. Check the fields and server log. Created database resources are not removed automatically."
+    }
+  };
+  const language = navigator.language.toLowerCase().startsWith("zh") ? "zh" : "en";
+  const words = catalogs[language];
+  document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+  for (const element of document.querySelectorAll("[data-i18n]")) element.textContent = words[element.dataset.i18n];
+  const form = document.getElementById("setup-form");
+  const status = document.getElementById("status");
+  const administratorPassword = form.elements.namedItem("initial_password");
+  const accessHost = form.elements.namedItem("public_host");
+  accessHost.value = location.hostname;
+  if (["localhost", "127.0.0.1", "::1"].includes(location.hostname)) {
+    fetch("/suggested-host").then(response => response.ok ? response.json() : null).then(result => {
+      if (result?.host && accessHost.value === location.hostname) accessHost.value = result.host;
+    }).catch(() => {});
+  }
+  const copyPasswordButton = document.getElementById("copy-admin-password");
+  for (const toggleButton of document.querySelectorAll("[data-toggle-password]")) {
+    const passwordInput = form.elements.namedItem(toggleButton.dataset.togglePassword);
+    toggleButton.addEventListener("click", () => {
+      passwordInput.type = passwordInput.type === "password" ? "text" : "password";
+      toggleButton.textContent = words[passwordInput.type === "password" ? "showPassword" : "hidePassword"];
+    });
+  }
+  copyPasswordButton.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(administratorPassword.value);
+      copyPasswordButton.textContent = words.copiedPassword;
+    } catch {
+      administratorPassword.focus();
+      administratorPassword.select();
+    }
+  });
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    status.classList.remove("error");
+    status.textContent = words.working;
+    const fields = Object.fromEntries(new FormData(form));
+    fields.postgresql_port = Number(fields.postgresql_port);
+    try {
+      const response = await fetch("/initialize", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(fields) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || String(response.status));
+      status.textContent = words.success.replace("{id}", result.deployment_id).replace("{origin}", result.console_origin);
+      const passwordRow = administratorPassword.closest(".password-row");
+      const savedPassword = document.createElement("label");
+      savedPassword.textContent = words.adminPassword;
+      savedPassword.append(passwordRow);
+      form.replaceChildren(savedPassword);
+    } catch (error) {
+      status.classList.add("error");
+      status.textContent = words.error.replace("{reason}", error.message);
+      submitButton.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

@@ -29,6 +29,7 @@ struct ConsoleUserApplication {
     std::string access_mode;
     std::string cover_url;
     int64_t version = 0;
+    std::int64_t running_instance_count{};
     std::shared_ptr<ConsoleUserAppInstance> running_instance;
 };
 
@@ -50,6 +51,8 @@ struct ConsoleNativeApplicationConnection final {
 
 class ConsoleUserAppApi {
 public:
+    static px::Result<ConsoleUserAppInstance, ConsoleApiError> ReadInstance(const std::string& host, int port,
+        const std::string& access_token, const std::string& instance_id, bool guest = false);
     static px::Result<std::string, ConsoleApiError> CreateGuestSession(const std::string& host, int port, const std::string& client_nonce);
 
     static px::Result<std::vector<ConsoleUserApplication>, ConsoleApiError> QueryApps(const std::string& host, int port,
@@ -59,8 +62,7 @@ public:
                                                                                            const std::string& access_token, bool guest = false);
 
     static px::Result<ConsoleUserAppInstance, ConsoleApiError> StartApp(const std::string& host, int port, const std::string& access_token,
-                                                                        const std::string& app_id, const std::string& client_nonce,
-                                                                        bool guest = false);
+                                                                        const std::string& app_id, const std::string& request_id, bool guest = false);
 
     static px::Result<ConsoleNativeApplicationConnection, ConsoleApiError> QueryNativeConnection(const std::string& host, int port,
                                                                                                  const std::string& access_token,

@@ -76,12 +76,9 @@ pub struct ConsoleServiceStartAppInstance {
     pub instance_id: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
     pub app_id: ::prost::alloc::string::String,
-    /// Absolute install root on this machine (Placement.install_root)
-    #[prost(string, tag = "4")]
-    pub install_root: ::prost::alloc::string::String,
-    /// Relative exe path under install_root (Application.game_exe_rel)
+    /// Absolute executable path on this node.
     #[prost(string, tag = "5")]
-    pub game_exe_rel: ::prost::alloc::string::String,
+    pub executable_path: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub game_arguments: ::prost::alloc::string::String,
     /// 0 = Service allocates an available port

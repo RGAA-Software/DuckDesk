@@ -727,7 +727,7 @@ void FileTransferService::TrackJobBegin(const std::string& logical_session_id, c
                                         const std::shared_ptr<Message>& msg) {
     const int64_t begin_ts = (int64_t)TimeUtil::GetCurrentTimestamp();
     AuditRecord rec;
-    rec.file_id = GetUUID();
+    rec.file_id = GenerateRandomBase64Id();
     rec.transfer_request_id = GetCanonicalUUID();
     rec.begin_timestamp = begin_ts;
     rec.logical_session_id = logical_session_id;

@@ -46,11 +46,7 @@ async fn issue(
     }
     let source = state.guests.admit(peer.ip())?;
     let (token, digest) = request::mint();
-    let guest = state
-        .db
-        .guests()
-        .issue(&source, &digest, client, state.guests.lifetime)
-        .await?;
+    let guest = state.db.guests().issue(&source, &digest, client).await?;
     Ok((
         StatusCode::CREATED,
         Json(json!({"session":guest,"token":token.as_str()})),

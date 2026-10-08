@@ -54,7 +54,7 @@ pub async fn provision_fresh_console_database(
     }
     check_postgresql_administrator(administrator_url.clone()).await?;
     let administrator_configuration =
-        DatabaseConfig::parse(&administrator_url, Transport::VerifyFull)
+        DatabaseConfig::parse(&administrator_url, Transport::PreferTls)
             .and_then(|configuration| configuration.with_pool_limits(1, Duration::from_secs(5)))
             .map_err(|_| SetupDatabaseError::Configuration)?;
     let administrator_pool = administrator_configuration
@@ -145,7 +145,7 @@ pub async fn provision_fresh_console_database(
         "pixels_console_runtime",
         &credentials.runtime_password,
     )?;
-    let owner_configuration = DatabaseConfig::parse(&owner_url, Transport::VerifyFull)
+    let owner_configuration = DatabaseConfig::parse(&owner_url, Transport::PreferTls)
         .map_err(|_| SetupDatabaseError::Configuration)?;
     let owner_pool = owner_configuration
         .connect()
@@ -252,9 +252,9 @@ mod tests {
     }
 
     #[test]
-    fn role_urls_keep_the_tls_root_and_target_only_console() {
+    fn role_urls_target_only_console_without_a_tls_root() {
         let role_database_url = role_url(
-            "postgresql://postgres:secret@pg.customer.example/postgres?sslrootcert=/etc/pixels/pg-ca.crt",
+            "postgresql://postgres:secret@pg.customer.example/postgres",
             "pixels_console_owner",
             &"a".repeat(32),
         )
@@ -262,9 +262,6 @@ mod tests {
         let parsed_url = Url::parse(&role_database_url).unwrap();
         assert_eq!(parsed_url.username(), "pixels_console_owner");
         assert_eq!(parsed_url.path(), "/pixels_console");
-        assert_eq!(
-            parsed_url.query(),
-            Some("sslrootcert=/etc/pixels/pg-ca.crt")
-        );
+        assert_eq!(parsed_url.query(), None);
     }
 }

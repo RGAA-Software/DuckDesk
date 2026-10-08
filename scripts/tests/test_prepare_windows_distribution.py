@@ -57,7 +57,7 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.environment.update(
             {
                 "PIXELS_UPDATE_ROOT_FILE": str(self.update_root),
-                "PIXELS_OFFICIAL_CONSOLE_URL": "https://console.pixels.example:8443",
+                "PIXELS_OFFICIAL_CONSOLE_URL": "",
             }
         )
 
@@ -117,9 +117,10 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         distribution: str,
         *arguments: str,
         environment: dict[str, str] | None = None,
+        product: str = "client",
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, str(SCRIPT), "--product", "client", "--distribution", distribution, *arguments],
+            [sys.executable, str(SCRIPT), "--product", product, "--distribution", distribution, *arguments],
             cwd=REPOSITORY_ROOT,
             env=environment or self.environment,
             capture_output=True,
@@ -139,11 +140,27 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("invalid choice", result.stderr)
 
-    def test_pixels_package_requires_canonical_official_origin(self) -> None:
+    def test_pixels_package_uses_configurable_console_origin(self) -> None:
         missing_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": ""}
-        self.assertNotEqual(self.run_script("official", "--validate-only", environment=missing_origin).returncode, 0)
-        invalid_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": "https://CONSOLE.pixels.example:443"}
-        self.assertNotEqual(self.run_script("official", "--validate-only", environment=invalid_origin).returncode, 0)
+        for product in ("cloud_node", "remote", "client"):
+            self.assertEqual(
+                self.run_script("official", "--validate-only", environment=missing_origin, product=product).returncode,
+                0,
+            )
+            assigned_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": "https://console.pixels.example:8443"}
+            self.assertNotEqual(
+                self.run_script("official", "--validate-only", environment=assigned_origin, product=product).returncode,
+                0,
+            )
+
+    def test_cloud_node_has_no_unassigned_official_origin(self) -> None:
+        no_official_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": ""}
+        self.assertEqual(
+            self.run_script("official", "--validate-only", environment=no_official_origin, product="cloud_node").returncode,
+            0,
+        )
+        assigned_origin = self.environment | {"PIXELS_OFFICIAL_CONSOLE_URL": "https://console.pixels.example:8443"}
+        self.assertNotEqual(self.run_script("official", "--validate-only", environment=assigned_origin, product="cloud_node").returncode, 0)
 
     def test_oem_requires_profile_and_matching_update_root(self) -> None:
         oem_environment = self.environment | {
@@ -161,7 +178,10 @@ class PrepareWindowsDistributionTest(unittest.TestCase):
     def test_release_domains_reject_foreign_identity_inputs(self) -> None:
         official_environment = self.environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}
         self.assertNotEqual(self.run_script("official", "--validate-only", environment=official_environment).returncode, 0)
-        oem_environment = self.environment | {"PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile)}
+        oem_environment = self.environment | {
+            "PIXELS_OEM_RELEASE_PROFILE": str(self.oem_profile),
+            "PIXELS_OFFICIAL_CONSOLE_URL": "https://console.pixels.example:8443",
+        }
         self.assertNotEqual(self.run_script("oem", "--validate-only", environment=oem_environment).returncode, 0)
 
     def test_rejects_missing_or_incomplete_update_root(self) -> None:

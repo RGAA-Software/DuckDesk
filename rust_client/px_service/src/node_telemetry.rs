@@ -1,192 +1,188 @@
-use crate::node_gpu_telemetry::{
-    enrich_nvidia_metrics, enrich_windows_metrics, stable_gpu_key, EnumeratedGpu,
-};
-use chrono::Utc;
-use px_node_protocol::{NodeGpuTelemetry, NodeTelemetry, TelemetryProbeState};
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
+//! Independent sampling lanes: GPU admission never waits for machine hardware.
+use crate::hardware_probe::{GpuSnapshot, ProbeKind, ProbeSnapshot};
+use crate::hardware_probe_process::{NativeProbeRunner, ProbeRunner};
+use px_node_protocol::{NodeTelemetry, TelemetryProbeState};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use wmi::{COMLibrary, WMIConnection};
+use std::time::{Duration, Instant};
+use tokio::task::JoinHandle;
 
-const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const GPU_CACHE_AGE: Duration = Duration::from_secs(1);
+const HARDWARE_REFRESH_AGE: Duration = Duration::from_secs(5);
+const HARDWARE_MAX_AGE: Duration = Duration::from_secs(15);
 
-#[derive(Clone, Default)]
-pub(crate) struct NodeTelemetrySampler {
-    active_probe: Arc<Mutex<()>>,
+struct CachedSnapshot {
+    completed_at: Instant,
+    snapshot: ProbeSnapshot,
 }
 
-impl NodeTelemetrySampler {
-    pub(crate) async fn sample(&self) -> NodeTelemetry {
-        let active_probe = Arc::clone(&self.active_probe);
-        let probe = tokio::task::spawn_blocking(move || {
-            let Ok(_probe_guard) = active_probe.try_lock() else {
-                return unavailable();
-            };
-            sample()
-        });
-        match tokio::time::timeout(PROBE_TIMEOUT, probe).await {
-            Ok(Ok(telemetry)) => telemetry,
-            Ok(Err(error)) => {
-                tracing::warn!(%error, "node telemetry worker failed");
-                unavailable()
-            }
-            Err(_) => {
-                tracing::warn!("node telemetry probe exceeded its deadline");
-                unavailable()
-            }
+#[derive(Default)]
+struct HardwareLane {
+    cached: Option<CachedSnapshot>,
+    worker: Option<JoinHandle<()>>,
+}
+
+impl Drop for HardwareLane {
+    fn drop(&mut self) {
+        if let Some(worker) = self.worker.take() {
+            worker.abort();
         }
     }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct ProcessorRow {
-    load_percentage: Option<u16>,
-    number_of_logical_processors: Option<u32>,
+#[derive(Clone)]
+pub(crate) struct NodeTelemetrySampler {
+    runner: Arc<dyn ProbeRunner>,
+    gpu: Arc<tokio::sync::Mutex<Option<CachedSnapshot>>>,
+    cpu: Arc<Mutex<HardwareLane>>,
+    memory: Arc<Mutex<HardwareLane>>,
+    disk: Arc<Mutex<HardwareLane>>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct OperatingSystemRow {
-    total_visible_memory_size: Option<u64>,
-    free_physical_memory: Option<u64>,
+impl Default for NodeTelemetrySampler {
+    fn default() -> Self {
+        Self::new(Arc::new(NativeProbeRunner))
+    }
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct LogicalDiskRow {
-    size: Option<u64>,
-    free_space: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "PascalCase")]
-struct VideoControllerRow {
-    pnp_device_id: Option<String>,
-    name: Option<String>,
-}
-
-pub(crate) fn sample() -> NodeTelemetry {
-    sample_inner().unwrap_or_else(|error| {
-        tracing::warn!(error = %error, "node telemetry sampling failed");
-        unavailable()
-    })
-}
-
-fn sample_inner() -> Result<NodeTelemetry, String> {
-    let com = COMLibrary::new().map_err(|error| error.to_string())?;
-    let wmi = WMIConnection::new(com).map_err(|error| error.to_string())?;
-    let processors: Vec<ProcessorRow> = wmi
-        .raw_query("SELECT LoadPercentage, NumberOfLogicalProcessors FROM Win32_Processor")
-        .map_err(|error| error.to_string())?;
-    let operating_systems: Vec<OperatingSystemRow> = wmi
-        .raw_query("SELECT TotalVisibleMemorySize, FreePhysicalMemory FROM Win32_OperatingSystem")
-        .map_err(|error| error.to_string())?;
-    let disks: Vec<LogicalDiskRow> = wmi
-        .raw_query("SELECT Size, FreeSpace FROM Win32_LogicalDisk WHERE DriveType=3")
-        .map_err(|error| error.to_string())?;
-    let gpu_result: Result<Vec<VideoControllerRow>, _> =
-        wmi.raw_query("SELECT PNPDeviceID, Name FROM Win32_VideoController");
-
-    let logical_processors = processors
-        .iter()
-        .filter_map(|processor| processor.number_of_logical_processors)
-        .try_fold(0_u32, |total, count| total.checked_add(count))
-        .and_then(|total| u16::try_from(total).ok())
-        .filter(|total| *total > 0);
-    let cpu_samples = processors
-        .iter()
-        .filter_map(|processor| processor.load_percentage)
-        .filter(|percentage| *percentage <= 100)
-        .collect::<Vec<_>>();
-    let cpu_utilization_per_mille = (!cpu_samples.is_empty()).then(|| {
-        let total = cpu_samples
-            .iter()
-            .map(|value| u32::from(*value))
-            .sum::<u32>();
-        u16::try_from((total * 10) / u32::try_from(cpu_samples.len()).unwrap_or(1)).unwrap_or(1000)
-    });
-    let memory = operating_systems.first().and_then(|row| {
-        let total = row.total_visible_memory_size?.checked_mul(1024)?;
-        let available = row.free_physical_memory?.checked_mul(1024)?;
-        (available <= total).then_some((total, available))
-    });
-    let disk = disks
-        .iter()
-        .try_fold((0_u64, 0_u64), |(total, free), row| {
-            Some((
-                total.checked_add(row.size?)?,
-                free.checked_add(row.free_space?)?,
-            ))
-        })
-        .filter(|(total, free)| *total > 0 && free <= total);
-    let (gpu_inventory_revision, gpus, gpu_inventory_ready) = match gpu_result {
-        Ok(rows) => {
-            let mut enumerated_gpus = rows
-                .into_iter()
-                .filter_map(|row| {
-                    let identity = row.pnp_device_id?.trim().to_uppercase();
-                    let name = row.name?.trim().to_string();
-                    if identity.is_empty() || name.is_empty() || name.len() > 256 {
-                        return None;
-                    }
-                    Some(EnumeratedGpu {
-                        pnp_identity: identity.clone(),
-                        telemetry: NodeGpuTelemetry {
-                            stable_key: stable_gpu_key(&identity),
-                            name,
-                            runtime_binding_ready: false,
-                            dedicated_memory_bytes: None,
-                            used_memory_bytes: None,
-                            utilization_per_mille: None,
-                            encoder_utilization_per_mille: None,
-                        },
-                    })
-                })
-                .collect::<Vec<_>>();
-            enrich_windows_metrics(&mut enumerated_gpus, &wmi);
-            enrich_nvidia_metrics(&mut enumerated_gpus);
-            let mut gpus = enumerated_gpus
-                .into_iter()
-                .map(|gpu| gpu.telemetry)
-                .collect::<Vec<_>>();
-            gpus.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
-            gpus.dedup_by(|left, right| left.stable_key == right.stable_key);
-            (Some(gpu_inventory_revision(&gpus)), gpus, true)
+impl NodeTelemetrySampler {
+    fn new(runner: Arc<dyn ProbeRunner>) -> Self {
+        Self {
+            runner,
+            gpu: Arc::new(tokio::sync::Mutex::new(None)),
+            cpu: Arc::new(Mutex::new(HardwareLane::default())),
+            memory: Arc::new(Mutex::new(HardwareLane::default())),
+            disk: Arc::new(Mutex::new(HardwareLane::default())),
         }
-        Err(_) => (None, Vec::new(), false),
-    };
-    let machine_ready = logical_processors.is_some() && memory.is_some() && disk.is_some();
-    let has_data = logical_processors.is_some()
-        || cpu_utilization_per_mille.is_some()
-        || memory.is_some()
-        || disk.is_some()
-        || gpu_inventory_revision.is_some();
-    let probe_state = if machine_ready && gpu_inventory_ready {
-        TelemetryProbeState::Ready
-    } else if has_data {
-        TelemetryProbeState::Partial
-    } else {
-        TelemetryProbeState::Unavailable
-    };
-    Ok(NodeTelemetry {
-        sampled_at: Utc::now(),
-        probe_state,
-        logical_processors,
-        cpu_utilization_per_mille,
-        memory_total_bytes: memory.map(|value| value.0),
-        memory_available_bytes: memory.map(|value| value.1),
-        disk_total_bytes: disk.map(|value| value.0),
-        disk_free_bytes: disk.map(|value| value.1),
-        gpu_inventory_revision,
-        gpus,
-    })
+    }
+
+    /// Dedicated business path. No CPU, memory or disk query is scheduled or awaited here.
+    pub(crate) async fn sample_gpu(&self) -> GpuSnapshot {
+        let mut cache = self.gpu.lock().await;
+        if let Some(cached) = cache
+            .as_ref()
+            .filter(|cached| cached.completed_at.elapsed() < GPU_CACHE_AGE)
+        {
+            if let ProbeSnapshot::Gpu(snapshot) = &cached.snapshot {
+                return snapshot.clone();
+            }
+        }
+        let snapshot = match self.runner.sample(ProbeKind::Gpu).await {
+            Ok(ProbeSnapshot::Gpu(snapshot)) => snapshot,
+            Ok(_) => {
+                tracing::warn!("GPU worker returned a different hardware kind");
+                GpuSnapshot::unavailable()
+            }
+            Err(error) => {
+                tracing::warn!(%error, probe = "gpu", "independent GPU sampling failed");
+                GpuSnapshot::unavailable()
+            }
+        };
+        *cache = Some(CachedSnapshot {
+            completed_at: Instant::now(),
+            snapshot: ProbeSnapshot::Gpu(snapshot.clone()),
+        });
+        snapshot
+    }
+
+    pub(crate) async fn sample(&self) -> NodeTelemetry {
+        // Complete the priority lane first. Slow machine probes run in separate, lower-priority workers.
+        let gpu = self.sample_gpu().await;
+        self.refresh_hardware(ProbeKind::Cpu, &self.cpu);
+        self.refresh_hardware(ProbeKind::Memory, &self.memory);
+        self.refresh_hardware(ProbeKind::Disk, &self.disk);
+        let cpu = match cached_hardware(&self.cpu) {
+            Some(ProbeSnapshot::Cpu(snapshot)) => Some(snapshot),
+            _ => None,
+        };
+        let memory = match cached_hardware(&self.memory) {
+            Some(ProbeSnapshot::Memory(snapshot)) => Some(snapshot),
+            _ => None,
+        };
+        let disk = match cached_hardware(&self.disk) {
+            Some(ProbeSnapshot::Disk(snapshot)) => Some(snapshot),
+            _ => None,
+        };
+        let gpu_available = gpu.gpu_inventory_revision.is_some();
+        let probe_state = if cpu.is_some() && memory.is_some() && disk.is_some() && gpu_available {
+            TelemetryProbeState::Ready
+        } else if cpu.is_some() || memory.is_some() || disk.is_some() || gpu_available {
+            TelemetryProbeState::Partial
+        } else {
+            TelemetryProbeState::Unavailable
+        };
+        NodeTelemetry {
+            // Preserve the GPU's actual timestamp; a cached report must not freshen admission data.
+            sampled_at: gpu.sampled_at,
+            probe_state,
+            logical_processors: cpu.as_ref().map(|snapshot| snapshot.logical_processors),
+            cpu_utilization_per_mille: cpu.and_then(|snapshot| snapshot.utilization_per_mille),
+            memory_total_bytes: memory.as_ref().map(|snapshot| snapshot.total_bytes),
+            memory_available_bytes: memory.map(|snapshot| snapshot.available_bytes),
+            disk_total_bytes: disk.as_ref().map(|snapshot| snapshot.total_bytes),
+            disk_free_bytes: disk.map(|snapshot| snapshot.free_bytes),
+            gpu_inventory_revision: gpu.gpu_inventory_revision,
+            gpus: gpu.gpus,
+        }
+    }
+
+    fn refresh_hardware(&self, kind: ProbeKind, lane: &Arc<Mutex<HardwareLane>>) {
+        let mut lane_state = lane.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if lane_state
+            .worker
+            .as_ref()
+            .is_some_and(|worker| !worker.is_finished())
+        {
+            return;
+        }
+        let weak_lane = Arc::downgrade(lane);
+        let runner = Arc::clone(&self.runner);
+        lane_state.worker = Some(tokio::spawn(async move {
+            loop {
+                let result = runner.sample(kind).await;
+                let cached = match result {
+                    Ok(snapshot) if snapshot.kind() == kind => Some(CachedSnapshot {
+                        completed_at: Instant::now(),
+                        snapshot,
+                    }),
+                    Ok(_) => {
+                        tracing::warn!(
+                            probe = kind.name(),
+                            "hardware worker returned a different kind"
+                        );
+                        None
+                    }
+                    Err(error) => {
+                        tracing::warn!(%error, probe = kind.name(), "independent hardware sampling failed");
+                        None
+                    }
+                };
+                if let Some(lane) = weak_lane.upgrade() {
+                    let mut lane_state =
+                        lane.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                    // Failure clears only this lane; no other hardware or GPU result is touched.
+                    lane_state.cached = cached;
+                } else {
+                    return;
+                }
+                tokio::time::sleep(HARDWARE_REFRESH_AGE).await;
+            }
+        }));
+    }
 }
 
+fn cached_hardware(lane: &Mutex<HardwareLane>) -> Option<ProbeSnapshot> {
+    let lane_state = lane.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    lane_state
+        .cached
+        .as_ref()
+        .filter(|cached| cached.completed_at.elapsed() < HARDWARE_MAX_AGE)
+        .map(|cached| cached.snapshot.clone())
+}
+
+#[cfg(test)]
 pub(crate) fn unavailable() -> NodeTelemetry {
     NodeTelemetry {
-        sampled_at: Utc::now(),
+        sampled_at: chrono::Utc::now(),
         probe_state: TelemetryProbeState::Unavailable,
         logical_processors: None,
         cpu_utilization_per_mille: None,
@@ -199,79 +195,144 @@ pub(crate) fn unavailable() -> NodeTelemetry {
     }
 }
 
-fn gpu_inventory_revision(gpus: &[NodeGpuTelemetry]) -> u64 {
-    let mut hasher = Sha256::new();
-    for gpu in gpus {
-        hasher.update(gpu.stable_key.as_bytes());
-        hasher.update([0]);
-        hasher.update(gpu.name.as_bytes());
-        hasher.update([u8::from(gpu.runtime_binding_ready)]);
-        hasher.update([0xff]);
-    }
-    let digest = hasher.finalize();
-    let mut prefix = [0_u8; 8];
-    prefix.copy_from_slice(&digest[..8]);
-    (u64::from_be_bytes(prefix) & u64::try_from(i64::MAX).expect("i64::MAX fits in u64")).max(1)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hardware_probe::{CpuSnapshot, DiskSnapshot, MemorySnapshot};
+    use crate::hardware_probe_process::ProbeFuture;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-    #[test]
-    fn gpu_identity_is_stable_private_and_inventory_order_independent() {
-        let first = stable_gpu_key("PCI\\VEN_10DE&DEV_2487&SUBSYS_TEST");
-        let second = stable_gpu_key("PCI\\VEN_1002&DEV_73BF&SUBSYS_TEST");
-        assert_ne!(first, second);
-        assert!(first.starts_with("pnp-sha256:"));
-        assert!(!first.contains("VEN_"));
-        let mut forward = vec![gpu(&first, "GPU A"), gpu(&second, "GPU B")];
-        let mut reverse = vec![gpu(&second, "GPU B"), gpu(&first, "GPU A")];
-        forward.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
-        reverse.sort_by(|left, right| left.stable_key.cmp(&right.stable_key));
-        assert_eq!(
-            gpu_inventory_revision(&forward),
-            gpu_inventory_revision(&reverse)
-        );
+    #[derive(Default)]
+    struct ScriptedRunner {
+        gpu_failed: AtomicBool,
+        hardware_calls: AtomicUsize,
+        live_cpu_workers: Arc<AtomicUsize>,
     }
 
-    #[test]
-    fn windows_probe_reports_a_consistent_machine_snapshot() {
-        let telemetry = sample();
-        assert_ne!(telemetry.probe_state, TelemetryProbeState::Unavailable);
-        assert!(telemetry.logical_processors.is_some());
-        assert!(telemetry.memory_total_bytes.is_some());
-        assert!(telemetry.memory_available_bytes <= telemetry.memory_total_bytes);
-        assert!(telemetry.disk_total_bytes.is_some());
-        assert!(telemetry.disk_free_bytes <= telemetry.disk_total_bytes);
-        assert!(telemetry.gpu_inventory_revision.is_some());
+    struct CpuLifetime(Arc<AtomicUsize>);
+    impl Drop for CpuLifetime {
+        fn drop(&mut self) {
+            self.0.fetch_sub(1, Ordering::SeqCst);
+        }
     }
 
-    #[test]
-    #[ignore = "requires a physical NVIDIA adapter and NVML driver"]
-    fn nvidia_probe_reports_real_memory_gpu_and_encoder_metrics() {
-        let telemetry = sample();
-        let gpu = telemetry
-            .gpus
-            .iter()
-            .find(|gpu| gpu.name.to_ascii_lowercase().contains("nvidia"))
-            .expect("a physical NVIDIA adapter is required");
-        assert!(gpu.runtime_binding_ready);
-        assert!(gpu.dedicated_memory_bytes.is_some());
-        assert!(gpu.used_memory_bytes <= gpu.dedicated_memory_bytes);
-        assert!(gpu.utilization_per_mille.is_some());
-        assert!(gpu.encoder_utilization_per_mille.is_some());
+    impl ProbeRunner for ScriptedRunner {
+        fn sample(&self, kind: ProbeKind) -> ProbeFuture {
+            if kind == ProbeKind::Gpu {
+                let failed = self.gpu_failed.load(Ordering::SeqCst);
+                return Box::pin(async move {
+                    if failed {
+                        return Err("GPU driver failed".into());
+                    }
+                    Ok(ProbeSnapshot::Gpu(GpuSnapshot {
+                        sampled_at: chrono::Utc::now(),
+                        gpu_inventory_revision: Some(11),
+                        gpus: vec![],
+                    }))
+                });
+            }
+            self.hardware_calls.fetch_add(1, Ordering::SeqCst);
+            let live_cpu_workers = Arc::clone(&self.live_cpu_workers);
+            Box::pin(async move {
+                match kind {
+                    ProbeKind::Cpu => {
+                        live_cpu_workers.fetch_add(1, Ordering::SeqCst);
+                        let _lifetime = CpuLifetime(live_cpu_workers);
+                        std::future::pending::<Result<ProbeSnapshot, String>>().await
+                    }
+                    ProbeKind::Memory => Ok(ProbeSnapshot::Memory(MemorySnapshot {
+                        total_bytes: 100,
+                        available_bytes: 50,
+                    })),
+                    ProbeKind::Disk => Ok(ProbeSnapshot::Disk(DiskSnapshot {
+                        total_bytes: 200,
+                        free_bytes: 80,
+                    })),
+                    ProbeKind::Gpu => unreachable!(),
+                }
+            })
+        }
     }
 
-    fn gpu(stable_key: &str, name: &str) -> NodeGpuTelemetry {
-        NodeGpuTelemetry {
-            stable_key: stable_key.to_string(),
-            name: name.to_string(),
-            runtime_binding_ready: false,
-            dedicated_memory_bytes: None,
-            used_memory_bytes: None,
-            utilization_per_mille: None,
-            encoder_utilization_per_mille: None,
+    async fn allow_workers_to_complete() {
+        for _worker_turn in 0..10 {
+            tokio::task::yield_now().await;
+        }
+    }
+
+    #[tokio::test]
+    async fn business_gpu_sampling_never_queries_machine_hardware() {
+        let runner = Arc::new(ScriptedRunner::default());
+        let sampler = NodeTelemetrySampler::new(runner.clone());
+        let snapshot = sampler.sample_gpu().await;
+        assert_eq!(snapshot.gpu_inventory_revision, Some(11));
+        assert_eq!(runner.hardware_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn blocked_cpu_does_not_delay_gpu_memory_or_disk_and_drop_cancels_worker() {
+        let runner = Arc::new(ScriptedRunner::default());
+        let sampler = NodeTelemetrySampler::new(runner.clone());
+        let initial = tokio::time::timeout(Duration::from_millis(100), sampler.sample())
+            .await
+            .unwrap();
+        assert_eq!(initial.gpu_inventory_revision, Some(11));
+        assert_eq!(initial.probe_state, TelemetryProbeState::Partial);
+        allow_workers_to_complete().await;
+        let report = sampler.sample().await;
+        assert!(report.logical_processors.is_none());
+        assert_eq!(report.memory_total_bytes, Some(100));
+        assert_eq!(report.disk_total_bytes, Some(200));
+        assert_eq!(report.gpu_inventory_revision, Some(11));
+        assert_eq!(runner.live_cpu_workers.load(Ordering::SeqCst), 1);
+        let cloned_sampler = sampler.clone();
+        drop(sampler);
+        allow_workers_to_complete().await;
+        assert_eq!(runner.live_cpu_workers.load(Ordering::SeqCst), 1);
+        drop(cloned_sampler);
+        allow_workers_to_complete().await;
+        assert_eq!(runner.live_cpu_workers.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn gpu_failure_invalidates_only_gpu_and_never_fabricates_readiness() {
+        let runner = Arc::new(ScriptedRunner::default());
+        let sampler = NodeTelemetrySampler::new(runner.clone());
+        sampler.sample().await;
+        allow_workers_to_complete().await;
+        runner.gpu_failed.store(true, Ordering::SeqCst);
+        *sampler.gpu.lock().await = None;
+        let report = sampler.sample().await;
+        assert!(report.gpu_inventory_revision.is_none());
+        assert!(report.gpus.is_empty());
+        assert_eq!(report.memory_total_bytes, Some(100));
+        assert_eq!(report.disk_total_bytes, Some(200));
+        assert_eq!(report.probe_state, TelemetryProbeState::Partial);
+    }
+
+    #[tokio::test]
+    async fn stale_hardware_is_omitted_without_invalidating_fresh_gpu() {
+        let sampler = NodeTelemetrySampler::default();
+        sampler.cpu.lock().unwrap().cached = Some(CachedSnapshot {
+            completed_at: Instant::now() - HARDWARE_MAX_AGE,
+            snapshot: ProbeSnapshot::Cpu(CpuSnapshot {
+                logical_processors: 8,
+                utilization_per_mille: Some(100),
+            }),
+        });
+        assert!(cached_hardware(&sampler.cpu).is_none());
+    }
+
+    #[tokio::test]
+    async fn repeated_sampler_start_stop_does_not_leave_background_workers() {
+        let runner = Arc::new(ScriptedRunner::default());
+        for _lifecycle in 0..3 {
+            let sampler = NodeTelemetrySampler::new(runner.clone());
+            sampler.sample().await;
+            allow_workers_to_complete().await;
+            drop(sampler);
+            allow_workers_to_complete().await;
+            assert_eq!(runner.live_cpu_workers.load(Ordering::SeqCst), 0);
         }
     }
 }

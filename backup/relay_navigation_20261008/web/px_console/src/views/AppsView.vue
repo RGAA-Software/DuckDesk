@@ -1,0 +1,15 @@
+<script setup lang="ts">
+import ApplicationCatalogCard from "@/views/apps/ApplicationCatalogCard.vue";
+import DeploymentInventoryCard from "@/views/apps/DeploymentInventoryCard.vue";
+import RelayInventoryCard from "@/views/apps/RelayInventoryCard.vue";
+import SchedulingPreviewCard from "@/views/apps/SchedulingPreviewCard.vue";
+</script>
+
+<template>
+    <a-space direction="vertical" size="large" class="w-full">
+        <ApplicationCatalogCard />
+        <RelayInventoryCard />
+        <DeploymentInventoryCard />
+        <SchedulingPreviewCard />
+    </a-space>
+</template>

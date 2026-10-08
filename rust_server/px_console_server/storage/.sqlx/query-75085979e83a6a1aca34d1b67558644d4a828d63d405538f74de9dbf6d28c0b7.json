@@ -1,0 +1,147 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH candidate AS (\r\nSELECT d.id,d.application_id,d.node_id,d.kind,gpu.stable_key AS gpu_key,\r\ngpu.inventory_revision AS gpu_inventory_revision,\r\nd.revision AS deployment_revision,a.revision AS application_revision,a.access_revision,a.executable_path,a.arguments,\r\na.entry_url,a.codec,a.bitrate_kbps,n.generation,n.control_epoch,n.endpoint_revision,available.port,\r\nCASE WHEN d.kind='rdp' THEN 0::bigint\r\n WHEN gpu.dedicated_memory_bytes IS NULL OR gpu.dedicated_memory_bytes=0 OR gpu.used_memory_bytes IS NULL\r\n  OR gpu.utilization_per_mille IS NULL OR gpu.encoder_utilization_per_mille IS NULL THEN NULL\r\n ELSE GREATEST(gpu.used_memory_bytes*1000/gpu.dedicated_memory_bytes,\r\n  gpu.utilization_per_mille,gpu.encoder_utilization_per_mille) END AS dominant_pressure,\r\nCASE WHEN d.kind='rdp' THEN 0::bigint\r\n WHEN gpu.dedicated_memory_bytes IS NULL OR gpu.dedicated_memory_bytes=0 OR gpu.used_memory_bytes IS NULL\r\n  OR gpu.utilization_per_mille IS NULL OR gpu.encoder_utilization_per_mille IS NULL THEN NULL\r\n ELSE (gpu.used_memory_bytes*1000/gpu.dedicated_memory_bytes+\r\n  gpu.utilization_per_mille+gpu.encoder_utilization_per_mille)/3 END AS average_pressure,\r\n(n.max_instances-node_usage.used) AS node_slots,(d.capacity-deployment_usage.used) AS deployment_slots\r\nFROM pixels.application_deployments d JOIN pixels.applications a ON a.id=d.application_id\r\nJOIN pixels.nodes n ON n.id=d.node_id JOIN pixels.devices v ON v.id=n.device_id\r\nCROSS JOIN LATERAL (SELECT count(*) AS used FROM pixels.instances i WHERE i.node_id=n.id AND i.ended_at IS NULL) node_usage\r\nCROSS JOIN LATERAL (SELECT count(*) AS used FROM pixels.instances i WHERE i.deployment_id=d.id AND i.ended_at IS NULL) deployment_usage\r\nCROSS JOIN LATERAL (SELECT p AS port FROM generate_series(n.application_port_start,n.application_port_end) p\r\n WHERE NOT EXISTS(SELECT 1 FROM pixels.instances i WHERE i.node_id=n.id AND i.port=p AND i.ended_at IS NULL) ORDER BY p LIMIT 1) available\r\nCROSS JOIN LATERAL (\r\n SELECT g.stable_key,g.inventory_revision,g.dedicated_memory_bytes,g.used_memory_bytes,g.utilization_per_mille,\r\n        g.encoder_utilization_per_mille\r\n FROM pixels.node_telemetry_latest t JOIN pixels.node_gpu_latest g ON g.node_id=t.node_id AND g.inventory_revision=t.gpu_inventory_revision\r\n WHERE d.kind<>'rdp' AND t.node_id=n.id AND t.node_generation=n.generation AND t.report_sequence=n.report_sequence\r\n   AND t.probe_state IN ('ready','partial') AND g.runtime_binding_ready\r\n   AND (d.gpu_key IS NULL OR g.stable_key=d.gpu_key)\r\n UNION ALL\r\n SELECT NULL::text,NULL::bigint,NULL::bigint,NULL::bigint,NULL::smallint,NULL::smallint WHERE d.kind='rdp'\r\n) gpu\r\nWHERE a.id=$2 AND ($3::uuid IS NULL OR d.id=$3) AND NOT a.disabled AND a.deleted_at IS NULL AND NOT d.disabled\r\nAND NOT n.disabled AND NOT n.draining AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL\r\nAND n.state='ready' AND n.connection_hash IS NOT NULL AND n.last_seen>clock_timestamp()-interval '30 seconds'\r\nAND n.control_epoch=$9 AND $9=(SELECT epoch FROM pixels.control_runtime) AND n.public_host IS NOT NULL AND n.report_sequence>0\r\nAND d.observed_state='ready' AND d.observed_generation=n.generation AND d.observed_epoch=n.control_epoch\r\nAND d.observed_endpoint_revision=n.endpoint_revision AND d.application_revision=a.revision\r\nAND ((a.kind='game_hook' AND n.game_hook) OR (a.kind='webview' AND n.webview) OR (a.kind='rdp' AND n.rdp))\r\nAND node_usage.used<n.max_instances AND deployment_usage.used<d.capacity\r\nAND (a.kind<>'rdp' OR NOT EXISTS(SELECT 1 FROM pixels.instances i WHERE i.application_id=a.id AND i.node_id=n.id AND i.ended_at IS NULL))\r\nORDER BY dominant_pressure NULLS LAST,average_pressure NULLS LAST,node_slots DESC,deployment_slots DESC,n.id,d.id,gpu.stable_key NULLS FIRST LIMIT 1\r\n)\r\nINSERT INTO pixels.instances AS i(id,application_id,deployment_id,node_id,kind,owner_user,owner_guest,client_type,request_id,request_hash,launch_id,\r\napplication_revision,application_access_revision,deployment_revision,node_generation,control_epoch,endpoint_revision,port,\r\nexecutable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,login_session_id,owner_revision)\r\nSELECT $1,c.application_id,c.id,c.node_id,c.kind,$4,$5,$6,$7,$8,$10,c.application_revision,c.access_revision,c.deployment_revision,\r\nc.generation,c.control_epoch,c.endpoint_revision,c.port,c.executable_path,c.arguments,c.entry_url,c.codec,c.bitrate_kbps,\r\nc.gpu_key,c.gpu_inventory_revision,$11,$12\r\nFROM candidate c RETURNING i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "owner_user",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "owner_guest",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "ended_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 14,
+        "name": "launch_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "desired_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "deployment_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "port",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "75085979e83a6a1aca34d1b67558644d4a828d63d405538f74de9dbf6d28c0b7"
+}

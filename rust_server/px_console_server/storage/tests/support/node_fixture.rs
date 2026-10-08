@@ -6,10 +6,9 @@ use argon2::{
 use px_console_store::{
     ApplicationAccess, ApplicationDefinition, ApplicationLaunch, ApplicationSpec, ApplicationStore,
     ClientType, DeploymentConfiguration, DeploymentObservation, DeploymentProfile, DeploymentStore,
-    DeploymentTarget, DevicePlatform, DeviceStore, GpuResourceProfile, IdentityStore,
-    NodeConnection, NodeGpuTelemetry, NodeProduct, NodeReport, NodeStore, NodeTelemetry,
-    PasswordDigest, PreparationState, StoreError, TelemetryProbeState, TokenDigest, Username,
-    VideoCodec, VideoSpec,
+    DeploymentTarget, DevicePlatform, DeviceStore, IdentityStore, NodeConnection, NodeGpuTelemetry,
+    NodeProduct, NodeReport, NodeStore, NodeTelemetry, PasswordDigest, PreparationState,
+    StoreError, TelemetryProbeState, TokenDigest, Username, VideoCodec, VideoSpec,
 };
 use px_console_store::{
     ApplicationInstance, CommandOutcome, CommandReceipt, NodeCommand, NodeCommandAction,
@@ -60,21 +59,10 @@ pub fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
         4
     };
     DeploymentConfiguration {
-        gpu_profile: (target != DeploymentTarget::Rdp).then_some(test_gpu_profile()),
         target,
         capacity,
         gpu_key: None,
         disabled: false,
-    }
-}
-fn test_gpu_profile() -> GpuResourceProfile {
-    GpuResourceProfile {
-        memory_bytes: 512 * 1024 * 1024,
-        compute_per_mille: 100,
-        encoder_per_mille: 100,
-        memory_reserve_bytes: 512 * 1024 * 1024,
-        compute_limit_per_mille: 900,
-        encoder_limit_per_mille: 900,
     }
 }
 pub fn node_report(sequence: u64) -> NodeReport {
@@ -223,7 +211,7 @@ impl Fixture {
         };
         let launch = match target {
             DeploymentTarget::GameHook { .. } => ApplicationLaunch::GameHook {
-                executable_relative: r"子目录\Game.exe".into(),
+                executable_path: r"D:\游戏 根目录\子目录\Game.exe".into(),
                 arguments: r#""含空格 参数""#.into(),
                 video,
             },
@@ -357,7 +345,6 @@ impl Fixture {
                 &OriginFingerprint::from_hmac_sha256(source),
                 &key,
                 ClientType::Android,
-                Duration::from_secs(3600),
             )
             .await
             .unwrap();

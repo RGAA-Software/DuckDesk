@@ -192,3 +192,102 @@ async fn bootstrap_is_owner_only_empty_only_and_concurrent_safe() {
         .status
         .success());
 }
+
+#[tokio::test]
+async fn offline_schema_owner_recovery_is_explicit_private_and_business_passwords_are_unchanged() {
+    use px_console_runtime::{
+        preflight_single_server_database, recover_single_server_database_owner,
+        upgrade_single_server_database,
+    };
+    use zeroize::Zeroizing;
+
+    let private_directory = PrivateDirectory::new();
+    let mut owner_url =
+        url::Url::parse(&env::var("PIXELS_TEST_CONSOLE_OWNER_URL").unwrap()).unwrap();
+    owner_url.set_query(None);
+    let original_owner_password = Zeroizing::new(owner_url.password().unwrap().to_owned());
+    let mut runtime_url =
+        url::Url::parse(&env::var("PIXELS_TEST_CONSOLE_RUNTIME_URL").unwrap()).unwrap();
+    runtime_url.set_query(None);
+    let deployment_id = env::var("PIXELS_DEPLOYMENT_ID").unwrap();
+    px_private_files::private::create_private(
+        &private_directory.path.join("console.env"),
+        format!(
+            "PIXELS_DEPLOYMENT_ID={deployment_id}\nPIXELS_CONSOLE_DATABASE_URL={runtime_url}\n"
+        )
+        .as_bytes(),
+    )
+    .unwrap();
+    assert!(preflight_single_server_database(&private_directory.path)
+        .await
+        .is_err());
+    let mut administrator_url = owner_url;
+    administrator_url.set_path("/postgres");
+    administrator_url.set_username("pixels_admin").unwrap();
+    administrator_url
+        .set_password(Some(&env::var("PIXELS_TEST_PG_ADMIN_PASSWORD").unwrap()))
+        .unwrap();
+    recover_single_server_database_owner(
+        &private_directory.path,
+        Zeroizing::new(administrator_url.to_string()),
+    )
+    .await
+    .unwrap();
+    assert!(preflight_single_server_database(&private_directory.path)
+        .await
+        .is_ok());
+    let credential_path = private_directory
+        .path
+        .join("database-upgrade/console-owner.url");
+    let saved_credential = px_private_files::private::read_private(&credential_path).unwrap();
+    assert!(!saved_credential
+        .windows(original_owner_password.len())
+        .any(|window| window == original_owner_password.as_bytes()));
+    assert!(recover_single_server_database_owner(
+        &private_directory.path,
+        Zeroizing::new(administrator_url.to_string())
+    )
+    .await
+    .is_err());
+    assert_eq!(
+        px_private_files::private::read_private(&credential_path).unwrap(),
+        saved_credential
+    );
+    static MIGRATIONS: sqlx::migrate::Migrator = sqlx::migrate!("../migrations");
+    let runtime_config = DatabaseConfig::parse(runtime_url.as_str(), Transport::PreferTls).unwrap();
+    let runtime_pool = runtime_config
+        .connect_runtime(
+            px_pg::Service::Console,
+            deployment_id.parse().unwrap(),
+            &MIGRATIONS,
+        )
+        .await
+        .unwrap();
+    assert!(preflight_single_server_database(&private_directory.path)
+        .await
+        .is_ok());
+    assert!(upgrade_single_server_database(&private_directory.path)
+        .await
+        .is_err());
+    runtime_pool.close().await;
+    assert!(upgrade_single_server_database(&private_directory.path)
+        .await
+        .is_ok());
+    // Restore the isolated fixture's original owner password, not any product credential.
+    administrator_url.set_path("/pixels_console");
+    let administrator_pool =
+        DatabaseConfig::parse(administrator_url.as_str(), Transport::PreferTls)
+            .unwrap()
+            .connect()
+            .await
+            .unwrap();
+    let mut transaction = administrator_pool.begin().await.unwrap();
+    sqlx::query("SELECT set_config('pixels.fixture_owner_password',$1,true)")
+        .bind(original_owner_password.as_str())
+        .execute(&mut *transaction)
+        .await
+        .unwrap();
+    sqlx::query("DO $pixels$ BEGIN EXECUTE format('ALTER ROLE pixels_console_owner PASSWORD %L', current_setting('pixels.fixture_owner_password')); END $pixels$").execute(&mut *transaction).await.unwrap();
+    transaction.commit().await.unwrap();
+    administrator_pool.close().await;
+}

@@ -243,7 +243,7 @@ bool WsStreamRouter::StartRdp(asio::any_io_executor executor, const std::uint16_
     }
     rdp_close_outcome_.store(ResourceChannelCloseOutcome::kPeerClosed);
     rdp_release_ = std::move(release);
-    const rdp::StreamBinding binding{.connection_id = GetUUID(), .generation = 1};
+    const rdp::StreamBinding binding{.connection_id = GenerateRandomBase64Id(), .generation = 1};
     const auto weak = weak_from_this();
     const auto weak_session = std::weak_ptr<asio2::http_session>(session_);
     rdp_bridge_ = rdp::RdpTcpBridge::Create(

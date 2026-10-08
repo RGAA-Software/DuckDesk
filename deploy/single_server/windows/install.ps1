@@ -6,7 +6,8 @@ param(
     [Parameter(Mandatory)] [string]$ConfigRoot,
     [Parameter(Mandatory)] [string]$DataRoot,
     [string]$InstallRoot = "$env:ProgramFiles\Pixels\Server",
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [switch]$RecoverDatabaseOwner
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,13 @@ function Invoke-Sc {
     if ($LASTEXITCODE -ne 0) { throw "sc.exe $($Arguments[0]) failed: $($result -join ' ')" }
 }
 
+function Ensure-ServiceFirewallRule([string]$RuleName, [int]$Port, [string]$ExecutablePath) {
+    if (-not (Get-NetFirewallRule -Name $RuleName -ErrorAction SilentlyContinue)) {
+        New-NetFirewallRule -Name $RuleName -DisplayName $RuleName -Direction Inbound -Action Allow `
+            -Protocol TCP -LocalPort $Port -Program $ExecutablePath -RemoteAddress LocalSubnet -Profile Any | Out-Null
+    }
+}
+
 function Assert-PlainTree {
     param([string]$Root)
     foreach ($entry in @(Get-Item -LiteralPath $Root) + @(Get-ChildItem -LiteralPath $Root -Force -Recurse)) {
@@ -50,6 +58,17 @@ function Remove-ReleaseDirectory {
         throw "Refusing release cleanup outside install root: $Path"
     }
     if (Test-Path -LiteralPath $resolvedPath) { Remove-Item -LiteralPath $resolvedPath -Recurse -Force }
+}
+
+function Stop-InstalledTray {
+    param([string]$ExecutablePath)
+    $resolvedExecutable = [IO.Path]::GetFullPath($ExecutablePath)
+    foreach ($trayProcess in @(Get-Process -Name 'px_server_tray' -ErrorAction SilentlyContinue)) {
+        if ($trayProcess.Path -and
+            [IO.Path]::GetFullPath($trayProcess.Path).Equals($resolvedExecutable, [StringComparison]::OrdinalIgnoreCase)) {
+            Stop-Process -Id $trayProcess.Id -Force -ErrorAction Stop
+        }
+    }
 }
 
 function Protect-ServiceReadFile {
@@ -105,19 +124,6 @@ function Get-EnvironmentValue {
     $matchingLines = @(Get-Content -LiteralPath $Path | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) })
     if ($matchingLines.Count -ne 1) { throw "Environment field is missing or duplicated: $Name" }
     return $matchingLines[0].Substring($prefix.Length).Trim("'", '"')
-}
-
-function Get-PostgreSqlRootCertificatePath {
-    param([string]$EnvironmentPath)
-    $databaseUrl = Get-EnvironmentValue -Path $EnvironmentPath -Name 'PIXELS_CONSOLE_DATABASE_URL'
-    $parsedUrl = [Uri]::new($databaseUrl)
-    $matchingParameters = @($parsedUrl.Query.TrimStart('?').Split('&') |
-        Where-Object { $_.StartsWith('sslrootcert=', [StringComparison]::Ordinal) })
-    if ($matchingParameters.Count -ne 1) { throw 'Console database URL must contain one sslrootcert file.' }
-    $encodedPath = $matchingParameters[0].Substring('sslrootcert='.Length)
-    $certificatePath = [Uri]::UnescapeDataString($encodedPath)
-    if (-not [IO.Path]::IsPathRooted($certificatePath)) { throw 'PostgreSQL root certificate path must be absolute.' }
-    return $certificatePath
 }
 
 function Protect-ReferencedServiceFile {
@@ -282,6 +288,33 @@ foreach ($serviceName in $serviceNames) {
     }
     $serviceWasRunning[$serviceName] = $null -ne $service -and $service.Status -ne 'Stopped'
 }
+. (Join-Path $resolvedPackage 'upgrade_console_database.ps1')
+if ($RecoverDatabaseOwner) {
+    if ($PreflightOnly) { throw 'Owner credential recovery cannot be combined with read-only preflight.' }
+    if (-not $env:PIXELS_SETUP_DATABASE_URL) { throw 'Explicit owner recovery requires the PostgreSQL administrator connection.' }
+    Invoke-ConsoleDatabasePreUpgradeBackup -PackageRoot $resolvedPackage -ConfigRoot $resolvedConfig -DataRoot $resolvedData -DeploymentId $deploymentId
+    Protect-UpgradeDirectory -Path (Join-Path $resolvedConfig 'database-upgrade')
+    & (Join-Path $resolvedPackage 'bin/px_console_admin.exe') recover-single-server-database-owner $resolvedConfig
+    if ($LASTEXITCODE -ne 0) { throw 'Explicit database owner recovery failed; business services were not stopped.' }
+    Remove-Item Env:PIXELS_SETUP_DATABASE_URL -ErrorAction SilentlyContinue
+}
+try {
+    $databasePreflight = @(& (Join-Path $resolvedPackage 'bin/px_console_admin.exe') preflight-single-server-database $resolvedConfig)
+} catch {
+    throw 'Database upgrade preflight failed; no services were stopped.'
+}
+$schemaMatch = if ($databasePreflight.Count -eq 1) {
+    [regex]::Match([string]$databasePreflight[0], '^UPGRADE_READY current=(\d+) target=(\d+)$')
+} else { $null }
+if ($LASTEXITCODE -ne 0 -or $null -eq $schemaMatch -or -not $schemaMatch.Success) {
+    throw 'Database upgrade preflight failed; no services were stopped.'
+}
+$installedSchemaVersion = [long]$schemaMatch.Groups[1].Value
+$targetSchemaVersion = [long]$schemaMatch.Groups[2].Value
+if ($installedSchemaVersion -le 0 -or $installedSchemaVersion -gt $targetSchemaVersion) {
+    throw 'Database upgrade version direction is invalid; no services were stopped.'
+}
+$databaseNeedsMigration = $installedSchemaVersion -lt $targetSchemaVersion
 if ($PreflightOnly) {
     Write-Output "PREFLIGHT_OK official-server $($manifest.suite_version) deployment=$deploymentId"
     return
@@ -293,6 +326,7 @@ $previousPath = Join-Path $resolvedInstall "previous-$([Guid]::NewGuid().ToStrin
 $createdServices = [System.Collections.Generic.List[string]]::new()
 $swapAttempted = $false
 $configurationUpgradeAttempted = $false
+$databaseUpgradeAttempted = $false
 $previousConsoleConfigBytes = [IO.File]::ReadAllBytes((Join-Path $resolvedConfig 'console.env'))
 $previousBackupConfigBytes = [IO.File]::ReadAllBytes((Join-Path $resolvedConfig 'backup.json'))
 New-Item -ItemType Directory -Path $stagePath | Out-Null
@@ -306,6 +340,7 @@ try {
         $stageHash = Get-LowerHash -Path (Join-Path $stagePath $relativePath)
         if ($stageHash -cne [string]$manifest.files.$relativePath) { throw "Staged file hash mismatch: $relativePath" }
     }
+    Stop-InstalledTray -ExecutablePath (Join-Path $currentPath 'bin/px_server_tray.exe')
     foreach ($serviceName in $serviceNames) {
         $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
         if ($serviceWasRunning[$serviceName]) {
@@ -313,12 +348,23 @@ try {
             $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
         }
     }
+    if ($databaseNeedsMigration) {
+        Invoke-ConsoleDatabasePreUpgradeBackup -PackageRoot $stagePath -ConfigRoot $resolvedConfig -DataRoot $resolvedData -DeploymentId $deploymentId
+        $databaseUpgradeAttempted = $true
+        & (Join-Path $stagePath 'bin/px_console_admin.exe') upgrade-single-server-database $resolvedConfig
+        if ($LASTEXITCODE -ne 0) { throw 'Versioned Console schema migration failed.' }
+    }
     $swapAttempted = $true
     if (Test-Path -LiteralPath $currentPath) { Move-Item -LiteralPath $currentPath -Destination $previousPath }
     Move-Item -LiteralPath $stagePath -Destination $currentPath
-    $configurationUpgradeAttempted = $true
-    & (Join-Path $currentPath 'bin/px_console_admin.exe') upgrade-backup-control $resolvedConfig windows
-    if ($LASTEXITCODE -ne 0) { throw 'Backup control configuration upgrade failed.' }
+    if (Test-Path -LiteralPath (Join-Path $resolvedConfig 'setup.complete') -PathType Leaf) {
+        $configurationUpgradeAttempted = $true
+        & (Join-Path $currentPath 'bin/px_console_admin.exe') upgrade-backup-control $resolvedConfig windows
+        if ($LASTEXITCODE -ne 0) { throw 'Backup control configuration upgrade failed.' }
+        Remove-ObsoleteGuestLifetimeSetting -ConfigRoot $resolvedConfig
+    }
+    $backupConfig = Get-Content -LiteralPath (Join-Path $resolvedConfig 'backup.json') -Raw | ConvertFrom-Json
+    Set-ConsoleBackupSchemaVersion -ConfigRoot $resolvedConfig -SchemaVersion $targetSchemaVersion
     $backupConfig = Get-Content -LiteralPath (Join-Path $resolvedConfig 'backup.json') -Raw | ConvertFrom-Json
     $serviceCommands = @{
         'Pixels.Console' = "`"$(Join-Path $currentPath 'bin/px_console.exe')`" --service `"$(Join-Path $resolvedConfig 'console.env')`""
@@ -335,6 +381,12 @@ try {
             Invoke-Sc -Arguments @('config', $serviceName, 'binPath=', $serviceCommands[$serviceName], 'start=', 'auto', 'obj=', $servicePrincipal)
         }
         Invoke-Sc -Arguments @('sidtype', $serviceName, 'unrestricted')
+        if ($serviceName -eq 'Pixels.Console') {
+            Invoke-Sc -Arguments @('config', $serviceName, 'start=', 'delayed-auto')
+            # Startup/runtime errors report a nonzero service exit, including temporary database unavailability.
+            Invoke-Sc -Arguments @('failure', $serviceName, 'reset=', '86400', 'actions=', 'restart/5000/restart/15000/restart/60000')
+            Invoke-Sc -Arguments @('failureflag', $serviceName, '1')
+        }
         $programAclResult = & icacls.exe $resolvedInstall '/grant' "$($servicePrincipal):(OI)(CI)(RX)" 2>&1
         if ($LASTEXITCODE -ne 0) { throw "Unable to grant service program access: $($programAclResult -join ' ')" }
         $aclResult = & icacls.exe $resolvedConfig '/grant' "$($servicePrincipal):(RX)" 2>&1
@@ -348,7 +400,6 @@ try {
     Protect-ServiceReadFile -Path (Join-Path $resolvedConfig 'relay.env') -ServiceNames @('Pixels.Relay')
     Protect-ServiceReadFile -Path (Join-Path $resolvedConfig 'backup.json') -ServiceNames @($backupName)
     $consoleEnvironment = Join-Path $resolvedConfig 'console.env'
-    $postgresqlRootCertificate = Get-PostgreSqlRootCertificatePath -EnvironmentPath $consoleEnvironment
     $relayRootCertificate = Get-EnvironmentValue -Path (Join-Path $resolvedConfig 'relay.env') -Name 'PIXELS_RELAY_CONSOLE_CA_FILE'
     $backupRootCertificate = if ($null -ne $backupConfig.control) { [string]$backupConfig.control.console_ca_file } else { $null }
     $backupSharesRelayRoot = $null -ne $backupRootCertificate -and
@@ -358,15 +409,9 @@ try {
         Protect-ReferencedServiceFile -Path (Get-EnvironmentValue -Path $consoleEnvironment -Name $fieldName) -ServiceNames @('Pixels.Console')
     }
     Protect-LicenseDirectory -LicensePath (Get-EnvironmentValue -Path $consoleEnvironment -Name 'PIXELS_CONSOLE_LICENSE_FILE')
-    if ([IO.Path]::GetFullPath($postgresqlRootCertificate) -ieq [IO.Path]::GetFullPath($relayRootCertificate)) {
-        Protect-ReferencedServiceFile -Path $postgresqlRootCertificate -ServiceNames @('Pixels.Console', $backupName, 'Pixels.Relay')
-    } else {
-        Protect-ReferencedServiceFile -Path $postgresqlRootCertificate -ServiceNames @('Pixels.Console', $backupName)
-        $relayReaders = if ($backupSharesRelayRoot) { @('Pixels.Relay', $backupName) } else { @('Pixels.Relay') }
-        Protect-ReferencedServiceFile -Path $relayRootCertificate -ServiceNames $relayReaders
-    }
+    $relayReaders = if ($backupSharesRelayRoot) { @('Pixels.Relay', $backupName) } else { @('Pixels.Relay') }
+    Protect-ReferencedServiceFile -Path $relayRootCertificate -ServiceNames $relayReaders
     if ($null -ne $backupRootCertificate -and
-        [IO.Path]::GetFullPath($backupRootCertificate) -ine [IO.Path]::GetFullPath($postgresqlRootCertificate) -and
         [IO.Path]::GetFullPath($backupRootCertificate) -ine [IO.Path]::GetFullPath($relayRootCertificate)) {
         Protect-ReferencedServiceFile -Path $backupRootCertificate -ServiceNames @($backupName)
     }
@@ -376,6 +421,9 @@ try {
     }
     $cacheDirectory = Get-EnvironmentValue -Path $consoleEnvironment -Name 'PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY'
     Protect-ServiceDataDirectory -Path $cacheDirectory -ServiceName 'Pixels.Console'
+    $consoleLogDirectory = Join-Path (Split-Path -Parent $cacheDirectory) 'logs'
+    New-Item -ItemType Directory -Path $consoleLogDirectory -Force | Out-Null
+    Protect-ServiceDataDirectory -Path $consoleLogDirectory -ServiceName 'Pixels.Console'
     foreach ($propertyName in @('repository_root', 'scheduler_root', 'status_root')) {
         Protect-ServiceDataDirectory -Path ([string]$backupConfig.$propertyName) -ServiceName $backupName
     }
@@ -385,7 +433,7 @@ try {
         }
     }
     New-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$backupName" -Name Environment `
-        -PropertyType MultiString -Value @('PGSSLMODE=verify-full', "PGSSLROOTCERT=$postgresqlRootCertificate") -Force | Out-Null
+        -PropertyType MultiString -Value @('PGSSLMODE=prefer') -Force | Out-Null
     foreach ($serviceName in $serviceNames) {
         Invoke-Sc -Arguments @('start', $serviceName)
         (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
@@ -395,6 +443,24 @@ try {
         if ((Get-Service -Name $serviceName).Status -ne 'Running') {
             throw "Service $serviceName did not remain running after startup."
         }
+    }
+    Ensure-ServiceFirewallRule 'Pixels.Server.Console.LAN' 4600 (Join-Path $currentPath 'bin/px_console.exe')
+    Ensure-ServiceFirewallRule 'Pixels.Server.Relay.LAN' 4605 (Join-Path $currentPath 'bin/px_relay.exe')
+    Get-NetFirewallRule -Name 'Pixels.Server.Setup.LAN' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+    $consoleOrigin = Get-EnvironmentValue -Path $consoleEnvironment -Name 'PIXELS_CONSOLE_PUBLIC_ORIGIN'
+    $registryBase = [Microsoft.Win32.RegistryKey]::OpenBaseKey(
+        [Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64
+    )
+    try {
+        $serverRegistry = $registryBase.CreateSubKey('Software\Pixels\SingleServer')
+        if ($null -eq $serverRegistry) { throw 'Unable to write Console origin to the 64-bit registry view.' }
+        try {
+            $serverRegistry.SetValue('ConsoleOrigin', $consoleOrigin, [Microsoft.Win32.RegistryValueKind]::String)
+        } finally {
+            $serverRegistry.Dispose()
+        }
+    } finally {
+        $registryBase.Dispose()
     }
     if (-not (Test-Path -LiteralPath $deploymentMarker)) {
         [IO.File]::WriteAllText($deploymentMarker, $deploymentId.ToString().ToLowerInvariant() + "`n")
@@ -406,6 +472,17 @@ try {
     Write-Output "RUNNING official-server $($manifest.suite_version) deployment=$deploymentId"
 } catch {
     $installError = $_
+    if ($databaseUpgradeAttempted) {
+        foreach ($serviceName in $serviceNames) {
+            $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($null -ne $service -and $service.Status -ne 'Stopped') {
+                & sc.exe stop $serviceName 2>&1 | Out-Null
+                try { $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30)) } catch {}
+            }
+        }
+        Write-Warning "Database upgrade started: retaining program/configuration snapshots and database backups; old binaries will not be restarted. Stage=$stagePath Previous=$previousPath"
+        throw $installError
+    }
     if ($swapAttempted) {
         foreach ($serviceName in $serviceNames) {
             $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -448,5 +525,7 @@ try {
     }
     throw $installError
 } finally {
-    if (Test-Path -LiteralPath $stagePath) { Remove-ReleaseDirectory -Path $stagePath -Parent $resolvedInstall }
+    if (-not $databaseUpgradeAttempted -and (Test-Path -LiteralPath $stagePath)) {
+        Remove-ReleaseDirectory -Path $stagePath -Parent $resolvedInstall
+    }
 }

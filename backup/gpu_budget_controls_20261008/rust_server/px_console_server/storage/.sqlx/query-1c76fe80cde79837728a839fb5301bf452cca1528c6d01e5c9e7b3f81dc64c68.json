@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n    node.id AS node_id,\n    observation.evaluated_at AS \"evaluated_at!\",\n    latest.received_at AS \"latest_received_at?\",\n    CASE\n        WHEN latest.received_at IS NULL THEN NULL\n        ELSE GREATEST(0, EXTRACT(EPOCH FROM observation.evaluated_at - latest.received_at)::bigint)\n    END AS \"latest_age_seconds?\",\n    COALESCE(latest.received_at <= observation.evaluated_at - INTERVAL '30 seconds', TRUE) AS \"stale!\"\nFROM pixels.nodes AS node\nCROSS JOIN LATERAL (SELECT clock_timestamp() AS evaluated_at) AS observation\nLEFT JOIN LATERAL (\n    SELECT history.received_at\n    FROM pixels.node_telemetry_history AS history\n    WHERE history.node_id = node.id\n    ORDER BY history.received_at DESC, history.node_generation DESC, history.report_sequence DESC\n    LIMIT 1\n) AS latest ON TRUE\nWHERE node.id = $1\n  AND node.deleted_at IS NULL\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "evaluated_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "latest_received_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "latest_age_seconds?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "stale!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "1c76fe80cde79837728a839fb5301bf452cca1528c6d01e5c9e7b3f81dc64c68"
+}

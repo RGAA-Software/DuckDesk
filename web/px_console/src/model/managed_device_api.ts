@@ -69,16 +69,6 @@ export async function deleteManagedDevice(device: ManagedDevice): Promise<void> 
     });
 }
 
-export async function rotateManagedDeviceCredential(
-    device: ManagedDevice,
-): Promise<DeviceCredentialResponse> {
-    const response = await axiosHttp.post<DeviceCredentialResponse>(
-        `/api/console/managed/devices/${encodeURIComponent(device.id)}/credential`,
-        { revision: device.revision },
-    );
-    return response.data;
-}
-
 export async function getManagedDeviceAccess(device: ManagedDevice): Promise<DeviceAccess> {
     const response = await axiosHttp.get<DeviceAccess>(
         `/api/console/managed/devices/${encodeURIComponent(device.id)}/access`,

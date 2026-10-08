@@ -1,0 +1,23 @@
+[
+  {
+    "local_status": null,
+    "reason": "Replace generic scheduling failure with explicit GPU memory capacity failure and localized feedback",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "path": "rust_server/px_console_server/storage/src/instances.rs",
+    "archive_batch": "backup/application_gpu_capacity_feedback_20261007"
+  },
+  {
+    "local_status": " M rust_server/px_console_server/runtime/src/resource_api.rs",
+    "reason": "Replace generic scheduling failure with explicit GPU memory capacity failure and localized feedback",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "path": "rust_server/px_console_server/runtime/src/resource_api.rs",
+    "archive_batch": "backup/application_gpu_capacity_feedback_20261007"
+  },
+  {
+    "local_status": "?? src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "reason": "Replace generic scheduling failure with explicit GPU memory capacity failure and localized feedback",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "path": "src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "archive_batch": "backup/application_gpu_capacity_feedback_20261007"
+  }
+]

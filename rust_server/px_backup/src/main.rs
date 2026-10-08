@@ -87,10 +87,7 @@ fn run() -> Result<(), &'static str> {
         }
         px_server_service::load_environment_file(&environment_path)
             .map_err(|_| "configuration rejected")?;
-        let root_certificate =
-            env::var("PIXELS_BACKUP_PG_SSL_ROOT_CERT").map_err(|_| "configuration rejected")?;
-        env::set_var("PGSSLROOTCERT", root_certificate);
-        env::set_var("PGSSLMODE", "verify-full");
+        env::set_var("PGSSLMODE", "prefer");
         arguments.truncate(3);
     }
     if arguments.len() < 3 {

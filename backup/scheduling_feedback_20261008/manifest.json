@@ -1,0 +1,23 @@
+[
+  {
+    "original_path": "web/px_console/src/views/apps/SchedulingPreviewCard.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "reason": "Make scheduling preview results and request failures visible and discard stale responses",
+    "archive_batch": "scheduling_feedback_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "reason": "Make scheduling preview results and request failures visible and discard stale responses",
+    "archive_batch": "scheduling_feedback_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "reason": "Make scheduling preview results and request failures visible and discard stale responses",
+    "archive_batch": "scheduling_feedback_20261008"
+  }
+]

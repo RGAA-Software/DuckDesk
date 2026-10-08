@@ -1,13 +1,17 @@
+#include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <mutex>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <utility>
 
+#include "application_launch_workflow.h"
 #include "panel_product_runtime.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_errors.h"
+#include "px_ui/localization.h"
 #include "px_ui/product_brand.h"
 
 namespace px::panel::product {
@@ -23,20 +27,62 @@ ui::CloudApplicationKind ResolveApplicationKind(const std::string_view appType) 
 class ProductCloudApplicationsPort final : public ui::CloudApplicationsPort, public std::enable_shared_from_this<ProductCloudApplicationsPort> {
 public:
     explicit ProductCloudApplicationsPort(std::shared_ptr<PanelProductRuntime> runtime) : runtime_{std::move(runtime)} {}
-    void Initialize() { Refresh(); }
+    void Initialize() {
+        const auto runtime = runtime_;
+        const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
+        workflow_ = std::make_shared<ApplicationLaunchWorkflow>(ApplicationLaunchOperations{
+            .start = [runtime](const std::string& applicationId,
+                               const std::string& requestId) { return runtime->Console()->StartApplication(applicationId, requestId); },
+            .query = [runtime](const std::string& instanceId) { return runtime->Console()->QueryApplicationInstance(instanceId); },
+            .authorize =
+                [runtime](const std::string& instanceId, const bool viewOnly, const std::string& requestId) {
+                    return runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly, requestId);
+                },
+            .clientAvailable =
+                [runtime] {
+                    std::error_code error{};
+                    return std::filesystem::is_regular_file(runtime->Config()->ExecutableDirectory() / "px_client.exe", error);
+                },
+            .launch =
+                [weakSelf](const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
+                    const auto self = weakSelf.lock();
+                    return self && self->LaunchClient(request, connection);
+                },
+            .close = [runtime](
+                         const std::string& sessionId,
+                         const std::int64_t revision) { static_cast<void>(runtime->Console()->CloseResourceConnection(sessionId, revision)); }});
+        Refresh();
+    }
 
     std::vector<ui::CloudApplicationCard> Snapshot() override {
+        bool refreshDue{};
+        {
+            const std::scoped_lock lock{mutex_};
+            refreshDue = std::chrono::steady_clock::now() >= nextRefresh_;
+        }
+        if (refreshDue) Refresh();
         const std::scoped_lock lock{mutex_};
         return cards_;
     }
 
     void Refresh() override {
+        if (refreshPending_.exchange(true)) return;
+        {
+            const std::scoped_lock lock{mutex_};
+            nextRefresh_ = std::chrono::steady_clock::now() + std::chrono::seconds{5};
+        }
         const auto runtime = runtime_;
         const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf] {
+        const bool posted = runtime_->Worker()->Post([runtime, weakSelf] {
             const auto applications = runtime->Console()->QueryApplications();
             const auto self = weakSelf.lock();
             if (!self) return;
+            self->refreshPending_.store(false);
+            if (!applications) {
+                if (!self->refreshFailed_.exchange(true)) self->NotifyQueryFailure();
+                return;
+            }
+            self->refreshFailed_.store(false);
             std::vector<ui::CloudApplicationCard> cards{};
             std::unordered_map<std::string, std::string> instances{};
             std::unordered_map<std::string, std::pair<bool, bool>> preferences{};
@@ -44,7 +90,7 @@ public:
                 const std::scoped_lock lock{self->mutex_};
                 preferences = self->preferences_;
             }
-            for (const auto& application : applications) {
+            for (const auto& application : applications.value()) {
                 const bool rdpMode{application.app_type == "rdp"};
                 const auto inMemory = preferences.find(application.app_id);
                 const auto persisted = runtime->Config()->LoadCloudApplicationPreference(application.app_id);
@@ -53,6 +99,7 @@ public:
                 cards.push_back({.streamId = application.app_id,
                                  .name = application.name,
                                  .instanceState = application.running_instance ? application.running_instance->state : "stopped",
+                                 .runningInstanceCount = application.running_instance_count,
                                  .kind = ResolveApplicationKind(application.app_type),
                                  .rdpMode = rdpMode,
                                  .forceTcp = forceTcp,
@@ -62,102 +109,41 @@ public:
             const std::scoped_lock lock{self->mutex_};
             self->cards_ = std::move(cards);
             self->instanceIds_ = std::move(instances);
-        }));
+        });
+        if (!posted) refreshPending_.store(false);
     }
 
     void Start(const std::string& streamId, const bool viewOnly) override {
-        ui::CloudApplicationCard card{};
-        std::string existingInstance{};
+        ApplicationLaunchRequest request{};
         {
             const std::scoped_lock lock{mutex_};
-            const auto found = std::ranges::find(cards_, streamId, &ui::CloudApplicationCard::streamId);
-            if (found == cards_.end()) return;
-            card = *found;
-            if (const auto instance = instanceIds_.find(streamId); instance != instanceIds_.end()) existingInstance = instance->second;
+            const auto application = std::ranges::find(cards_, streamId, &ui::CloudApplicationCard::streamId);
+            if (application == cards_.end()) return;
+            request = {.applicationId = streamId,
+                       .applicationName = application->name,
+                       .requestId = GetCanonicalUUID(),
+                       .viewOnly = viewOnly,
+                       .forceTcp = application->forceTcp,
+                       .forceRelay = application->forceRelay};
+            if (const auto instance = instanceIds_.find(streamId); instance != instanceIds_.end()) request.existingInstanceId = instance->second;
         }
-        const auto runtime = runtime_;
-        const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
-        {
-            const std::scoped_lock lock{mutex_};
-            if (const auto found = std::ranges::find(cards_, streamId, &ui::CloudApplicationCard::streamId); found != cards_.end()) {
-                found->instanceState = "starting";
-            }
-        }
-        static_cast<void>(
-            runtime_->Worker()->Post([runtime, weakSelf, card = std::move(card), existingInstance = std::move(existingInstance), viewOnly] {
-                const auto self = weakSelf.lock();
-                if (!self) return;
-                const std::string nonce{GetUUID()};
-                std::string instanceId{existingInstance};
-                std::string instanceState{existingInstance.empty() ? std::string{} : card.instanceState};
-                if (!instanceId.empty()) {
-                    const auto applications = runtime->Console()->QueryApplications();
-                    const auto current = std::ranges::find(applications, card.streamId, &px_console::ConsoleUserApplication::app_id);
-                    if (current != applications.end() && current->running_instance &&
-                        (current->running_instance->state == "starting" || current->running_instance->state == "running")) {
-                        instanceId = current->running_instance->instance_id;
-                        instanceState = current->running_instance->state;
-                    } else {
-                        instanceId.clear();
-                        instanceState.clear();
-                    }
-                }
-                if (instanceId.empty()) {
-                    const auto instance = runtime->Console()->StartApplication(card.streamId, nonce);
-                    if (!instance) {
-                        self->SetInstanceState(card.streamId, "stopped");
-                        const std::string serverMessage{px_console::ConsoleApiLastErrorMessage()};
-                        runtime->Notify(true, "Application failed",
-                                        serverMessage.empty() ? px_console::ConsoleApiErrorAsString(instance.error()) : serverMessage);
-                        return;
-                    }
-                    instanceId = instance->instance_id;
-                    instanceState = instance->state;
-                }
-                for (int attempt{}; instanceState != "running" && attempt < 90; ++attempt) {
-                    if (instanceState == "failed" || instanceState == "stopped") {
-                        self->SetInstanceState(card.streamId, instanceState);
-                        runtime->Notify(true, "Application failed",
-                                        "The Render node rejected the application start request. Check the application path and node status.");
-                        return;
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds{500});
-                    const auto applications = runtime->Console()->QueryApplications();
-                    for (const auto& application : applications) {
-                        if (application.app_id == card.streamId && application.running_instance &&
-                            application.running_instance->instance_id == instanceId) {
-                            instanceState = application.running_instance->state;
-                            break;
-                        }
-                    }
-                }
-                if (instanceState != "running") {
-                    self->SetInstanceState(card.streamId, "stopped");
-                    runtime->Notify(true, "Application failed",
-                                    "The application did not become ready within 45 seconds. It may still be starting on the Render node.");
-                    return;
-                }
-                auto connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly, nonce);
-                for (int attempt{}; !connection && attempt < 40; ++attempt) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{500});
-                    connection = runtime->Console()->QueryNativeApplicationConnection(instanceId, viewOnly, nonce);
-                }
-                if (!connection) {
-                    self->SetInstanceState(card.streamId, "running");
-                    const std::string serverMessage{px_console::ConsoleApiLastErrorMessage()};
-                    runtime->Notify(true, "Application failed",
-                                    serverMessage.empty() ? px_console::ConsoleApiErrorAsString(connection.error()) : serverMessage);
-                    return;
-                }
-                const auto sessionId = connection->session_id;
-                PendingLaunch launch{.card = card,
-                                     .connection = std::move(connection.value()),
-                                     .instanceId = instanceId,
-                                     .nonce = nonce,
-                                     .sessionId = sessionId,
-                                     .viewOnly = viewOnly};
-                self->Launch(std::move(launch));
-            }));
+        const auto generation = workflow_->Begin(std::move(request));
+        if (!generation) return;
+        const std::weak_ptr<ApplicationLaunchWorkflow> weakWorkflow{workflow_};
+        if (!runtime_->Worker()->Post([weakWorkflow, generation = *generation] {
+                if (const auto workflow = weakWorkflow.lock()) workflow->Prepare(generation);
+            }))
+            workflow_->WorkerUnavailable(*generation);
+    }
+
+    std::optional<ui::ApplicationLaunchProgress> LaunchProgress() const override { return workflow_->Snapshot(); }
+
+    void LaunchPrepared(const std::uint64_t generation) override {
+        const std::weak_ptr<ApplicationLaunchWorkflow> weakWorkflow{workflow_};
+        if (!runtime_->Worker()->Post([weakWorkflow, generation] {
+                if (const auto workflow = weakWorkflow.lock()) workflow->LaunchPrepared(generation);
+            }))
+            workflow_->WorkerUnavailable(generation);
     }
 
     std::optional<ui::CloudApplicationPasswordRequest> PendingPasswordRequest() const override { return std::nullopt; }
@@ -199,77 +185,48 @@ public:
     void SetForceRelay(const std::string& streamId, const bool enabled) override { SetPreference(streamId, false, enabled); }
 
 private:
+    void NotifyQueryFailure() const {
+        const px::ui::Localizer localizer{runtime_->Config()->Settings().language};
+        runtime_->Notify(true, std::string{localizer.Text(px::ui::TextId::CloudApplications)},
+                         std::string{localizer.Text(px::ui::TextId::CloudApplicationRefreshFailed)});
+    }
+
     struct ActiveSession final {
         std::string id{};
         std::int64_t revision{};
     };
 
-    struct PendingLaunch final {
-        ui::CloudApplicationCard card{};
-        px_console::ConsoleNativeApplicationConnection connection{};
-        std::string instanceId{};
-        std::string nonce{};
-        std::string sessionId{};
-        bool viewOnly{};
-    };
-
-    void Launch(PendingLaunch launch) {
+    bool LaunchClient(const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
         const auto runtime = runtime_;
-        const std::weak_ptr<ProductCloudApplicationsPort> weakSelf{shared_from_this()};
-        static_cast<void>(runtime_->Worker()->Post([runtime, weakSelf, launch = std::move(launch)]() mutable {
-            if (launch.card.forceRelay &&
-                (launch.connection.relay_host.empty() || launch.connection.relay_port <= 0 || launch.connection.relay_admission_ticket.empty())) {
-                if (const auto self = weakSelf.lock()) {
-                    self->SetInstanceState(launch.card.streamId, "running");
-                }
-                runtime->Notify(true, "Application failed", "Console did not issue a Relay route for this resource session.");
-                return;
-            }
-            const bool rdp = launch.connection.transport == "rdp";
-            const bool launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
-                                                               .displayName = launch.card.name,
-                                                               .remoteDeviceId = launch.connection.device_id,
-                                                               .instanceId = launch.instanceId,
-                                                               .nonce = launch.nonce,
-                                                               .directHost = launch.connection.host,
-                                                               .directPort = launch.connection.port,
-                                                               .directStreamId = launch.sessionId,
-                                                               .remotePasswordHash = {},
-                                                               .frontendSessionId = launch.connection.session_id,
-                                                               .frontendSessionRevision = launch.connection.session_revision,
-                                                               .frontendToken = launch.connection.frontend_token,
-                                                               .relayHost = launch.connection.relay_host,
-                                                               .relayPort = launch.connection.relay_port,
-                                                               .relayRemoteDeviceId = "server_" + launch.connection.device_id,
-                                                               .relayAdmissionTicket = launch.connection.relay_admission_ticket,
-                                                               .rdpConfiguration = launch.connection.rdp_configuration,
-                                                               .viewOnly = launch.viewOnly,
-                                                               .forceTcp = launch.card.forceTcp,
-                                                               .forceRelay = launch.card.forceRelay});
-            const auto self = weakSelf.lock();
-            if (!self) return;
-            if (!launched) {
-                self->SetInstanceState(launch.card.streamId, "running");
-                runtime->Notify(
-                    true, "Application failed",
-                    "The application is running and authorization succeeded, but px_client could not start. Check the local installation.");
-                return;
-            }
-            const std::scoped_lock lock{self->mutex_};
-            self->instanceIds_[launch.card.streamId] = launch.instanceId;
-            self->activeSessions_[launch.card.streamId] = ActiveSession{.id = launch.sessionId, .revision = launch.connection.session_revision};
-            if (const auto found = std::ranges::find(self->cards_, launch.card.streamId, &ui::CloudApplicationCard::streamId);
-                found != self->cards_.end()) {
-                found->instanceState = "running";
-            }
-        }));
-    }
-
-    void SetInstanceState(const std::string& streamId, const std::string& state) {
-        const std::scoped_lock lock{mutex_};
-        if (const auto found = std::ranges::find(cards_, streamId, &ui::CloudApplicationCard::streamId); found != cards_.end()) {
-            found->instanceState = state;
+        const bool rdp = connection.transport == "rdp";
+        const bool launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
+                                                           .displayName = request.applicationName,
+                                                           .remoteDeviceId = connection.device_id,
+                                                           .instanceId = connection.instance_id,
+                                                           .nonce = request.requestId,
+                                                           .directHost = connection.host,
+                                                           .directPort = connection.port,
+                                                           .directStreamId = connection.session_id,
+                                                           .remotePasswordHash = {},
+                                                           .frontendSessionId = connection.session_id,
+                                                           .frontendSessionRevision = connection.session_revision,
+                                                           .frontendToken = connection.frontend_token,
+                                                           .relayHost = connection.relay_host,
+                                                           .relayPort = connection.relay_port,
+                                                           .relayRemoteDeviceId = "server_" + connection.device_id,
+                                                           .relayAdmissionTicket = connection.relay_admission_ticket,
+                                                           .rdpConfiguration = connection.rdp_configuration,
+                                                           .viewOnly = request.viewOnly,
+                                                           .forceTcp = request.forceTcp,
+                                                           .forceRelay = request.forceRelay});
+        if (!launched) return false;
+        {
+            const std::scoped_lock lock{mutex_};
+            instanceIds_[request.applicationId] = connection.instance_id;
+            activeSessions_[request.applicationId] = ActiveSession{.id = connection.session_id, .revision = connection.session_revision};
         }
+        Refresh();
+        return true;
     }
 
     void SetPreference(const std::string& streamId, const bool tcp, const bool relay) {
@@ -286,6 +243,10 @@ private:
     }
 
     std::shared_ptr<PanelProductRuntime> runtime_{};
+    std::shared_ptr<ApplicationLaunchWorkflow> workflow_{};
+    std::atomic<bool> refreshFailed_{};
+    std::atomic_bool refreshPending_{};
+    std::chrono::steady_clock::time_point nextRefresh_{};
     mutable std::mutex mutex_{};
     std::vector<ui::CloudApplicationCard> cards_{};
     std::unordered_map<std::string, std::pair<bool, bool>> preferences_{};

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH owned AS (SELECT id,user_id,authorization_revision,revoked_at FROM pixels.login_sessions WHERE id=$1 AND user_id=$2 FOR UPDATE),\nchanged AS (UPDATE pixels.login_sessions s SET revoked_at=clock_timestamp() FROM owned o\nWHERE s.id=o.id AND o.revoked_at IS NULL RETURNING s.id,s.user_id,s.authorization_revision),\nevents AS (INSERT INTO pixels.authorization_outbox(id,user_id,session_id,authorization_revision,reason)\nSELECT gen_random_uuid(),user_id,id,authorization_revision,'session_revoked' FROM changed RETURNING id),\naudit AS (INSERT INTO pixels.authorization_audit(id,actor_id,subject_id,session_id,action,authorization_revision)\nSELECT gen_random_uuid(),user_id,user_id,id,'session_revoked',authorization_revision FROM changed RETURNING id)\nSELECT count(*) AS \"found!\" FROM owned\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "found!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f554e9f133b0b09fcbfacb746dd3d51a84e8914176119943900e366ecccb4732"
+}

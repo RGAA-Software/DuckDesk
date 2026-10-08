@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id,d.application_id,d.node_id,d.kind,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at FROM pixels.application_deployments d WHERE d.id=$1 FOR UPDATE\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "capacity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "observed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "0a3b80b2aaeb860491256f079cd52a053b25527503e15d7fd5efe9442c54ca63"
+}

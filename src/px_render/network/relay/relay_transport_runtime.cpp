@@ -317,7 +317,7 @@ PxAwaitable<void> RelayTransportRuntime::AuthorizeMediaControl(std::weak_ptr<Rel
     const auto& request = message->request_control();
     auto admitted = co_await runtime->AuthorizeFrontend(
         ConsoleFrontendAdmissionRequest{
-            .request_id = GetUUID(),
+            .request_id = GenerateRandomBase64Id(),
             .session_id = request.stream_id(),
             .revision = revision,
             .frontend_token = std::string{token->View()},
@@ -426,7 +426,7 @@ PxAwaitable<void> RelayTransportRuntime::AuthorizeFileTransferControl(std::weak_
     const auto& request = message->request_control();
     auto admitted = co_await runtime->AuthorizeFrontend(
         ConsoleFrontendAdmissionRequest{
-            .request_id = GetUUID(),
+            .request_id = GenerateRandomBase64Id(),
             .session_id = request.stream_id(),
             .revision = revision,
             .frontend_token = std::string{token->View()},
@@ -670,7 +670,7 @@ PxAwaitable<void> RelayTransportRuntime::RunFrontendLease(std::weak_ptr<RelayTra
         } else {
             auto renewed = co_await runtime->AuthorizeFrontend(
                 ConsoleFrontendAdmissionRequest{
-                    .request_id = GetUUID(),
+                    .request_id = GenerateRandomBase64Id(),
                     .session_id = registration.expected_grant.session_id,
                     .revision = registration.descriptor_revision,
                     .frontend_token = std::string{registration.token->View()},

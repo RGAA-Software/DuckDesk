@@ -20,6 +20,7 @@ describe("managed license API", () => {
             expires_at: 1790294400,
             max_streams: 4,
             services: ["cloud_applications", "rdp"],
+            starter_license: true,
         };
         vi.mocked(axiosHttp.get).mockResolvedValue({ data: licenseStatus } as never);
 
@@ -34,6 +35,7 @@ describe("managed license API", () => {
             expires_at: 1790294400,
             max_streams: 2,
             services: ["desktop"],
+            starter_license: false,
         };
         vi.mocked(axiosHttp.put).mockResolvedValue({ data: licenseStatus } as never);
 

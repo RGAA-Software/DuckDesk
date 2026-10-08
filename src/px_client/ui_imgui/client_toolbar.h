@@ -21,14 +21,13 @@ struct ClientSessionSnapshot;
 struct ClientToolbarAction final {
     bool toggleLanguage{};
     bool toggleTheme{};
-    bool toggleEnhancedVisualEffects{};
     bool toggleFullscreen{};
     bool requestExit{};
 };
 
 class ClientToolbar final {
 public:
-    ClientToolbar(bool enhancedVisualEffects, ClientUiSettings settings);
+    explicit ClientToolbar(ClientUiSettings settings);
     [[nodiscard]] ClientToolbarAction Draw(const std::shared_ptr<ClientSession>& session, const px::desktop::BrandLogo& logo, bool english,
                                            bool darkTheme, bool fullscreen);
     [[nodiscard]] bool CapturesPointer(float x, float y) const noexcept;
@@ -68,7 +67,6 @@ private:
     bool audioEnabled_{true};
     bool microphoneMuted_{};
     bool speakerMuted_{};
-    bool enhancedVisualEffects_{true};
     px::ui::ToastHost captureToasts_{};
     std::optional<std::chrono::steady_clock::time_point> recordingStartedAt_{};
     int frameRate_{60};

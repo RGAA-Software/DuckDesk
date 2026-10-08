@@ -4,6 +4,8 @@ import { useManagementRefresh } from "@/model/management_events.ts";
 import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
 import { listGroups, type GroupView } from "@/model/identity_api";
+import { applicationSaveErrorKey, validateApplicationSpec } from "@/util/application_validation";
+import ApplicationDeploymentsModal from "./ApplicationDeploymentsModal.vue";
 import {
     createManagedApplication,
     deleteManagedApplication,
@@ -26,11 +28,15 @@ const loading = ref(false);
 const saving = ref(false);
 const editorOpen = ref(false);
 const editing = ref<ManagedApplication>();
+const deploymentApplicationId = ref("");
+const deploymentApplication = computed(() =>
+    applications.value.find(application => application.id === deploymentApplicationId.value),
+);
 const form = reactive({
     name: "",
     kind: "game_hook" as ApplicationKind,
     access: "public" as ApplicationAccess,
-    executableRelative: "",
+    executablePath: "",
     arguments: "",
     entryUrl: "",
     codec: "h264" as VideoCodec,
@@ -60,7 +66,7 @@ function resetForm() {
         name: "",
         kind: "game_hook",
         access: "public",
-        executableRelative: "",
+        executablePath: "",
         arguments: "",
         entryUrl: "",
         codec: "h264",
@@ -85,7 +91,7 @@ async function edit(application: ManagedApplication) {
         name: application.spec.name,
         kind: launch.kind,
         access: application.spec.access,
-        executableRelative: launch.kind === "game_hook" ? launch.executable_relative : "",
+        executablePath: launch.kind === "game_hook" ? launch.executable_path : "",
         arguments: launch.kind === "game_hook" ? launch.arguments : "",
         entryUrl: launch.kind === "webview" ? launch.entry_url : "",
         codec: launch.kind === "rdp" ? "h264" : launch.video.codec,
@@ -103,7 +109,7 @@ function launch(): ApplicationLaunch {
     if (form.kind === "game_hook") {
         return {
             kind: "game_hook",
-            executable_relative: form.executableRelative,
+            executable_path: form.executablePath,
             arguments: form.arguments,
             video,
         };
@@ -113,8 +119,17 @@ function launch(): ApplicationLaunch {
 }
 
 async function save() {
-    if (!form.name.trim() || form.name !== form.name.trim()) {
-        message.error(t("applications.validation.name"));
+    const spec = {
+        name: form.name,
+        access: form.access,
+        launch: launch(),
+        allow_observer: form.kind === "rdp" ? false : form.allowObserver,
+        allow_takeover: form.kind === "rdp" ? false : form.allowTakeover,
+        disabled: form.disabled,
+    };
+    const validationKey = validateApplicationSpec(spec);
+    if (validationKey) {
+        message.error(t(validationKey));
         return;
     }
     if (form.access === "acl" && form.groupIds.length === 0) {
@@ -123,24 +138,21 @@ async function save() {
     }
     saving.value = true;
     try {
-        const spec = {
-            name: form.name,
-            access: form.access,
-            launch: launch(),
-            allow_observer: form.kind === "rdp" ? false : form.allowObserver,
-            allow_takeover: form.kind === "rdp" ? false : form.allowTakeover,
-            disabled: form.disabled,
-        };
         let application = editing.value
             ? await updateManagedApplication(editing.value, spec)
             : await createManagedApplication(spec);
+        // Retain the created identity/revision if saving group access fails, so retry does not create a duplicate.
+        editing.value = application;
         application = await replaceManagedApplicationGroups(
             application,
             form.access === "acl" ? form.groupIds : [],
         );
+        editing.value = application;
         editorOpen.value = false;
         message.success(t("applications.messages.saved"));
         await refresh();
+    } catch (error: unknown) {
+        message.error(t(applicationSaveErrorKey(error)));
     } finally {
         saving.value = false;
     }
@@ -194,6 +206,13 @@ useManagementRefresh(["applications"], refresh);
                     }}</a-tag></template
                 ></a-table-column
             >
+            <a-table-column :title="t('deployments.title')">
+                <template #default="{ record }">
+                    <a-button type="link" @click="deploymentApplicationId = record.id">{{
+                        t("deployments.manage")
+                    }}</a-button>
+                </template>
+            </a-table-column>
             <a-table-column :title="t('identity.users.actions')"
                 ><template #default="{ record }"
                     ><a-space
@@ -208,6 +227,13 @@ useManagementRefresh(["applications"], refresh);
             >
         </a-table>
     </a-card>
+
+    <ApplicationDeploymentsModal
+        v-if="deploymentApplication"
+        :key="deploymentApplication.id"
+        :application="deploymentApplication"
+        @close="deploymentApplicationId = ''"
+    />
 
     <a-modal
         v-model:open="editorOpen"
@@ -231,8 +257,11 @@ useManagementRefresh(["applications"], refresh);
                         }))
                     "
             /></a-form-item>
-            <a-form-item v-if="form.kind === 'game_hook'" :label="t('applications.executable')"
-                ><a-input v-model:value="form.executableRelative"
+            <a-form-item
+                v-if="form.kind === 'game_hook'"
+                :label="t('applications.executable')"
+                :extra="t('applications.executableHelp')"
+                ><a-input v-model:value="form.executablePath"
             /></a-form-item>
             <a-form-item v-if="form.kind === 'game_hook'" :label="t('applications.arguments')"
                 ><a-textarea v-model:value="form.arguments"

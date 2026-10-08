@@ -860,7 +860,7 @@ async fn node_credentials_and_management_roles_are_disjoint() {
     assert!(matches!(
         fixture
             .nodes
-            .rotate_key(&viewer, node.id, 1, &token())
+            .configure(&viewer, node.id, 1, settings())
             .await,
         Err(StoreError::Rejected)
     ));
@@ -990,13 +990,13 @@ async fn process_epoch_reset_requires_reauthentication_and_reconciliation() {
 }
 
 #[tokio::test]
-async fn concurrent_configuration_has_one_winner_and_rotation_fences_old_keys() {
+async fn concurrent_configuration_has_one_winner_and_preserves_connection() {
     let fixture = Fixture::new().await;
-    let (node, key) = fixture.node().await;
+    let (node, node_credential) = fixture.node().await;
     let epoch = fixture.nodes.begin_runtime().await.unwrap();
     let connection = fixture
         .nodes
-        .open_connection(epoch, &key, &token())
+        .open_connection(epoch, &node_credential, &token())
         .await
         .unwrap();
     let mut tasks = Vec::new();
@@ -1026,7 +1026,7 @@ async fn concurrent_configuration_has_one_winner_and_rotation_fences_old_keys() 
     assert!(current.draining);
     assert_eq!(current.revision, 2);
     // Capacity reduction/draining must not sever existing node control connectivity.
-    let small = fixture
+    let reduced_capacity = fixture
         .nodes
         .configure(
             &fixture.admin,
@@ -1040,25 +1040,8 @@ async fn concurrent_configuration_has_one_winner_and_rotation_fences_old_keys() 
         )
         .await
         .unwrap();
-    assert!(small.fresh);
-    let replacement = token();
-    let rotated = fixture
-        .nodes
-        .rotate_key(&fixture.admin, node.id, 3, &replacement)
-        .await
-        .unwrap();
-    assert!(!rotated.fresh);
-    assert!(fixture.nodes.report(&connection, &report(2)).await.is_err());
-    assert!(fixture
-        .nodes
-        .open_connection(epoch, &key, &token())
-        .await
-        .is_err());
-    assert!(fixture
-        .nodes
-        .open_connection(epoch, &replacement, &token())
-        .await
-        .is_ok());
+    assert!(reduced_capacity.fresh);
+    assert!(fixture.nodes.report(&connection, &report(2)).await.is_ok());
     fixture.close().await;
 }
 

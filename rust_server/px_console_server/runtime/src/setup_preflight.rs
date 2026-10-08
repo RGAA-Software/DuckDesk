@@ -1,14 +1,14 @@
 use px_pg::{DatabaseConfig, DatabaseError, Transport};
 use sqlx::Row;
-use std::{path::Path, time::Duration};
+use std::time::Duration;
 use url::Url;
 use zeroize::Zeroizing;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum SetupDatabaseError {
-    #[error("PostgreSQL connection requires an absolute TLS root certificate path")]
+    #[error("PostgreSQL connection configuration is invalid")]
     Configuration,
-    #[error("PostgreSQL is unavailable or TLS verification failed")]
+    #[error("PostgreSQL is unavailable at the configured host and port")]
     Unavailable,
     #[error("PostgreSQL administrator authentication failed")]
     Authentication,
@@ -28,18 +28,10 @@ pub async fn check_postgresql_administrator(
 ) -> Result<(), SetupDatabaseError> {
     let parsed_url =
         Url::parse(&administrator_url).map_err(|_| SetupDatabaseError::Configuration)?;
-    let certificate_paths = parsed_url
-        .query_pairs()
-        .filter(|(parameter_name, _)| parameter_name == "sslrootcert")
-        .map(|(_, certificate_path)| certificate_path.into_owned())
-        .collect::<Vec<_>>();
-    if certificate_paths.len() != 1
-        || !Path::new(&certificate_paths[0]).is_absolute()
-        || !Path::new(&certificate_paths[0]).is_file()
-    {
+    if parsed_url.query().is_some() {
         return Err(SetupDatabaseError::Configuration);
     }
-    let database_configuration = DatabaseConfig::parse(&administrator_url, Transport::VerifyFull)
+    let database_configuration = DatabaseConfig::parse(&administrator_url, Transport::PreferTls)
         .and_then(|configuration| configuration.with_pool_limits(1, Duration::from_secs(5)))
         .map_err(|_| SetupDatabaseError::Configuration)?;
     let pool = database_configuration
@@ -81,12 +73,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn rejects_setup_urls_without_a_real_explicit_tls_root() {
+    async fn rejects_setup_urls_with_unsupported_tls_options() {
         for administrator_url in [
-            "postgresql://admin:secret@localhost/postgres".to_owned(),
             "postgresql://admin:secret@localhost/postgres?sslrootcert=relative.pem".to_owned(),
-            "postgresql://admin:secret@localhost/postgres?sslrootcert=/not-present/ca.pem"
-                .to_owned(),
+            "postgresql://admin:secret@localhost/postgres?sslmode=disable".to_owned(),
         ] {
             assert_eq!(
                 check_postgresql_administrator(Zeroizing::new(administrator_url)).await,

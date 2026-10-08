@@ -192,7 +192,7 @@ private class FakeApi(
     override suspend fun testEndpoint(endpointInput: String) = AccountResult.Success(ConsoleEndpoint(endpointInput))
 
     override suspend fun guestSession(endpoint: ConsoleEndpoint) =
-        AccountResult.Success(GuestSession(endpoint, "guest", Long.MAX_VALUE))
+        AccountResult.Success(GuestSession(endpoint, "guest"))
 
     override suspend fun register(endpoint: ConsoleEndpoint, username: String, password: String) =
         AccountResult.Success(AccountProfile("new", username, null, false))

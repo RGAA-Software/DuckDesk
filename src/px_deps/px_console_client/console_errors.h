@@ -51,6 +51,9 @@ namespace px_console
         kMachineCodeNotMatched = 623,
         kMaxStreamsReached = 624,
         kFileTransferNotFound = 625,
+        kConnectionRetiring = 626,
+        kConnectionBusy = 627,
+        kGpuMemoryExhausted = 628,
     };
 
     static std::string ConsoleApiErrorAsString(const ConsoleApiError& err) {
@@ -91,6 +94,9 @@ namespace px_console
             case ConsoleApiError::kMachineCodeNotMatched: return "Machine code not matched";
             case ConsoleApiError::kMaxStreamsReached: return "Max streams reached, no available connection";
             case ConsoleApiError::kFileTransferNotFound: return "File transfer not found";
+            case ConsoleApiError::kConnectionRetiring: return "Previous connection capacity is being released";
+            case ConsoleApiError::kConnectionBusy: return "Connection capacity is occupied";
+            case ConsoleApiError::kGpuMemoryExhausted: return "Insufficient GPU memory to start the application";
             default: return "Unknown error";
         }
     }

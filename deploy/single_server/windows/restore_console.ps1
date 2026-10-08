@@ -81,8 +81,6 @@ $expectedHash = [string]$consoleMember[0].member.archive_sha256
 if ($expectedHash -cnotmatch '^[0-9a-f]{64}$' -or (Get-FileHashLower $archivePath) -cne $expectedHash) {
     throw 'Console archive SHA-256 differs from its manifest.'
 }
-$certificatePath = Join-Path ([IO.Path]::GetFullPath($ConfigRoot)) 'postgresql-ca.crt'
-Assert-PlainFile $certificatePath
 $toolRoot = Join-Path ([IO.Path]::GetFullPath($InstallRoot)) 'current\postgresql\bin'
 $createDatabaseTool = Join-Path $toolRoot 'createdb.exe'
 $restoreTool = Join-Path $toolRoot 'pg_restore.exe'
@@ -119,12 +117,10 @@ $backupService = Get-Service -Name $backupServiceName -ErrorAction Stop
 $backupWasRunning = $backupService.Status -eq 'Running'
 $previousPgpass = $env:PGPASSFILE
 $previousSslMode = $env:PGSSLMODE
-$previousRootCertificate = $env:PGSSLROOTCERT
 try {
     if ($backupWasRunning) { Stop-Service -Name $backupServiceName -ErrorAction Stop }
     $env:PGPASSFILE = $passwordPath
-    $env:PGSSLMODE = 'verify-full'
-    $env:PGSSLROOTCERT = $certificatePath
+    $env:PGSSLMODE = 'prefer'
     $hostName = [string]$databaseTarget[0].database.host
     $port = [string]$databaseTarget[0].database.port
     $connectionArguments = @('--host', $hostName, '--port', $port, '--username', $PgUser, '--no-password')
@@ -141,6 +137,5 @@ try {
 } finally {
     $env:PGPASSFILE = $previousPgpass
     $env:PGSSLMODE = $previousSslMode
-    $env:PGSSLROOTCERT = $previousRootCertificate
     if ($backupWasRunning) { Start-Service -Name $backupServiceName -ErrorAction Stop }
 }

@@ -8,8 +8,11 @@ import GroupManager from "@/views/GroupManager.vue";
 import ProfileInfo from "@/views/ProfileInfo.vue";
 import OnlineConnection from "@/views/OnlineConnection.vue";
 import LoginView from "@/views/LoginView.vue";
+import DatabaseBackup from "@/views/DatabaseBackup.vue";
+import RelayManagement from "@/views/RelayManagement.vue";
 import AppsView from "@/views/AppsView.vue";
 import TelemetryAlerts from "@/views/TelemetryAlerts.vue";
+import NodeAlertsCard from "@/views/dashboard/NodeAlertsCard.vue";
 import { queryAdminSession } from "@/model/admin_session_api.ts";
 import UserLayout from "@/user/UserLayout.vue";
 import UserLogin from "@/user/UserLogin.vue";
@@ -68,6 +71,18 @@ const router = createRouter({
                     },
                 },
                 {
+                    path: "/relays",
+                    name: "relays",
+                    component: RelayManagement,
+                    meta: { titleKey: "navigation.relays", requiresAuth: true },
+                },
+                {
+                    path: "/database-backup",
+                    name: "database-backup",
+                    component: DatabaseBackup,
+                    meta: { titleKey: "navigation.databaseBackup", requiresAuth: true },
+                },
+                {
                     path: "/security-internal",
                     name: "security-internal",
                     component: SecurityInternal,
@@ -84,6 +99,12 @@ const router = createRouter({
                         titleKey: "navigation.telemetryAlerts",
                         requiresAuth: true,
                     },
+                },
+                {
+                    path: "/node-alerts",
+                    name: "node-alerts",
+                    component: NodeAlertsCard,
+                    meta: { titleKey: "dashboard.nodeAlerts.title", requiresAuth: true },
                 },
                 {
                     path: "/user-manager",
@@ -172,6 +193,10 @@ router.beforeEach(async to => {
         const user = await queryUser();
         if (!user) return { path: "/user/login", query: { redirect: to.fullPath }, replace: true };
         return true;
+    }
+    if (to.name === "login") {
+        const admin = await queryAdminSession();
+        return admin ? { path: "/resources", replace: true } : true;
     }
     if (!to.meta.requiresAuth) return true;
     const admin = await queryAdminSession();

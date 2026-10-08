@@ -8,8 +8,10 @@ import { useTheme } from "@/composables/useTheme";
 import { useManagementEventConnection } from "@/model/management_events.ts";
 const route = useRoute();
 const { isDark } = useTheme();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 useManagementEventConnection();
+
+const sidebarWidth = computed(() => locale.value === "en" ? 240 : 160);
 
 const headerTitle = computed(() => {
     const titleKey = route.meta.titleKey as string | undefined;
@@ -18,11 +20,11 @@ const headerTitle = computed(() => {
 </script>
 
 <template>
-    <a-layout class="min-h-screen">
-        <a-layout-sider width="160px" :theme="isDark ? 'dark' : 'light'">
+    <a-layout class="console-layout">
+        <a-layout-sider :width="sidebarWidth" :theme="isDark ? 'dark' : 'light'">
             <AsideView />
         </a-layout-sider>
-        <a-layout>
+        <a-layout class="console-main">
             <a-layout-header
                 :style="{
                     background: isDark ? '#141414' : '#fff',
@@ -33,11 +35,22 @@ const headerTitle = computed(() => {
             >
                 <HeaderView :title="headerTitle" authInfo="" />
             </a-layout-header>
-            <a-layout-content>
+            <a-layout-content class="console-content">
                 <RouterView />
             </a-layout-content>
         </a-layout>
     </a-layout>
 </template>
 
-<style scoped></style>
+<style scoped>
+.console-layout {
+    min-height: 100vh;
+}
+.console-main {
+    min-width: 0;
+}
+.console-content {
+    min-width: 0;
+    padding: 16px;
+}
+</style>

@@ -10,6 +10,7 @@ members = [
     "px_private_files",
     "px_backup",
     "px_server_service",
+    "px_server_tray",
     "px_pg",
     "px_console_server/storage",
     "px_auth_server/license",

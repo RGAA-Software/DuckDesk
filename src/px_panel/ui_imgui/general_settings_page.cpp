@@ -83,15 +83,6 @@ std::optional<px::ui::Theme> GeneralSettingsPage::Draw(px::ui::Localizer& locali
             port_->SetTheme(theme);
         }
 
-        ImGui::TableNextRow(ImGuiTableRowFlags_None, px::ui::Scale(40.0F));
-        ImGui::TableNextColumn();
-        ImGui::AlignTextToFramePadding();
-        px::ui::MutedText(localizer.Text(px::ui::TextId::EnhancedVisualEffects));
-        ImGui::TableNextColumn();
-        bool enhancedVisualEffects{port_->Snapshot().enhancedVisualEffects};
-        if (px::ui::ToggleSwitch({"general-effects"}, {}, enhancedVisualEffects)) {
-            port_->SetEnhancedVisualEffects(enhancedVisualEffects);
-        }
         ImGui::EndTable();
     }
 #if PX_CAPABILITY_JOYSTICK

@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.id AS node_id,n.generation,n.control_epoch AS \"control_epoch!\",n.endpoint_revision,\nn.public_host AS \"host!\",n.desktop_port AS \"port!\",'native'::text AS \"transport!\",\nNULL::text AS rdp_domain,NULL::text AS rdp_proxy_certificate_sha256\nFROM pixels.nodes n JOIN pixels.devices d ON d.id=n.device_id\nWHERE d.id=$1 AND n.state='ready' AND NOT n.disabled AND n.deleted_at IS NULL AND NOT d.disabled AND d.deleted_at IS NULL\nAND n.control_epoch=(SELECT epoch FROM pixels.control_runtime)\nAND n.last_seen>clock_timestamp()-interval '30 seconds' AND n.report_sequence>0\nAND n.public_host IS NOT NULL AND n.desktop_port IS NOT NULL\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "control_epoch!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "host!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "port!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "transport!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "rdp_domain",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "rdp_proxy_certificate_sha256",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "f2ca9ee7576f0f5e20ab81a6c0f3a585379aa3bbead84c68fcdf553618891798"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH changed AS (UPDATE pixels.users\nSET password_hash = $3, authorization_revision = authorization_revision + 1,\n    revision = revision + 1, updated_at = clock_timestamp()\nWHERE id = $1 AND authorization_revision = $2 AND deleted_at IS NULL AND NOT disabled\nRETURNING id,authorization_revision),\nevents AS (INSERT INTO pixels.authorization_outbox(id,user_id,authorization_revision,reason)\nSELECT gen_random_uuid(),id,authorization_revision,'password_changed' FROM changed RETURNING id)\nSELECT authorization_revision AS \"authorization_revision!\" FROM changed\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "authorization_revision!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "407f9855652e4acc8b166928738600675a65f6c3253e71c8fdffc6ba3d97b3a6"
+}

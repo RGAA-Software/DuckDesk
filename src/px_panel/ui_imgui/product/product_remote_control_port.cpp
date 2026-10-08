@@ -113,7 +113,7 @@ public:
             while (!stopToken.stop_requested()) {
                 {
                     std::unique_lock lock{loopState->mutex};
-                    loopState->wakeup.wait_for(lock, stopToken, std::chrono::seconds{2}, [] { return false; });
+                    loopState->wakeup.wait_for(lock, stopToken, std::chrono::seconds{10}, [] { return false; });
                 }
                 if (stopToken.stop_requested()) return;
                 const auto self = weakSelf.lock();
@@ -615,7 +615,7 @@ private:
         std::string endpointFailures{};
         bool renderEndpointReached{};
         bool passwordVerificationUnavailable{};
-        const std::string nonce{GetUUID()};
+        const std::string nonce{GenerateRandomBase64Id()};
         const bool consoleAuthorized = target.frontendToken && !target.frontendToken->Bytes().empty();
         for (const auto& host : target.hosts) {
             const std::string endpoint{host + ":" + std::to_string(target.port)};
@@ -718,7 +718,8 @@ private:
             connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::LaunchClient);
             const std::string remoteDeviceId{target.deviceId.empty() ? configuration->device_id_ : target.deviceId};
             const std::string displayName{target.displayName.empty() ? host : target.displayName};
-            const std::string sessionId{consoleAuthorized ? target.frontendSessionId : (fileTransfer ? "file-" : "direct-") + GetUUID()};
+            const std::string sessionId{consoleAuthorized ? target.frontendSessionId
+                                                         : (fileTransfer ? "file-" : "direct-") + GenerateRandomBase64Id()};
             const auto preference = runtime_->Config()->LoadRemoteDevicePreference(remoteDeviceId).value_or(RemoteDevicePreference{});
             if (consoleAuthorized && preference.forceRelay &&
                 (target.relayHost.empty() || target.relayPort <= 0 || target.relayAdmissionTicket.empty())) {
@@ -921,12 +922,12 @@ private:
                 }
                 cards.push_back(existing);
             }
-            RefreshConsoleDevicePresence(
-                cards, selectedConsoleOrigin,
-                [endpoint, managerOnline](const std::string& publicDeviceCode) -> std::optional<px_console::ConsolePublicDeviceEndpoint> {
-                    if (!endpoint || !managerOnline) return std::nullopt;
-                    auto resolved = px_console::ConsoleUserDeviceApi::ResolvePublicCode(endpoint->host, endpoint->port, publicDeviceCode);
-                    return resolved ? std::optional{std::move(resolved.value())} : std::nullopt;
+            // Do not publish responses from a Console that was changed while requests were in flight.
+            if (runtime->Config()->ConsoleAddress() != selectedConsoleOrigin) return;
+            self->devicePresence_.Refresh(
+                cards, selectedConsoleOrigin, [endpoint](const std::string& publicDeviceCode) -> PanelDevicePresence::LookupResult {
+                    if (!endpoint) return TcErr(px_console::ConsoleApiError::kInvalidHostAddress);
+                    return px_console::ConsoleUserDeviceApi::ResolvePublicCode(endpoint->host, endpoint->port, publicDeviceCode);
                 });
             // Do not publish responses from a Console that was changed while requests were in flight.
             if (runtime->Config()->ConsoleAddress() != selectedConsoleOrigin) return;
@@ -945,6 +946,7 @@ private:
     std::shared_ptr<PanelCredentialVault> credentialVault_{};
     mutable std::mutex mutex_{};
     std::vector<ui::RemoteDeviceCard> devices_{};
+    PanelDevicePresence devicePresence_{};  // Accessed only by the serialized Panel worker.
     std::unordered_map<std::string, ActiveSession> activeSessions_{};
     ConnectionProgressTracker connectionProgress_{};
     std::atomic_bool showPassword_{};

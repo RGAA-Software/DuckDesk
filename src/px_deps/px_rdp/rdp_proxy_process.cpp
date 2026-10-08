@@ -112,35 +112,42 @@ struct EnvironmentCloser final {
 };
 
 std::vector<wchar_t> ProxyEnvironment(const RdpProxyLaunch& launch) {
-    const auto existing = std::unique_ptr<wchar_t, EnvironmentCloser>{GetEnvironmentStringsW()};
-    if (!existing) {
+    const auto inherited_environment = std::unique_ptr<wchar_t, EnvironmentCloser>{GetEnvironmentStringsW()};
+    if (!inherited_environment) {
         return {};
     }
-    std::vector<std::wstring> entries{};
-    std::size_t offset{};
-    while (existing.get()[offset] != L'\0') {
-        const auto entry = std::wstring_view{existing.get() + offset};
-        offset += entry.size() + 1;
-        auto upper = std::wstring(entry);
-        std::ranges::transform(upper, upper.begin(), [](wchar_t value) { return value >= L'a' && value <= L'z' ? value - (L'a' - L'A') : value; });
-        if (!upper.starts_with(L"WINPR_NATIVE_SSPI=") && !upper.starts_with(L"OPENSSL_MODULES=") &&
-            !upper.starts_with(L"PIXELS_RDP_TARGET_CERT_SHA256=") && !upper.starts_with(L"PIXELS_RDP_AUDIT_PATH=")) {
-            entries.emplace_back(entry);
+    std::vector<std::wstring> proxy_environment_entries{};
+    std::size_t environment_offset{};
+    while (inherited_environment.get()[environment_offset] != L'\0') {
+        const auto environment_entry = std::wstring_view{inherited_environment.get() + environment_offset};
+        environment_offset += environment_entry.size() + 1;
+        auto uppercase_entry = std::wstring(environment_entry);
+        std::ranges::transform(uppercase_entry, uppercase_entry.begin(),
+                               [](wchar_t character) { return character >= L'a' && character <= L'z' ? character - (L'a' - L'A') : character; });
+        if (!uppercase_entry.starts_with(L"WINPR_NATIVE_SSPI=") && !uppercase_entry.starts_with(L"OPENSSL_MODULES=") &&
+            !uppercase_entry.starts_with(L"PIXELS_RDP_TARGET_CERT_SHA256=") && !uppercase_entry.starts_with(L"PIXELS_RDP_AUDIT_PATH=") &&
+            !uppercase_entry.starts_with(L"WLOG_")) {
+            proxy_environment_entries.emplace_back(environment_entry);
         }
     }
-    entries.emplace_back(L"WINPR_NATIVE_SSPI=1");
-    entries.emplace_back(L"OPENSSL_MODULES=" + launch.proxy_directory.wstring());
-    entries.emplace_back(L"PIXELS_RDP_TARGET_CERT_SHA256=" +
-                         std::wstring(launch.target_certificate_sha256.begin(), launch.target_certificate_sha256.end()));
-    entries.emplace_back(L"PIXELS_RDP_AUDIT_PATH=" + (launch.private_root / (launch.workspace_id + ".audit.log")).wstring());
-    std::ranges::sort(entries);
-    std::vector<wchar_t> environment{};
-    for (const auto& entry : entries) {
-        environment.insert(environment.end(), entry.begin(), entry.end());
-        environment.push_back(L'\0');
+    proxy_environment_entries.emplace_back(L"WINPR_NATIVE_SSPI=1");
+    proxy_environment_entries.emplace_back(L"OPENSSL_MODULES=" + launch.proxy_directory.wstring());
+    proxy_environment_entries.emplace_back(L"PIXELS_RDP_TARGET_CERT_SHA256=" +
+                                           std::wstring(launch.target_certificate_sha256.begin(), launch.target_certificate_sha256.end()));
+    proxy_environment_entries.emplace_back(L"PIXELS_RDP_AUDIT_PATH=" + (launch.private_root / (launch.workspace_id + ".audit.log")).wstring());
+    proxy_environment_entries.emplace_back(L"WLOG_APPENDER=FILE");
+    proxy_environment_entries.emplace_back(L"WLOG_LEVEL=WARN");
+    proxy_environment_entries.emplace_back(L"WLOG_FILEAPPENDER_OUTPUT_FILE_PATH=" + launch.private_root.wstring());
+    proxy_environment_entries.emplace_back(L"WLOG_FILEAPPENDER_OUTPUT_FILE_NAME=" +
+                                           std::wstring(launch.instance_id.begin(), launch.instance_id.end()) + L".proxy.log");
+    std::ranges::sort(proxy_environment_entries);
+    std::vector<wchar_t> proxy_environment{};
+    for (const auto& environment_entry : proxy_environment_entries) {
+        proxy_environment.insert(proxy_environment.end(), environment_entry.begin(), environment_entry.end());
+        proxy_environment.push_back(L'\0');
     }
-    environment.push_back(L'\0');
-    return environment;
+    proxy_environment.push_back(L'\0');
+    return proxy_environment;
 }
 
 bool OwnsListener(DWORD pid, std::uint16_t port) {
@@ -255,7 +262,13 @@ std::unique_ptr<RdpProxyProcess> RdpProxyProcess::Start(const RdpProxyLaunch& la
     }
     for (int attempt{}; attempt < 100; ++attempt) {
         if (WaitForSingleObject(owner->process_.get(), 50) != WAIT_TIMEOUT) {
-            break;
+            DWORD exit_code{};
+            if (GetExitCodeProcess(owner->process_.get(), &exit_code) && exit_code != STILL_ACTIVE) {
+                error = std::format("RDP proxy exited before listener readiness (Windows exit code {}); see private proxy log", exit_code);
+            } else {
+                error = "RDP proxy readiness wait failed; see private proxy log";
+            }
+            return {};
         }
         if (OwnsListener(output.dwProcessId, launch.proxy_port)) {
             // The pinned proxy has parsed configuration before binding its

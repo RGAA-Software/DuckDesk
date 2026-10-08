@@ -34,12 +34,13 @@ public:
     [[nodiscard]] std::optional<px_console::ConsolePublicDeviceEndpoint> ResolvePublicDeviceCode(const std::string& publicDeviceCode);
     [[nodiscard]] std::optional<px_console::ConsoleNativeDeviceConnection> QueryNativeDeviceConnection(const std::string& deviceId,
                                                                                                        bool viewOnly = false);
-    [[nodiscard]] std::vector<px_console::ConsoleUserApplication> QueryApplications();
+    [[nodiscard]] px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError> QueryApplications();
     [[nodiscard]] px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApplication(const std::string& appId,
-                                                                                                               const std::string& nonce);
+                                                                                                               const std::string& requestId);
     [[nodiscard]] px::Result<px_console::ConsoleNativeApplicationConnection, px_console::ConsoleApiError> QueryNativeApplicationConnection(
         const std::string& instanceId, bool viewOnly, const std::string& requestId);
     bool CloseResourceConnection(const std::string& sessionId, std::int64_t sessionRevision);
+    [[nodiscard]] px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> QueryApplicationInstance(const std::string& instanceId);
     bool StopApplication(const std::string& instanceId);
 
 private:

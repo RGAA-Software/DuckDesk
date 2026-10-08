@@ -181,14 +181,6 @@ async fn authenticated_node_websocket_fences_generation_and_drives_reconciliatio
             "configuration":{
                 "target":{"kind":"webview"},
                 "gpu_key":null,
-                "gpu_profile":{
-                    "memory_bytes":1073741824_u64,
-                    "compute_per_mille":100,
-                    "encoder_per_mille":100,
-                    "memory_reserve_bytes":1073741824_u64,
-                    "compute_limit_per_mille":900,
-                    "encoder_limit_per_mille":900
-                },
                 "capacity":4,
                 "disabled":false
             }
@@ -1259,7 +1251,6 @@ async fn rdp_start_fetches_one_leased_workspace_confirms_sid_and_issues_no_relay
             "configuration":{
                 "target":{"kind":"rdp"},
                 "gpu_key":null,
-                "gpu_profile":null,
                 "capacity":1,
                 "disabled":false
             }
@@ -1350,7 +1341,7 @@ async fn rdp_start_fetches_one_leased_workspace_confirms_sid_and_issues_no_relay
     assert_eq!(instance_status.as_u16(), 201, "{instance}");
     let start_command = exchange(&mut socket, json!({"type":"poll_command","request_id":7})).await;
     assert_eq!(start_command["command"]["action"]["launch"]["kind"], "rdp");
-    assert!(start_command["command"]["action"]["gpu_reservation"].is_null());
+    assert!(start_command["command"]["action"]["gpu_binding"].is_null());
     assert!(start_command["command"]["action"]["relay"].is_null());
     assert!(!start_command.to_string().contains("password"));
 

@@ -35,6 +35,7 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                            .ring = Rgba(0, 154, 89),
                            .success = Rgba(22, 163, 74),
                            .warning = Rgba(217, 119, 6),
+                           .floatingControllerShadow = Rgba(0, 0, 0, 0.08F),
                            .videoOverlayForeground = Rgba(255, 255, 255),
                            .videoOverlayOutline = Rgba(0, 0, 0, 0.9F),
                            .videoRecordingForeground = Rgba(255, 59, 48)};
@@ -60,6 +61,7 @@ ThemeTokens ThemeTokensFor(const Theme theme) noexcept {
                        .ring = Rgba(83, 212, 179),
                        .success = Rgba(78, 208, 153),
                        .warning = Rgba(246, 194, 103),
+                       .floatingControllerShadow = Rgba(0, 0, 0, 0.08F),
                        .videoOverlayForeground = Rgba(255, 255, 255),
                        .videoOverlayOutline = Rgba(0, 0, 0, 0.9F),
                        .videoRecordingForeground = Rgba(255, 59, 48)};

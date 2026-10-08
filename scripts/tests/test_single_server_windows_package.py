@@ -17,6 +17,75 @@ from setup.make_single_server import validate_package
 
 
 class SingleServerWindowsPackageTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Tray upgrade verification uses Windows PowerShell")
+    def test_upgrade_stops_only_the_installed_tray_without_wmi(self) -> None:
+        repository_root = Path(__file__).resolve().parents[2]
+        install_script = repository_root / "deploy/single_server/windows/install.ps1"
+        verification_script = r'''
+$ErrorActionPreference = 'Stop'
+$script:stoppedProcessIds = @()
+function Get-Process {
+    param([string]$Name, [string]$ErrorAction)
+    @(
+        [pscustomobject]@{ Id=23103; Path='C:\PixelsTest\current\bin\px_server_tray.exe' },
+        [pscustomobject]@{ Id=23104; Path='C:\OtherProduct\px_server_tray.exe' },
+        [pscustomobject]@{ Id=23105; Path=$null }
+    )
+}
+function Stop-Process {
+    param([int]$Id, [switch]$Force, [string]$ErrorAction)
+    $script:stoppedProcessIds += $Id
+}
+$parseTokens=$null
+$parseErrors=$null
+$installSyntax=[Management.Automation.Language.Parser]::ParseFile('__INSTALL_SCRIPT__',[ref]$parseTokens,[ref]$parseErrors)
+if ($parseErrors.Count) { throw 'Installer script syntax is invalid' }
+$trayFunction=$installSyntax.Find({param($syntaxNode) $syntaxNode -is [Management.Automation.Language.FunctionDefinitionAst] -and $syntaxNode.Name -eq 'Stop-InstalledTray'},$true)
+if ($null -eq $trayFunction) { throw 'Tray upgrade function is absent' }
+if ($trayFunction.Extent.Text.Contains('Get-CimInstance')) { throw 'Tray shutdown must not depend on WMI' }
+. ([scriptblock]::Create($trayFunction.Extent.Text))
+Stop-InstalledTray -ExecutablePath 'C:\PixelsTest\current\bin\px_server_tray.exe'
+if ($script:stoppedProcessIds.Count -ne 1 -or $script:stoppedProcessIds[0] -ne 23103) {
+    throw ('Incorrect tray process selection: ' + ($script:stoppedProcessIds -join ','))
+}
+Write-Output 'PASS exact installed tray PID; unrelated processes preserved'
+'''.replace("__INSTALL_SCRIPT__", str(install_script).replace("'", "''"))
+        verification = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", verification_script],
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+        self.assertEqual(verification.returncode, 0, verification.stderr)
+        self.assertIn("PASS exact installed tray PID", verification.stdout)
+
+    def test_first_setup_initializes_automatically_and_opens_console_interactively(self) -> None:
+        repository_root = Path(__file__).resolve().parents[2]
+        automatic_setup = (repository_root / "rust_server/px_console_server/runtime/src/setup_auto.rs").read_text(
+            encoding="utf-8",
+        )
+        installer = (repository_root / "setup/single_server.nsi").read_text(encoding="utf-8")
+        setup_staging = (repository_root / "deploy/single_server/windows/stage_setup.ps1").read_text(
+            encoding="utf-8",
+        )
+        self.assertIn('const DEFAULT_USERNAME: &str = "Pixels"', automatic_setup)
+        self.assertIn('const DEFAULT_PASSWORD: &str = "Pixels@123"', automatic_setup)
+        self.assertIn('postgresql_port: 5432', automatic_setup)
+        self.assertIn('"localhost".to_owned()', automatic_setup)
+        self.assertIn('initialize_single_server(default_setup_input()?', automatic_setup)
+        self.assertIn('register_relay(&layout, &console_origin)', automatic_setup)
+        self.assertIn('"configuration": {"draining": false, "disabled": false}', automatic_setup)
+        self.assertIn('& $administrator setup-server', setup_staging)
+        self.assertIn("Write-Output 'SETUP_READY'", setup_staging)
+        self.assertIn('IfFileExists "$ConfigRoot\\setup.complete" existing_install fresh_install', installer)
+        self.assertIn('StrCpy $OpenConsolePage "1"', installer)
+        self.assertIn('Function .onGUIEnd', installer)
+        self.assertIn('ExecShell "open" "$0/"', installer)
+        self.assertIn('ExecShell "open" "$INSTDIR\\current\\bin\\px_server_tray.exe"', installer)
+        self.assertIn('"PixelsServerTray"', installer)
+        self.assertIn('nsExec::ExecToStack', installer)
+        self.assertIn('Pop $InstallOutput', installer)
+        self.assertFalse((repository_root / "setup/single_server_setup.html").exists())
+        self.assertNotIn("4700", installer + setup_staging)
+
     @unittest.skipUnless(os.name == "nt", "Windows recovery entry uses PowerShell")
     def test_console_recovery_preflight_verifies_archive_without_creating_database(self) -> None:
         power_shells = [shell for name in ("powershell", "pwsh") if (shell := shutil.which(name))]
@@ -112,8 +181,12 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
             manifest = json.loads((output / "sha256.json").read_text(encoding="utf-8"))
             self.assertIn("stage_setup.ps1", manifest["files"])
             self.assertIn("restore_console.ps1", manifest["files"])
+            self.assertIn("upgrade_console_database.ps1", manifest["files"])
             self.assertIn("restore_console.md", manifest["files"])
             self.assertIn("assets/license-trust.json", manifest["files"])
+            self.assertIn("assets/starter-license.pxlic2", manifest["files"])
+            self.assertIn("assets/tray.ico", manifest["files"])
+            self.assertIn("bin/px_server_tray.exe", manifest["files"])
             self.assertNotIn("bin/px_desk.exe", manifest["files"])
             self.assertNotIn("bin/px_auth.exe", manifest["files"])
             retired_manifest = dict(manifest)
@@ -156,6 +229,12 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows preflight uses the Windows service manager")
     def test_install_preflight_does_not_change_services(self) -> None:
+        existing_backup = subprocess.run([
+            "powershell.exe", "-NoProfile", "-Command",
+            "Get-Service -Name 'Pixels.Backup.*' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name",
+        ], capture_output=True, text=True, check=True).stdout.strip()
+        if existing_backup:
+            self.skipTest("Isolated preflight fixture requires no installed Pixels Backup service")
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             binaries = root / "binaries"
@@ -195,8 +274,8 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                 "-ConfigRoot", str(config), "-DataRoot", str(persistent_data),
                 "-InstallRoot", str(root / "install"), "-PreflightOnly",
             ], capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("PREFLIGHT_OK", result.stdout)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Database upgrade preflight failed", result.stderr)
             self.assertFalse((root / "install").exists())
             official_environment = (config / "console.env").read_text(encoding="utf-8")
             (config / "console.env").write_text(
@@ -220,8 +299,8 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
                 "-ConfigRoot", str(config), "-DataRoot", str(persistent_data),
                 "-InstallRoot", str(installation), "-PreflightOnly",
             ], capture_output=True, text=True)
-            self.assertEqual(repeat_preflight.returncode, 0, repeat_preflight.stderr)
-            self.assertIn("PREFLIGHT_OK", repeat_preflight.stdout)
+            self.assertNotEqual(repeat_preflight.returncode, 0)
+            self.assertIn("Database upgrade preflight failed", repeat_preflight.stderr)
             (installation / "deployment.id").write_text(
                 "22222222-2222-4222-8222-222222222222\n", encoding="utf-8"
             )
@@ -236,6 +315,9 @@ class SingleServerWindowsPackageTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows uninstall uses the Windows service manager")
     def test_uninstall_preserves_data_without_private_configuration(self) -> None:
+        existing_console = subprocess.run(["sc.exe", "query", "Pixels.Console"], capture_output=True).returncode == 0
+        if existing_console:
+            self.skipTest("Isolated uninstall fixture requires no installed Pixels Console service")
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             installation = root / "installation"

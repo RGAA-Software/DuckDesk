@@ -24,6 +24,7 @@ class RecordingSession;
 class SdkStatistics;
 class VoiceCallController;
 class NetClient;
+class SdkTimer;
 struct WindowsVideoResources;
 struct VoiceCallStatus;
 namespace ft {
@@ -188,6 +189,7 @@ private:
     std::shared_ptr<px::MessageListener> listener_{};
     std::shared_ptr<px::ThunderSdk> sdk_{};
     std::shared_ptr<px::NetClient> rdpNetwork_{};
+    std::shared_ptr<px::SdkTimer> rdpTimer_{};
     std::shared_ptr<px::rdp::RdpClientEndpoint> rdpEndpoint_{};
     std::shared_ptr<px::rdp::RdpSession> rdpSession_{};
     std::unique_ptr<ClientAudioOutput> audio_{};

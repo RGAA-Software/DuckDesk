@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.nodes SET state='ready',reconciliation_id=NULL,reconciliation_deadline=NULL\nWHERE id=$1 AND reconciliation_id=$2 AND reconciliation_deadline>clock_timestamp() AND state='reconciling'\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5cb22085c69f04841c0fbd1d580502fd627df2990674c1d4588473186d267bfe"
+}

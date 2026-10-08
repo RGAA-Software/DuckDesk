@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id,\r\n       d.application_id,\r\n       d.kind,\r\n       a.executable_path,\r\n       d.gpu_key,\r\n       d.disabled,\r\n       d.revision AS deployment_revision,\r\n       d.application_revision\r\nFROM pixels.application_deployments d\r\nJOIN pixels.applications a ON a.id = d.application_id\r\nWHERE d.node_id = $1\n  AND a.deleted_at IS NULL\n  AND ($2::uuid IS NULL OR d.id > $2)\r\nORDER BY d.id\r\nLIMIT $3\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "executable_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "deployment_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 7,
+        "name": "application_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c4e7ef7d0f6a3837ed1f8d234e2edb540a9b28befcdbd0b44413c472e5a009a1"
+}

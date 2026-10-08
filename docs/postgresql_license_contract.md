@@ -28,7 +28,7 @@ schema, license_id, deployment_id, revision, issued_at, expires_at, max_streams,
 - `schema=2`；`license_id` 和 `deployment_id` 是非 nil、标准小写带连字符 UUID。
 - `revision` 是正 i64；`issued_at` 和 `expires_at` 是整数 Unix 秒，并满足
   `0 <= issued_at < expires_at <= 253402300799`。
-- `max_streams` 是正 u32，表示整个 Console deployment 同时存在的未关闭资源流总上限。
+- `max_streams` 是正 u32，表示整个 Console deployment 同时存在的未关闭资源会话与有效设备密码直连媒体租期的合计上限。
 - `services` 是非空、有序、无重复数组，当前闭集为 `cloud_applications`、`desktop`、`rdp`。
 - `key_id` 是签发公钥原始 32 字节 SHA-256 的小写 hex64。
 
@@ -52,11 +52,15 @@ Console 启动时从受控文件读取 Auth 许可证公钥信任根和唯一 `P
 1. wire、payload 和签名均为规范编码；
 2. `key_id` 精确命中信任根中的公钥；
 3. `deployment_id` 与当前 Console deployment 完全一致；
-4. 当前时间早于 `expires_at`；
+4. `issued_at` 允许最多 30 秒签发端/Console 时钟误差，当前时间必须严格早于 `expires_at`；
 5. stream 上限和服务集合满足上述闭集约束。
 
 Console 在业务准入时继续检查到期时间。`max_streams` 通过 PostgreSQL 事务和 advisory lock 竞争最后名额；
 `cloud_applications`、`desktop`、`rdp` 分别门控云应用、桌面和 RDP 会话。设备登记不占 stream。
+设备密码直连的媒体准入由 Render 经已认证节点 Service 请求 Console 30 秒租期并持续续租；Render 只执行 Console 的准入结果，不解析许可证。
+入门许可证的桌面单路限制同时统计账号桌面会话和上述直连租期。纯文件传输不计媒体 stream。
+
+Single Server 包内另有一张由正式 Auth 私钥签发的通用离线入门 PXLIC2。它使用固定的 starter deployment ID，且只有在签名有效、revision=1、`max_streams=4`、三个服务均授权时，Console 才允许它用于任意非空实际 deployment；普通许可证仍须精确绑定实际 deployment。入门许可证在上述全局 4 路上限内，另由 Console 数据库事务限制远程桌面、game_hook、webview、RDP 各同时最多 1 路。它不含签发私钥，也不允许扩大为其他授权。管理员可通过 Console 网页上传同实际 deployment 绑定的正式 PXLIC2，原子替换入门许可证；覆盖安装保留已更新的许可证。
 
 许可证信任根仅用于 Auth 签名密钥轮换，可以在有界集合中暂时保留新旧公钥；只有活动私钥用于签发。它不是部署证书或客户端 trust store，
 不参与 TLS、平台发现、客户端登录和升级路由。连接安全使用正常 HTTPS/TLS。

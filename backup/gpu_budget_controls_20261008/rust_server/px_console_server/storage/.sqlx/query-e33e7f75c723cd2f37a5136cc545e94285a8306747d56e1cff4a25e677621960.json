@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.id FROM pixels.nodes n\nWHERE n.id=$1 AND n.connection_hash=$2 AND n.generation=$3 AND n.control_epoch=$4\n AND $4=(SELECT epoch FROM pixels.control_runtime)\n AND NOT n.disabled AND n.deleted_at IS NULL\n AND EXISTS(SELECT 1 FROM pixels.devices d WHERE d.id=n.device_id AND NOT d.disabled AND d.deleted_at IS NULL)\nFOR UPDATE OF n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e33e7f75c723cd2f37a5136cc545e94285a8306747d56e1cff4a25e677621960"
+}

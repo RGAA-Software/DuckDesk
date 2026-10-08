@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.id,n.generation,n.control_epoch AS \"control_epoch!\",n.endpoint_revision\nFROM pixels.nodes n JOIN pixels.devices d ON d.id=n.device_id\nWHERE n.id=$1 AND n.connection_hash=$2 AND n.generation=$3 AND n.control_epoch=$4\nAND $4=(SELECT epoch FROM pixels.control_runtime) AND n.last_seen>clock_timestamp()-interval '30 seconds'\nAND n.report_sequence>0 AND NOT n.disabled AND n.deleted_at IS NULL AND NOT d.disabled AND d.deleted_at IS NULL\nFOR UPDATE OF n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "control_epoch!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3d010473835677b581259477412328ef5b59a09fccfc2638f48794727027026e"
+}

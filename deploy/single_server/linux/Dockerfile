@@ -13,6 +13,7 @@ COPY ${PACKAGE_DIRECTORY}/bin/px_backup /opt/pixels/bin/px_backup
 COPY ${PACKAGE_DIRECTORY}/static/console /opt/pixels/static/console
 COPY ${PACKAGE_DIRECTORY}/postgresql/18 /opt/pixels/postgresql/18
 COPY ${PACKAGE_DIRECTORY}/assets/license-trust.json /opt/pixels/assets/license-trust.json
+COPY ${PACKAGE_DIRECTORY}/assets/starter-license.pxlic2 /opt/pixels/assets/starter-license.pxlic2
 COPY ${PACKAGE_DIRECTORY}/tools/restore_console.sh /opt/pixels/restore_console.sh
 
 ENV LD_LIBRARY_PATH=/opt/pixels/postgresql/18/lib

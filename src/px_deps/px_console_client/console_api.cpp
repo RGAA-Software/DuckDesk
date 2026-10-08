@@ -21,6 +21,9 @@ ConsoleApiError ParseConsoleHttpError(const px::HttpResponse& response) {
             if (code == "rejected") return ConsoleApiError::kForbidden;
             if (code == "not_found") return ConsoleApiError::kNotFound;
             if (code == "conflict") return ConsoleApiError::kConflict;
+            if (code == "connection_retiring") return ConsoleApiError::kConnectionRetiring;
+            if (code == "connection_busy") return ConsoleApiError::kConnectionBusy;
+            if (code == "gpu_memory_exhausted") return ConsoleApiError::kGpuMemoryExhausted;
             if (code == "rate_limited") return ConsoleApiError::kRateLimited;
             if (code == "unavailable") return ConsoleApiError::kServiceUnavailable;
         } catch (const std::exception& error) {

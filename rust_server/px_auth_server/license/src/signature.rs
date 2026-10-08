@@ -1,4 +1,7 @@
-use crate::{LicenseError, LicensePayload};
+use crate::{
+    LicenseError, LicensePayload, LicensedService, MAX_ISSUED_AT_CLOCK_SKEW_SECONDS,
+    STARTER_DEPLOYMENT_ID,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey, ED25519};
 use sha2::{Digest, Sha256};
@@ -119,9 +122,19 @@ impl LicenseVerifierSet {
         if untrusted_payload.canonical_bytes()? != bytes {
             return Err(LicenseError::Invalid);
         }
+        let portable_starter = untrusted_payload.deployment_id == STARTER_DEPLOYMENT_ID
+            && untrusted_payload.revision == 1
+            && untrusted_payload.max_streams == 4
+            && untrusted_payload.services
+                == [
+                    LicensedService::CloudApplications,
+                    LicensedService::Desktop,
+                    LicensedService::Rdp,
+                ];
         if context.deployment_id.is_nil()
-            || untrusted_payload.deployment_id != context.deployment_id
-            || untrusted_payload.issued_at > context.now
+            || (untrusted_payload.deployment_id != context.deployment_id && !portable_starter)
+            || untrusted_payload.issued_at
+                > context.now.saturating_add(MAX_ISSUED_AT_CLOCK_SKEW_SECONDS)
             || untrusted_payload.expires_at <= context.now
         {
             return Err(LicenseError::Rejected);

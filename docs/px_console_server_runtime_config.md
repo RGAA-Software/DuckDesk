@@ -6,6 +6,10 @@
 
 Console 只从环境读取配置；发行包不携带真实配置、证书、私钥或数据库口令。
 
+2026-09-30：取消独立的访客访问开关。未登录的 Client、Web Client 和 Android 可签发访客会话；
+访客只能列出和访问启用的公开应用，受限应用仍要求用户登录并取得对应授权。
+来源限流、会话过期、管理员封禁、启动时的许可证/容量/节点就绪检查继续保留。
+
 | 环境变量 | 含义 |
 |---|---|
 | `PIXELS_CONSOLE_DATABASE_URL` | Console 专用 `pixels_console_runtime` PostgreSQL DSN；生产使用 verify-full 和受信 CA |
@@ -15,9 +19,7 @@ Console 只从环境读取配置；发行包不携带真实配置、证书、私
 | `PIXELS_CONSOLE_TLS_CERT` / `PIXELS_CONSOLE_TLS_KEY` | 正式环境必须同时提供的证书链和私钥路径 |
 | `PIXELS_CONSOLE_PUBLIC_ORIGIN` | 浏览器唯一允许的规范 HTTPS Origin，不从 Host 或转发头推导 |
 | `PIXELS_CONSOLE_REGISTRATION` | `0` 或 `1`，是否开放用户注册 |
-| `PIXELS_CONSOLE_GUESTS` | `0` 或 `1`，是否开放访客签发 |
 | `PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS` | 登录会话期限，必须在实现规定的有界范围内 |
-| `PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS` | 访客期限，60–86400 秒 |
 | `PIXELS_CONSOLE_GUEST_SOURCE_KEY` | 32 字节私有来源 HMAC 密钥文件 |
 | `PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY` | 当前工作区加密密钥 UUID |
 | `PIXELS_CONSOLE_WORKSPACE_KEYS` | 最多 32 个 `{id,path}` 的严格 JSON 数组；包含活动密钥及轮换期旧密钥 |

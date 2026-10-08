@@ -4,8 +4,10 @@ mod application_api;
 mod backup_api;
 mod backup_control_upgrade;
 mod config;
+mod database_upgrade;
 mod deployment_api;
 mod device_api;
+mod device_lookup_limits;
 pub mod error;
 mod guest_api;
 mod guest_source;
@@ -26,10 +28,10 @@ mod request;
 mod resource_api;
 mod saved_connection_api;
 mod secrets;
+mod setup_auto;
 mod setup_database;
 mod setup_install;
 mod setup_preflight;
-mod setup_web;
 mod static_files;
 mod telemetry_alert_api;
 mod update_api;
@@ -43,6 +45,9 @@ use axum::{
 };
 pub use backup_control_upgrade::upgrade_single_server_backup_control;
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayAdmission};
+pub use database_upgrade::{
+    preflight_single_server_database, recover_single_server_database_owner, upgrade_single_server_database,
+};
 use error::ApiError;
 pub use guest_source::GuestAdmission;
 pub use license::{LicenseAdmissionError, LicenseEntitlement, LicenseLaunchConfig, LicenseStatus};
@@ -55,13 +60,13 @@ use px_license::LicensedService;
 use px_pg::{DatabaseConfig, LeaseStatus, Service, ServiceLease};
 use px_private_files::CacheRoot;
 pub use secrets::{RuntimeSecrets, WorkspaceKeyFile};
+pub use setup_auto::run_single_server_setup;
 pub use setup_database::{provision_fresh_console_database, ConsoleDatabaseCredentials};
 pub use setup_install::{
     activate_single_server_relay, initialize_single_server, SingleServerLayout,
     SingleServerSetupError, SingleServerSetupInput, SingleServerSetupResult,
 };
 pub use setup_preflight::{check_postgresql_administrator, SetupDatabaseError};
-pub use setup_web::run_single_server_setup;
 use std::{
     sync::{Arc, RwLock},
     time::Duration,
@@ -79,7 +84,7 @@ pub(crate) struct StateData {
     policy: IngressPolicy,
     slots: Arc<Semaphore>,
     limits: px_credentials::LoginLimits,
-    lookup_limits: px_credentials::LoginLimits,
+    lookup_limits: device_lookup_limits::DeviceLookupLimits,
     node_limits: px_credentials::LoginLimits,
     node_slots: Arc<Semaphore>,
     relay_slots: Arc<Semaphore>,
@@ -161,7 +166,7 @@ impl StateData {
     fn entitlement(&self) -> Result<RuntimeEntitlement, ApiError> {
         let license = self.license.read().map_err(|_| ApiError::Unavailable)?;
         let entitlement = license.as_ref().ok_or(ApiError::Unavailable)?;
-        RuntimeEntitlement::new(
+        let configured = RuntimeEntitlement::new(
             entitlement.payload.max_streams,
             entitlement
                 .payload
@@ -173,7 +178,14 @@ impl StateData {
                 .contains(&LicensedService::Desktop),
             entitlement.payload.services.contains(&LicensedService::Rdp),
         )
-        .map_err(|_| ApiError::Unavailable)
+        .map_err(|_| ApiError::Unavailable)?;
+        Ok(
+            if entitlement.payload.deployment_id == px_license::STARTER_DEPLOYMENT_ID {
+                configured.with_starter_mode_limit()
+            } else {
+                configured
+            },
+        )
     }
 }
 /// Owner of the lease renewal task and the shared database pool.
@@ -359,6 +371,7 @@ impl ConsoleRuntime {
             policy,
             slots: Arc::new(Semaphore::new(4)),
             limits: Default::default(),
+            lookup_limits: Default::default(),
             node_limits: Default::default(),
             node_slots: Arc::new(Semaphore::new(node_wire::MAX_CONNECTIONS)),
             relay_slots: Arc::new(Semaphore::new(px_relay_control_protocol::MAX_CONNECTIONS)),
@@ -366,7 +379,6 @@ impl ConsoleRuntime {
             dummy,
             guests,
             epoch,
-            lookup_limits: Default::default(),
             recording_cache,
             uploads: recording_upload_api::UploadRegistry::new(),
             management_events: management_events::ManagementEvents::new(),

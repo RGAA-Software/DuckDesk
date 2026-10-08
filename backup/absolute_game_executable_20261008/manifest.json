@@ -1,0 +1,422 @@
+[
+  {
+    "original_path": "rust_base/protocol/src/console_service.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_client/px_service/service_core/src/app_instance.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_client/px_service/src/node_control_client.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_client/px_service/src/node_control_client.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_client/px_service/src/service_host.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_client/px_service/src/service_host.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_wire.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/runtime/tests/directory_api.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-0a87b95d96dc888b0ca67fa579da12b20fcee1e4fe3119b1ff85a6280e5cf4b9.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-1ad2c1b92a5935f8ec57300c38a42e09657d8fc01267e530dbc00a7b1d1e9a58.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-3bc6118f031b091803de3241f7b92bbb7ba2b7c7e244bb623cc289c15b1e562b.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-682a1fb2a180307d3853e722d99640dc16ac652cb1cfb1e6598f257781601727.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-7c333e4f46e237197b606f6aca8b6f3459b45583dec38eec1ed41c4dcbf97a51.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-81a484fe85eb0b8d12883462f4eca8adbb64829970ed1026b3feba3aee501be5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8361932e6735fce28a55f0a2e4ec9c29682c44976c7409f47a693b1fca9709bf.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8a0d0cdce56d2f472dfa1bd435fd0ff7a53dbc353fd4046230bbec820202d5ba.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-8ee29e6798e40b906ba4063e08adde173676a56578fa3bb63c5006105b95d6d5.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-a3f4fbaa2ceff516f847b0e49ae466624b182a380ddc554a8a8075c014f0dc1e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-b2102c8520eda842330f186035f4d8f16b474ba93201ca551c8919af3ee8e62e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-c831cf7f9775b1615ae12f339b2c002ab42f032dc03bf130032c287c0d4c376e.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/.sqlx/query-ee1d5f25794caf293f0cf6db3ba9ebf293f7224c087c3b914ed3a2732de67608.json",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/bump_application_access.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/configure_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/create_application.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/create_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/instance_launch.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/list_deployments.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/list_node_deployments.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/lock_application.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/lock_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/managed_applications.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/report_deployment.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/reserve_instance.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/queries/update_application.sql",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/application_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/applications.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/src/applications.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/command_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/deployment_model.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/deployments.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/strict_wire.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/applications.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/commands.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/commands.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/deployments.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/instances.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/instances.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/tests/support/node_fixture.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_console_server/storage/tests/support/node_fixture.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_node_protocol/src/lib.rs",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/px_node_protocol/src/lib.rs",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "src/px_deps/px_server_protocol/console_service.proto",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/en.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/en.ts",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/locales/zh.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/locales/zh.ts",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_application_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_catalog_api.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/model/managed_deployment_api.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/util/application_validation.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? web/px_console/src/util/application_validation.test.ts",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/util/application_validation.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? web/px_console/src/util/application_validation.ts",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/views/apps/ApplicationCatalogCard.test.ts",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "?? web/px_console/src/views/apps/ApplicationCatalogCard.test.ts",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/views/apps/ApplicationCatalogCard.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M web/px_console/src/views/apps/ApplicationCatalogCard.vue",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "web/px_console/src/views/apps/DeploymentInventoryCard.vue",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Replace relative executable and deployment install root with a single absolute executable path",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/Cargo.toml",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "",
+    "retirement_reason": "Shared absolute executable path validation dependency",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_client/px_service/service_core/Cargo.toml",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_client/px_service/service_core/Cargo.toml",
+    "retirement_reason": "Shared absolute executable path validation dependency",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_server/Cargo.lock",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_server/Cargo.lock",
+    "retirement_reason": "Shared absolute executable path validation dependency",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "rust_client/Cargo.lock",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M rust_client/Cargo.lock",
+    "retirement_reason": "Shared absolute executable path validation dependency",
+    "archive_batch": "absolute_game_executable_20261008"
+  },
+  {
+    "original_path": "scripts/server_validation/postgres.ps1",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M scripts/server_validation/postgres.ps1",
+    "retirement_reason": "Update focused deployment regression gate count for new deletion scenario",
+    "archive_batch": "absolute_game_executable_20261008"
+  }
+]

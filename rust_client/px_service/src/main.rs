@@ -1,9 +1,14 @@
 #![cfg_attr(not(test), windows_subsystem = "windows")]
 
 mod app;
+mod rdp_host_setup;
+mod hardware_probe;
+mod hardware_probe_process;
 mod node_control_client;
 mod node_control_store;
+mod node_gpu_runtime_binding;
 mod node_gpu_telemetry;
+mod node_hardware_telemetry;
 mod node_telemetry;
 mod parsec_vdd;
 mod product_descriptor;
@@ -37,6 +42,10 @@ enum VirtualDisplaySessionWorkerOperation {
 
 #[derive(Parser, Debug)]
 struct Cli {
+    /// Internal isolated native-driver worker; not a service or configuration mode.
+    #[arg(long, value_enum, hide = true, conflicts_with_all = ["port", "console", "configure_node_control", "clear_node_control", "virtual_display", "virtual_display_session_worker"])]
+    hardware_probe: Option<hardware_probe::ProbeKind>,
+
     #[arg(long)]
     port: Option<u16>,
 
@@ -75,8 +84,20 @@ struct Cli {
     virtual_display_worker_nonce: Option<String>,
 }
 
+fn main() {
+    let cli = Cli::parse();
+    if let Some(kind) = cli.hardware_probe {
+        if let Err(error) = hardware_probe::run_worker(kind) {
+            eprintln!("hardware probe {} failed: {error}", kind.name());
+            std::process::exit(2);
+        }
+        return;
+    }
+    run_service(cli);
+}
+
 #[tokio::main]
-async fn main() {
+async fn run_service(cli: Cli) {
     if rustls::crypto::ring::default_provider()
         .install_default()
         .is_err()
@@ -84,7 +105,6 @@ async fn main() {
         eprintln!("px_service failed: cannot install the process TLS crypto provider");
         std::process::exit(5);
     }
-    let cli = Cli::parse();
     if cli.configure_node_control {
         if let Err(error) = node_control_store::configure_from_stdin() {
             eprintln!("node-control configuration failed: {error}");
@@ -143,6 +163,27 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn internal_hardware_workers_have_typed_modes_and_cannot_start_the_service() {
+        for mode in ["gpu", "cpu", "memory", "disk"] {
+            let cli = Cli::try_parse_from(["px_service.exe", "--hardware-probe", mode]).unwrap();
+            assert_eq!(cli.hardware_probe.unwrap().name(), mode);
+            assert!(
+                Cli::try_parse_from(["px_service.exe", "--hardware-probe", mode, "--console"])
+                    .is_err()
+            );
+            assert!(Cli::try_parse_from([
+                "px_service.exe",
+                "--hardware-probe",
+                mode,
+                "--port",
+                "4603"
+            ])
+            .is_err());
+        }
+        assert!(Cli::try_parse_from(["px_service.exe", "--hardware-probe", "unknown"]).is_err());
+    }
 
     #[test]
     fn cli_rejects_positional_port() {

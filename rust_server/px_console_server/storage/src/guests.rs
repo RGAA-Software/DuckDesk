@@ -9,7 +9,6 @@ pub struct GuestSession {
     pub id: Uuid,
     pub client_type: String,
     pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub revision: i64,
 }
@@ -32,7 +31,6 @@ pub struct ManagedGuest {
     pub id: Uuid,
     pub client_type: String,
     pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub revision: i64,
     pub blocked: bool,
@@ -61,19 +59,14 @@ impl GuestStore {
         self.pool.close().await;
     }
     /// Internal issuance boundary after rate limiting. Always a new identity; there is no
-    /// user/device/IP fallback, refresh of expired identities, or administrator guest type.
+    /// user/device/IP fallback or administrator guest type. Sessions remain valid until revoked.
     pub async fn issue(
         &self,
         source: &OriginFingerprint,
         token: &TokenDigest,
         client: ClientType,
-        lifetime: Duration,
     ) -> Result<GuestSession, StoreError> {
-        if client == ClientType::AdminWeb
-            || lifetime.is_zero()
-            || lifetime.subsec_nanos() != 0
-            || lifetime.as_secs() > 86400
-        {
+        if client == ClientType::AdminWeb {
             return Err(StoreError::InvalidInput);
         }
         let mut tx = self.pool.begin().await?;
@@ -84,7 +77,6 @@ impl GuestStore {
             Uuid::new_v4(),
             token.0.as_slice(),
             client.name(),
-            lifetime.as_secs() as f64,
             source.0.as_slice()
         )
         .fetch_optional(&mut *tx)
@@ -247,7 +239,6 @@ impl GuestStore {
                 id: previous.id,
                 client_type: previous.client_type,
                 created_at: previous.created_at,
-                expires_at: previous.expires_at,
                 revoked_at: previous.revoked_at,
                 revision: previous.revision,
             });

@@ -13,10 +13,9 @@ fi
 
 backup_config=/etc/pixels/backup.json
 status_file=/var/lib/pixels/backup/status/status.json
-certificate_file=/etc/pixels/postgresql-ca.crt
 tool_root=/opt/pixels/postgresql/18
-[[ -f "$backup_config" && ! -L "$backup_config" && -f "$certificate_file" && ! -L "$certificate_file" ]] || {
-    echo 'Private Backup configuration or PostgreSQL CA is unavailable.' >&2; exit 1;
+[[ -f "$backup_config" && ! -L "$backup_config" ]] || {
+    echo 'Private Backup configuration is unavailable.' >&2; exit 1;
 }
 jq -e '.schema_version == 2 and .plan.kind == "independent" and .deployment_id == .plan.deployment_id and
     (.plan.targets | length) == 3 and
@@ -82,7 +81,7 @@ escaped_password=${escaped_password//:/\\:}
 printf '%s:%s:*:%s:%s\n' "$database_host" "$database_port" "$postgres_user" "$escaped_password" >"$temporary_directory/pgpass"
 unset postgres_password escaped_password
 chmod 0600 "$temporary_directory/pgpass"
-export PGPASSFILE="$temporary_directory/pgpass" PGSSLMODE=verify-full PGSSLROOTCERT="$certificate_file"
+export PGPASSFILE="$temporary_directory/pgpass" PGSSLMODE=prefer
 connection=(--host "$database_host" --port "$database_port" --username "$postgres_user" --no-password)
 "$tool_root/bin/createdb" "${connection[@]}" --maintenance-db=postgres --template=template0 --owner=pixels_console_owner "$target_database"
 "$tool_root/bin/psql" "${connection[@]}" -X --set=ON_ERROR_STOP=1 --dbname postgres \

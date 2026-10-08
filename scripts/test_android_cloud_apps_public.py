@@ -26,10 +26,6 @@ class ConsoleClient:
         endpoint_parts = urllib.parse.urlsplit(self.endpoint)
         self.origin = f"{endpoint_parts.scheme}://{endpoint_parts.netloc}"
         self.context = ssl.create_default_context(cafile=str(ca_file))
-        # Python 3.13 enables OpenSSL strict mode, which rejects the current
-        # private test CA solely because it predates the Authority Key
-        # Identifier extension. Chain and hostname verification remain on.
-        self.context.verify_flags &= ~ssl.VERIFY_X509_STRICT
         self.client_type = client_type
 
     def request(
@@ -244,27 +240,31 @@ def main() -> None:
     parser.add_argument("--ca", required=True, type=Path, help="CA or server certificate PEM")
     parser.add_argument("--timeout", type=int, default=90, help="Seconds to wait for each application instance")
     parser.add_argument("--user-credentials", type=Path, help="Ignored JSON containing username and password")
+    parser.add_argument("--skip-guest", action="store_true", help="Use the configured user account only")
     arguments = parser.parse_args()
     if not arguments.ca.is_file():
         raise ApiError(f"CA file does not exist: {arguments.ca}")
+    if arguments.skip_guest and arguments.user_credentials is None:
+        raise ApiError("Skipping guest requires user credentials")
 
     client = ConsoleClient(arguments.endpoint, arguments.ca)
-    guest_response = client.request("/api/console/guest-sessions", method="POST", body={})
-    guest_token = require_string(guest_response, "token")
     result: dict[str, Any] = {}
-    try:
-        guest_apps = client.request("/api/console/guest/applications?limit=100", token=guest_token)
-        if not isinstance(guest_apps, list):
-            raise ApiError("Guest application catalog is not a list")
-        result["guest"] = exercise_cloud_application(
-            client,
-            guest_token,
-            "guest",
-            supported_application(guest_apps),
-            arguments.timeout,
-        )
-    finally:
-        client.request("/api/console/guest-session", method="DELETE", token=guest_token)
+    if not arguments.skip_guest:
+        guest_response = client.request("/api/console/guest-sessions", method="POST", body={})
+        guest_token = require_string(guest_response, "token")
+        try:
+            guest_apps = client.request("/api/console/guest/applications?limit=100", token=guest_token)
+            if not isinstance(guest_apps, list):
+                raise ApiError("Guest application catalog is not a list")
+            result["guest"] = exercise_cloud_application(
+                client,
+                guest_token,
+                "guest",
+                supported_application(guest_apps),
+                arguments.timeout,
+            )
+        finally:
+            client.request("/api/console/guest-session", method="DELETE", token=guest_token)
 
     if arguments.user_credentials is not None:
         credentials = json.loads(arguments.user_credentials.read_text(encoding="utf-8"))

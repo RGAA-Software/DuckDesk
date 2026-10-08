@@ -166,7 +166,7 @@ try {
                 -not $isDereferenceReturn -and -not $isTestAssertion -and -not $isReviewedRawPointerBoundary) {
                 $violations.Add("${currentFile}: $added")
             }
-            if ($codeOnly -match '\.release\s*\(\s*\)' -and
+            if ($codeOnly -cmatch '\.release\s*\(\s*\)' -and
                 -not $isReviewedRawPointerBoundary) {
                 $violations.Add(
                     "${currentFile}: smart-pointer release() requires a reviewed external ABI boundary and must never transfer ownership to a Qt parent: $added")

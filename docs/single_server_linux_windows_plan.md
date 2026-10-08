@@ -1,5 +1,11 @@
 # Customer Single Server：Linux 与 Windows 实施计划
 
+> 2026-09-26 客户端验收补充：90 的 Cloud Apps 已分别通过 Web Client（Direct Host WebRTC、SCTP、视频解码）和 Android 真机（登录、云应用列表、启动、画面显示、结束会话及停止实例）短测。Windows Client 先前也通过同一云应用的启动与资源回收短测。Android 无需在手机系统安装测试 CA；原生客户端继续使用 HTTPS，但不强制校验证书链或主机名，允许私有部署自签证书。浏览器 Web Client 无权从页面代码关闭浏览器的 HTTPS 证书检查，测试浏览器可接受自签证书，普通用户浏览器仍需自行信任证书或通过浏览器提示。服务端与 PostgreSQL 的 TLS 验证、PXLIC2 签名校验不受此客户端决策影响。
+
+> 2026-09-28 当前决定：用户只单独安装 PostgreSQL 18 并创建 `Pixels` / `Pixels@123` 超级用户；Windows Setup 和 Linux Compose 自动以本机 `5432` 初始化 Console、Relay、Backup 与同名初始管理员，不再提供 4700 初始化网页或要求逐项填写。交互 Windows 安装成功后直接打开 Console。下文旧版网页初始化描述仅是历史验收记录，不定义当前操作；当前说明见平台 README。PostgreSQL 连接优先使用 TLS，未启用 TLS 时也能连接，不校验 CA/主机名；不改变 PXLIC2 签名。
+
+> 2026-09-28 默认授权补充：Single Server 随包预装正式 Auth 签名的离线 PXLIC2 入门许可证，远程桌面、游戏、WebView、RDP 各同时最多 1 路；管理员可在 Console 网页上传绑定当前部署的新许可证替换。私钥不进入安装包，覆盖安装不得覆盖已更新的许可证。下文“首次安装后必须上传许可证”是旧验收记录。
+
 > 2026-09-26 公网短验收：正式 1.0.5 Windows Setup 已在 90（公网地址 `39.71.45.66`）对 1.0.4 原地覆盖，未卸载；安装登记为 1.0.5，Console/Relay/Backup SCM 服务运行。CN Auth 签发的短期 PXLIC2 生效，Console readiness 204、Relay ready/fresh、Backup 有 verified 恢复点且无告警；Cloud Node 使用新 Console 的一次性节点身份重新接入，最终 ready/fresh。旧节点的 4 条录像索引引用已废弃的开发数据库会话，原文件按 SHA-256 归档于 90 的 `D:\PixelsServer\backups\old-node-recording-inventory-20260926`，录像文件未删。Windows 首次安装时 rcgen 默认给 CA 与服务器证书相同 subject 的问题已修复，并加入证书链回归测试；本次在 90 的证书轮换使用独立 subject 与 AKI/SKI。正式 1.0.5 Linux Compose 包也已生成，未在客户主机部署。随后以新 Console 中创建的 WebView 应用和测试用户，Windows Client 两次完成登录、启动实例、直连动态 Render `39.71.45.66:4613`、解码画面、关闭会话与停止实例；第二次成功证明第一次退出后 stream 配额和端口可复用。这是 Windows Native Direct 云应用短验收，不覆盖 Android、Web Client、RDP、音频、文件传输、原生 Ubuntu 主机或客户生产环境。
 
 > 2026-09-26 更新：1.0.3 的预制配置安装流程已由 1.0.4 一键安装流程替代。Windows Setup 单 EXE 与 Linux 版本镜像/Compose 共用 Rust 首次初始化逻辑；不要求预制 JSON、env、证书或许可证。下文 1.0.3 数据和前置清单仅为历史记录，不能当作当前安装说明。当前操作见 [Windows Setup](../deploy/single_server/windows/README.md) 和 [Linux Compose](../deploy/single_server/linux/README.md)。
@@ -28,20 +34,22 @@
 | 不入包 | `px_desk`、Desk Web/数据库/安装项、官方 `px_auth` 与签发私钥、许可证、客户证书和密码。Desk 是官网服务，源码及其独立发行不受本计划影响。 |
 | 基础环境 | PostgreSQL 18 可在同机或外部主机，由客户/运维单独安装、备份其系统配置并管理生命周期；Pixels 不打包 PG 服务或 PG 容器，也不安装、卸载或升级它。将来若实际引入 Redis，同样只在部署文档规定版本、可达性和配置，由运维单独安装；当前产品不要求 Redis，首版预检也不得把 Redis 当成前置条件。 |
 | 发行 | Customer Server 一个独立产品版本；Linux 交付 Docker 镜像与 Compose 一键部署文件，Windows 交付 x86_64 Setup。两平台运行相同三项服务、各自校验制品；不是 Cloud Node、Client、Remote 的安装包。 |
-| 网络和授权 | 对外入口、Relay endpoint、HTTPS 证书/私钥、PostgreSQL CA、绑定 deployment UUID 的 `PXLIC2` 与 Auth 公钥信任文件由运维提供。自签 TLS 证书允许使用，但仍校验证书、主机名和有效期；不跳过 TLS 验证。私有 Console 离线验许可证，不请求官方 Auth。 |
+| 网络和授权 | 对外入口、Relay endpoint、HTTPS 证书/私钥、绑定 deployment UUID 的 `PXLIC2` 与 Auth 公钥信任文件由运维提供。自签 TLS 证书允许使用；Single Server 到 PostgreSQL 优先使用 TLS，未启用时也能连接，不校验 CA/主机名。原生客户端连接 Console 不强制校验 HTTPS 证书；普通浏览器的校验策略不受网页代码控制。私有 Console 离线验许可证，不请求官方 Auth。 |
 
 首版不承诺异机容灾、PostgreSQL HA、双 Render 或跨主机 Relay 迁移。本机 Backup 可恢复数据库误操作，不能防止同机磁盘丢失；异机副本属于商业发布前另行配置的备份目的地。Windows 不做 Authenticode 签名，Android 规则不受影响。
 
 ## 2. 安装输入与最终状态
 
-首次安装只要求另行部署的 PostgreSQL 18，且它可通过 `verify-full` TLS 从 Server 访问。Windows 运行一个 Setup.exe；Linux 解压包后运行 `./deploy.sh`（或预先加载镜像后 `docker compose up -d`）。本机 `127.0.0.1:4700` 网页填写 PostgreSQL 主机、端口、超级用户密码、CA PEM、Console 公网主机和初始管理员。Linux 容器内的 `127.0.0.1` 不是宿主机，数据库地址须从容器网络可达。
+首次安装只要求另行部署的 PostgreSQL 18；它不必启用 TLS，但必须已有超级用户 `Pixels` / `Pixels@123` 并监听本机 `5432`。Windows 运行一个 Setup.exe；Linux 解压包后运行 `./deploy.sh`（或预先加载镜像后 `docker compose up -d`）。安装任务自动创建本产品数据库、角色、初始管理员和配置，并选用本机可用的网络地址；无需 PostgreSQL CA PEM 或公网 IP。Console、Relay 分别监听 `0.0.0.0:4600`、`0.0.0.0:4605`。Linux Compose 使用 host 网络，因此容器内 `localhost:5432` 指向宿主机 PostgreSQL。
 
-初始化器生成 deployment UUID、专用数据库角色、Console/Relay/Backup 配置、Console HTTPS CA/证书和密钥；一次性数据库超级用户密码不写入运行配置。随包只有 Auth 的许可证验证公钥，没有签发私钥。管理员随后在 Console 网页导入与这个 deployment 匹配的 PXLIC2。未授权时允许管理员完成授权管理，但不开放业务会话。Windows 的 `Pixels.Setup` 和 Linux 的 `setup` 容器只用于本机初始化；完成后不承担业务流量。配置和数据持久化在程序/镜像之外。
+初始化器生成 deployment UUID、专用数据库角色、Console/Relay/Backup 配置、Console HTTPS CA/证书和密钥；一次性数据库超级用户密码不写入运行配置。随包只有 Auth 的许可证验证公钥，没有签发私钥。管理员随后在 Console 网页导入与这个 deployment 匹配的 PXLIC2。未授权时允许管理员完成授权管理，但不开放业务会话。Windows 安装器同步执行一次初始化命令；Linux `setup` 容器是一次性任务，完成后不承担业务流量。配置和数据持久化在程序/镜像之外。
 
 ## 3. 共用的单机安装流程
 
+备份管理切片（2026-09-27）：全新初始化生成 Console↔Backup 专用令牌与 Backup 信任的 Console CA；Backup 主动以 WSS 上报状态，管理员可从 Console 网页立即触发备份，定时备份不依赖 Console 在线。Windows Setup 与 Linux `deploy.sh` 在同一部署缺少控制字段时调用同一配置补齐命令；已有令牌保持不变，部署身份、端点或令牌冲突时拒绝。Windows 安装失败恢复原配置；Linux 命令写入失败回退，进程中断造成单侧字段缺失时重运行补齐。隔离 Windows/PostgreSQL 18 短测已覆盖全新初始化、手动 verified 恢复集、哈希及独立空库恢复。90 经原地覆盖后，公网网页点击手动备份、恢复集变化、WSS 断线/重连均通过；1.0.6 候选及正式 Windows Setup 覆盖均保留同一部署身份和控制配置。最终交付为 1.0.7 Windows Setup 与 Linux Compose 优化包：90 已覆盖 1.0.7，三个服务运行、网页点击后最新恢复集为 `verified/manual`，远端三服务可执行文件与网页入口的 SHA-256 均匹配正式包；Linux 1.0.7 镜像在 Docker 命名卷中验证了缺失配置补齐，并通过首次补齐、重复保留、中断单侧修复和冲突拒绝短测。1.0.6 包的旧 Linux 说明会误导直接 `docker compose up -d` 绕过补齐，已由 1.0.7 取代，不作为最终交付。Linux 尚未在真实私有部署主机上覆盖运行中的完整 Compose 集群。90 的 readiness 503 来自 2026-09-26 到期的测试许可证，不属于备份控制故障。
+
 1. 校验安装包清单/哈希、Customer/平台身份和目标目录。首次安装创建受限配置/数据目录；同 deployment 覆盖只替换程序，不卸载基础环境或清除数据。
-2. 本机网页核验 PostgreSQL 18 超级用户与 CA/TLS，创建新的 Console 数据库和 owner/runtime/Backup 角色，迁移 schema，生成管理员、密钥、证书、录像缓存及 Console-only Backup 计划。Auth/Desk 在 Backup 计划中为 `not_applicable`。不接管已有同名库，也不自动删除失败后已创建的资源。
+2. 本机或局域网网页核验 PostgreSQL 18 超级用户与 TLS 连接，创建新的 Console 数据库和 owner/runtime/Backup 角色，迁移 schema，生成管理员、密钥、证书、录像缓存及 Console-only Backup 计划。Auth/Desk 在 Backup 计划中为 `not_applicable`。不接管已有同名库，也不自动删除失败后已创建的资源。
 3. Console 在未授权状态启动并允许管理员登录、导入 PXLIC2；登记本部署 Relay 并把一次性 node token 存入受限文件后启动 Relay。初始化中断时同一 Setup/Compose 可恢复；授权前 Relay 不获得业务会话。Backup 独立启动，其 `pg_dump`/`pg_restore` 受精确摘要约束。
 4. 运维从 Console 网页导入正式许可证后再验收授权后的业务能力、Relay ready/fresh 和 Backup verified 恢复点；无许可证的安装短测不声称这些结果。
 

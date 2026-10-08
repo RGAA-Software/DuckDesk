@@ -24,7 +24,7 @@ class WssRouter {
     explicit WssRouter(const WsDataPtr& ws_data) {
         ws_data_ = ws_data;
         created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
-        connection_id_ = MD5::Hex(GetUUID());
+        connection_id_ = MD5::Hex(GenerateRandomBase64Id());
     }
 
     virtual void OnOpen(std::shared_ptr<asio2::https_session>& session) {

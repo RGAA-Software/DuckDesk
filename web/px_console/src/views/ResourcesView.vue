@@ -1,129 +1,107 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useManagementRefresh } from "@/model/management_events.ts";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { listAllAdminUsers } from "@/model/identity_api";
-import { listManagedApplications } from "@/model/managed_application_api";
-import { listManagedResourceSessions, type ResourceSession } from "@/model/managed_activity_api";
-import { listManagedDeployments } from "@/model/managed_deployment_api";
-import { listManagedDevices } from "@/model/managed_device_api";
-import { listManagedNodes } from "@/model/managed_node_api";
-import LicenseStatusCard from "@/views/apps/LicenseStatusCard.vue";
+import { useDashboardResources } from "@/composables/useDashboardResources";
+import NodeAlertsSummary from "@/views/dashboard/NodeAlertsSummary.vue";
+import NodeResourcesCard from "@/views/dashboard/NodeResourcesCard.vue";
+import ApplicationRuntimeCard from "@/views/dashboard/ApplicationRuntimeCard.vue";
 
 const { t } = useI18n();
-const loading = ref(false);
-const sessions = ref<ResourceSession[]>([]);
-const totals = ref({
-    devices: 0,
-    users: 0,
-    applications: 0,
-    deployments: 0,
-    nodes: 0,
-    freshNodes: 0,
-});
-
-const activeSessions = computed(() =>
-    sessions.value.filter(session => !session.closed_at && session.state !== "closed"),
-);
-const recentSessions = computed(() => sessions.value.slice(0, 10));
-
-async function refresh() {
-    loading.value = true;
-    const [devices, users, applications, deployments, nodes, resourceSessions] = await Promise.all([
-        listManagedDevices(),
-        listAllAdminUsers(),
-        listManagedApplications(),
-        listManagedDeployments(),
-        listManagedNodes(),
-        listManagedResourceSessions(),
-    ]).finally(() => {
-        loading.value = false;
-    });
-    totals.value = {
-        devices: devices.length,
-        users: users.length,
-        applications: applications.length,
-        deployments: deployments.length,
-        nodes: nodes.length,
-        freshNodes: nodes.filter(node => node.fresh && !node.disabled).length,
-    };
-    sessions.value = resourceSessions;
-}
-
-function target(session: ResourceSession) {
-    return session.target.kind === "desktop"
-        ? session.target.device_id
-        : session.target.application_id;
-}
-
-onMounted(refresh);
-useManagementRefresh(
-    ["nodes", "instances", "sessions", "channels", "file_transfers", "recordings"],
+const {
+    devices,
+    users,
+    applications,
+    deployments,
+    nodes,
+    sessions,
+    instances,
+    previews,
+    loading,
+    loadFailed,
+    current,
+    observedAt,
     refresh,
-);
+} = useDashboardResources();
+const statistics = computed(() => [
+    { key: "devices", value: devices.value.length },
+    { key: "users", value: users.value },
+    { key: "applications", value: applications.value.length },
+    { key: "deployments", value: deployments.value.length },
+    {
+        key: "nodes",
+        value: `${nodes.value.filter(node => node.fresh && !node.disabled).length}/${nodes.value.length}`,
+    },
+    {
+        key: "activeSessions",
+        value: sessions.value.filter(session => !session.closed_at && session.state !== "closed")
+            .length,
+    },
+]);
 </script>
 
 <template>
-    <a-spin :spinning="loading">
-        <a-space direction="vertical" size="large" class="w-full">
-            <LicenseStatusCard />
-            <a-row :gutter="16">
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic
-                            :title="t('dashboard.devices')"
-                            :value="totals.devices" /></a-card
-                ></a-col>
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic :title="t('dashboard.users')" :value="totals.users" /></a-card
-                ></a-col>
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic
-                            :title="t('dashboard.applications')"
-                            :value="totals.applications" /></a-card
-                ></a-col>
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic
-                            :title="t('dashboard.deployments')"
-                            :value="totals.deployments" /></a-card
-                ></a-col>
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic
-                            :title="t('dashboard.nodes')"
-                            :value="`${totals.freshNodes}/${totals.nodes}`" /></a-card
-                ></a-col>
-                <a-col :span="4"
-                    ><a-card
-                        ><a-statistic
-                            :title="t('dashboard.activeSessions')"
-                            :value="activeSessions.length" /></a-card
-                ></a-col>
-            </a-row>
-            <a-card :title="t('dashboard.recentSessions')">
-                <template #extra
-                    ><a-button @click="refresh">{{ t("dashboard.refresh") }}</a-button></template
-                >
-                <a-table :data-source="recentSessions" row-key="id" :pagination="false">
-                    <a-table-column :title="t('activity.session')" data-index="id" />
-                    <a-table-column :title="t('activity.target')"
-                        ><template #default="{ record }">{{
-                            target(record)
-                        }}</template></a-table-column
-                    >
-                    <a-table-column :title="t('activity.client')" data-index="client_type" />
-                    <a-table-column :title="t('activity.role')" data-index="access_role" />
-                    <a-table-column :title="t('activity.state')" data-index="state" />
-                    <a-table-column :title="t('activity.createdAt')"
-                        ><template #default="{ record }">{{
-                            new Date(record.created_at).toLocaleString()
-                        }}</template></a-table-column
-                    >
-                </a-table>
+    <div class="resource-overview">
+        <div class="overview-toolbar">
+            <span>{{ t("dashboard.runtime.refreshNotice") }}</span>
+            <a-button :loading="loading" @click="refresh">{{ t("dashboard.refresh") }}</a-button>
+        </div>
+        <a-alert
+            v-if="loadFailed || (!current && !loading)"
+            type="warning"
+            show-icon
+            :message="t('dashboard.runtime.loadFailed')"
+        />
+        <div class="summary-grid">
+            <a-card v-for="statistic in statistics" :key="statistic.key">
+                <a-statistic
+                    :title="t(`dashboard.${statistic.key}`)"
+                    :value="current ? statistic.value : '—'"
+                />
             </a-card>
-        </a-space>
-    </a-spin>
+            <NodeAlertsSummary />
+        </div>
+        <NodeResourcesCard
+            :nodes="nodes"
+            :devices="devices"
+            :instances="instances"
+            :current="current"
+            :observed-at="observedAt"
+        />
+        <ApplicationRuntimeCard
+            :applications="applications"
+            :deployments="deployments"
+            :nodes="nodes"
+            :instances="instances"
+            :previews="previews"
+            :current="current"
+            :observed-at="observedAt"
+        />
+    </div>
 </template>
+
+<style scoped>
+.resource-overview {
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+.overview-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+.overview-toolbar > span {
+    opacity: 0.65;
+    font-size: 12px;
+}
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+}
+.resource-overview > *,
+.summary-grid > * {
+    min-width: 0;
+}
+</style>

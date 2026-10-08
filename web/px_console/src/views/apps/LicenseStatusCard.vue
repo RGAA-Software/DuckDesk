@@ -102,6 +102,12 @@ onMounted(refresh);
                 {{ licenseStatus.license_id }}
             </a-descriptions-item>
         </a-descriptions>
+        <a-alert
+            v-if="licenseStatus?.starter_license && !unavailable"
+            type="info"
+            show-icon
+            :message="t('dashboard.starterLicenseLimits')"
+        />
         <div class="license-import">
             <label for="license-file">{{ t("dashboard.licenseImport") }}</label>
             <input id="license-file" type="file" accept=".pxlic,.txt" :disabled="importing" @change="importLicense" />

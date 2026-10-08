@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH next AS (UPDATE pixels.control_runtime SET epoch=epoch+1 RETURNING epoch)\nINSERT INTO pixels.control_runs(epoch,instance_id) SELECT epoch,$1 FROM next RETURNING epoch\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "epoch",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3dc0b89bbc9dadb261e0643b12d43836c7e3eebbec096eb294389f8970706341"
+}

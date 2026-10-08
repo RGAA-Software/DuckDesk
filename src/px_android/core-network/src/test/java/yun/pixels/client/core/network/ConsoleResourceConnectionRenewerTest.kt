@@ -17,7 +17,6 @@ import yun.pixels.client.core.domain.account.RemoteApplicationInstance
 import yun.pixels.client.core.domain.account.ResourceConnection
 import yun.pixels.client.core.domain.account.ResourceConnectionOwner
 import yun.pixels.client.core.domain.session.RemoteResourceConnectionRenewal
-import yun.pixels.client.core.domain.session.RemoteSessionFailure
 import yun.pixels.client.core.domain.session.RemoteSessionTarget
 
 class ConsoleResourceConnectionRenewerTest {
@@ -66,13 +65,14 @@ class ConsoleResourceConnectionRenewerTest {
     }
 
     @Test
-    fun expiredGuestIdentityDoesNotCreateAReplacementOwner() = runTest {
+    fun persistentGuestIdentityRenewsWithoutCreatingAReplacementOwner() = runTest {
         var currentTime = 100L
-        val api = RenewalApi(guestExpiresAt = 150L)
+        val renewedConnection = connection(ResourceConnectionOwner.Guest, revision = 4)
+        val api = RenewalApi(guestRenewalResult = AccountResult.Success(renewedConnection))
         val sessions = coordinator(api, now = { currentTime })
         sessions.restore()
         sessions.guestSession()
-        currentTime = 200L
+        currentTime += 30L * 24 * 60 * 60 * 1_000
         val renewer = ConsoleResourceConnectionRenewer(api, api, sessions)
 
         val result = renewer.renew(
@@ -84,9 +84,9 @@ class ConsoleResourceConnectionRenewerTest {
             ),
         )
 
-        assertEquals(RemoteResourceConnectionRenewal.Rejected(RemoteSessionFailure.AuthenticationRejected), result)
+        assertEquals(RemoteResourceConnectionRenewal.Renewed(renewedConnection), result)
         assertEquals(1, api.guestSessionRequests)
-        assertEquals(0, api.guestCloudRenewals)
+        assertEquals(1, api.guestCloudRenewals)
     }
 
     private fun coordinator(api: RenewalApi, now: () -> Long = { 100L }) = ConsoleSessionCoordinator(
@@ -120,7 +120,6 @@ private class RenewalApi(
     private val loginResult: AccountResult<AccountSession> = AccountResult.Failure(AccountFailure.InvalidCredentials),
     private val userRenewalResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.NetworkUnavailable),
     private val guestRenewalResult: AccountResult<ResourceConnection> = AccountResult.Failure(AccountFailure.NetworkUnavailable),
-    private val guestExpiresAt: Long = 1_000L,
 ) : ConsoleAccountApi, ConsoleApplicationApi {
     var guestSessionRequests = 0
     var userDesktopRenewals = 0
@@ -130,7 +129,7 @@ private class RenewalApi(
 
     override suspend fun guestSession(endpoint: ConsoleEndpoint): AccountResult<GuestSession> {
         guestSessionRequests += 1
-        return AccountResult.Success(GuestSession(endpoint, "guest-token", guestExpiresAt))
+        return AccountResult.Success(GuestSession(endpoint, "guest-token"))
     }
 
     override suspend fun register(endpoint: ConsoleEndpoint, username: String, password: String) =

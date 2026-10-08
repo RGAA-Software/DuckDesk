@@ -1,0 +1,142 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id,node_id,metric,resource_key,resource_name,severity,state,threshold_per_mille,first_value_per_mille,\n latest_value_per_mille,peak_value_per_mille,occurrence_count,first_sampled_at,last_sampled_at,created_at,updated_at,\n acknowledged_by,acknowledged_at,recovered_at,revision\nFROM pixels.node_telemetry_alert_events\nWHERE ($1::uuid IS NULL OR node_id=$1)\n AND ($2::text IS NULL OR metric=$2)\n AND ($3::text IS NULL OR severity=$3)\n AND ($4::text IS NULL OR state=$4)\n AND ($5::timestamptz IS NULL OR (updated_at,id)<($5,$6))\nORDER BY updated_at DESC,id DESC\nLIMIT $7\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "metric",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "resource_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "resource_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "threshold_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "first_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 9,
+        "name": "latest_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "peak_value_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "occurrence_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "first_sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "last_sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 16,
+        "name": "acknowledged_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "acknowledged_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "recovered_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "068aaa4d63809195d0ff7ef627fd64eaf16ee991f1e209e8170336b42a2b0cd4"
+}

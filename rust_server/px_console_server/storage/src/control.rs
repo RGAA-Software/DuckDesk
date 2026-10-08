@@ -31,6 +31,15 @@ pub struct ManagedUser {
     pub has_avatar: bool,
     pub created_at: DateTime<Utc>,
 }
+impl ManagedUser {
+    fn require_mutable_account(&self) -> Result<(), StoreError> {
+        // Usernames are immutable and unique ignoring case, including the installed Pixels account.
+        if self.username.eq_ignore_ascii_case("Pixels") {
+            return Err(StoreError::ProtectedUser);
+        }
+        Ok(())
+    }
+}
 #[derive(Clone)]
 pub struct ControlStore {
     pub(crate) pool: PgPool,
@@ -170,22 +179,23 @@ impl ControlStore {
         if revision < 1 {
             return Err(StoreError::InvalidInput);
         }
-        let mut tx = self.pool.begin().await?;
-        write_gate(&mut tx).await?;
-        let actor = authorize(&mut tx, token, true).await?;
+        let mut transaction = self.pool.begin().await?;
+        write_gate(&mut transaction).await?;
+        let actor = authorize(&mut transaction, token, true).await?;
         let user = sqlx::query_file_as!(ManagedUser, "queries/lock_managed_user.sql", id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *transaction)
             .await?
             .ok_or(StoreError::Rejected)?;
         if user.revision != revision || user.deleted_at.is_some() {
             return Err(StoreError::Rejected);
         }
+        user.require_mutable_account()?;
         if user.role == role.name() && user.disabled == disabled {
-            tx.commit().await?;
+            transaction.commit().await?;
             return Ok(user);
         }
         if user.role == "admin" && !user.disabled && (role != Role::Admin || disabled) {
-            Self::retain_administrator(&mut tx).await?;
+            Self::retain_administrator(&mut transaction).await?;
         }
         let user = sqlx::query_file_as!(
             ManagedUser,
@@ -194,7 +204,7 @@ impl ControlStore {
             role.name(),
             disabled
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut *transaction)
         .await?;
         sqlx::query_file!(
             "queries/authorization_event.sql",
@@ -203,17 +213,17 @@ impl ControlStore {
             user.authorization_revision,
             "user_changed"
         )
-        .execute(&mut *tx)
+        .execute(&mut *transaction)
         .await?;
         audit(
-            &mut tx,
+            &mut transaction,
             actor,
             id,
             "user_changed",
             user.authorization_revision,
         )
         .await?;
-        tx.commit().await?;
+        transaction.commit().await?;
         Ok(user)
     }
     pub async fn delete_user(
@@ -225,33 +235,42 @@ impl ControlStore {
         if revision < 1 {
             return Err(StoreError::InvalidInput);
         }
-        let mut tx = self.pool.begin().await?;
-        write_gate(&mut tx).await?;
-        let actor = authorize(&mut tx, token, true).await?;
+        let mut transaction = self.pool.begin().await?;
+        write_gate(&mut transaction).await?;
+        let actor = authorize(&mut transaction, token, true).await?;
         let user = sqlx::query_file_as!(ManagedUser, "queries/lock_managed_user.sql", id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut *transaction)
             .await?
             .ok_or(StoreError::Rejected)?;
         if user.revision != revision || user.deleted_at.is_some() {
             return Err(StoreError::Rejected);
         }
+        user.require_mutable_account()?;
         if user.role == "admin" && !user.disabled {
-            Self::retain_administrator(&mut tx).await?;
+            Self::retain_administrator(&mut transaction).await?;
         }
-        let next = sqlx::query_file_scalar!("queries/delete_managed_user.sql", id)
-            .fetch_one(&mut *tx)
-            .await?;
+        let next_authorization_revision =
+            sqlx::query_file_scalar!("queries/delete_managed_user.sql", id)
+                .fetch_one(&mut *transaction)
+                .await?;
         sqlx::query_file!(
             "queries/authorization_event.sql",
             Uuid::new_v4(),
             id,
-            next,
+            next_authorization_revision,
             "user_changed"
         )
-        .execute(&mut *tx)
+        .execute(&mut *transaction)
         .await?;
-        audit(&mut tx, actor, id, "user_deleted", next).await?;
-        tx.commit().await?;
+        audit(
+            &mut transaction,
+            actor,
+            id,
+            "user_deleted",
+            next_authorization_revision,
+        )
+        .await?;
+        transaction.commit().await?;
         Ok(())
     }
     pub async fn reset_password(

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_telemetry_history(\n node_id,node_generation,report_sequence,probe_state,sampled_at,received_at,logical_processors,\n cpu_utilization_per_mille,memory_total_bytes,memory_available_bytes,disk_total_bytes,disk_free_bytes,\n gpu_inventory_revision\n) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8",
+        "Int8",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Int2",
+        "Int2",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2bdee9cc6df80dd5986578c944db4e10423e0fbfb17a256963e6e4de9b4ffd5"
+}

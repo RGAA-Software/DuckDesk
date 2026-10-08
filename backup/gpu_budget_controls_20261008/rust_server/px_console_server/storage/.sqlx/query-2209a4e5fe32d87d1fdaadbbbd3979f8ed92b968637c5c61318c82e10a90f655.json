@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.recording_cache SET last_access_at=clock_timestamp() WHERE recording_id=$1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2209a4e5fe32d87d1fdaadbbbd3979f8ed92b968637c5c61318c82e10a90f655"
+}

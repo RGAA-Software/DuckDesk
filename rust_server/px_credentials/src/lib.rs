@@ -24,7 +24,7 @@ pub fn normalize_username(input: &str) -> Option<String> {
     .then_some(normalized)
 }
 pub fn valid_password(input: &str) -> bool {
-    (12..=256).contains(&input.len()) && !input.contains('\0')
+    (8..=256).contains(&input.len()) && !input.contains('\0')
 }
 pub fn hash(password: &str) -> Result<Zeroizing<String>, &'static str> {
     if !valid_password(password) {
@@ -175,6 +175,9 @@ mod tests {
             );
         }
         assert!(verify("synthetic secret password", &encoded));
+        let initial_password = hash("Pixels@123").unwrap();
+        assert!(verify("Pixels@123", &initial_password));
+        assert!(!valid_password("1234567"));
         assert!(!verify("not the password", &encoded));
         assert!(!verify(
             "synthetic secret password",

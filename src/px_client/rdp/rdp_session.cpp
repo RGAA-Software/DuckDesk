@@ -1,4 +1,5 @@
 #include "rdp_session.h"
+#include "rdp_keyboard.h"
 #include "rdp_clipboard_channel.h"
 #include "rdp_display_channel.h"
 #include "rdp_process_audio_controller.h"
@@ -693,8 +694,8 @@ void RdpSession::Stop() {
 void RdpSession::Mouse(std::uint16_t flags, int x, int y, bool extended) {
     state_->Enqueue({CommandKind::kMouse, flags, x, y, extended});
 }
-void RdpSession::Key(std::uint32_t scancode, bool down) {
-    state_->Enqueue({CommandKind::kKey, scancode, 0, 0, down});
+void RdpSession::Key(std::uint32_t windowsScanCode, bool down) {
+    state_->Enqueue({CommandKind::kKey, RdpScanCodeFromWindows(windowsScanCode), 0, 0, down});
 }
 void RdpSession::Unicode(std::uint16_t codepoint, bool down) {
     state_->Enqueue({CommandKind::kUnicode, codepoint, 0, 0, down});

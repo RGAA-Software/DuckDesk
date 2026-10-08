@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useManagementRefresh } from "@/model/management_events.ts";
 import { Modal, message } from "ant-design-vue";
 import { useI18n } from "vue-i18n";
@@ -16,13 +16,50 @@ import {
     getManagedDeviceAccess,
     listManagedDevices,
     replaceManagedDeviceAccess,
-    rotateManagedDeviceCredential,
     updateManagedDevice,
     type DevicePlatform,
     type ManagedDevice,
 } from "@/model/managed_device_api";
 
+import DeviceRuntimeDetails from "@/views/devices/DeviceRuntimeDetails.vue";
+import { listManagedNodes, type ManagedNode } from "@/model/managed_node_api";
+import { nodeOperationalStatus } from "@/model/node_operational_status";
+import { managementSnapshotCurrent } from "@/model/management_snapshot";
+
 const { t } = useI18n();
+const nodes = ref<ManagedNode[]>([]);
+const nodeSnapshotAt = ref<number>();
+const monotonicNow = ref(performance.now());
+const runtimeDeviceId = ref<string>();
+const runtimeDevice = computed(() =>
+    devices.value.find(device => device.id === runtimeDeviceId.value),
+);
+const runtimeOpen = ref(false);
+let statusTimer: number | undefined;
+
+async function refreshNodes() {
+    try {
+        nodes.value = await listManagedNodes();
+        monotonicNow.value = performance.now();
+        nodeSnapshotAt.value = monotonicNow.value;
+    } catch {
+        nodeSnapshotAt.value = undefined;
+    }
+}
+
+function connectionStatus(device: ManagedDevice): string {
+    const current = managementSnapshotCurrent(nodeSnapshotAt.value, monotonicNow.value);
+    const node = nodes.value.find(candidate => candidate.device_id === device.id);
+    if (!current) return t("nodes.operationalStates.unknown");
+    if (!node) return t("devices.noRuntime");
+    return t(`nodes.operationalStates.${nodeOperationalStatus(node, current)}`);
+}
+
+function openRuntime(device: ManagedDevice) {
+    runtimeDeviceId.value = device.id;
+    runtimeOpen.value = true;
+}
+
 const devices = ref<ManagedDevice[]>([]);
 const users = ref<UserAdminView[]>([]);
 const groups = ref<GroupView[]>([]);
@@ -134,19 +171,6 @@ async function saveAccess() {
     }
 }
 
-function rotateCredential(device: ManagedDevice) {
-    Modal.confirm({
-        title: t("devices.confirm.rotateTitle"),
-        content: t("devices.confirm.rotateImpact"),
-        okType: "danger",
-        async onOk() {
-            const result = await rotateManagedDeviceCredential(device);
-            showCredential(result.enrollment_token);
-            await refresh();
-        },
-    });
-}
-
 function remove(device: ManagedDevice) {
     Modal.confirm({
         title: t("devices.confirm.deleteTitle", { name: device.name }),
@@ -166,6 +190,16 @@ async function copyCredential() {
 
 onMounted(refresh);
 useManagementRefresh(["devices"], refresh);
+useManagementRefresh(["nodes", "instances", "devices"], refreshNodes);
+onMounted(() => {
+    void refreshNodes();
+    statusTimer = window.setInterval(() => {
+        monotonicNow.value = performance.now();
+    }, 5_000);
+});
+onBeforeUnmount(() => {
+    if (statusTimer !== undefined) window.clearInterval(statusTimer);
+});
 </script>
 
 <template>
@@ -195,6 +229,9 @@ useManagementRefresh(["devices"], refresh);
                     t(`devices.platforms.${record.platform}`)
                 }}</template>
             </a-table-column>
+            <a-table-column :title="t('nodes.state')">
+                <template #default="{ record }">{{ connectionStatus(record) }}</template>
+            </a-table-column>
             <a-table-column :title="t('devices.registeredAt')">
                 <template #default="{ record }">{{
                     new Date(record.registered_at).toLocaleString()
@@ -216,15 +253,16 @@ useManagementRefresh(["devices"], refresh);
             <a-table-column :title="t('identity.users.actions')" width="440">
                 <template #default="{ record }">
                     <a-space wrap>
+                        <a-button size="small" @click="openRuntime(record)">{{
+                            t("devices.runtimeDetails")
+                        }}</a-button>
                         <a-button size="small" @click="edit(record)">{{
                             t("identity.actions.edit")
                         }}</a-button>
                         <a-button size="small" @click="openAccess(record)">{{
                             t("devices.access")
                         }}</a-button>
-                        <a-button size="small" danger @click="rotateCredential(record)">{{
-                            t("devices.rotate")
-                        }}</a-button>
+
                         <a-button size="small" danger @click="remove(record)">{{
                             t("identity.actions.delete")
                         }}</a-button>
@@ -233,6 +271,20 @@ useManagementRefresh(["devices"], refresh);
             </a-table-column>
         </a-table>
     </a-card>
+
+    <a-drawer
+        v-model:open="runtimeOpen"
+        :title="t('devices.runtimeTitle', { name: runtimeDevice?.name || '' })"
+        width="min(1100px, 100vw)"
+        destroy-on-close
+    >
+        <DeviceRuntimeDetails
+            v-if="runtimeOpen && runtimeDevice"
+            :key="runtimeDevice.id"
+            :device="runtimeDevice"
+            @changed="refreshNodes"
+        />
+    </a-drawer>
 
     <a-modal
         v-model:open="editorOpen"

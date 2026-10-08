@@ -1,0 +1,116 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT s.id,s.target_kind,s.device_id,s.application_id,s.instance_id,s.node_id,s.owner_user,s.owner_guest,s.client_type,s.access_role,s.state,s.revision,s.created_at,s.closed_at,\n(SELECT min(e.created_at) FROM pixels.resource_session_events e WHERE e.session_id=s.id AND e.kind='connected') AS first_connected_at,\n(SELECT count(*) FROM pixels.connection_observations c WHERE c.session_id=s.id) AS \"channel_count!\"\nFROM pixels.resource_sessions s WHERE (s.owner_user=$1 OR s.owner_guest=$2) AND s.client_type=$3 AND ($4::uuid IS NULL OR s.id>$4) ORDER BY s.id LIMIT $5\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "instance_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "owner_user",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "owner_guest",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "access_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "closed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "first_connected_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 15,
+        "name": "channel_count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "9a9936e40fcba103f3c8c63da6161910e50d78f2eb26483f58718c4e6bc1b4c0"
+}

@@ -32,7 +32,7 @@ struct RecordingSession::State final {
     State(RecordingSessionConfig settings, RecordingSessionCallbacks handlers)
         : config(std::move(settings)), callbacks(std::move(handlers)), completion(promise.get_future().share()) {}
     const RecordingSessionConfig config;
-    const std::string run_id{GetUUID()};
+    const std::string run_id{GetCanonicalUUID()};
     const RecordingSessionCallbacks callbacks;
     std::mutex mutex{};
     std::condition_variable available{};

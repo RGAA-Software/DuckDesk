@@ -159,6 +159,12 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             shutil.copy2(trust_source, trust_destination)
             if sha256(trust_source) != sha256(trust_destination):
                 raise RuntimeError("Copied license public trust differs")
+            starter_source = SOURCE_ROOT / "deploy/single_server/assets/starter-license.pxlic2"
+            require_regular_file(starter_source)
+            starter_destination = destination / "assets/starter-license.pxlic2"
+            shutil.copy2(starter_source, starter_destination)
+            if sha256(starter_source) != sha256(starter_destination):
+                raise RuntimeError("Copied starter license differs")
         example_directory = destination / "examples"
         example_directory.mkdir()
         example_names = ["README.md", "console.env.example", "relay.env.example"]

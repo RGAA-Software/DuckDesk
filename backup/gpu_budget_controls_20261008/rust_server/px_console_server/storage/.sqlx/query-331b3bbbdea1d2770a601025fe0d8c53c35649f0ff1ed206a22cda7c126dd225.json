@@ -1,0 +1,149 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id,d.application_id,d.node_id,d.kind,d.gpu_key,d.gpu_memory_bytes,d.gpu_compute_per_mille,d.gpu_encoder_per_mille,d.gpu_memory_reserve_bytes,d.gpu_compute_limit_per_mille,d.gpu_encoder_limit_per_mille,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at FROM pixels.application_deployments d\r\nJOIN pixels.applications a ON a.id=d.application_id\nWHERE a.deleted_at IS NULL AND ($1::uuid IS NULL OR d.id>$1) ORDER BY d.id LIMIT $2\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "gpu_memory_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "gpu_compute_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "gpu_encoder_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "gpu_memory_reserve_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "gpu_compute_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 10,
+        "name": "gpu_encoder_limit_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 11,
+        "name": "capacity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 12,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 16,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 19,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 20,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 21,
+        "name": "observed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "331b3bbbdea1d2770a601025fe0d8c53c35649f0ff1ed206a22cda7c126dd225"
+}

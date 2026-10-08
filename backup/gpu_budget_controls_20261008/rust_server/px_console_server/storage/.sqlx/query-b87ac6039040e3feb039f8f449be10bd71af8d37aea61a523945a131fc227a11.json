@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.authorization_audit(id,actor_id,subject_id,action,authorization_revision) VALUES($1,$2,$3,$4,$5)\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b87ac6039040e3feb039f8f449be10bd71af8d37aea61a523945a131fc227a11"
+}

@@ -24,9 +24,6 @@ int main() {
         if (action.selectedTheme.has_value()) {
             shell.SetTheme(*action.selectedTheme);
         }
-        if (action.enhancedVisualEffects.has_value()) {
-            shell.SetEnhancedVisualEffects(*action.enhancedVisualEffects);
-        }
         if (action.exitRequested) {
             shell.RequestExit();
         }

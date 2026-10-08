@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.group_device_grants(device_id,group_id) SELECT $1,unnest($2::uuid[])\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fbb7c92e22a288b577898e2d78a4ffc7a62e9d6894b6fafc748e868e623fe099"
+}

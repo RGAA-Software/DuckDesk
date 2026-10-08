@@ -617,7 +617,7 @@ impl ServiceRuntime {
             service_core::app_instance::decode_webview_url(&req.webview_url_b64)?;
             None
         } else {
-            let path = service_core::resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+            let path = service_core::resolve_game_path(&req.executable_path)?;
             if !path.is_file() {
                 return Err(format!(
                     "游戏程序不存在: {}（请核对路径，连续空格也会导致找不到文件）",
@@ -710,6 +710,10 @@ impl ServiceRuntime {
                     launch
                         .args
                         .push(format!("--rdp_proxy_port={}", bootstrap.binding.proxy_port));
+                    launch.args.push(format!(
+                        "--rdp_private_root={}",
+                        bootstrap.workspace_root.display()
+                    ));
                     launch.args.push(format!(
                         "--rdp_target_certificate_sha256={}",
                         bootstrap.binding.target_certificate_sha256
@@ -1083,6 +1087,30 @@ impl ServiceRuntime {
                     self.finish_missing_app(&record);
                 }
             }
+        }
+    }
+
+    /// Kernel-handle polling does not depend on slow or incomplete WMI queries.
+    pub async fn refresh_observed_app_exits(runtime: &Arc<Mutex<Self>>) {
+        let mut guard = runtime.lock().await;
+        let exited_records = guard
+            .app_registry
+            .list()
+            .into_iter()
+            .filter(|record| {
+                record.exit_detail.is_none()
+                    && guard
+                        .app_exit_observers
+                        .get(&record.instance_id)
+                        .is_some_and(|(launch_id, observer)| {
+                            *launch_id == record.request_id
+                                && matches!(observer.exit_code(), Ok(Some(_)))
+                        })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        for record in exited_records {
+            guard.finish_missing_app(&record);
         }
     }
 
@@ -2299,8 +2327,9 @@ mod tests {
 
     #[test]
     fn stop_control_event_only_kills_managed_processes() {
+        let available_port = available_application_test_port();
         let mut runtime = test_runtime(Vec::new());
-        let request = sample_webview_req("shutdown-app", 4613);
+        let request = sample_webview_req("shutdown-app", i32::from(available_port));
         let record = runtime
             .app_registry
             .begin_start("D:/app", request)
@@ -2321,7 +2350,7 @@ mod tests {
             ProcessSnapshot::new(
                 8,
                 &record.launch.app_path,
-                "--app_mode=webview --network_listen_port=4613",
+                format!("--app_mode=webview --network_listen_port={available_port}"),
             ),
         ]));
         runtime.process_manager = manager;
@@ -2406,7 +2435,13 @@ mod tests {
         );
     }
 
-    fn sample_start_req(id: &str, port: i32, install_root: &str) -> StartAppRequest {
+    fn available_application_test_port() -> u16 {
+        (4613..=4998)
+            .find(|port| service_core::app_instance::port_bindable(*port))
+            .expect("an available application test port")
+    }
+
+    fn sample_start_req(id: &str, port: i32, executable_directory: &str) -> StartAppRequest {
         StartAppRequest {
             request_id: format!("req-{id}"),
             instance_id: id.to_string(),
@@ -2416,8 +2451,7 @@ mod tests {
             gpu_stable_key: None,
             rdp_node_id: String::new(),
             rdp_account: None,
-            install_root: install_root.to_string(),
-            game_exe_rel: r"Binaries\Win64\game.exe".to_string(),
+            executable_path: format!(r"{executable_directory}\Binaries\Win64\game.exe"),
             game_arguments: String::new(),
             listen_port: port,
             encoder_fps: 60,
@@ -2523,8 +2557,7 @@ mod tests {
         request.app_id = "app-webview".to_string();
         request.app_mode = "webview".to_string();
         request.webview_url_b64 = URL_SAFE_NO_PAD.encode(b"https://example.com/app");
-        request.install_root.clear();
-        request.game_exe_rel.clear();
+        request.executable_path.clear();
         request
     }
 
@@ -2556,7 +2589,8 @@ mod tests {
 
     #[tokio::test]
     async fn start_and_stop_app_instance_does_not_touch_desktop() {
-        let dirs = make_app_test_dirs("startstop");
+        let available_port = available_application_test_port();
+        let directories = make_app_test_dirs("startstop");
         let config = test_config(
             4603,
             std::env::temp_dir().join("px_data_app_inst"),
@@ -2570,19 +2604,23 @@ mod tests {
         let mut runtime =
             ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         runtime.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: dirs.work_dir_s.clone(),
-            app_path: dirs.render_path.to_string_lossy().to_string(),
+            work_dir: directories.work_dir_s.clone(),
+            app_path: directories.render_path.to_string_lossy().to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         let runtime = Arc::new(Mutex::new(runtime));
 
         let (port, pid) = ServiceRuntime::start_app_instance(
             &runtime,
-            sample_start_req("inst-1", 4724, &dirs.game_root_s),
+            sample_start_req(
+                "inst-1",
+                i32::from(available_port),
+                &directories.game_root_s,
+            ),
         )
         .await
         .unwrap();
-        assert_eq!(port, 4724);
+        assert_eq!(port, available_port);
         assert!(pid >= 1000);
         assert_eq!(
             runtime
@@ -2600,7 +2638,7 @@ mod tests {
             .lock()
             .unwrap()
             .iter()
-            .find(|process| process.exe_path_eq(&dirs.game_exe.to_string_lossy()))
+            .find(|process| process.exe_path_eq(&directories.game_exe.to_string_lossy()))
             .map(|process| process.pid)
             .expect("game child process");
 
@@ -2783,6 +2821,98 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fast_exit_poll_uses_exact_kernel_launch_without_querying_wmi() {
+        let directories = make_app_test_dirs("fast_kernel_exit");
+        let process_manager = Arc::new(MockProcessManager::new(Vec::new()));
+        let mut service = test_runtime(Vec::new());
+        service.process_manager = process_manager.clone();
+        let launch_record = service
+            .app_registry
+            .begin_start(
+                &directories.work_dir_s,
+                sample_start_req("fast-exit", 4762, &directories.game_root_s),
+            )
+            .unwrap()
+            .clone();
+        service
+            .app_registry
+            .mark_running("fast-exit", 4321)
+            .unwrap();
+        let exit_observer = Arc::new(TestExitObserver(std::sync::atomic::AtomicU64::new(0)));
+        service.app_exit_observers.insert(
+            "fast-exit".into(),
+            (launch_record.request_id, exit_observer.clone()),
+        );
+        let runtime = Arc::new(Mutex::new(service));
+        ServiceRuntime::refresh_observed_app_exits(&runtime).await;
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("fast-exit")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Running
+        );
+        exit_observer.0.store(1, Ordering::SeqCst);
+        ServiceRuntime::refresh_observed_app_exits(&runtime).await;
+        ServiceRuntime::refresh_observed_app_exits(&runtime).await;
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("fast-exit")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Stopped
+        );
+        assert_eq!(process_manager.list_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn fast_exit_poll_rejects_an_observer_from_another_launch() {
+        let available_port = available_application_test_port();
+        let directories = make_app_test_dirs("fast_stale_exit");
+        let mut service = test_runtime(Vec::new());
+        service
+            .app_registry
+            .begin_start(
+                &directories.work_dir_s,
+                sample_start_req(
+                    "replacement",
+                    i32::from(available_port),
+                    &directories.game_root_s,
+                ),
+            )
+            .unwrap();
+        service
+            .app_registry
+            .mark_running("replacement", 4321)
+            .unwrap();
+        service.app_exit_observers.insert(
+            "replacement".into(),
+            (
+                "prior-launch".into(),
+                Arc::new(TestExitObserver(std::sync::atomic::AtomicU64::new(1))),
+            ),
+        );
+        let runtime = Arc::new(Mutex::new(service));
+        ServiceRuntime::refresh_observed_app_exits(&runtime).await;
+        assert_eq!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .get("replacement")
+                .unwrap()
+                .state,
+            service_core::AppInstanceState::Running
+        );
+    }
+
+    #[tokio::test]
     async fn stop_with_incomplete_snapshot_accepts_only_original_kernel_exit() {
         let dirs = make_app_test_dirs("stop_kernel_exit");
         let manager = Arc::new(MockProcessManager::new(Vec::new()));
@@ -2895,7 +3025,8 @@ mod tests {
 
     #[tokio::test]
     async fn webview_start_waits_for_matching_first_frame_ready() {
-        let dirs = make_app_test_dirs("webview_ready");
+        let available_port = available_application_test_port();
+        let directories = make_app_test_dirs("webview_ready");
         let config = test_config(
             4603,
             std::env::temp_dir().join("px_data_webview_ready"),
@@ -2905,15 +3036,18 @@ mod tests {
         let mut service =
             ServiceRuntime::new(config, manager.clone(), Arc::new(MockActions::new()));
         service.state.last_desktop_launch = Some(RenderLaunchSpec {
-            work_dir: dirs.work_dir_s,
-            app_path: dirs.render_path.to_string_lossy().to_string(),
+            work_dir: directories.work_dir_s,
+            app_path: directories.render_path.to_string_lossy().to_string(),
             args: vec!["--app_mode=desktop".to_string()],
         });
         let runtime = Arc::new(Mutex::new(service));
         let task_runtime = runtime.clone();
         let start = tokio::spawn(async move {
-            ServiceRuntime::start_app_instance(&task_runtime, sample_webview_req("web-ready", 4725))
-                .await
+            ServiceRuntime::start_app_instance(
+                &task_runtime,
+                sample_webview_req("web-ready", i32::from(available_port)),
+            )
+            .await
         });
 
         for _ in 0..20 {
@@ -2931,16 +3065,18 @@ mod tests {
             !start.is_finished(),
             "start must wait for the browser first frame"
         );
-        assert!(!runtime
-            .lock()
-            .await
-            .complete_webview_ready("web-ready", 4726, Ok(())));
-        assert!(runtime
-            .lock()
-            .await
-            .complete_webview_ready("web-ready", 4725, Ok(())));
+        assert!(!runtime.lock().await.complete_webview_ready(
+            "web-ready",
+            i32::from(available_port) + 1,
+            Ok(())
+        ));
+        assert!(runtime.lock().await.complete_webview_ready(
+            "web-ready",
+            i32::from(available_port),
+            Ok(())
+        ));
         let (port, _) = start.await.unwrap().unwrap();
-        assert_eq!(port, 4725);
+        assert_eq!(port, available_port);
         assert_eq!(
             runtime
                 .lock()

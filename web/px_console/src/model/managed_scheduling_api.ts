@@ -27,11 +27,7 @@ export type PlacementRejectionReason =
     | "rdp_workspace_busy"
     | "gpu_inventory_unavailable"
     | "pinned_gpu_missing"
-    | "gpu_binding_unavailable"
-    | "gpu_metrics_unknown"
-    | "gpu_memory_exhausted"
-    | "gpu_compute_exhausted"
-    | "gpu_encoder_exhausted";
+    | "gpu_binding_unavailable";
 
 export interface PlacementCandidate {
     rank: number | null;

@@ -1,0 +1,118 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.application_deployments AS d(\r\n id,application_id,node_id,kind,gpu_key,\r\n capacity,disabled,application_revision)\r\nSELECT $1,a.id,n.id,$4,$5,$6,$7,a.revision FROM pixels.applications a,pixels.nodes n,pixels.devices v\r\nWHERE a.id=$2 AND n.id=$3 AND a.kind=$4 AND a.deleted_at IS NULL AND n.deleted_at IS NULL\r\nAND v.id=n.device_id AND v.deleted_at IS NULL\r\nRETURNING d.id,d.application_id,d.node_id,d.kind,d.gpu_key,d.capacity,d.disabled,d.revision,d.application_revision,d.observed_state,d.observed_reason,d.observed_generation,d.observed_epoch,d.observed_endpoint_revision,d.observed_sequence,d.observed_at\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "capacity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "application_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "observed_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "observed_reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "observed_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "observed_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "observed_endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 14,
+        "name": "observed_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "observed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "09e5176b4cd0487f958abf70c7c15d2358422897e2b395ee8b6665bb6ced88db"
+}

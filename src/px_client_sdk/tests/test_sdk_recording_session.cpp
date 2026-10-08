@@ -179,7 +179,7 @@ TEST(SdkRecordingSession, ThrowingCompletionStillResolvesAndDestructorDrains) {
     EXPECT_EQ(callback_count->load(), 1);
 }
 struct RecordingTestDirectory final {
-    const std::filesystem::path path{std::filesystem::temp_directory_path() / ("pixels-recording-test-" + GetUUID())};
+    const std::filesystem::path path{std::filesystem::temp_directory_path() / ("pixels-recording-test-" + GetCanonicalUUID())};
     RecordingTestDirectory() {
         std::filesystem::create_directories(path);
     }

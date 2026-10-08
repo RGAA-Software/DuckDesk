@@ -1,0 +1,152 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.resource_sessions\n(id,target_kind,device_id,application_id,instance_id,node_id,owner_user,owner_guest,login_session_id,owner_revision,client_type,access_role,request_id,request_hash,node_generation,control_epoch,endpoint_revision)\nVALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)\nRETURNING id,target_kind,device_id,application_id,instance_id,node_id,owner_user,owner_guest,login_session_id,owner_revision,client_type,access_role,request_hash,state,revision,node_generation,control_epoch,endpoint_revision,created_at,closed_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "target_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "device_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "instance_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "owner_user",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "owner_guest",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "login_session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 9,
+        "name": "owner_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "access_role",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "request_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 13,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 15,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "control_epoch",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 17,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 18,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 19,
+        "name": "closed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Text",
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "08e59ac07a7e93da5665ce982f4fa1ab85593077fb07e54276cc05da6178e7e6"
+}

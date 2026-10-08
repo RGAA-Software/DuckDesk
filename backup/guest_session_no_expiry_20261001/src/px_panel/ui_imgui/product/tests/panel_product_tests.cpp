@@ -1,0 +1,897 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <array>
+#include <asio2/websocket/ws_client.hpp>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <future>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include <string_view>
+#include <thread>
+#include <vector>
+
+#include "connection_progress_tracker.h"
+#include "environment_diagnostics.h"
+#include "panel_audit_store.h"
+#include "panel_config_store.h"
+#include "panel_connection_input.h"
+#include "panel_connection_links.h"
+#include "panel_console_session.h"
+#include "panel_device_name.h"
+#include "panel_device_presence.h"
+#include "panel_local_server.h"
+#include "panel_navigation_model.h"
+#include "panel_system_information.h"
+#include "panel_worker.h"
+#include "px_common/base64.h"
+#include "px_common/http_client.h"
+#include "px_common/shared_preference.h"
+#include "px_console_client/console_http_client.h"
+#include "px_render_panel_message.pb.h"
+#include "windows_environment_probe.h"
+
+namespace px::panel::product {
+
+TEST(PanelDevicePresence, RecentAndBoundCardsUseLivePublicLookupAndRefreshTheEndpoint) {
+    PanelDevicePresence presence{};
+    std::vector<ui::RemoteDeviceCard> devices{{.streamId = "direct-device-uuid",
+                                               .deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://CONSOLE.example.test:443/",
+                                               .host = "old-host",
+                                               .port = 4601},
+                                              {.streamId = "console-device-device-uuid",
+                                               .deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://console.example.test"}};
+    int lookupCount{};
+    presence.Refresh(devices, "https://console.example.test", [&lookupCount](const std::string& publicDeviceCode) {
+        ++lookupCount;
+        return px_console::ConsolePublicDeviceEndpoint{
+            .device_id = "device-uuid", .public_code = publicDeviceCode, .host = "current-host", .port = 4613};
+    });
+    EXPECT_EQ(lookupCount, 1);
+    for (const auto& device : devices) {
+        EXPECT_TRUE(device.online);
+        EXPECT_EQ(device.host, "current-host");
+        EXPECT_EQ(device.port, 4613);
+    }
+}
+
+TEST(PanelDevicePresence, UnconfirmedCardsAndUnavailableResolversCannotReportOnline) {
+    PanelDevicePresence presence{};
+    std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
+                                               .publicDeviceCode = "934886467",
+                                               .consoleOrigin = "https://console.example.test",
+                                               .online = true,
+                                               .host = "last-known-host",
+                                               .port = 4601}};
+    presence.Refresh(devices, "https://console.example.test",
+                     [](const std::string&) -> PanelDevicePresence::LookupResult { return TcErr(px_console::ConsoleApiError::kNotFound); });
+    EXPECT_FALSE(devices.front().online);
+    EXPECT_EQ(devices.front().host, "last-known-host");
+    devices.front().online = true;
+    presence.Refresh(devices, "https://console.example.test", {});
+    EXPECT_FALSE(devices.front().online);
+}
+
+TEST(PanelDevicePresence, DoesNotQueryAnotherConsoleOrAnInvalidBinding) {
+    PanelDevicePresence presence{};
+    std::vector<ui::RemoteDeviceCard> devices{
+        {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://other-console.example.test", .online = true},
+        {.deviceId = "device-uuid", .publicDeviceCode = "93488646", .consoleOrigin = "https://console.example.test", .online = true},
+        {.deviceId = "device-uuid", .publicDeviceCode = "93488646X", .consoleOrigin = "https://console.example.test", .online = true},
+        {.publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test", .online = true}};
+    int lookupCount{};
+    presence.Refresh(devices, "https://console.example.test", [&lookupCount](const std::string&) -> PanelDevicePresence::LookupResult {
+        ++lookupCount;
+        return TcErr(px_console::ConsoleApiError::kNotFound);
+    });
+    EXPECT_EQ(lookupCount, 0);
+    for (const auto& device : devices) EXPECT_FALSE(device.online);
+}
+
+TEST(PanelDevicePresence, RejectsReassignedCodesAndInvalidResolvedEndpoints) {
+    const auto endpointIsOnline = [](const px_console::ConsolePublicDeviceEndpoint& endpoint) {
+        PanelDevicePresence presence{};
+        std::vector<ui::RemoteDeviceCard> devices{{.deviceId = "device-uuid",
+                                                   .publicDeviceCode = "934886467",
+                                                   .consoleOrigin = "https://console.example.test",
+                                                   .host = "old-host",
+                                                   .port = 4601}};
+        presence.Refresh(devices, "https://console.example.test", [endpoint](const std::string&) { return endpoint; });
+        if (!devices.front().online) EXPECT_EQ(devices.front().host, "old-host");
+        return devices.front().online;
+    };
+    EXPECT_FALSE(endpointIsOnline({.device_id = "another-uuid", .public_code = "934886467", .host = "host", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886468", .host = "host", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .port = 4601}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 0}));
+    EXPECT_FALSE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 65536}));
+    EXPECT_TRUE(endpointIsOnline({.device_id = "device-uuid", .public_code = "934886467", .host = "host", .port = 4601}));
+}
+
+TEST(PanelDevicePresence, RepeatedRefreshTracksOnlineOfflineAndReconnectWithoutCreatingSessions) {
+    PanelDevicePresence presence{};
+    std::vector<ui::RemoteDeviceCard> devices{
+        {.deviceId = "device-uuid", .publicDeviceCode = "934886467", .consoleOrigin = "https://console.example.test"}};
+    for (int refreshIndex{}; refreshIndex < 6; ++refreshIndex) {
+        const bool online{refreshIndex % 2 == 0};
+        presence.Refresh(devices, "https://console.example.test", [online](const std::string& publicDeviceCode) -> PanelDevicePresence::LookupResult {
+            if (!online) return TcErr(px_console::ConsoleApiError::kNotFound);
+            return px_console::ConsolePublicDeviceEndpoint{.device_id = "device-uuid", .public_code = publicDeviceCode, .host = "host", .port = 4601};
+        });
+        EXPECT_EQ(devices.front().online, online);
+    }
+}
+
+TEST(PanelConsoleHttpsTest, KeepsHttpsButAcceptsPrivateCertificates) {
+    const auto consoleClient = px_console::MakeConsoleHttpClient("private-console.example", 4600, "/health/ready");
+    ASSERT_NE(consoleClient, nullptr);
+    EXPECT_FALSE(consoleClient->IsPeerVerificationEnabled());
+}
+
+TEST(PanelProductNavigation, MatchesTheConfiguredProductCapabilities) {
+    const auto hasPage = [](const ui::PanelPage page) {
+        return std::ranges::any_of(ui::kProductNavigationItems, [page](const ui::PanelNavigationItemSpec& item) { return item.page == page; });
+    };
+    const std::string_view product{PROJECT_PRODUCT};
+    if (product == "cloud_node") {
+        EXPECT_TRUE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_TRUE(hasPage(ui::PanelPage::ServerStatus));
+    } else if (product == "client") {
+        EXPECT_TRUE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_FALSE(hasPage(ui::PanelPage::ServerStatus));
+    } else if (product == "remote") {
+        EXPECT_FALSE(hasPage(ui::PanelPage::CloudApplications));
+        EXPECT_TRUE(hasPage(ui::PanelPage::ServerStatus));
+    } else {
+        FAIL() << "Unexpected product: " << product;
+    }
+}
+
+TEST(PanelDeviceName, UsesPrivateIpv4LastSegmentWithMcPrefix) {
+    EXPECT_EQ(BuildDefaultDeviceName({"203.0.113.8", "192.168.31.6"}), "MC-6");
+    EXPECT_EQ(BuildDefaultDeviceName({"192.0.2.44"}), "MC-44");
+}
+
+TEST(PanelDeviceName, RecognizesOnlyNamesOwnedByTheAutomaticNamingPolicy) {
+    EXPECT_TRUE(IsManagedDeviceName("D-44"));
+    EXPECT_TRUE(IsManagedDeviceName("MC-6"));
+    EXPECT_TRUE(IsManagedDeviceName("Pixels Node44"));
+    EXPECT_FALSE(IsManagedDeviceName("Office Render"));
+}
+
+TEST(PanelSystemInformationTest, ParsesPxOsInfoSnapshot) {
+    constexpr std::string_view payload{R"json({
+        "os":{"sys_os_long_version":"Microsoft Windows 11 Pro 10.0.26100"},
+        "cpu":{"usage":23.5,"brand":"  Example CPU  "},
+        "mem":{"used":8589934592,"total":17179869184},
+        "disks":[{"mount_on":"C:\\","available":1000,"total":4000}],
+        "gpus":[{"brand":"Example GPU 1","driver_version":"581.15","gpu_utilization":42,"mem_used":2000,"mem_total":8000},
+                {"brand":"Example GPU 2","driver_version":"32.0.21025.1024","gpu_utilization":82,"mem_used":3000,"mem_total":9000}]
+    })json"};
+    const auto result = ParsePanelSystemInformation(payload);
+    ASSERT_TRUE(result);
+    EXPECT_EQ(result->operatingSystem, "Microsoft Windows 11 Pro 10.0.26100");
+    EXPECT_EQ(result->cpuName, "Example CPU");
+    EXPECT_FLOAT_EQ(result->cpuUsagePercent, 23.5F);
+    EXPECT_EQ(result->memoryUsedBytes, 8'589'934'592ULL);
+    ASSERT_EQ(result->disks.size(), 1U);
+    EXPECT_EQ(result->disks.front().mountPoint, "C:\\");
+    ASSERT_EQ(result->gpus.size(), 2U);
+    EXPECT_EQ(result->gpus.front().name, "Example GPU 1");
+    EXPECT_EQ(result->gpus.front().driverVersion, "581.15");
+    EXPECT_EQ(result->gpus.front().utilizationPercent, 42U);
+    EXPECT_EQ(result->gpus.back().name, "Example GPU 2");
+    EXPECT_EQ(result->gpus.back().driverVersion, "32.0.21025.1024");
+    EXPECT_EQ(result->gpus.back().utilizationPercent, 82U);
+}
+
+TEST(PanelSystemInformationTest, RejectsHandshakeAndMalformedPayloadWithoutThrowing) {
+    EXPECT_FALSE(ParsePanelSystemInformation("Hello, WebSocket!"));
+    EXPECT_FALSE(ParsePanelSystemInformation("[]"));
+}
+namespace {
+
+class TemporaryDirectory final {
+public:
+    TemporaryDirectory() {
+        path_ =
+            std::filesystem::temp_directory_path() / std::format("pixels-panel-test-{}", std::chrono::steady_clock::now().time_since_epoch().count());
+        std::filesystem::create_directories(path_);
+    }
+    ~TemporaryDirectory() {
+        std::error_code error{};
+        std::filesystem::remove_all(path_, error);
+    }
+    [[nodiscard]] const std::filesystem::path& Path() const { return path_; }
+
+private:
+    std::filesystem::path path_{};
+};
+
+TEST(PanelAuditStoreTest, PersistsUpdatesAndDeletesRendererEvents) {
+    TemporaryDirectory directory{};
+    const auto store = PanelAuditStore::Create(directory.Path());
+    ASSERT_TRUE(store);
+
+    pxrp::RpMessage connected{};
+    connected.set_type(pxrp::kRpClientConnected);
+    auto& connection = *connected.mutable_client_connected();
+    connection.set_conn_id("connection-1");
+    connection.set_stream_id("stream-1");
+    connection.set_conn_type("udp");
+    connection.set_begin_timestamp(1000);
+    connection.set_visitor_device_id("visitor");
+    store->Consume(connected, "target");
+
+    pxrp::RpMessage disconnected{};
+    disconnected.set_type(pxrp::kRpClientDisConnected);
+    disconnected.mutable_client_disconnected()->set_conn_id("connection-1");
+    disconnected.mutable_client_disconnected()->set_end_timestamp(6000);
+    disconnected.mutable_client_disconnected()->set_duration(5000);
+    store->Consume(disconnected, "target");
+
+    const auto visits = store->Query(ui::SecurityRecordKind::Visit);
+    ASSERT_EQ(visits.size(), 1);
+    EXPECT_TRUE(visits.front().succeeded);
+    EXPECT_EQ(visits.front().visitor, "visitor");
+    EXPECT_EQ(visits.front().target, "target");
+    EXPECT_TRUE(store->Delete(ui::SecurityRecordKind::Visit, visits.front().id));
+    EXPECT_TRUE(store->Query(ui::SecurityRecordKind::Visit).empty());
+
+    pxrp::RpMessage begin{};
+    begin.set_type(pxrp::kRpFileTransferBegin);
+    begin.mutable_ft_begin()->set_the_file_id("file-1");
+    begin.mutable_ft_begin()->set_begin_timestamp(7000);
+    begin.mutable_ft_begin()->set_visitor_device_id("visitor");
+    begin.mutable_ft_begin()->set_direction("send");
+    begin.mutable_ft_begin()->set_file_detail("C:/data/example.txt");
+    store->Consume(begin, "target");
+
+    pxrp::RpMessage end{};
+    end.set_type(pxrp::kRpFileTransferEnd);
+    end.mutable_ft_end()->set_the_file_id("file-1");
+    end.mutable_ft_end()->set_end_timestamp(9000);
+    end.mutable_ft_end()->set_duration(2000);
+    end.mutable_ft_end()->set_success(true);
+    end.mutable_ft_end()->set_status("succeeded");
+    store->Consume(end, "target");
+
+    const auto transfers = store->Query(ui::SecurityRecordKind::FileTransfer);
+    ASSERT_EQ(transfers.size(), 1);
+    EXPECT_TRUE(transfers.front().succeeded);
+    EXPECT_EQ(transfers.front().fileName, "example.txt");
+    EXPECT_TRUE(store->DeleteAll(ui::SecurityRecordKind::FileTransfer));
+    EXPECT_TRUE(store->Query(ui::SecurityRecordKind::FileTransfer).empty());
+}
+
+TEST(PanelWorkerTest, StopIsIdempotentAndRejectsNewWork) {
+    const auto worker = PanelWorker::Create();
+    ASSERT_TRUE(worker);
+    std::promise<void> completed{};
+    auto future = completed.get_future();
+    EXPECT_TRUE(worker->Post([completion = std::make_shared<std::promise<void>>(std::move(completed))] { completion->set_value(); }));
+    EXPECT_EQ(future.wait_for(std::chrono::seconds{2}), std::future_status::ready);
+    worker->Stop();
+    worker->Stop();
+    EXPECT_FALSE(worker->Post([] {}));
+}
+
+TEST(EnvironmentDiagnosticsTest, RefreshesOnThePanelWorkerAndPublishesACompleteGeneration) {
+    const auto worker = PanelWorker::Create();
+    ASSERT_TRUE(worker);
+    const auto calls = std::make_shared<std::atomic_uint32_t>();
+    const auto diagnostics = EnvironmentDiagnostics::Create(worker, [calls] {
+        ++*calls;
+        return std::vector<ui::EnvironmentCheckStatus>{
+            {.id = ui::EnvironmentCheckId::Audio, .state = ui::EnvironmentCheckState::Ready, .technicalDetail = "test endpoint"}};
+    });
+    ASSERT_TRUE(diagnostics);
+
+    const auto waitForGeneration = [&diagnostics](const std::uint64_t generation) {
+        for (int attempt{}; attempt < 100; ++attempt) {
+            const auto snapshot = diagnostics->Snapshot();
+            if (!snapshot.refreshing && snapshot.generation >= generation) return snapshot;
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+        return diagnostics->Snapshot();
+    };
+    const auto first = waitForGeneration(1);
+    ASSERT_FALSE(first.refreshing);
+    ASSERT_EQ(first.checks.size(), 1U);
+    EXPECT_EQ(first.checks.front().technicalDetail, "test endpoint");
+
+    ASSERT_TRUE(diagnostics->Refresh());
+    const auto second = waitForGeneration(2);
+    EXPECT_FALSE(second.refreshing);
+    EXPECT_EQ(second.generation, 2U);
+    EXPECT_EQ(calls->load(), 2U);
+    worker->Stop();
+}
+
+TEST(EnvironmentDiagnosticsTest, DestructionWithAProbeInFlightIsSafe) {
+    struct ProbeGate final {
+        std::mutex mutex{};
+        std::condition_variable started{};
+        std::condition_variable released{};
+        bool didStart{};
+        bool mayFinish{};
+    };
+    const auto worker = PanelWorker::Create();
+    ASSERT_TRUE(worker);
+    const auto gate = std::make_shared<ProbeGate>();
+    auto diagnostics = EnvironmentDiagnostics::Create(worker, [gate] {
+        std::unique_lock lock{gate->mutex};
+        gate->didStart = true;
+        gate->started.notify_all();
+        gate->released.wait(lock, [gate] { return gate->mayFinish; });
+        return InitialEnvironmentChecks();
+    });
+    ASSERT_TRUE(diagnostics);
+    {
+        std::unique_lock lock{gate->mutex};
+        ASSERT_TRUE(gate->started.wait_for(lock, std::chrono::seconds{2}, [gate] { return gate->didStart; }));
+    }
+    EXPECT_FALSE(diagnostics->Refresh());
+    diagnostics.reset();
+    {
+        const std::scoped_lock lock{gate->mutex};
+        gate->mayFinish = true;
+    }
+    gate->released.notify_all();
+    worker->Stop();
+}
+
+TEST(EnvironmentDiagnosticsTest, WindowsProbeReturnsEverySupportedCheckExactlyOnce) {
+    const auto checks = ProbeWindowsEnvironment();
+    ASSERT_EQ(checks.size(), 8U);
+    std::array<bool, 8> seen{};
+    for (const auto& check : checks) {
+        const auto index = static_cast<std::size_t>(check.id);
+        ASSERT_LT(index, seen.size());
+        EXPECT_FALSE(seen.at(index));
+        seen.at(index) = true;
+        EXPECT_NE(check.state, ui::EnvironmentCheckState::Checking);
+    }
+    EXPECT_TRUE(std::ranges::all_of(seen, std::identity{}));
+}
+
+TEST(ConnectionProgressTrackerTest, TracksOrderedPreflightAndCompletion) {
+    ConnectionProgressTracker tracker{};
+    const auto generation = tracker.Begin(ui::ConnectionIntent::Control, "908998909");
+    ASSERT_TRUE(generation);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ValidateTarget);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::ResolveDevice);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ResolveDevice, "192.168.31.6:4601");
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::ReachEndpoint);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ReachEndpoint, "192.168.31.6:4601");
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::LaunchClient);
+    tracker.Complete(*generation, "Pixels Client started.");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Succeeded);
+    EXPECT_EQ(progress->steps.size(), 6);
+    EXPECT_TRUE(std::ranges::all_of(progress->steps,
+                                    [](const ui::ConnectionProgressStep& step) { return step.state == ui::ConnectionStepState::Succeeded; }));
+}
+
+TEST(ConnectionProgressTrackerTest, RejectsParallelRunAndIgnoresStaleUpdates) {
+    ConnectionProgressTracker tracker{};
+    const auto first = tracker.Begin(ui::ConnectionIntent::FileTransfer, "90");
+    ASSERT_TRUE(first);
+    EXPECT_FALSE(tracker.Begin(ui::ConnectionIntent::Control, "91"));
+    tracker.Fail(*first, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled, "Remote access is disabled.");
+    const auto second = tracker.Begin(ui::ConnectionIntent::Control, "91");
+    ASSERT_TRUE(second);
+    tracker.Complete(*first, "stale");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->generation, *second);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Running);
+    EXPECT_EQ(progress->steps.front().state, ui::ConnectionStepState::Running);
+}
+
+TEST(ConnectionProgressTrackerTest, KeepsOnlyTheCurrentStepRunningWhenAnEndpointRetryMovesBackward) {
+    ConnectionProgressTracker tracker{};
+    const auto generation = tracker.Begin(ui::ConnectionIntent::Control, "90");
+    ASSERT_TRUE(generation);
+    tracker.SucceedStep(*generation, ui::ConnectionStepKind::ValidateTarget);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::VerifyPassword);
+    tracker.BeginStep(*generation, ui::ConnectionStepKind::CheckPermission);
+    tracker.Fail(*generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled, "disabled");
+
+    const auto progress = tracker.Snapshot();
+    ASSERT_TRUE(progress);
+    EXPECT_EQ(progress->status, ui::ConnectionProgressStatus::Failed);
+    EXPECT_EQ(progress->steps.at(3).state, ui::ConnectionStepState::Failed);
+    EXPECT_EQ(progress->steps.at(4).state, ui::ConnectionStepState::Pending);
+}
+
+TEST(PanelConfigStoreTest, PersistsAndClearsConnectionPreferences) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto console = config->ParseConsoleAddress("https://console.example.test/");
+    ASSERT_TRUE(console);
+    ASSERT_TRUE(config->SaveNetwork(console->baseUrl, *console));
+
+    EXPECT_TRUE(config->IncomingRemoteAccessEnabled());
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(false));
+    EXPECT_FALSE(config->IncomingRemoteAccessEnabled());
+
+    const RemoteDevicePreference remote{.name = "Office node",
+                                        .audio = false,
+                                        .clipboard = true,
+                                        .viewOnly = true,
+                                        .splitWindows = true,
+                                        .forceSoftware = true,
+                                        .forceTcp = true,
+                                        .waitForDebugger = true,
+                                        .forceGdiCapture = true,
+                                        .disableVulkan = true};
+    ASSERT_TRUE(config->SaveRemoteDevicePreference("device-1", remote));
+    const auto loadedRemote = config->LoadRemoteDevicePreference("device-1");
+    ASSERT_TRUE(loadedRemote);
+    EXPECT_EQ(loadedRemote->name, remote.name);
+    EXPECT_FALSE(loadedRemote->audio);
+    EXPECT_TRUE(loadedRemote->clipboard);
+    EXPECT_TRUE(loadedRemote->viewOnly);
+    EXPECT_TRUE(loadedRemote->forceTcp);
+    EXPECT_FALSE(loadedRemote->forceRelay);
+    const auto reopenedConfig = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto reopenedPreference = reopenedConfig->LoadRemoteDevicePreference("device-1");
+    ASSERT_TRUE(reopenedPreference);
+    EXPECT_TRUE(reopenedPreference->forceTcp);
+    EXPECT_FALSE(reopenedPreference->forceRelay);
+
+    ASSERT_TRUE(
+        config->SaveRemoteDeviceHistory({.deviceId = "device-1",
+                                         .publicDeviceCode = "123456789",
+                                         .consoleOrigin = console->baseUrl,
+                                         .name = "Office node",
+                                         .host = "192.168.1.8",
+                                         .port = 4601,
+                                         .lastConnectedAt = 42}));
+    const auto history = config->LoadRemoteDeviceHistory();
+    ASSERT_EQ(history.size(), 1);
+    EXPECT_EQ(history.front().deviceId, "device-1");
+    EXPECT_EQ(history.front().publicDeviceCode, "123456789");
+    EXPECT_EQ(history.front().consoleOrigin, console->baseUrl);
+    EXPECT_EQ(history.front().host, "192.168.1.8");
+    const auto otherConsole = config->ParseConsoleAddress("https://other-console.example.test/");
+    ASSERT_TRUE(otherConsole);
+    ASSERT_TRUE(config->SaveNetwork(otherConsole->baseUrl, *otherConsole));
+    EXPECT_TRUE(config->LoadRemoteDeviceHistory().empty());
+    EXPECT_FALSE(config->LoadRemoteDevicePreference("device-1"));
+    ASSERT_TRUE(config->SaveRemoteDeviceHistory({.deviceId = "device-1",
+                                                 .publicDeviceCode = "123456789",
+                                                 .consoleOrigin = otherConsole->baseUrl,
+                                                 .host = "198.51.100.8",
+                                                 .port = 4601}));
+    ASSERT_TRUE(config->SaveNetwork(console->baseUrl, *console));
+    ASSERT_EQ(config->LoadRemoteDeviceHistory().size(), 1);
+    EXPECT_EQ(config->LoadRemoteDeviceHistory().front().host, "192.168.1.8");
+    EXPECT_TRUE(config->LoadRemoteDevicePreference("device-1").has_value());
+    ASSERT_TRUE(config->HideRemoteDevice("device-1"));
+    EXPECT_TRUE(config->RemoteDeviceHidden("device-1"));
+    ASSERT_TRUE(config->UnhideRemoteDevice("device-1"));
+    EXPECT_FALSE(config->RemoteDeviceHidden("device-1"));
+    ASSERT_TRUE(config->HideRemoteDevice("device-1"));
+    ASSERT_TRUE(config->SaveCustomDeviceName("Studio node"));
+    EXPECT_TRUE(config->DeviceNameIsCustom());
+    EXPECT_EQ(config->Identity().deviceName, "Studio node");
+
+    ASSERT_TRUE(config->SaveCloudApplicationPreference("application-1", {.forceRelay = true}));
+    const auto loadedApplication = config->LoadCloudApplicationPreference("application-1");
+    EXPECT_FALSE(loadedApplication.forceTcp);
+    EXPECT_TRUE(loadedApplication.forceRelay);
+
+    config->Clear();
+    EXPECT_TRUE(config->IncomingRemoteAccessEnabled());
+    EXPECT_FALSE(config->LoadRemoteDevicePreference("device-1"));
+    EXPECT_TRUE(config->LoadRemoteDeviceHistory().empty());
+    EXPECT_FALSE(config->RemoteDeviceHidden("device-1"));
+    EXPECT_FALSE(config->DeviceNameIsCustom());
+    EXPECT_FALSE(config->LoadCloudApplicationPreference("application-1").forceRelay);
+}
+
+TEST(PanelConfigStoreTest, AcceptsOnlyNormalizedHttpsConsoleAddresses) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+
+    const auto endpoint = config->ParseConsoleAddress("https://console.example.test:8443/");
+    ASSERT_TRUE(endpoint);
+    EXPECT_EQ(endpoint->baseUrl, "https://console.example.test:8443");
+    EXPECT_EQ(endpoint->host, "console.example.test");
+    EXPECT_EQ(endpoint->port, 8443);
+    const auto equivalentEndpoint = config->ParseConsoleAddress("HTTPS://CONSOLE.EXAMPLE.TEST:8443");
+    ASSERT_TRUE(equivalentEndpoint);
+    EXPECT_EQ(equivalentEndpoint->baseUrl, endpoint->baseUrl);
+    EXPECT_FALSE(config->ParseConsoleAddress("http://console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://user@console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://console.example.test/api"));
+    EXPECT_FALSE(config->ParseConsoleAddress("console://access##retired"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://-console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://console-.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://999.999.999.999"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://[:::]"));
+    const auto ipv6Endpoint = config->ParseConsoleAddress("https://[2001:DB8::10]");
+    ASSERT_TRUE(ipv6Endpoint);
+    EXPECT_EQ(ipv6Endpoint->baseUrl, "https://[2001:db8::10]");
+    EXPECT_EQ(ipv6Endpoint->host, "2001:db8::10");
+    const auto equivalentIpv6Endpoint = config->ParseConsoleAddress("https://[2001:0db8:0:0:0:0:0:10]:443/");
+    ASSERT_TRUE(equivalentIpv6Endpoint);
+    EXPECT_EQ(equivalentIpv6Endpoint->baseUrl, ipv6Endpoint->baseUrl);
+
+    ASSERT_TRUE(config->SaveNetwork(endpoint->baseUrl, *endpoint));
+    EXPECT_EQ(config->ConsoleAddress(), endpoint->baseUrl);
+    ASSERT_TRUE(config->Console());
+    EXPECT_EQ(config->Console()->port, 8443);
+    config->Clear();
+    EXPECT_TRUE(config->ConsoleAddress().empty());
+}
+
+TEST(PanelConfigStoreTest, OfficialDistributionAlwaysUsesItsPackagedConsoleOrigin) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    ASSERT_TRUE(preferences->Put("console_server_url", "https://untrusted.example.test"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path(), "https://OFFICIAL-console.example.test:8443/");
+
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test:8443");
+    const auto officialEndpoint = config->Console();
+    ASSERT_TRUE(officialEndpoint);
+    EXPECT_EQ(officialEndpoint->host, "official-console.example.test");
+    EXPECT_EQ(officialEndpoint->port, 8443);
+
+    const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
+    ASSERT_TRUE(privateEndpoint);
+    EXPECT_FALSE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
+    EXPECT_TRUE(config->SaveNetwork(officialEndpoint->baseUrl, *officialEndpoint));
+    config->Clear();
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test:8443");
+}
+
+TEST(PanelConfigStoreTest, CustomerDistributionRejectsTheOfficialConsoleOrigin) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config =
+        std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{}, "https://OFFICIAL-console.example.test:443/");
+
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test"));
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test:443/"));
+    const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
+    ASSERT_TRUE(privateEndpoint);
+    EXPECT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
+    EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+}
+
+TEST(PanelConfigStoreTest, PersistsPublicCodeAndPasswordUntilConsoleReallyChanges) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto firstConsole = config->ParseConsoleAddress("https://EXAMPLE.test:443/");
+    ASSERT_TRUE(firstConsole);
+    ASSERT_TRUE(config->SaveNetwork(firstConsole->baseUrl, *firstConsole));
+    PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Studio", .randomPassword = "ABCD1234"};
+    ASSERT_TRUE(config->SaveIdentity(identity));
+    ASSERT_TRUE(config->SavePublicDeviceCode(identity.deviceId, "123456789", "39.71.45.66"));
+    EXPECT_FALSE(config->SavePublicDeviceCode(identity.deviceId, "not-a-code", "39.71.45.66"));
+    EXPECT_FALSE(config->SavePublicDeviceCode(identity.deviceId, "123456789", "39.71.45.66:4601"));
+
+    const auto restartedConfig = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    EXPECT_EQ(restartedConfig->CachedPublicDeviceCode(identity.deviceId), "123456789");
+    EXPECT_EQ(restartedConfig->CachedNodeAccessHost(identity.deviceId), "39.71.45.66");
+    EXPECT_EQ(restartedConfig->Identity().randomPassword, "ABCD1234");
+    const auto offlineLinks = BuildPanelConnectionLinks(restartedConfig->Identity(), restartedConfig->Ports(),
+                                                        restartedConfig->CachedPublicDeviceCode(identity.deviceId),
+                                                        restartedConfig->ConsoleAddress(),
+                                                        restartedConfig->CachedNodeAccessHost(identity.deviceId), {});
+    ASSERT_TRUE(offlineLinks.desktop.starts_with("link://"));
+    const auto offlinePayload = nlohmann::json::parse(Base64::Base64Decode(offlineLinks.desktop.substr(7)));
+    ASSERT_EQ(offlinePayload.at("ips").size(), 1);
+    EXPECT_EQ(offlinePayload.at("ips").at(0).at("ip"), "39.71.45.66");
+
+    const auto equivalentConsole = restartedConfig->ParseConsoleAddress("https://example.test/");
+    ASSERT_TRUE(equivalentConsole);
+    ASSERT_TRUE(restartedConfig->SaveNetwork(equivalentConsole->baseUrl, *equivalentConsole));
+    EXPECT_EQ(restartedConfig->CachedPublicDeviceCode(identity.deviceId), "123456789");
+    EXPECT_EQ(restartedConfig->CachedNodeAccessHost(identity.deviceId), "39.71.45.66");
+    EXPECT_EQ(restartedConfig->Identity().randomPassword, "ABCD1234");
+
+    const auto secondConsole = restartedConfig->ParseConsoleAddress("https://example.test:4600/");
+    ASSERT_TRUE(secondConsole);
+    ASSERT_TRUE(restartedConfig->SaveNetwork(secondConsole->baseUrl, *secondConsole));
+    EXPECT_TRUE(restartedConfig->Identity().deviceId.empty());
+    EXPECT_TRUE(restartedConfig->CachedPublicDeviceCode(identity.deviceId).empty());
+    EXPECT_TRUE(restartedConfig->CachedNodeAccessHost(identity.deviceId).empty());
+    EXPECT_EQ(restartedConfig->Identity().deviceName, "Studio");
+    EXPECT_TRUE(IsValidTemporaryPassword(restartedConfig->Identity().randomPassword));
+    EXPECT_NE(restartedConfig->Identity().randomPassword, "ABCD1234");
+}
+
+TEST(PanelConfigStoreTest, GeneratesOnlyEightUppercaseLettersAndDigits) {
+    EXPECT_FALSE(IsValidTemporaryPassword("zJ/w2EPV"));
+    EXPECT_FALSE(IsValidTemporaryPassword("abcd1234"));
+    EXPECT_TRUE(IsValidTemporaryPassword("ABCD1234"));
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        const auto password = GenerateTemporaryPassword();
+        ASSERT_TRUE(password);
+        EXPECT_TRUE(IsValidTemporaryPassword(*password));
+    }
+}
+
+TEST(PanelConfigStoreTest, UnifiedPixelsPackageSelectsOfficialOrCustomConsole) {
+    TemporaryDirectory directory{};
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path(), std::string{},
+                                                           "https://OFFICIAL-console.example.test:443/");
+
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test");
+    ASSERT_TRUE(config->Console());
+    EXPECT_EQ(config->Console()->host, "official-console.example.test");
+    EXPECT_FALSE(config->ParseConsoleAddress("https://official-console.example.test"));
+
+    const auto privateEndpoint = config->ParseConsoleAddress("https://private-console.example.test");
+    ASSERT_TRUE(privateEndpoint);
+    ASSERT_TRUE(config->SaveNetwork(privateEndpoint->baseUrl, *privateEndpoint));
+    EXPECT_EQ(config->ConsoleAddress(), privateEndpoint->baseUrl);
+    ASSERT_TRUE(config->SaveOfficialNetwork());
+    EXPECT_EQ(config->ConsoleAddress(), "https://official-console.example.test");
+}
+
+TEST(PanelConsoleSessionTest, ConsoleOriginChangeClearsThePreviousAccountBinding) {
+    TemporaryDirectory directory{};
+    const auto preferences = SharedPreference::Instance();
+    preferences->Release();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "console-session-preferences"));
+    ASSERT_TRUE(preferences->Put("console_server_url", "https://private-console.example.test"));
+    ASSERT_TRUE(preferences->Put("console_user:uid", "user-1"));
+    ASSERT_TRUE(preferences->Put("console_user:username", "alice"));
+    ASSERT_TRUE(preferences->Put("console_user:avatar_path", "avatar.png"));
+    ASSERT_TRUE(preferences->Put("console_user:console_address", "https://private-console.example.test"));
+
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto session = PanelConsoleSession::Create(config);
+    session->ForgetAccountIfConsoleChanged("https://private-console.example.test");
+    EXPECT_EQ(preferences->Get("console_user:username"), "alice");
+
+    session->ForgetAccountIfConsoleChanged("https://other-private-console.example.test");
+    EXPECT_TRUE(preferences->Get("console_user:uid").empty());
+    EXPECT_TRUE(preferences->Get("console_user:username").empty());
+    EXPECT_TRUE(preferences->Get("console_user:avatar_path").empty());
+    EXPECT_TRUE(preferences->Get("console_user:console_address").empty());
+    EXPECT_FALSE(session->Account().loggedIn);
+    preferences->Release();
+}
+
+TEST(PanelLocalServerTest, RuntimeDesktopAccessUpdatesAreDeliveredOnTheRendererSessionThread) {
+    TemporaryDirectory directory{};
+    {
+        std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
+        ASSERT_TRUE(serviceConfig);
+        serviceConfig << "[network]\npanel_port = 0\n";
+    }
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto audit = PanelAuditStore::Create(directory.Path() / "audit");
+    ASSERT_TRUE(audit);
+    const auto server = PanelLocalServer::Create(config, audit);
+    ASSERT_TRUE(server);
+    const auto serverSnapshot = server->Snapshot();
+    ASSERT_TRUE(serverSnapshot.listening);
+    ASSERT_GT(serverSnapshot.listenPort, 0);
+
+    struct Probe final {
+        std::mutex mutex{};
+        std::condition_variable changed{};
+        std::vector<bool> disabledValues{};
+    };
+    const auto probe = std::make_shared<Probe>();
+    const auto client = std::make_shared<asio2::ws_client>();
+    client->bind_recv([probe](const std::string_view bytes) {
+        pxrp::RpMessage message{};
+        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size())) || message.type() != pxrp::kSyncPanelInfo) {
+            return;
+        }
+        {
+            const std::scoped_lock lock{probe->mutex};
+            probe->disabledValues.push_back(message.sync_panel_info().remote_access_disabled());
+        }
+        probe->changed.notify_all();
+    });
+    ASSERT_TRUE(client->start("127.0.0.1", serverSnapshot.listenPort, "/panel/renderer?instance_id=test-desktop"));
+    const auto waitForCount = [probe](const std::size_t count) {
+        std::unique_lock lock{probe->mutex};
+        return probe->changed.wait_for(lock, std::chrono::seconds{3}, [probe, count] { return probe->disabledValues.size() >= count; });
+    };
+    ASSERT_TRUE(waitForCount(1));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_FALSE(probe->disabledValues.at(0));
+    }
+
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(false));
+    server->RefreshPanelInfo();
+    ASSERT_TRUE(waitForCount(2));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_TRUE(probe->disabledValues.at(1));
+    }
+
+    ASSERT_TRUE(config->SaveIncomingRemoteAccessEnabled(true));
+    server->RefreshPanelInfo();
+    ASSERT_TRUE(waitForCount(3));
+    {
+        const std::scoped_lock lock{probe->mutex};
+        EXPECT_FALSE(probe->disabledValues.at(2));
+    }
+    client->stop();
+    server->Stop();
+}
+
+TEST(PanelLocalServerTest, ReceivesPxOsInfoSnapshotsOverTheLocalSystemInformationRoute) {
+    TemporaryDirectory directory{};
+    {
+        std::ofstream serviceConfig{directory.Path() / "px_service.toml"};
+        ASSERT_TRUE(serviceConfig);
+        serviceConfig << "[network]\npanel_port = 0\n";
+    }
+    const auto preferences = std::make_shared<SharedPreference>();
+    ASSERT_TRUE(preferences->Init(directory.Path(), "preferences"));
+    const auto config = std::make_shared<PanelConfigStore>(preferences, directory.Path());
+    const auto audit = PanelAuditStore::Create(directory.Path() / "audit");
+    ASSERT_TRUE(audit);
+    const auto server = PanelLocalServer::Create(config, audit);
+    ASSERT_TRUE(server);
+    const auto serverSnapshot = server->Snapshot();
+    ASSERT_TRUE(serverSnapshot.listening);
+    ASSERT_GT(serverSnapshot.listenPort, 0);
+
+    const auto client = std::make_shared<asio2::ws_client>();
+    ASSERT_TRUE(client->start("127.0.0.1", serverSnapshot.listenPort, "/sys/info"));
+    constexpr std::string_view payload{R"json({"cpu":{"usage":12.5,"brand":"Route CPU"},"mem":{"used":4,"total":8},"disks":[],"gpus":[]})json"};
+    client->async_send(payload);
+    bool received{};
+    for (int attempt{}; attempt < 100 && !received; ++attempt) {
+        const auto information = server->SystemInformation();
+        received = information.has_value() && information->cpuName == "Route CPU";
+        if (!received) std::this_thread::sleep_for(std::chrono::milliseconds{20});
+    }
+    EXPECT_TRUE(received);
+    client->stop();
+    server->Stop();
+}
+
+TEST(PanelConnectionLinksTest, PreservesCompleteDesktopAndWebConnectionPayloads) {
+    const PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
+    const NodePorts ports{};
+    const auto links = BuildPanelConnectionLinks(identity, ports, "109022351", "https://console.example.test", "39.71.45.66", {"192.168.1.8"});
+    ASSERT_TRUE(links.desktop.starts_with("link://"));
+    const auto desktopPayload = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    EXPECT_EQ(desktopPayload.at("did"), identity.deviceId);
+    EXPECT_EQ(desktopPayload.at("pc"), "109022351");
+    EXPECT_EQ(desktopPayload.at("co"), "https://console.example.test");
+    EXPECT_EQ(desktopPayload.at("dn"), identity.deviceName);
+    EXPECT_EQ(desktopPayload.at("rpwd"), identity.randomPassword);
+    EXPECT_EQ(desktopPayload.at("iidx"), 1);
+    ASSERT_EQ(desktopPayload.at("ips").size(), 1);
+    EXPECT_EQ(desktopPayload.at("ips").at(0).at("ip"), "39.71.45.66");
+    EXPECT_EQ(desktopPayload.at("ppt"), ports.panel);
+    EXPECT_EQ(desktopPayload.at("rdpt"), ports.desktop);
+    EXPECT_FALSE(desktopPayload.contains("rlst"));
+    EXPECT_FALSE(desktopPayload.contains("rlpt"));
+    EXPECT_FALSE(desktopPayload.contains("rlak"));
+
+    const std::string webPrefix{"http://39.71.45.66:4601/web/?c="};
+    ASSERT_TRUE(links.web.starts_with(webPrefix));
+    std::string webToken{links.web.substr(webPrefix.size())};
+    for (auto& character : webToken) {
+        if (character == '-') {
+            character = '+';
+        } else if (character == '_') {
+            character = '/';
+        }
+    }
+    while (webToken.size() % 4U != 0U) {
+        webToken.push_back('=');
+    }
+    const auto webPayload = nlohmann::json::parse(Base64::Base64Decode(webToken));
+    EXPECT_EQ(webPayload.at("d"), identity.deviceId);
+    EXPECT_EQ(webPayload.at("p"), identity.randomPassword);
+}
+
+TEST(PanelConnectionLinksTest, UsesFirstLocalAddressWhenNoPublicAddressIsConfigured) {
+    const PanelIdentity identity{.deviceId = "101", .deviceName = "Pixels", .randomPassword = "temporary"};
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", {},
+                                                 {"192.168.1.8", "10.0.0.2"});
+
+    EXPECT_TRUE(links.web.starts_with("http://192.168.1.8:4601/web/?c="));
+    EXPECT_EQ(links.web.find("127.0.0.1"), std::string::npos);
+    const auto desktopPayload = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    ASSERT_EQ(desktopPayload.at("ips").size(), 2);
+    EXPECT_EQ(desktopPayload.at("ips").at(0).at("ip"), "192.168.1.8");
+    EXPECT_EQ(desktopPayload.at("ips").at(1).at("ip"), "10.0.0.2");
+    EXPECT_EQ(ResolveNodeAccessHost({}, {"192.168.1.8", "10.0.0.2"}), "192.168.1.8");
+    EXPECT_EQ(ResolveNodeAccessHost("render.example.com", {"192.168.1.8"}), "render.example.com");
+    EXPECT_TRUE(ResolveNodeAccessHost({}, {"127.0.0.1"}).empty());
+}
+
+TEST(PanelConnectionLinksTest, DoesNotPublishUnroutableLinkWhenAddressIsUnknown) {
+    const PanelIdentity identity{.deviceId = "109022351", .deviceName = "Pixels", .randomPassword = "ABCD1234"};
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", {}, {});
+    EXPECT_TRUE(links.desktop.empty());
+    EXPECT_TRUE(links.web.empty());
+    EXPECT_TRUE(BuildPanelConnectionLinks(identity, NodePorts{}, {}, {}, "39.71.45.66", {}).desktop.empty());
+}
+
+TEST(PanelConnectionInputTest, DistinguishesDeviceLinkAndDirectEndpointInputs) {
+    const auto device = ParseConnectionInput(" 109022351 ", 4601);
+    ASSERT_TRUE(device);
+    EXPECT_EQ(device->kind, ConnectionInputKind::DeviceCode);
+    EXPECT_EQ(device->publicDeviceCode, "109022351");
+    EXPECT_TRUE(device->deviceId.empty());
+    EXPECT_FALSE(ParseConnectionInput("10902235", 4601));
+
+    const PanelIdentity identity{.deviceId = "device-uuid", .deviceName = "Pixels Public Node", .randomPassword = "temporary"};
+    const auto links = BuildPanelConnectionLinks(identity, NodePorts{}, "109022351", "https://console.example.test", "39.71.45.66", {});
+    const auto shared = ParseConnectionInput(links.desktop, 4601);
+    ASSERT_TRUE(shared);
+    EXPECT_EQ(shared->kind, ConnectionInputKind::SharedLink);
+    EXPECT_EQ(shared->deviceId, identity.deviceId);
+    EXPECT_EQ(shared->publicDeviceCode, "109022351");
+    EXPECT_EQ(shared->consoleOrigin, "https://console.example.test");
+    EXPECT_TRUE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022351", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022352", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, "another-device", "109022351", "https://console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, identity.deviceId, "109022351", "https://other-console.example.test"));
+    EXPECT_FALSE(ConnectionIdentityMatches(*shared, {}, "109022351", "https://console.example.test"));
+    EXPECT_EQ(shared->displayName, identity.deviceName);
+    EXPECT_EQ(shared->password, identity.randomPassword);
+    ASSERT_EQ(shared->hosts.size(), 1);
+    EXPECT_EQ(shared->hosts.front(), "39.71.45.66");
+    EXPECT_EQ(shared->port, 4601);
+    EXPECT_TRUE(shared->relayHost.empty());
+    EXPECT_EQ(shared->relayPort, 0);
+    EXPECT_TRUE(shared->relayDeviceId.empty());
+
+    const auto direct = ParseConnectionInput("https://39.71.45.66:4613/path", 4601);
+    ASSERT_TRUE(direct);
+    EXPECT_EQ(direct->kind, ConnectionInputKind::DirectEndpoint);
+    EXPECT_EQ(direct->hosts.front(), "39.71.45.66");
+    EXPECT_EQ(direct->port, 4613);
+    EXPECT_TRUE(ConnectionInputNeedsPassword("39.71.45.66"));
+    EXPECT_TRUE(ConnectionInputNeedsPassword("109022351"));
+    EXPECT_FALSE(ConnectionInputNeedsPassword(links.desktop));
+
+    auto invalidBinding = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    invalidBinding.erase("co");
+    EXPECT_FALSE(ParseConnectionInput("link://" + Base64::Base64Encode(invalidBinding.dump()), 4601));
+    invalidBinding = nlohmann::json::parse(Base64::Base64Decode(links.desktop.substr(7)));
+    invalidBinding.erase("pc");
+    EXPECT_FALSE(ParseConnectionInput("link://" + Base64::Base64Encode(invalidBinding.dump()), 4601));
+}
+
+}  // namespace
+}  // namespace px::panel::product

@@ -76,6 +76,16 @@ add_custom_command(TARGET px_client POST_BUILD
 pixels_stage_rdp_client(px_client)
 
 if(BUILD_TESTING AND TARGET GTest::gtest)
+    add_executable(test_client_rdp_lifecycle tests/test_client_rdp_lifecycle.cpp)
+    target_link_libraries(test_client_rdp_lifecycle PRIVATE px_client_imgui_runtime GTest::gtest GTest::gtest_main)
+    set_target_properties(test_client_rdp_lifecycle PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")
+    pixels_stage_rdp_client(test_client_rdp_lifecycle)
+    if(TARGET px_voice_apm)
+        add_custom_command(TARGET test_client_rdp_lifecycle POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:px_voice_apm>" "$<TARGET_FILE_DIR:test_client_rdp_lifecycle>")
+    endif()
+    add_test(NAME client_rdp_lifecycle COMMAND test_client_rdp_lifecycle)
+
     add_executable(test_client_recording_feedback tests/test_client_recording_feedback.cpp ui_imgui/client_recording_feedback.cpp ui_imgui/client_text.cpp)
     target_include_directories(test_client_recording_feedback PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
     target_link_libraries(test_client_recording_feedback PRIVATE pixels::sdk px_ui px_common GTest::gtest GTest::gtest_main)

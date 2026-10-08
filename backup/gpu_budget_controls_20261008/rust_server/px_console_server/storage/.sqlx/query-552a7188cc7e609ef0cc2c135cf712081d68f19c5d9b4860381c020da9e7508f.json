@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(SELECT 1 FROM pixels.nodes WHERE id=$1 AND reconciliation_id=$2\nAND reconciliation_deadline>clock_timestamp() AND state='reconciling') AS \"current!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "current!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "552a7188cc7e609ef0cc2c135cf712081d68f19c5d9b4860381c020da9e7508f"
+}

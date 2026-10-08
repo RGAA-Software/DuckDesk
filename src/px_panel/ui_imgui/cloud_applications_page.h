@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cloud_applications_port.h"
+#include "cloud_application_progress_dialog.h"
 
 #include "px_ui/localization.h"
 
@@ -21,6 +22,7 @@ class CloudApplicationsPage final {
     void DrawPasswordDialog(const px::ui::Localizer& localizer);
 
     std::shared_ptr<CloudApplicationsPort> port_{};
+    CloudApplicationProgressDialog progressDialog_;
     std::string passwordStreamId_{};
     std::string password_{};
     bool passwordDialogOpen_{};

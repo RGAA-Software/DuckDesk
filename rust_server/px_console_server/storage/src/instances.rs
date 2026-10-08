@@ -121,8 +121,10 @@ impl InstanceStore {
             subject.revision
         )
         .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(StoreError::NoCapacity)?;
+        .await?;
+        let Some(instance) = instance else {
+            return Err(StoreError::NoCapacity);
+        };
         if application.kind != "rdp" {
             if let Some(relay) = crate::relay_selection::select(&mut tx, epoch.0).await? {
                 sqlx::query_file!(

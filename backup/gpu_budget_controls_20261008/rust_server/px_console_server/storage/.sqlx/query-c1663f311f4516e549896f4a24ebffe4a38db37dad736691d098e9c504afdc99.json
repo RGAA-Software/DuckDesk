@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.user_groups SET revision = revision + 1,\n    deleted_at = clock_timestamp(), updated_at = clock_timestamp()\nWHERE id = $1\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c1663f311f4516e549896f4a24ebffe4a38db37dad736691d098e9c504afdc99"
+}

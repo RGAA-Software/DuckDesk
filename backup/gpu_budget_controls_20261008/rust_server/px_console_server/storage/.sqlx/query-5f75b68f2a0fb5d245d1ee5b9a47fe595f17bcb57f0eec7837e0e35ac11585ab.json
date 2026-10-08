@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.cache_blobs(id,recording_id,root_id,run_id,node_generation,origin_user,login_session_id,owner_revision,client_type,\naccess_scope,lease_id,lease_until,deadline,state,size_bytes,source_sha256)\nSELECT $1,r.id,$3,$4,r.node_generation,$5,$6,$7,$8,$9,$10,clock_timestamp()+interval '30 seconds',\nclock_timestamp()+interval '15 minutes','fetching',r.size_bytes,r.source_sha256 FROM pixels.recordings r WHERE r.id=$2\nRETURNING id,recording_id,root_id,run_id,node_generation,lease_id,lease_until,state,size_bytes,source_sha256,received_bytes,verified_run,\n(lease_until<=clock_timestamp() OR deadline<=clock_timestamp()) AS \"expired!\",\nGREATEST(0,LEAST(30000,FLOOR(EXTRACT(EPOCH FROM (LEAST(lease_until,deadline)-clock_timestamp()))*1000)))::bigint AS \"remaining_ms!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "recording_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "root_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "run_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "lease_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "lease_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "size_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "source_sha256",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "received_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "verified_run",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "expired!",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "remaining_ms!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "5f75b68f2a0fb5d245d1ee5b9a47fe595f17bcb57f0eec7837e0e35ac11585ab"
+}

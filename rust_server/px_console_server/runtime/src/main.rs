@@ -2,6 +2,8 @@ use px_console_runtime::{ConsoleLaunch, ConsoleLaunchConfig, ConsoleRuntime, Run
 use std::{io, time::Duration};
 use tokio_util::sync::CancellationToken;
 
+mod logging;
+
 #[tokio::main]
 async fn main() {
     if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--wait-env-file")) {
@@ -75,6 +77,9 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
         license,
         license_config,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
+    logging::initialize(std::path::Path::new(&std::env::var(
+        "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
+    )?))?;
     let runtime = ConsoleRuntime::activate_product_with_cache_optional(
         &database,
         deployment,

@@ -20,7 +20,7 @@ add_library(px_panel_imgui_views STATIC
 )
 
 if(PX_CAPABILITY_CLOUD_APP_CATALOG)
-    target_sources(px_panel_imgui_views PRIVATE cloud_applications_page.cpp)
+    target_sources(px_panel_imgui_views PRIVATE cloud_applications_page.cpp cloud_application_progress_dialog.cpp)
 endif()
 if(PX_CAPABILITY_DESKTOP_HOST)
     target_sources(px_panel_imgui_views PRIVATE server_status_page.cpp)
@@ -78,7 +78,7 @@ add_executable(px_panel WIN32
 )
 
 if(PX_CAPABILITY_CLOUD_APP_CATALOG)
-    target_sources(px_panel PRIVATE product/product_cloud_applications_port.cpp)
+    target_sources(px_panel PRIVATE product/product_cloud_applications_port.cpp product/application_launch_workflow.cpp)
 endif()
 if(PX_CAPABILITY_DESKTOP_HOST)
     target_sources(px_panel PRIVATE product/product_server_status_port.cpp)
@@ -172,8 +172,13 @@ add_custom_command(TARGET px_ui_component_gallery POST_BUILD
 
 if(BUILD_TESTING AND TARGET GTest::gtest)
     add_executable(px_panel_product_tests
+        product/tests/application_launch_workflow_tests.cpp
+        product/application_launch_workflow.cpp
         product/tests/panel_product_tests.cpp
+        product/tests/panel_device_presence_tests.cpp
         product/tests/remote_device_actions_tests.cpp
+        product/tests/console_request_uuid_tests.cpp
+        product/tests/console_resource_lifecycle_tests.cpp
         product/environment_diagnostics.cpp
         product/panel_audit_store.cpp
         product/connection_progress_tracker.cpp
@@ -206,6 +211,10 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         PowrProf.lib
     )
     add_test(NAME px_panel_product_tests COMMAND px_panel_product_tests)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME px_console_resource_lifecycle_tests
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/tests/run_console_resource_lifecycle.py"
+            --test-executable "$<TARGET_FILE:px_panel_product_tests>")
     if(PX_CAPABILITY_SYSTEM_INFORMATION AND NOT PX_CAPABILITY_DESKTOP_HOST)
         add_executable(px_panel_os_info_test_child product/tests/os_info_test_child.cpp)
         set_target_properties(px_panel_os_info_test_child PROPERTIES

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.node_telemetry_alert_events\nSET state='recovered',latest_value_per_mille=$2,last_sampled_at=$3,recovered_at=clock_timestamp(),\n updated_at=clock_timestamp(),revision=revision+1\nWHERE id=$1 AND state<>'recovered'\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int2",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4ddf55257f411a2f1bd9fd2beec000f7ed1149f3cfd37b242509f3c08bbfe120"
+}

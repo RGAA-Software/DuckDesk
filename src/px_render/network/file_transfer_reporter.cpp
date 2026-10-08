@@ -219,7 +219,8 @@ PxAwaitable<void> FileTransferReporter::BeginAsync(std::weak_ptr<FileTransferRep
             }
         }
         auto result = co_await service_client->RequestFileTransferBeginAsync(
-            GetUUID(), activity->transfer_request_id, activity->logical_session_id, activity->direction, activity->file_name, activity->total_bytes,
+            GenerateRandomBase64Id(), activity->transfer_request_id, activity->logical_session_id, activity->direction, activity->file_name,
+            activity->total_bytes,
             std::nullopt, std::chrono::steady_clock::now() + std::chrono::seconds(12));
         if (result.HasValue() && result.Value().accepted_ && IsCanonicalUuid(result.Value().transfer_id_) && result.Value().state_ == "active") {
             std::scoped_lock lock(owner->activities_mutex_);
@@ -303,7 +304,7 @@ PxAwaitable<void> FileTransferReporter::ReportLoopAsync(std::weak_ptr<FileTransf
             co_return;
         }
         auto result = co_await service_client->RequestFileTransferReportAsync(
-            GetUUID(), activity->transfer_id, report_snapshot->sequence, report_snapshot->transferred_bytes, report_snapshot->outcome,
+            GenerateRandomBase64Id(), activity->transfer_id, report_snapshot->sequence, report_snapshot->transferred_bytes, report_snapshot->outcome,
             report_snapshot->verified_sha256, std::chrono::steady_clock::now() + std::chrono::seconds(12));
         const bool accepted = result.HasValue() && result.Value().accepted_ && result.Value().transfer_id_ == activity->transfer_id &&
                               result.Value().sequence_ == report_snapshot->sequence;

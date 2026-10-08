@@ -360,7 +360,7 @@ fn seed_recovery_security_records(tool: &DockerPgTool) {
          INSERT INTO pixels.login_sessions(id,user_id,token_hash,client_type,authorization_revision,expires_at,absolute_expires_at) VALUES('10000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001',decode(repeat('11',32),'hex'),'admin_web',1,clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 hours');\
          INSERT INTO pixels.user_groups(id,name,name_normalized) VALUES('10000000-0000-0000-0000-000000000003','Recovery Group','recovery group');\
          INSERT INTO pixels.group_members(group_id,user_id) VALUES('10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000001');\
-         INSERT INTO pixels.devices(id,public_code,name,platform,enrollment_hash) VALUES('10000000-0000-0000-0000-000000000004','123456789012','Recovery Device','windows',decode(repeat('22',32),'hex'));\
+         INSERT INTO pixels.devices(id,public_code,name,platform,enrollment_hash) VALUES('10000000-0000-0000-0000-000000000004','123456789','Recovery Device','windows',decode(repeat('22',32),'hex'));\
          INSERT INTO pixels.user_devices(user_id,device_id) VALUES('10000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000004');\
          INSERT INTO pixels.group_device_grants(group_id,device_id) VALUES('10000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000004');\
          INSERT INTO pixels.applications(id,name,kind,access_mode,entry_url,bitrate_kbps,codec,allow_observer,allow_takeover,disabled) VALUES('10000000-0000-0000-0000-000000000005','Recovery App','webview','acl','https://example.test',1000,'h264',false,false,false);\

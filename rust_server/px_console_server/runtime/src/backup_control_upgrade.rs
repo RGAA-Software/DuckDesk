@@ -15,8 +15,8 @@ pub fn upgrade_single_server_backup_control(
     platform: &str,
 ) -> Result<bool, String> {
     let console_host = match platform {
-        "windows" => "localhost",
-        "linux" => "console",
+        "windows" => "127.0.0.1",
+        "linux" => "127.0.0.1",
         _ => return Err("invalid Single Server platform".into()),
     };
     if !config_root.is_absolute() {

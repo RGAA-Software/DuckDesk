@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_id AS \"user_id!\" FROM (\n SELECT user_id FROM pixels.user_devices WHERE device_id=$1\n UNION\n SELECT gm.user_id FROM pixels.group_device_grants gd JOIN pixels.user_groups g ON g.id=gd.group_id\n JOIN pixels.group_members gm ON gm.group_id=g.id WHERE gd.device_id=$1 AND g.deleted_at IS NULL\n) users ORDER BY user_id\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4b974c80e29790f15b271ea7df0baaeae210b2455dc5ba32f197ac2e6b3ba7d6"
+}

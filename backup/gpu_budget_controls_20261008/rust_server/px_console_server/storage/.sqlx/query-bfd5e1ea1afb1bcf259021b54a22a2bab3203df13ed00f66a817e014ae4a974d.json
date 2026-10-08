@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.group_app_grants(application_id,group_id) SELECT $1,unnest($2::uuid[])\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bfd5e1ea1afb1bcf259021b54a22a2bab3203df13ed00f66a817e014ae4a974d"
+}

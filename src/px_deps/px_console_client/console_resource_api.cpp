@@ -10,6 +10,8 @@
 #include "console_http_client.h"
 #include "px_common/http_client.h"
 #include "px_common/log.h"
+#include "px_common/scope_exit.h"
+#include "px_common/uuid.h"
 
 namespace px_console {
 namespace {
@@ -66,8 +68,12 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
                                                                                    const std::string& access_token, const bool guest,
                                                                                    const ConsoleResourceTarget& target, const bool view_only,
                                                                                    const std::string& request_id) {
-    const auto subject = guest ? "guest" : "user";
-    const auto access = view_only ? "observer" : "controller";
+    if (!px::IsCanonicalUUID(request_id)) {
+        LOGE("OpenResourceSession rejected locally: field=request_id code=invalid_uuid_format");
+        return TcErr(ConsoleApiError::kInvalidParams);
+    }
+    const std::string subject{guest ? "guest" : "user"};
+    const std::string access{view_only ? "observer" : "controller"};
     const auto target_payload = TargetPayload(target);
     const auto open_client = MakeConsoleHttpClient(host, port, "/api/console/resource-sessions", 5'000);
     SetPanelRequestHeaders(open_client, access_token, subject);
@@ -81,8 +87,20 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
         const auto opened = json::parse(open_response.body);
         const auto session_id = opened.value("id", "");
         const auto opened_revision = opened.value("revision", 0LL);
-        if (session_id.empty() || opened_revision <= 0 || opened.value("client_type", "") != "panel" || opened.value("access_role", "") != access ||
-            !SameTarget(opened.at("target"), target)) {
+        if (!px::IsCanonicalUUID(session_id) || opened_revision <= 0) return TcErr(ConsoleApiError::kParseJsonFailed);
+        LOGI("Resource connection reserved: request={} session={} revision={}", request_id, session_id, opened_revision);
+        // Until a complete descriptor reaches the caller, this scope owns the reservation.
+        auto release_reservation = px::PxScopeExit{[host, port, access_token, guest, session_id, opened_revision] {
+            const auto original_error = ConsoleApiLastErrorMessage();
+            try {
+                const auto closed = ClosePanelResourceConnection(host, port, access_token, guest, session_id, opened_revision);
+                if (!closed || !*closed) LOGW("Unlaunched resource reservation could not be closed: {}", session_id);
+            } catch (...) {
+                LOGW("Unlaunched resource reservation cleanup failed: {}", session_id);
+            }
+            SetConsoleApiLastErrorMessage(original_error);
+        }};
+        if (opened.value("client_type", "") != "panel" || opened.value("access_role", "") != access || !SameTarget(opened.at("target"), target)) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
 
@@ -150,7 +168,7 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
                 return TcErr(ConsoleApiError::kParseJsonFailed);
             }
         }
-        const auto expected_owner = guest ? "guest" : "user";
+        const std::string expected_owner{guest ? "guest" : "user"};
         const auto& owner = session.at("owner");
         if (result.host.empty() || result.port <= 0 || result.port > 65'535 || result.remote_resource_id.empty() || result.session_id != session_id ||
             result.session_revision < opened_revision || !result.frontend_token || result.frontend_token->Bytes().empty() ||
@@ -159,6 +177,9 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
             owner.value("kind", "") != expected_owner || !SameTarget(session.at("target"), target)) {
             return TcErr(ConsoleApiError::kParseJsonFailed);
         }
+        LOGI("Resource descriptor ready: request={} session={} revision={} transport={}", request_id, session_id,
+             result.session_revision, result.transport);
+        release_reservation.Release();
         return result;
     } catch (const std::exception& error) {
         LOGE("Resource descriptor response parsing failed: {}", error.what());
@@ -168,21 +189,45 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
 
 px::Result<bool, ConsoleApiError> ClosePanelResourceConnection(const std::string& host, const int port, const std::string& access_token,
                                                                const bool guest, const std::string& session_id, const std::int64_t session_revision) {
-    if (session_id.empty() || session_revision <= 0) {
+    if (!px::IsCanonicalUUID(session_id) || session_revision <= 0) {
         return TcErr(ConsoleApiError::kInvalidParams);
     }
-    const auto client = MakeConsoleHttpClient(host, port, std::format("/api/console/resource-sessions/{}/close", session_id), 5'000);
-    SetPanelRequestHeaders(client, access_token, guest ? "guest" : "user");
-    const auto response = client->Post({}, json{{"revision", session_revision}}.dump(), "application/json");
-    if (response.status != 200 || response.body.empty()) {
-        return HttpError<bool>("CloseResourceSession", response);
-    }
     try {
-        const auto session = json::parse(response.body);
-        const auto state = session.value("state", "");
-        return session.value("id", "") == session_id && (state == "closing" || state == "closed")
-                   ? px::Result<bool, ConsoleApiError>{true}
-                   : px::Result<bool, ConsoleApiError>{TcErr(ConsoleApiError::kParseJsonFailed)};
+        const auto session_path = std::format("/api/console/resource-sessions/{}", session_id);
+        const auto query_client = MakeConsoleHttpClient(host, port, session_path, 5'000);
+        const auto close_client = MakeConsoleHttpClient(host, port, session_path + "/close", 5'000);
+        SetPanelRequestHeaders(query_client, access_token, guest ? "guest" : "user");
+        SetPanelRequestHeaders(close_client, access_token, guest ? "guest" : "user");
+        std::int64_t rejected_revision{};
+        // Descriptor issuance and frontend confirmation both advance the revision.
+        // Retry a concurrent transition only when a read proves the revision changed.
+        for (int close_attempt{}; close_attempt < 3; ++close_attempt) {
+            const auto current_response = query_client->Request();
+            if (current_response.status != 200 || current_response.body.empty())
+                return HttpError<bool>("ReadResourceSessionForClose", current_response);
+            const auto current = json::parse(current_response.body);
+            const auto current_revision = current.value("revision", 0LL);
+            const auto current_state = current.value("state", "");
+            if (current.value("id", "") != session_id || current_revision <= 0) return TcErr(ConsoleApiError::kParseJsonFailed);
+            LOGI("Resource connection cleanup: session={} supplied_revision={} current_revision={} state={} attempt={}", session_id,
+                 session_revision, current_revision, current_state, close_attempt + 1);
+            if (current_state == "closing" || current_state == "closed") return true;
+            if (current_revision == rejected_revision) return TcErr(ConsoleApiError::kForbidden);
+            const auto response = close_client->Post({}, json{{"revision", current_revision}}.dump(), "application/json");
+            if (response.status == 403) {
+                static_cast<void>(ToConsoleUserApiError(response));
+                rejected_revision = current_revision;
+                continue;
+            }
+            if (response.status != 200 || response.body.empty()) return HttpError<bool>("CloseResourceSession", response);
+            const auto session = json::parse(response.body);
+            const auto state = session.value("state", "");
+            LOGI("Resource connection close acknowledged: session={} state={} capacity_released={}", session_id, state, state == "closed");
+            return session.value("id", "") == session_id && (state == "closing" || state == "closed")
+                       ? px::Result<bool, ConsoleApiError>{true}
+                       : px::Result<bool, ConsoleApiError>{TcErr(ConsoleApiError::kParseJsonFailed)};
+        }
+        return TcErr(ConsoleApiError::kConflict);
     } catch (const std::exception& error) {
         LOGE("Close resource session response parsing failed: {}", error.what());
         return TcErr(ConsoleApiError::kParseJsonFailed);

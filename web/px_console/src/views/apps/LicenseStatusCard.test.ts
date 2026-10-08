@@ -37,6 +37,7 @@ describe("license status card", () => {
             expires_at: 1790294400,
             max_streams: 4,
             services: ["cloud_applications", "rdp"],
+            starter_license: true,
         });
 
         const wrapper = mountLicenseCard();
@@ -45,6 +46,7 @@ describe("license status card", () => {
         expect(wrapper.text()).toContain("dashboard.licenseServices.cloudApplications");
         expect(wrapper.text()).toContain("dashboard.licenseServices.rdp");
         expect(wrapper.text()).toContain("4");
+        expect(wrapper.text()).toContain("dashboard.starterLicenseLimits");
         expect(wrapper.text()).toContain("00000000-0000-0000-0000-000000000001");
         wrapper.unmount();
     });
@@ -57,6 +59,7 @@ describe("license status card", () => {
                 expires_at: 1790294400,
                 max_streams: 4,
                 services: ["desktop"],
+                starter_license: false,
             })
             .mockRejectedValueOnce(new Error("unavailable"));
 

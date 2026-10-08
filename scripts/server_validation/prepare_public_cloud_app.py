@@ -53,12 +53,6 @@ def main() -> None:
             f"{origin}/api/console/managed/deployments", headers=headers,
             json={"application_id": application["id"], "node_id": arguments.node_id,
                   "configuration": {"target": {"kind": "webview"}, "gpu_key": None,
-                                    "gpu_profile": {"memory_bytes": 536870912,
-                                                    "compute_per_mille": 100,
-                                                    "encoder_per_mille": 100,
-                                                    "memory_reserve_bytes": 536870912,
-                                                    "compute_limit_per_mille": 900,
-                                                    "encoder_limit_per_mille": 900},
                                     "capacity": 1, "disabled": False}},
             timeout=15,
         )

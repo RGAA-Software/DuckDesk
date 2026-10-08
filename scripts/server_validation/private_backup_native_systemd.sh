@@ -232,8 +232,8 @@ if [[ -n "$fixture_binary" ]]; then
         "PIXELS_CONSOLE_TLS_CERT=$configuration_root/console-secrets/console-tls.crt" \
         "PIXELS_CONSOLE_TLS_KEY=$configuration_root/console-secrets/console-tls.key" \
         "PIXELS_CONSOLE_PUBLIC_ORIGIN=$console_origin" \
-        'PIXELS_CONSOLE_REGISTRATION=1' 'PIXELS_CONSOLE_GUESTS=1' \
-        'PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS=3600' 'PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS=3600' \
+        'PIXELS_CONSOLE_REGISTRATION=1' \
+        'PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS=3600' \
         "PIXELS_CONSOLE_GUEST_SOURCE_KEY=$configuration_root/console-secrets/guest-source.key" \
         "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY=$workspace_key_id" \
         "PIXELS_CONSOLE_WORKSPACE_KEYS='$workspace_keys'" \

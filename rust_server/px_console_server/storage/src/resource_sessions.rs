@@ -91,7 +91,13 @@ impl ResourceSessionStore {
             .fetch_one(&mut *tx)
             .await?;
             if active_in_category >= 1 {
-                return Err(StoreError::LicenseRestriction);
+                return Err(Self::quota_occupancy_error(
+                    &mut tx,
+                    Some(&target_category),
+                    active_in_category,
+                    1,
+                )
+                .await?);
             }
         }
         let active_sessions: i64 = sqlx::query_scalar(
@@ -101,7 +107,13 @@ impl ResourceSessionStore {
         .fetch_one(&mut *tx)
         .await?;
         if active_sessions >= i64::from(entitlement.max_streams) {
-            return Err(StoreError::LicenseRestriction);
+            return Err(Self::quota_occupancy_error(
+                &mut tx,
+                None,
+                active_sessions,
+                i64::from(entitlement.max_streams),
+            )
+            .await?);
         }
         let endpoint = Self::endpoint(
             &mut tx,
@@ -133,6 +145,19 @@ impl ResourceSessionStore {
         .fetch_one(&mut *tx)
         .await?
         {
+            let retiring_controller: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM pixels.resource_sessions WHERE closed_at IS NULL \
+                 AND state IN ('closing','reconcile_required') AND access_role='controller' AND $3='controller' \
+                 AND (device_id=$1 OR instance_id=$2))",
+            )
+            .bind(device)
+            .bind(instance)
+            .bind(request.access.name())
+            .fetch_one(&mut *tx)
+            .await?;
+            if retiring_controller {
+                return Err(StoreError::ConnectionRetiring);
+            }
             return Err(StoreError::NoCapacity);
         }
         let row = sqlx::query_file_as!(
@@ -184,6 +209,28 @@ impl ResourceSessionStore {
         let result = row.view()?;
         tx.commit().await?;
         Ok(result)
+    }
+
+    async fn quota_occupancy_error(
+        connection: &mut sqlx::PgConnection,
+        category: Option<&str>,
+        active_count: i64,
+        limit: i64,
+    ) -> Result<StoreError, StoreError> {
+        let retiring_count: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM pixels.resource_sessions AS session \
+             LEFT JOIN pixels.instances AS instance ON instance.id=session.instance_id \
+             WHERE session.closed_at IS NULL AND session.state IN ('closing','reconcile_required') \
+             AND ($1::text IS NULL OR instance.kind=$1 OR ($1='desktop' AND session.target_kind='desktop'))",
+        )
+        .bind(category)
+        .fetch_one(connection)
+        .await?;
+        Ok(if active_count - retiring_count < limit {
+            StoreError::ConnectionRetiring
+        } else {
+            StoreError::ConnectionBusy
+        })
     }
     pub async fn get(
         &self,
@@ -322,6 +369,12 @@ impl ResourceSessionStore {
         }
         let result = if matches!(row.state.as_str(), "closed" | "closing") {
             row.view()?
+        } else if row.state == "pending" {
+            // admit_frontend takes this same row lock and changes pending to connected
+            // before issuing a grant. Pending therefore proves no transport lease was
+            // issued. Revoke the descriptor and free capacity atomically; a concurrent
+            // admission must see closed and fail rather than acquire a stale grant.
+            Self::change(&mut tx, &row, "closed").await?.view()?
         } else {
             Self::change(&mut tx, &row, "closing").await?.view()?
         };

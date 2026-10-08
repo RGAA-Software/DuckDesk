@@ -103,8 +103,8 @@ px::Result<ConsoleNativeDeviceConnection, ConsoleApiError> ConsoleUserDeviceApi:
                                                                                                        const std::string& access_token,
                                                                                                        const std::string& device_id,
                                                                                                        const bool view_only) {
-    const auto resource = OpenPanelResourceConnection(host, port, access_token, false,
-                                                      {.kind = ConsoleResourceTargetKind::Desktop, .device_id = device_id}, view_only, px::GetUUID());
+    const auto resource = OpenPanelResourceConnection(
+        host, port, access_token, false, {.kind = ConsoleResourceTargetKind::Desktop, .device_id = device_id}, view_only, px::GetCanonicalUUID());
     if (!resource) {
         return TcErr(resource.error());
     }

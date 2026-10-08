@@ -12,6 +12,7 @@ param(
     [string]$ConsoleBase = 'https://39.71.45.66:4600',
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
     [string]$CertificateAuthority = '.env/public_console_ca.pem',
+    [string]$CredentialsPath = '.env/public_test_user.json',
     [string]$AppId = '',
     [string]$WebAssetRoot = '',
     [ValidateScript({ Test-Path -LiteralPath $_ -PathType Leaf })]
@@ -25,7 +26,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $ConsoleBase = $ConsoleBase.TrimEnd('/')
 $repository = Split-Path $PSScriptRoot -Parent
-$credentialsPath = Join-Path $repository '.env/public_test_user.json'
+$credentialsPath = if ([IO.Path]::IsPathRooted($CredentialsPath)) {
+    [IO.Path]::GetFullPath($CredentialsPath)
+} else {
+    [IO.Path]::GetFullPath((Join-Path $repository $CredentialsPath))
+}
 $browserProbePath = Join-Path $PSScriptRoot 'test_web_cloud_app_browser.mjs'
 $webAssetRoot = if ($WebAssetRoot) {
     [IO.Path]::GetFullPath($WebAssetRoot)

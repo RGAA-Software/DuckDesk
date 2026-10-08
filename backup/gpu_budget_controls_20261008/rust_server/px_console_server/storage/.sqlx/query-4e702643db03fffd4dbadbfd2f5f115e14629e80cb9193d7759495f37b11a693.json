@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT n.id AS node_id,n.generation,n.control_epoch AS \"control_epoch!\",n.endpoint_revision,\nn.public_host AS \"host!\",i.port,CASE WHEN i.kind='rdp' THEN 'rdp' ELSE 'native' END AS \"transport!\",\nCASE WHEN i.kind='rdp' THEN n.rdp_domain END AS rdp_domain,\nCASE WHEN i.kind='rdp' THEN n.rdp_proxy_certificate_sha256 END AS rdp_proxy_certificate_sha256\nFROM pixels.instances i JOIN pixels.nodes n ON n.id=i.node_id JOIN pixels.devices d ON d.id=n.device_id\nJOIN pixels.applications a ON a.id=i.application_id\nWHERE i.id=$1 AND i.application_id=$2 AND (i.owner_user=$3 OR i.owner_guest=$4)\nAND i.login_session_id IS NOT DISTINCT FROM $5 AND i.owner_revision=$6 AND i.client_type=$7\nAND i.state='running' AND i.desired_state='running' AND i.ended_at IS NULL\nAND i.node_generation=n.generation AND i.control_epoch=n.control_epoch AND i.endpoint_revision=n.endpoint_revision\nAND n.state='ready' AND NOT n.disabled AND n.deleted_at IS NULL AND NOT d.disabled AND d.deleted_at IS NULL\nAND n.control_epoch=(SELECT epoch FROM pixels.control_runtime)\nAND n.last_seen>clock_timestamp()-interval '30 seconds' AND n.report_sequence>0 AND n.public_host IS NOT NULL AND NOT a.disabled AND a.deleted_at IS NULL\nAND ($8='controller' OR ($8='observer' AND a.allow_observer AND i.kind<>'rdp'))\nAND (i.kind<>'rdp' OR ($7='panel' AND $8='controller'))\nAND (i.kind<>'rdp' OR (n.rdp_domain IS NOT NULL AND n.rdp_proxy_certificate_sha256 IS NOT NULL))\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "control_epoch!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "endpoint_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "host!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "transport!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "rdp_domain",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "rdp_proxy_certificate_sha256",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "4e702643db03fffd4dbadbfd2f5f115e14629e80cb9193d7759495f37b11a693"
+}

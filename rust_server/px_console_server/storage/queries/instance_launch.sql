@@ -1,3 +1,1 @@
-SELECT kind,install_root,executable_relative,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,
-gpu_memory_reservation_bytes,gpu_compute_reservation_per_mille,gpu_encoder_reservation_per_mille,gpu_memory_reserve_bytes,
-gpu_compute_limit_per_mille,gpu_encoder_limit_per_mille FROM pixels.instances WHERE id=$1
+SELECT kind,executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision FROM pixels.instances WHERE id=$1

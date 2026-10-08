@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS(\n SELECT 1\n FROM pixels.cache_blobs b\n JOIN pixels.login_sessions s ON s.id=b.login_session_id\n JOIN pixels.users u ON u.id=b.origin_user\n JOIN pixels.recordings r ON r.id=b.recording_id\n JOIN pixels.nodes n ON n.id=r.node_id\n JOIN pixels.devices d ON d.id=n.device_id\n WHERE b.id=$1\n AND s.user_id=u.id\n AND s.authorization_revision=b.owner_revision\n AND u.authorization_revision=b.owner_revision\n AND s.client_type=b.client_type\n AND NOT u.disabled\n AND u.deleted_at IS NULL\n AND s.revoked_at IS NULL\n AND s.expires_at>clock_timestamp()\n AND s.absolute_expires_at>clock_timestamp()\n AND (\n  (b.access_scope='managed' AND s.client_type='admin_web' AND u.role IN ('admin','viewer'))\n  OR (\n   b.access_scope='user'\n   AND u.role IN ('user','admin')\n   AND (\n    EXISTS(\n     SELECT 1 FROM pixels.resource_sessions rs\n     WHERE rs.id=r.session_id AND rs.owner_user=u.id\n    )\n    OR (\n     NOT d.disabled\n     AND d.deleted_at IS NULL\n     AND (\n      EXISTS(SELECT 1 FROM pixels.user_devices ud WHERE ud.device_id=d.id AND ud.user_id=u.id)\n      OR EXISTS(\n       SELECT 1\n       FROM pixels.group_device_grants gd\n       JOIN pixels.user_groups g ON g.id=gd.group_id\n       JOIN pixels.group_members gm ON gm.group_id=g.id\n       WHERE gd.device_id=d.id AND gm.user_id=u.id AND g.deleted_at IS NULL\n      )\n     )\n    )\n   )\n  )\n )\n) AS \"authorized!\"\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "authorized!",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6c911d1ed69bbbf65f0ff35c8426598fbd17310487094c0a8ec66fb7ad8ecfcd"
+}

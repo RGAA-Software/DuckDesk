@@ -49,8 +49,7 @@ pub struct StartAppRequest {
     pub request_id: String,
     pub instance_id: String,
     pub app_id: String,
-    pub install_root: String,
-    pub game_exe_rel: String,
+    pub executable_path: String,
     pub game_arguments: String,
     pub listen_port: i32,
     pub encoder_fps: i32,
@@ -76,8 +75,7 @@ pub struct AppInstanceRecord {
     pub request_id: String,
     pub instance_id: String,
     pub app_id: String,
-    pub install_root: String,
-    pub game_exe_rel: String,
+    pub executable_path: String,
     pub app_mode: String,
     pub rdp_workspace_id: String,
     pub rdp_node_id: String,
@@ -163,32 +161,12 @@ pub struct AppInstanceSummary {
     pub state: String,
 }
 
-/// Join install_root + game_exe_rel into an absolute game exe path.
-pub fn resolve_game_path(install_root: &str, game_exe_rel: &str) -> Result<PathBuf, String> {
-    let root = install_root.trim();
-    let rel = game_exe_rel.trim();
-    if root.is_empty() {
-        return Err("install_root is empty".to_string());
+/// Accept only the exact configured absolute executable. Never join or trim it.
+pub fn resolve_game_path(executable_path: &str) -> Result<PathBuf, String> {
+    if !px_node_protocol::is_absolute_windows_executable_path(executable_path) {
+        return Err("game executable must be a drive-qualified absolute .exe path".to_string());
     }
-    if rel.is_empty() {
-        return Err("game_exe_rel is empty".to_string());
-    }
-    if Path::new(rel).is_absolute() {
-        return Err("game_exe_rel must be relative".to_string());
-    }
-    // Reject path escape.
-    for comp in Path::new(rel).components() {
-        if matches!(comp, std::path::Component::ParentDir) {
-            return Err("game_exe_rel must not contain '..'".to_string());
-        }
-    }
-    let path = PathBuf::from(root).join(rel);
-    Ok(normalize_path_display(&path))
-}
-
-fn normalize_path_display(path: &Path) -> PathBuf {
-    // Keep OS path; canonicalize is not required for arg building (exe may not exist in unit tests).
-    path.to_path_buf()
+    Ok(PathBuf::from(executable_path))
 }
 
 pub fn encode_game_path_b64(game_path: &Path) -> String {
@@ -648,7 +626,7 @@ impl AppInstanceRegistry {
         } else if app_mode == APP_MODE_WEBVIEW {
             (build_webview_launch_spec(work_dir, &req, port)?, None)
         } else {
-            let game_path = resolve_game_path(&req.install_root, &req.game_exe_rel)?;
+            let game_path = resolve_game_path(&req.executable_path)?;
             // UE bootstrap 外壳：解析真游戏(view)进程路径，render 注入它以代替外壳。
             let view = crate::ue_bootstrap::resolve_ue_bootstrap(&game_path);
             (
@@ -662,8 +640,7 @@ impl AppInstanceRegistry {
             request_id: req.request_id.clone(),
             instance_id: req.instance_id.clone(),
             app_id: req.app_id.clone(),
-            install_root: req.install_root.clone(),
-            game_exe_rel: req.game_exe_rel.clone(),
+            executable_path: req.executable_path.clone(),
             app_mode: app_mode.to_string(),
             rdp_workspace_id: req
                 .rdp_account
@@ -904,8 +881,8 @@ mod tests {
             ),
             rdp_node_id: String::new(),
             rdp_account: None,
-            install_root: r"D:\apps\CarGame".to_string(),
-            game_exe_rel: r"Binaries\Win64\VehicleGame-Win64-Shipping.exe".to_string(),
+            executable_path: r"D:\apps\CarGame\Binaries\Win64\VehicleGame-Win64-Shipping.exe"
+                .to_string(),
             game_arguments: "-dx11".to_string(),
             listen_port: port,
             encoder_fps: 60,
@@ -922,9 +899,8 @@ mod tests {
     }
 
     #[test]
-    fn resolve_game_path_joins_relative() {
-        let resolved_path =
-            resolve_game_path(r"D:\apps\CarGame", r"Binaries\Win64\game.exe").unwrap();
+    fn resolve_game_path_preserves_absolute() {
+        let resolved_path = resolve_game_path(r"D:\apps\CarGame\Binaries\Win64\game.exe").unwrap();
         assert!(resolved_path.to_string_lossy().contains("CarGame"));
         assert!(resolved_path.to_string_lossy().ends_with("game.exe"));
     }
@@ -970,8 +946,7 @@ mod tests {
     fn rdp_req(instance_id: &str, port: i32) -> StartAppRequest {
         let mut req = sample_req(instance_id, port);
         req.app_mode = APP_MODE_RDP.into();
-        req.install_root.clear();
-        req.game_exe_rel.clear();
+        req.executable_path.clear();
         req.gpu_stable_key = None;
         req.rdp_node_id = "rdp-node".into();
         req.rdp_account = Some(crate::rdp_account::RdpAccountSpec {
@@ -1030,16 +1005,16 @@ mod tests {
     }
 
     #[test]
-    fn resolve_rejects_absolute_rel_and_parent() {
-        assert!(resolve_game_path(r"D:\apps", r"D:\evil\a.exe").is_err());
-        assert!(resolve_game_path(r"D:\apps", r"..\evil\a.exe").is_err());
-        assert!(resolve_game_path("", "a.exe").is_err());
+    fn resolve_rejects_relative_paths_and_parent_components() {
+        assert!(resolve_game_path(r"apps\game.exe").is_err());
+        assert!(resolve_game_path(r"D:\apps\..\game.exe").is_err());
+        assert!(resolve_game_path("").is_err());
     }
 
     #[test]
     fn launch_spec_is_game_hook_with_b64_path_and_port() {
         let req = sample_req("i1", 4623);
-        let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
+        let game = resolve_game_path(&req.executable_path).unwrap();
         let spec = build_game_hook_launch_spec(r"D:\Pixels", &req, 4623, &game, None);
         assert!(is_game_hook_launch(&spec));
         assert!(spec.app_path.ends_with(RENDER_EXE_NAME));
@@ -1096,7 +1071,7 @@ mod tests {
     #[test]
     fn launch_spec_carries_view_path_and_game_args() {
         let req = sample_req("i1", 4623);
-        let game = resolve_game_path(&req.install_root, &req.game_exe_rel).unwrap();
+        let game = resolve_game_path(&req.executable_path).unwrap();
         let view = UeViewInfo {
             view_path: game.clone(),
             base_args: None,
@@ -1138,8 +1113,7 @@ mod tests {
         let url = "https://example.com/dashboard?token=secret#view";
         req.app_mode = APP_MODE_WEBVIEW.to_string();
         req.webview_url_b64 = URL_SAFE_NO_PAD.encode(url.as_bytes());
-        req.install_root.clear();
-        req.game_exe_rel.clear();
+        req.executable_path.clear();
         req.game_arguments.clear();
 
         let spec = build_webview_launch_spec(r"D:\Pixels", &req, 4625).unwrap();
@@ -1167,7 +1141,10 @@ mod tests {
             .any(|argument| argument == "--encoder_bitrate=20"));
         assert!(!spec.args.join(" ").contains(url));
 
-        let mut registry = AppInstanceRegistry::new();
+        let available_port = free_port_range(1);
+        req.listen_port = i32::from(available_port);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port);
         let record = registry.begin_start(r"D:\Pixels", req).unwrap();
         assert_eq!(record.app_mode, APP_MODE_WEBVIEW);
         assert!(record.view_game_path.is_none());
@@ -1180,7 +1157,7 @@ mod tests {
         direct.relay_server_host.clear();
         direct.relay_server_port = 0;
         direct.relay_appkey.clear();
-        let game = resolve_game_path(&direct.install_root, &direct.game_exe_rel).unwrap();
+        let game = resolve_game_path(&direct.executable_path).unwrap();
         let spec = build_game_hook_launch_spec(r"D:\Pixels", &direct, 4626, &game, None);
         assert!(spec
             .args
@@ -1227,15 +1204,17 @@ mod tests {
     fn non_ue_launch_args_pass_through_unchanged() {
         // sample_req 的 exe 不存在，resolve_ue_bootstrap 返回 None：
         // 验证 begin_start 在非 UE 路径下参数原样传递、无 view 路径。
-        let mut reg = AppInstanceRegistry::new();
-        let req = sample_req("ue", 4641);
-        let rec = reg.begin_start(r"D:\Pixels", req).unwrap();
-        assert!(rec
+        let available_port = free_port_range(1);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port);
+        let request = sample_req("ue", 0);
+        let record = registry.begin_start(r"D:\Pixels", request).unwrap();
+        assert!(record
             .launch
             .args
             .iter()
             .any(|argument| argument == "--app_game_args=-dx11"));
-        assert!(rec.view_game_path.is_none());
+        assert!(record.view_game_path.is_none());
     }
 
     #[test]
@@ -1267,18 +1246,23 @@ mod tests {
 
     #[test]
     fn registry_multi_instance_same_app_different_ports() {
-        let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("i1", 4713))
+        let first_port = free_port_range(2);
+        let mut registry = AppInstanceRegistry::new().with_port_range(first_port, first_port + 1);
+        registry
+            .begin_start(r"D:\Pixels", sample_req("i1", 0))
             .unwrap();
-        reg.begin_start(r"D:\Pixels", sample_req("i2", 4714))
+        registry
+            .begin_start(r"D:\Pixels", sample_req("i2", 0))
             .unwrap();
-        reg.mark_running("i1", 10).unwrap();
-        reg.mark_running("i2", 11).unwrap();
-        let sums = reg.summaries();
-        assert_eq!(sums.len(), 2);
-        assert!(sums.iter().all(|summary| summary.app_id == "app-car"));
-        assert!(reg.instances_json().contains("i1"));
-        assert!(reg.instances_json().contains("4714"));
+        registry.mark_running("i1", 10).unwrap();
+        registry.mark_running("i2", 11).unwrap();
+        let summaries = registry.summaries();
+        assert_eq!(summaries.len(), 2);
+        assert!(summaries.iter().all(|summary| summary.app_id == "app-car"));
+        assert!(registry.instances_json().contains("i1"));
+        assert!(registry
+            .instances_json()
+            .contains(&(first_port + 1).to_string()));
     }
 
     #[test]
@@ -1311,13 +1295,16 @@ mod tests {
 
     #[test]
     fn should_not_treat_desktop_as_game_hook_kill_target() {
-        let mut reg = AppInstanceRegistry::new();
-        reg.begin_start(r"D:\Pixels", sample_req("g1", 4627))
+        let available_port = free_port_range(1);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port);
+        registry
+            .begin_start(r"D:\Pixels", sample_req("g1", 0))
             .unwrap();
-        reg.mark_running("g1", 42).unwrap();
-        assert!(reg.should_kill_pid_for_instance("g1", 42));
-        assert!(!reg.should_kill_pid_for_instance("g1", 43));
-        assert!(!reg.should_kill_pid_for_instance("missing", 42));
+        registry.mark_running("g1", 42).unwrap();
+        assert!(registry.should_kill_pid_for_instance("g1", 42));
+        assert!(!registry.should_kill_pid_for_instance("g1", 43));
+        assert!(!registry.should_kill_pid_for_instance("missing", 42));
     }
 
     #[test]
@@ -1331,13 +1318,16 @@ mod tests {
 
     #[test]
     fn port_pool_exhaustion() {
-        let mut reg = AppInstanceRegistry::new().with_port_range(4727, 4727);
-        reg.begin_start(r"D:\Pixels", sample_req("only", 0))
+        let available_port = free_port_range(1);
+        let mut registry =
+            AppInstanceRegistry::new().with_port_range(available_port, available_port);
+        registry
+            .begin_start(r"D:\Pixels", sample_req("only", 0))
             .unwrap();
-        let err = reg
+        let error = registry
             .begin_start(r"D:\Pixels", sample_req("two", 0))
             .unwrap_err();
-        assert!(err.contains("no free listen_port"));
+        assert!(error.contains("no free listen_port"));
     }
 
     #[test]

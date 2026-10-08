@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT binding.relay_node_id,\n       binding.relay_generation,\n       relay.public_host,\n       relay.public_port\nFROM pixels.instance_relays binding\nJOIN pixels.relay_nodes relay ON relay.id = binding.relay_node_id\nWHERE binding.instance_id = $1\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "relay_node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "relay_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "public_host",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "public_port",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b65744a367e5a7bb6fbc814ada9d160ea84fb4fe365659b69b9d0a19f3b445fe"
+}

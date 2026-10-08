@@ -1,0 +1,85 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH secret AS (\n UPDATE pixels.workspace_secrets SET key_id=$2,nonce=$3,ciphertext=$4 WHERE workspace_id=$1 RETURNING workspace_id\n) UPDATE pixels.rdp_workspaces SET revision=revision+1,updated_at=clock_timestamp()\nWHERE id IN (SELECT workspace_id FROM secret) RETURNING id,application_id,deployment_id,node_id,account_name,windows_sid,state,revision,credential_revision,created_at,updated_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "deployment_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "account_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "windows_sid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "credential_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "53020b25f5ce606d91fa9b4fa309484cdc91224ab77ae56c251bff1960420b1f"
+}

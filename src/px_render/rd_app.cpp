@@ -819,104 +819,47 @@ void RdApplication::InitAppTimer() {
     app_timer_->StartTimers();
 }
 
-void RdApplication::InitConnectionLifecycle() {
+void RdApplication::StartApplicationIdleLifecycle() {
+    if (const auto deadline = application_idle_lifecycle_.ArmStartup(ApplicationIdleLifecycle::Clock::now())) ScheduleApplicationIdleExit(*deadline);
+}
+
+void RdApplication::ScheduleApplicationIdleExit(const ApplicationIdleLifecycle::Deadline deadline) {
     const auto weak_self = weak_from_this();
-    msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& msg) {
+    const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(deadline.expires_at - ApplicationIdleLifecycle::Clock::now());
+    const int delay_ms{static_cast<int>(std::max<std::int64_t>(1, remaining.count()))};
+    context_->PostDelayTask(
+        [weak_self, deadline] {
+            const auto self = weak_self.lock();
+            if (!self || self->exit_app_ || !self->application_idle_lifecycle_.ClaimExpiry(deadline, ApplicationIdleLifecycle::Clock::now())) return;
+            LOGI("event=application.idle_exit startup={} preserve_rdp_session={}", deadline.startup, self->settings_.IsRdpMode());
+            self->ExitForIdle(deadline.startup);
+        },
+        delay_ms);
+}
+
+void RdApplication::InitConnectionLifecycle() {
+    if (!settings_.IsGameHookMode() && !settings_.IsWebViewMode() && !settings_.IsRdpMode()) return;
+    const auto weak_self = weak_from_this();
+    msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& message) {
         const auto self = weak_self.lock();
-        if (!self || self->exit_app_) {
-            return;
-        }
-        // A reconnect during the grace window invalidates any shutdown
-        // scheduled by the previous "last client disconnected" event.
-        // Only connections with a stable id participate in game lifetime.
-        // The transport name is deliberately not filtered: current web
-        // clients may negotiate Direct, UDP or another registered net
-        // module while preserving the same connect/disconnect id.
-        const bool tracked_game_client = (self->settings_.IsGameHookMode() || self->settings_.IsRdpMode()) && !msg.connection_id_.empty();
-        if (tracked_game_client) {
-            self->game_hook_has_seen_client_ = true;
-            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
-            self->game_hook_client_ids_.insert(msg.connection_id_);
-        }
-        ++self->client_disconnect_generation_;
+        if (!self || self->exit_app_ || message.connection_id_.empty()) return;
+        self->application_idle_lifecycle_.Connected(message.connection_id_);
         if (self->settings_.IsWebViewMode() && self->webview_runtime_) {
             self->webview_runtime_->SetActive(true);
             self->webview_runtime_->SendFocusEvent(true);
         }
     });
-
-    msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& msg) {
+    msg_listener_->Listen<MsgClientDisconnected>([weak_self](const MsgClientDisconnected& message) {
         const auto self = weak_self.lock();
-        if (!self || self->exit_app_) {
-            return;
+        if (!self || self->exit_app_) return;
+        const auto deadline = self->application_idle_lifecycle_.Disconnected(message.connection_id_, ApplicationIdleLifecycle::Clock::now());
+        if (!deadline) return;
+        if (self->settings_.IsWebViewMode() && self->webview_runtime_) {
+            self->webview_runtime_->SendFocusEvent(false);
+            self->webview_runtime_->SetActive(false);
         }
-        if (self->settings_.IsWebViewMode()) {
-            const auto generation = ++self->client_disconnect_generation_;
-            const auto weak_webview = weak_self;
-            self->context_->PostDelayTask(
-                [weak_webview, generation]() {
-                    const auto self = weak_webview.lock();
-                    if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation || self->HasConnectedPeer() ||
-                        !self->webview_runtime_) {
-                        return;
-                    }
-                    self->webview_runtime_->SendFocusEvent(false);
-                    self->webview_runtime_->SetActive(false);
-                },
-                100);
-            return;
-        }
-        if (!self->settings_.IsGameHookMode() && !self->settings_.IsRdpMode()) {
-            return;
-        }
-        bool removed_tracked_client = false;
-        if (!msg.connection_id_.empty()) {
-            std::lock_guard<std::mutex> lock(self->game_hook_clients_mutex_);
-            removed_tracked_client = self->game_hook_client_ids_.erase(msg.connection_id_) > 0;
-        }
-        // Still update the tracked set during startup so short-lived setup
-        // sockets cannot keep the process alive.  Only the stop decision
-        // is suppressed until the embedded web listener is ready.
-        if (!self->game_hook_startup_grace_complete_) {
-            LOGI(
-                "Ignore application client-disconnect during startup grace "
-                "period.");
-            return;
-        }
-        if (!removed_tracked_client) {
-            LOGI("Ignore untracked application client-disconnect event.");
-            return;
-        }
-        if (self->HasConnectedPeer()) {
-            LOGI("Still has connected clients");
-            return;
-        }
-        if (!self->game_hook_has_seen_client_) {
-            LOGW(
-                "Ignore application client-disconnect before the first "
-                "confirmed client connection.");
-            return;
-        }
-
-        const auto generation = ++self->client_disconnect_generation_;
-        LOGI(
-            "Last application client disconnected; stop render in 5 "
-            "seconds unless a client reconnects.");
-        self->context_->PostDelayTask(
-            [weak_self, generation]() {
-                const auto self = weak_self.lock();
-                if (!self || self->exit_app_ || self->client_disconnect_generation_ != generation) {
-                    return;
-                }
-                if (self->HasConnectedPeer()) {
-                    return;
-                }
-                LOGI(
-                    "Application grace period elapsed with no clients; "
-                    "stopping render.");
-                self->ExitForIdle(false);
-            },
-            5000);
+        LOGI("Last application client disconnected; stop render in 5 seconds unless a client reconnects.");
+        self->ScheduleApplicationIdleExit(*deadline);
     });
 }
 
@@ -1254,17 +1197,13 @@ void RdApplication::InitMessages() {
         });
     });
 
-    // Legacy desktop render watchdog.  A game-hook render owns a launched
-    // game in a kill-on-close job, so using "no connected WebRTC client" as
-    // a reason to restart it also terminates the game.  Game instances are
-    // now lifecycle-managed by Console; without viewers they simply stop
-    // capture/encode through the existing HasConnectedPeer gates.
+    // The desktop watchdog must never kill a managed application runtime.
     state_msg_listener_->Listen<MsgTimer1Minute>([weak_self](const MsgTimer1Minute&) {
         const auto self = weak_self.lock();
         if (!self || self->exit_app_) {
             return;
         }
-        if (self->settings_.IsGameHookMode()) {
+        if (self->settings_.IsGameHookMode() || self->settings_.IsWebViewMode() || self->settings_.IsRdpMode()) {
             return;
         }
         ++self->restart_counter_;
@@ -1428,26 +1367,7 @@ void RdApplication::StartProcessWithHook() {
         LOGI("StartProcessWithHook skipped: application.mode is desktop");
         return;
     }
-    // Do not let a transient setup socket terminate the game before its
-    // embedded web client can connect. After this window the normal
-    // tracked-client disconnect path uses the requested five-second grace.
-    auto weak_self = weak_from_this();
-    context_->PostDelayTask(
-        [weak_self]() {
-            const auto self = weak_self.lock();
-            if (!self || self->exit_app_ || !self->settings_.IsGameHookMode()) return;
-            self->game_hook_startup_grace_complete_ = true;
-            if (self->HasConnectedPeer()) return;
-            LOGI(
-                "Game-hook startup grace elapsed with no clients; stopping "
-                "render.");
-            self->ExitForIdle(true);
-            // Browser startup, Console ticket issuance and game injection can
-            // overlap on a cold machine. Fifteen seconds was shorter than a
-            // real cold Chromium launch and could close the listener while the
-            // first page was already loading.
-        },
-        45000);
+    StartApplicationIdleLifecycle();
     LOGI("StartProcessWithHook: game_path={}, capture_method={}", settings_.app_.game_path_, (int)settings_.app_.inject_method_);
     if (settings_.app_.game_path_.empty()) {
         LOGE("StartProcessWithHook: game-path is empty, cannot start game.");
@@ -1473,6 +1393,7 @@ void RdApplication::StartWebView() {
     if (!settings_.IsWebViewMode()) {
         return;
     }
+    StartApplicationIdleLifecycle();
     webview_runtime_ = std::make_unique<WebViewRuntime>();
     auto weak_self = weak_from_this();
     WebViewRuntimeConfig config{
@@ -1947,14 +1868,7 @@ void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
 }
 
 bool RdApplication::HasConnectedPeer() const {
-    if (module_registry_->GetTotalMediaConsumersCount()) {
-        return true;
-    }
-    if (!settings_.IsGameHookMode()) {
-        return false;
-    }
-    std::lock_guard<std::mutex> lock(game_hook_clients_mutex_);
-    return !game_hook_client_ids_.empty();
+    return application_idle_lifecycle_.HasClients() || (module_registry_ && module_registry_->GetTotalMediaConsumersCount() > 0);
 }
 
 void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) { PrepareGameHookBoot(pid); }
@@ -2784,6 +2698,7 @@ void RdApplication::ExitForIdle(bool startup) {
 }
 
 void RdApplication::Exit() {
+    application_idle_lifecycle_.Stop();
     const auto application_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
     if (application_runtime && application_runtime->IsRuntimeThread()) {
         if (exit_dispatch_pending_.exchange(true, std::memory_order_acq_rel)) {

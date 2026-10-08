@@ -133,9 +133,7 @@ printf '%s\n' \
     "PIXELS_CONSOLE_TLS_KEY=$secret_directory/console-tls.key" \
     "PIXELS_CONSOLE_PUBLIC_ORIGIN=$console_origin" \
     'PIXELS_CONSOLE_REGISTRATION=1' \
-    'PIXELS_CONSOLE_GUESTS=1' \
     'PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS=3600' \
-    'PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS=3600' \
     "PIXELS_CONSOLE_GUEST_SOURCE_KEY=$secret_directory/guest-source.key" \
     "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY=$workspace_key_id" \
     "PIXELS_CONSOLE_WORKSPACE_KEYS='$workspace_keys'" \

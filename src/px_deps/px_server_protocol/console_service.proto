@@ -68,10 +68,9 @@ message ConsoleServiceStartAppInstance {
   string request_id = 1;
   string instance_id = 2;
   string app_id = 3;
-  // Absolute install root on this machine (Placement.install_root)
-  string install_root = 4;
-  // Relative exe path under install_root (Application.game_exe_rel)
-  string game_exe_rel = 5;
+  reserved 4;
+  // Absolute executable path on this node.
+  string executable_path = 5;
   string game_arguments = 6;
   // 0 = Service allocates an available port
   int32 listen_port = 7;

@@ -41,7 +41,6 @@ struct SettingsSnapshot final {
     std::string version{};
     px::ui::Language language{px::ui::Language::SimplifiedChinese};
     px::ui::Theme theme{px::ui::Theme::Dark};
-    bool enhancedVisualEffects{true};
     PasswordUpdateState passwordUpdate{PasswordUpdateState::Idle};
     LogCollectionState logCollection{LogCollectionState::Idle};
     std::string logDestination{};
@@ -60,7 +59,6 @@ class SettingsPort {
     virtual void CheckForUpdates() = 0;
     virtual void SetLanguage(px::ui::Language language) = 0;
     virtual void SetTheme(px::ui::Theme theme) = 0;
-    virtual void SetEnhancedVisualEffects(bool enabled) = 0;
     virtual void CollectLogs(const std::string& destinationDirectory) = 0;
 };
 

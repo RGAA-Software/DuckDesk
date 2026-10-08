@@ -107,7 +107,6 @@ def main() -> None:
         checked(["icacls.exe", str(test_root), "/remove:g", "*S-1-3-4"])
         config_root = test_root / "config"
         data_root = test_root / "data"
-        pg_ca_input = test_root / "postgres-ca-input.crt"
         console_log = test_root / "console.log"
         backup_log = test_root / "backup.log"
         try:
@@ -118,39 +117,15 @@ def main() -> None:
             ])
             postgres_started = True
             wait_for_postgres(postgres_container)
-            checked(["docker", "exec", "-u", "postgres", postgres_container, "openssl", "req",
-                     "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-sha256",
-                     "-subj", "/CN=pixels-backup-control-test-ca",
-                     "-addext", "basicConstraints=critical,CA:TRUE",
-                     "-addext", "keyUsage=critical,keyCertSign,cRLSign",
-                     "-keyout", "/var/lib/postgresql/ca.key", "-out", "/var/lib/postgresql/ca.crt"])
-            checked(["docker", "exec", "-u", "postgres", postgres_container, "openssl", "req",
-                     "-newkey", "rsa:2048", "-nodes", "-sha256", "-subj", "/CN=localhost",
-                     "-addext", "subjectAltName=DNS:localhost", "-addext", "extendedKeyUsage=serverAuth",
-                     "-keyout", "/var/lib/postgresql/server.key",
-                     "-out", "/var/lib/postgresql/server.csr"])
-            checked(["docker", "exec", "-u", "postgres", postgres_container, "openssl", "x509",
-                     "-req", "-in", "/var/lib/postgresql/server.csr", "-CA", "/var/lib/postgresql/ca.crt",
-                     "-CAkey", "/var/lib/postgresql/ca.key", "-CAcreateserial", "-copy_extensions", "copy",
-                     "-days", "1", "-sha256", "-out", "/var/lib/postgresql/server.crt"])
-            postgres_sql(postgres_container, "postgres", """
-ALTER SYSTEM SET ssl = 'on';
-ALTER SYSTEM SET ssl_cert_file = '/var/lib/postgresql/server.crt';
-ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
-""")
-            checked(["docker", "restart", postgres_container])
-            wait_for_postgres(postgres_container)
             published_port = checked(["docker", "port", postgres_container, "5432/tcp"]).splitlines()[0]
             postgres_port = int(re.search(r":([0-9]+)$", published_port).group(1))
-            checked(["docker", "cp", f"{postgres_container}:/var/lib/postgresql/ca.crt", str(pg_ca_input)])
-            print("PASS isolated PostgreSQL 18 uses verified TLS", flush=True)
+            print("PASS isolated PostgreSQL 18 starts without a client CA or required TLS", flush=True)
 
             setup_input = {
                 "postgresql_host": "localhost",
                 "postgresql_port": postgres_port,
                 "postgresql_administrator": "postgres",
                 "postgresql_password": postgres_password,
-                "postgresql_ca_pem": pg_ca_input.read_text(encoding="utf-8"),
                 "public_host": "localhost",
                 "initial_username": "backup-admin",
                 "initial_password": administrator_password,
@@ -173,7 +148,6 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
             assert f"PIXELS_CONSOLE_BACKUP_CONTROL_TOKEN={backup_configuration['control']['token']}" in (
                 config_root / "console.env").read_text(encoding="utf-8")
             console_ca = config_root / "console-ca.crt"
-            pg_ca = config_root / "postgresql-ca.crt"
             print("PASS fresh setup created private Backup control configuration", flush=True)
 
             with console_log.open("w", encoding="utf-8") as console_output, backup_log.open("w", encoding="utf-8") as backup_output:
@@ -200,7 +174,7 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
                 print("PASS Console administrator login without a product license", flush=True)
 
                 backup_environment = os.environ.copy()
-                backup_environment.update({"PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(pg_ca)})
+                backup_environment.update({"PGSSLMODE": "prefer"})
                 backup_process = subprocess.Popen(
                     [str(RUNTIME_BIN_ROOT / "px_backup.exe"), "run", str(config_root / "backup.json")],
                     stdout=backup_output, stderr=subprocess.STDOUT, text=True, env=backup_environment,
@@ -283,7 +257,7 @@ ALTER SYSTEM SET ssl_key_file = '/var/lib/postgresql/server.key';
                 postgres_sql(postgres_container, "postgres", "CREATE DATABASE pixels_console_restore;")
                 restore_environment = os.environ.copy()
                 restore_environment.update({
-                    "PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(pg_ca),
+                    "PGSSLMODE": "prefer",
                     "PGPASSWORD": postgres_password,
                 })
                 checked([

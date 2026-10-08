@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.guest_source_blocks(id,origin_guest_id,source_hash,actor_id,reason,created_at,expires_at)\nVALUES($1,$2,$3,$4,$5,statement_timestamp(),statement_timestamp()+make_interval(secs=>$6))\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "44495d3628de60d419e1193463b7654b7e8413906e5e8599a7cc14fb3e6fb31e"
+}

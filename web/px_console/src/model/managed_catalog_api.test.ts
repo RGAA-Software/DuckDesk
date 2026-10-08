@@ -128,16 +128,8 @@ describe("PostgreSQL managed catalog API", () => {
 
     it("keeps deployment target identity explicit on create and configure", async () => {
         const configuration: DeploymentConfiguration = {
-            target: { kind: "game_hook", install_root: "D:\\Games\\Example" },
+            target: { kind: "game_hook" },
             gpu_key: "GPU-1:0",
-            gpu_profile: {
-                memory_bytes: 1073741824,
-                compute_per_mille: 200,
-                encoder_per_mille: 250,
-                memory_reserve_bytes: 536870912,
-                compute_limit_per_mille: 900,
-                encoder_limit_per_mille: 900,
-            },
             capacity: 2,
             disabled: false,
         };
@@ -188,7 +180,7 @@ describe("PostgreSQL managed catalog API", () => {
                     gpu_memory_headroom_bytes: -1,
                     gpu_compute_headroom_per_mille: 50,
                     gpu_encoder_headroom_per_mille: 100,
-                    rejection_reasons: ["gpu_memory_exhausted"],
+                    rejection_reasons: ["node_capacity_exhausted"],
                 },
             ],
         };

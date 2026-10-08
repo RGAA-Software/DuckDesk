@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT node_id,node_generation,report_sequence,probe_state,sampled_at,received_at,logical_processors,\n cpu_utilization_per_mille,memory_total_bytes,memory_available_bytes,disk_total_bytes,disk_free_bytes,\n gpu_inventory_revision\nFROM pixels.node_telemetry_history\nWHERE node_id=$1 AND (\n $2::timestamptz IS NULL OR\n (received_at,node_generation,report_sequence)<($2,$3,$4)\n)\nORDER BY received_at DESC,node_generation DESC,report_sequence DESC\nLIMIT $5\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "node_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "node_generation",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "report_sequence",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "probe_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "sampled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "received_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "logical_processors",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "cpu_utilization_per_mille",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "memory_total_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "memory_available_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "disk_total_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 11,
+        "name": "disk_free_bytes",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 12,
+        "name": "gpu_inventory_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "5747ed3743d1aab24b9243745ce01e0d5bd77b7c5a502e60db0a9c8ffdcababc"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.devices SET deleted_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1\nRETURNING revision\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "70a7a09ad170a0361929094b00ef94d49be9a2f1b54090ada293da17581ac414"
+}

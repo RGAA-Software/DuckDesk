@@ -665,3 +665,102 @@ async fn shared_admission_gate_serializes_revocation_and_lock_failure_is_bounded
         .unwrap();
     fixture.close().await;
 }
+
+#[tokio::test]
+async fn z_pixels_account_is_immutable_even_with_other_administrators_but_password_reset_works() {
+    let fixture = Fixture::new().await;
+    let protected_user = fixture
+        .control
+        .create_user(
+            &fixture.admin,
+            &Username::parse("pIxElS").unwrap(),
+            &password(),
+            Role::Admin,
+        )
+        .await
+        .unwrap();
+    let protected_session = fixture
+        .session(protected_user.id, 1, ClientType::AdminWeb)
+        .await;
+    for administrator in [&fixture.admin, &protected_session] {
+        for (requested_role, requested_disabled) in [
+            (Role::Admin, false),
+            (Role::Admin, true),
+            (Role::User, false),
+            (Role::Viewer, false),
+        ] {
+            assert_eq!(
+                fixture
+                    .control
+                    .update_user(
+                        administrator,
+                        protected_user.id,
+                        1,
+                        requested_role,
+                        requested_disabled
+                    )
+                    .await
+                    .unwrap_err(),
+                StoreError::ProtectedUser,
+            );
+        }
+        assert_eq!(
+            fixture
+                .control
+                .delete_user(administrator, protected_user.id, 1)
+                .await
+                .unwrap_err(),
+            StoreError::ProtectedUser,
+        );
+    }
+    let unchanged = fixture
+        .control
+        .list_users(&fixture.admin, None, 100)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|candidate| candidate.id == protected_user.id)
+        .unwrap();
+    assert_eq!(unchanged.role, "admin");
+    assert!(!unchanged.disabled);
+    assert!(unchanged.deleted_at.is_none());
+    assert_eq!(unchanged.revision, 1);
+    assert_eq!(unchanged.authorization_revision, 1);
+    fixture
+        .identity
+        .authenticate(&protected_session, ClientType::AdminWeb)
+        .await
+        .unwrap();
+
+    let reset_user = fixture
+        .control
+        .reset_password(&fixture.admin, protected_user.id, 1, &password())
+        .await
+        .unwrap();
+    assert_eq!(reset_user.authorization_revision, 2);
+    assert_eq!(reset_user.role, "admin");
+    assert!(!reset_user.disabled);
+    assert!(fixture
+        .identity
+        .authenticate(&protected_session, ClientType::AdminWeb)
+        .await
+        .is_err());
+    let new_session = fixture
+        .session(protected_user.id, 2, ClientType::AdminWeb)
+        .await;
+    fixture
+        .identity
+        .authenticate(&new_session, ClientType::AdminWeb)
+        .await
+        .unwrap();
+    // Protection remains in force after password reset and revision changes.
+    assert_eq!(
+        fixture
+            .control
+            .delete_user(&fixture.admin, protected_user.id, reset_user.revision)
+            .await
+            .unwrap_err(),
+        StoreError::ProtectedUser
+    );
+    fixture.close().await;
+}

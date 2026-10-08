@@ -14,10 +14,16 @@ pub enum ApiError {
     Unauthorized,
     #[error("access rejected")]
     Rejected,
+    #[error("the built-in Pixels account only permits password changes")]
+    ProtectedUser,
     #[error("not found")]
     NotFound,
     #[error("conflicting state")]
     Conflict,
+    #[error("connection capacity is awaiting retirement")]
+    ConnectionRetiring,
+    #[error("connection capacity is occupied")]
+    ConnectionBusy,
     #[error("rate limited")]
     RateLimited,
     #[error("service unavailable")]
@@ -31,8 +37,11 @@ impl IntoResponse for ApiError {
             Self::Invalid => (StatusCode::BAD_REQUEST, "invalid_input"),
             Self::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized"),
             Self::Rejected => (StatusCode::FORBIDDEN, "rejected"),
+            Self::ProtectedUser => (StatusCode::FORBIDDEN, "protected_user"),
             Self::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             Self::Conflict => (StatusCode::CONFLICT, "conflict"),
+            Self::ConnectionRetiring => (StatusCode::CONFLICT, "connection_retiring"),
+            Self::ConnectionBusy => (StatusCode::CONFLICT, "connection_busy"),
             Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
             Self::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
@@ -53,9 +62,12 @@ impl From<StoreError> for ApiError {
         match value {
             StoreError::InvalidInput => Self::Invalid,
             StoreError::Rejected => Self::Rejected,
+            StoreError::ProtectedUser => Self::ProtectedUser,
             StoreError::LicenseRestriction => Self::Rejected,
+            StoreError::ConnectionRetiring => Self::ConnectionRetiring,
+            StoreError::ConnectionBusy => Self::ConnectionBusy,
             StoreError::NotFound => Self::NotFound,
-            StoreError::Database(e) => e.into(),
+            StoreError::Database(database_error) => database_error.into(),
             _ => Self::Unavailable,
         }
     }

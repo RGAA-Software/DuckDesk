@@ -8,6 +8,7 @@ export interface ManagedLicenseStatus {
     expires_at: number;
     max_streams: number;
     services: LicensedService[];
+    starter_license: boolean;
 }
 
 export async function getManagedLicenseStatus(): Promise<ManagedLicenseStatus | null> {

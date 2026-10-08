@@ -15,6 +15,175 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 #[tokio::test]
+async fn unadmitted_close_revokes_descriptor_and_immediately_releases_capacity() {
+    let (fixture, session_store, node, user, instance, session) = opened().await;
+    let ticket = token();
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &ticket,
+        )
+        .await
+        .unwrap();
+    let closed = session_store
+        .request_close(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            descriptor.session.revision,
+        )
+        .await
+        .unwrap();
+    assert_eq!(closed.state, "closed");
+    assert!(session_store
+        .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        .await
+        .is_err());
+    assert!(session_store
+        .open(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            &open_request(instance.application_id, instance.id)
+        )
+        .await
+        .is_ok());
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn close_racing_admission_never_releases_an_issued_transport_grant() {
+    let (fixture, session_store, node, user, _instance, session) = opened().await;
+    let ticket = token();
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &ticket,
+        )
+        .await
+        .unwrap();
+    let (admission, closing) = tokio::join!(
+        session_store.admit_frontend(&node, session.id, descriptor.session.revision, &ticket),
+        session_store.request_close(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            descriptor.session.revision
+        )
+    );
+    let closed = closing.unwrap();
+    assert_eq!(
+        closed.state,
+        if admission.is_ok() {
+            "closing"
+        } else {
+            "closed"
+        }
+    );
+    assert!(session_store
+        .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        .await
+        .is_err());
+    if closed.state == "closing" {
+        let retirement = session_store
+            .begin_retirement(&node, session.id)
+            .await
+            .unwrap();
+        session_store
+            .finish_retirement(&node, session.id, retirement.challenge_id)
+            .await
+            .unwrap();
+    }
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn stream_quota_distinguishes_active_occupancy_from_retirement() {
+    let (fixture, session_store, node, user, instance, session) = opened().await;
+    let entitlement = RuntimeEntitlement::new(1, true, true, true).unwrap();
+    let request = open_request(instance.application_id, instance.id);
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &request,
+                entitlement
+            )
+            .await,
+        Err(StoreError::ConnectionBusy)
+    );
+    let active_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL")
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let entitlement =
+        RuntimeEntitlement::new(u32::try_from(active_count).unwrap(), true, true, true).unwrap();
+    let ticket = token();
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &ticket,
+        )
+        .await
+        .unwrap();
+    session_store
+        .admit_frontend(&node, session.id, descriptor.session.revision, &ticket)
+        .await
+        .unwrap();
+    session_store
+        .request_close(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            descriptor.session.revision,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Android,
+                &request,
+                entitlement
+            )
+            .await,
+        Err(StoreError::ConnectionRetiring)
+    );
+    let retirement = session_store
+        .begin_retirement(&node, session.id)
+        .await
+        .unwrap();
+    session_store
+        .finish_retirement(&node, session.id, retirement.challenge_id)
+        .await
+        .unwrap();
+    assert!(session_store
+        .open_with_entitlement(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            &request,
+            entitlement
+        )
+        .await
+        .is_ok());
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn direct_streams_share_the_license_quota_with_resource_sessions() {
     let (fixture, session_store, node, _user, _instance, _session) = opened().await;
     let deployment: Uuid = env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap();
@@ -94,7 +263,7 @@ async fn license_stream_quota_and_service_gate_new_grants() {
                 allowed,
             )
             .await,
-        Err(StoreError::LicenseRestriction)
+        Err(StoreError::ConnectionBusy)
     );
     let without_cloud = RuntimeEntitlement::new(8, false, true, true).unwrap();
     assert!(matches!(
@@ -146,7 +315,7 @@ async fn starter_license_allows_only_one_webview_stream() {
                 starter,
             )
             .await,
-        Err(StoreError::LicenseRestriction)
+        Err(StoreError::ConnectionBusy)
     );
     let upgraded = RuntimeEntitlement::new(u32::MAX, true, true, true).unwrap();
     let upgraded_result = session_store
@@ -228,7 +397,9 @@ async fn license_last_stream_slot_is_atomic_under_concurrent_grants() {
     for grant_task in grant_tasks {
         match grant_task.await.unwrap() {
             Ok(_) => granted_count += 1,
-            Err(StoreError::LicenseRestriction) => license_rejection_count += 1,
+            Err(StoreError::ConnectionBusy | StoreError::ConnectionRetiring) => {
+                license_rejection_count += 1
+            }
             unexpected_result => {
                 panic!("unexpected concurrent grant result: {unexpected_result:?}")
             }
@@ -283,12 +454,32 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
         .await
         .unwrap();
     assert_eq!(grant.session.access_role, "observer");
+    let controller_ticket = token();
+    let controller_descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Android,
+            session.id,
+            session.revision,
+            &controller_ticket,
+        )
+        .await
+        .unwrap();
+    session_store
+        .admit_frontend(
+            &node,
+            session.id,
+            controller_descriptor.session.revision,
+            &controller_ticket,
+        )
+        .await
+        .unwrap();
     let closing = session_store
         .request_close(
             ResourceCredential::User(&user),
             ClientType::Android,
             session.id,
-            1,
+            controller_descriptor.session.revision,
         )
         .await
         .unwrap();
@@ -314,7 +505,7 @@ async fn close_request_needs_node_proof_and_observer_policy_is_not_control_autho
             )
             .await
             .unwrap_err(),
-        StoreError::NoCapacity
+        StoreError::ConnectionRetiring
     );
     let listed = session_store.list_node(&node).await.unwrap();
     assert_eq!(listed.len(), 2);

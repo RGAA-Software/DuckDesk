@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE pixels.guest_events SET available_at=clock_timestamp()+make_interval(secs=>$3),lease_id=NULL,lease_until=NULL,last_error=$4\nWHERE id=$1 AND lease_id=$2 AND lease_until>clock_timestamp() AND delivered_at IS NULL\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d6329e7a6cda6ec22eb6431a3cf313da88c0188b0fc5e13941bed549b2e7b843"
+}

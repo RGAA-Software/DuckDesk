@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) AS \"count!\" FROM pixels.cache_read_leases WHERE closed_at IS NULL AND expires_at>clock_timestamp()\nAND run_id=$1 AND ($2::uuid IS NULL OR blob_id=$2) AND ($3::uuid IS NULL OR login_session_id=$3)\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8e043dff06bc556be0a34b4ad8d3a242a207ceaf7fcd3442524916a88f850798"
+}

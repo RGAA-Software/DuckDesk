@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT LEAST(COALESCE(MIN(report_sequence),0),0)-1 AS \"sequence!\"\nFROM pixels.node_telemetry_history\nWHERE node_id=$1 AND node_generation=$2\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sequence!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "011e25d2db00e9fc58f3e82dd6037c02160101d050b4d07aac11f85b7c727546"
+}

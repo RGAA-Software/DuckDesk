@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.group_members(group_id, user_id) SELECT $1, unnest($2::uuid[])\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a5f7d919098e24861be5dcdb871ce4728a3e7eff161f1dc30c5ded74d02161ca"
+}

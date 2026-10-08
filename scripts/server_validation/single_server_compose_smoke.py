@@ -233,9 +233,8 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
                 "PIXELS_CONSOLE_TLS_CERT": "/etc/pixels/console/console-tls.crt",
                 "PIXELS_CONSOLE_TLS_KEY": "/etc/pixels/console/console-tls.key",
                 "PIXELS_CONSOLE_PUBLIC_ORIGIN": f"https://host.docker.internal:{console_port}",
-                "PIXELS_CONSOLE_REGISTRATION": "0", "PIXELS_CONSOLE_GUESTS": "0",
+                "PIXELS_CONSOLE_REGISTRATION": "0",
                 "PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS": "3600",
-                "PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS": "3600",
                 "PIXELS_CONSOLE_GUEST_SOURCE_KEY": "/etc/pixels/console/guest-source.key",
                 "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY": workspace_key_id,
                 "PIXELS_CONSOLE_WORKSPACE_KEYS": "'" + json.dumps([{

@@ -23,7 +23,7 @@ RtcDataChannel::RtcDataChannel(const std::string& name, const std::shared_ptr<Rt
     this->execution_context_ = rtc_server->GetExecutionContext();
     this->data_channel_ = ch;
     this->data_channel_->RegisterObserver(this);
-    this->the_connection_id_ = MD5::Hex(px::GetUUID());
+    this->the_connection_id_ = MD5::Hex(px::GenerateRandomBase64Id());
     this->created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
 }
 

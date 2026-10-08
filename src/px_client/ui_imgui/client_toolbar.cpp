@@ -70,8 +70,8 @@ px::ui::ToastMessage ScreenshotToast(const ScreenshotResult& result, const bool 
 
 }  // namespace
 
-ClientToolbar::ClientToolbar(const bool enhancedVisualEffects, ClientUiSettings settings)
-    : enhancedVisualEffects_{enhancedVisualEffects}, settings_{std::move(settings)}, launcherPosition_{settings_.LoadControllerPosition()} {}
+ClientToolbar::ClientToolbar(ClientUiSettings settings)
+    : settings_{std::move(settings)}, launcherPosition_{settings_.LoadControllerPosition()} {}
 
 bool ClientToolbar::Bounds::Contains(const float pointX, const float pointY) const noexcept {
     return width > 0.0F && height > 0.0F && pointX >= x && pointY >= y && pointX < x + width && pointY < y + height;
@@ -196,9 +196,12 @@ bool ClientToolbar::DrawLauncher(const px::desktop::BrandLogo& logo) {
     drawList.PushClipRect(contentOrigin, {contentOrigin.x + contentSize.x, contentOrigin.y + contentSize.y}, true);
     const px::ui::ThemeTokens tokens{px::ui::CurrentThemeTokens()};
     if (px::ui::EnhancedVisualEffectsEnabled()) {
-        drawList.AddCircleFilled(center, radius + 10.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.05F}), 48);
-        drawList.AddCircleFilled(center, radius + 7.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.08F}), 48);
-        drawList.AddCircleFilled(center, radius + 4.0F, ImGui::GetColorU32(ImVec4{0.0F, 0.0F, 0.0F, 0.12F}), 48);
+        ImVec4 shadowColor{tokens.floatingControllerShadow};
+        shadowColor.w *= 0.4375F;
+        drawList.AddCircleFilled(center, radius + 8.0F, ImGui::GetColorU32(shadowColor), 48);
+        shadowColor.w = tokens.floatingControllerShadow.w * 0.6875F;
+        drawList.AddCircleFilled(center, radius + 5.0F, ImGui::GetColorU32(shadowColor), 48);
+        drawList.AddCircleFilled(center, radius + 3.0F, ImGui::GetColorU32(tokens.floatingControllerShadow), 48);
     }
     const ImVec4 surface{launcherPointerDown_ ? tokens.accent : tokens.popover};
     drawList.AddCircleFilled(center, radius, ImGui::GetColorU32(surface), 48);
@@ -475,9 +478,6 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                   .contentAlignment = px::ui::ButtonContentAlignment::Leading,
                                   .contentInset = metrics.spacingMd}))
             action.toggleTheme = true;
-        if (px::ui::ToggleSwitch({"client-effects"}, text(ClientText::EnhancedVisualEffects), enhancedVisualEffects_, false,
-                                 px::ui::VectorIcon::Settings))
-            action.toggleEnhancedVisualEffects = true;
     }
 
     const ImVec2 windowPosition{ImGui::GetWindowPos()};

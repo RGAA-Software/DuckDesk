@@ -34,7 +34,7 @@ namespace px {
 
 NetClient::NetClient(SdkConnectionParams params, const std::shared_ptr<MessageNotifier>& notifier)
     : params_(std::move(params)),
-      udp_media_association_(params_.udp_media_association_.empty() ? GetUUID() : params_.udp_media_association_),
+      udp_media_association_(params_.udp_media_association_.empty() ? GenerateRandomBase64Id() : params_.udp_media_association_),
       msg_notifier_(notifier),
       stat_(SdkStatistics::Instance()) {
     stat_->media_transport_.store(params_.media_transport_);

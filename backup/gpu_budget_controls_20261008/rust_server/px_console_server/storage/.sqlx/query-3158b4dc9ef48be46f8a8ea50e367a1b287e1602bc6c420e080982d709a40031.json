@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH moved AS (\nUPDATE pixels.instances SET state='reconcile_required',revision=revision+1\nWHERE ended_at IS NULL AND state<>'reconcile_required' AND ($1::uuid IS NULL OR node_id=$1)\nRETURNING id,revision)\nINSERT INTO pixels.instance_events(id,instance_id,revision,kind)\nSELECT gen_random_uuid(),id,revision,'reconcile_required' FROM moved\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3158b4dc9ef48be46f8a8ea50e367a1b287e1602bc6c420e080982d709a40031"
+}

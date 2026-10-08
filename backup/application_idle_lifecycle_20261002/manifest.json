@@ -1,0 +1,23 @@
+[
+  {
+    "original_path": "src/px_render/rd_app.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_modification_status": "",
+    "reason": "Replace mode-specific idle branches with shared application idle lifecycle; preserve working contents",
+    "archive_batch": "application_idle_lifecycle_20261002"
+  },
+  {
+    "original_path": "src/px_render/rd_app.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_modification_status": "",
+    "reason": "Replace mode-specific idle branches with shared application idle lifecycle; preserve working contents",
+    "archive_batch": "application_idle_lifecycle_20261002"
+  },
+  {
+    "original_path": "src/px_render/rdp/rdp_application.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_modification_status": "M src/px_render/rdp/rdp_application.cpp",
+    "reason": "Replace mode-specific idle branches with shared application idle lifecycle; preserve working contents",
+    "archive_batch": "application_idle_lifecycle_20261002"
+  }
+]

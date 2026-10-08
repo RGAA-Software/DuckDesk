@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.login_sessions(\n    id, user_id, token_hash, client_type, authorization_revision, expires_at, absolute_expires_at\n)\nVALUES (\n    $1, $2, $3, $4, $5,\n    CURRENT_TIMESTAMP + $6::double precision * INTERVAL '1 second',\n    CURRENT_TIMESTAMP + $6::double precision * INTERVAL '1 second'\n)\nRETURNING id AS session_id, user_id, client_type, authorization_revision, expires_at, absolute_expires_at\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "session_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "client_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "authorization_revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "expires_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "absolute_expires_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Bytea",
+        "Text",
+        "Int8",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3020254ec74435008328ff34611ee862a14b70193e771a95879cbae5bfef921b"
+}

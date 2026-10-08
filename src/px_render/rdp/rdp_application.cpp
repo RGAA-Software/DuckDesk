@@ -22,7 +22,6 @@ int RdApplication::RunRdp() {
     // service is even constructed. Network admission still uses the product's
     // Render event channel, Console tickets and Service connection.
     settings_.rdp_launch_.proxy_directory = std::filesystem::path(WinHelper::GetExeFolderPath()) / "rdp";
-    settings_.rdp_launch_.private_root = settings_.rdp_launch_.proxy_directory / "workspaces";
     std::string error{};
     auto proxy = rdp::RdpProxyProcess::Start(settings_.rdp_launch_, error);
     if (!proxy) {
@@ -46,7 +45,6 @@ int RdApplication::RunRdp() {
     msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
     state_msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
     InitConnectionLifecycle();
-    game_hook_startup_grace_complete_ = true;
     const auto weak_self = weak_from_this();
     state_msg_listener_->Listen<MsgTimer1000>([weak_self, control = std::make_shared<rdp::RdpControlLease>()](const MsgTimer1000&) {
         if (const auto self = weak_self.lock(); self && !self->exit_app_) {
@@ -76,16 +74,7 @@ int RdApplication::RunRdp() {
     service_client_->NotifyAppInstanceReady(settings_.rdp_launch_.instance_id, settings_.transmission_.listening_port_, true, "");
     service_client_->Start();
     InitAppTimer();
-    // Same 45-second cold-start allowance as game-hook. Once a real client has
-    // connected, the shared five-second disconnect-generation rule takes over.
-    context_->PostDelayTask(
-        [weak_self] {
-            if (const auto self = weak_self.lock(); self && !self->exit_app_ && !self->game_hook_has_seen_client_ && !self->HasConnectedPeer()) {
-                LOGI("event=rdp.startup.timeout outcome=stop_runtime preserve_windows_session=true");
-                self->Exit();
-            }
-        },
-        45000);
+    StartApplicationIdleLifecycle();
     LOGI("event=rdp.proxy.ready outcome=success capture=false reencode=false");
     return RunMessageLoop();
 }

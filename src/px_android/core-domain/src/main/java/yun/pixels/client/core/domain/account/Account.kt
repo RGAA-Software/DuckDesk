@@ -7,7 +7,6 @@ data class ConsoleEndpoint(val baseUrl: String)
 data class GuestSession(
     val endpoint: ConsoleEndpoint,
     val accessToken: String,
-    val expiresAtEpochMillis: Long,
 )
 
 data class AccountProfile(

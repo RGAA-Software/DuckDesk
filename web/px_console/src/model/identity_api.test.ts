@@ -107,7 +107,6 @@ describe("PostgreSQL Console identity API", () => {
             id: "30000000-0000-0000-0000-000000000001",
             client_type: "android",
             created_at: "2026-09-18T00:00:00Z",
-            expires_at: "2026-09-18T01:00:00Z",
             revoked_at: null,
             revision: 2,
             blocked: false,

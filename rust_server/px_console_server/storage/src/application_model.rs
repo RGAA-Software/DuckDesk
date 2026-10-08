@@ -42,7 +42,7 @@ pub struct VideoSpec {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ApplicationLaunch {
     GameHook {
-        executable_relative: String,
+        executable_path: String,
         arguments: String,
         video: VideoSpec,
     },
@@ -70,9 +70,8 @@ impl ApplicationLaunch {
     pub(crate) fn executable(&self) -> Option<&str> {
         match self {
             Self::GameHook {
-                executable_relative,
-                ..
-            } => Some(executable_relative),
+                executable_path, ..
+            } => Some(executable_path),
             _ => None,
         }
     }
@@ -97,11 +96,11 @@ impl ApplicationLaunch {
         }
         match self {
             Self::GameHook {
-                executable_relative,
+                executable_path,
                 arguments,
                 ..
             } => {
-                relative_executable(executable_relative)?;
+                absolute_executable(executable_path)?;
                 if arguments.len() > 8192
                     || arguments
                         .chars()
@@ -144,49 +143,12 @@ impl ApplicationSpec {
     }
 }
 
-fn relative_executable(value: &str) -> Result<(), StoreError> {
-    if !value.to_ascii_lowercase().ends_with(".exe") {
-        return Err(StoreError::InvalidInput);
+fn absolute_executable(executable_path: &str) -> Result<(), StoreError> {
+    if px_node_protocol::is_absolute_windows_executable_path(executable_path) {
+        Ok(())
+    } else {
+        Err(StoreError::InvalidInput)
     }
-    windows_relative_components(value)
-}
-pub(crate) fn windows_relative_components(value: &str) -> Result<(), StoreError> {
-    if value.is_empty()
-        || value.len() > 2048
-        || value.chars().any(|character| {
-            character.is_control()
-                || matches!(character, '/' | ':' | '"' | '<' | '>' | '|' | '?' | '*')
-        })
-    {
-        return Err(StoreError::InvalidInput);
-    }
-    for component in value.split('\\') {
-        let stem = component
-            .split('.')
-            .next()
-            .unwrap_or_default()
-            .to_ascii_uppercase();
-        let reserved = matches!(
-            stem.as_str(),
-            "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
-        ) || ["COM", "LPT"].iter().any(|prefix| {
-            stem.strip_prefix(prefix).is_some_and(|suffix| {
-                matches!(
-                    suffix,
-                    "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
-                )
-            })
-        });
-        if component.is_empty()
-            || component == "."
-            || component == ".."
-            || component.ends_with([' ', '.'])
-            || reserved
-        {
-            return Err(StoreError::InvalidInput);
-        }
-    }
-    Ok(())
 }
 fn webview_url(value: &str) -> Result<(), StoreError> {
     if value.is_empty()
@@ -219,12 +181,16 @@ mod tests {
     use super::*;
     #[test]
     fn executable_paths_preserve_unicode_spaces_but_reject_escape_and_windows_aliases() {
-        for good in ["game.exe", "游戏\\版本 1\\启动 器.exe", "a.b\\app.EXE"] {
-            assert!(relative_executable(good).is_ok());
+        for good in [
+            r"C:\game.exe",
+            r"D:\游戏\版本 1\启动 器.exe",
+            r"E:\a.b\app.EXE",
+        ] {
+            assert!(absolute_executable(good).is_ok());
         }
         for bad in [
             "",
-            "C:\\app.exe",
+            "app.exe",
             "\\app.exe",
             "..\\app.exe",
             "a\\..\\app.exe",
@@ -241,7 +207,7 @@ mod tests {
             "a.dll",
             "https://a.exe",
         ] {
-            assert!(relative_executable(bad).is_err(), "{bad:?}");
+            assert!(absolute_executable(bad).is_err(), "{bad:?}");
         }
     }
     #[test]
@@ -283,7 +249,7 @@ mod tests {
         assert!(spec.validate().is_err());
         let args = "--name \"甲 乙\" --path \"C:\\目录\\文件\"";
         spec.launch = ApplicationLaunch::GameHook {
-            executable_relative: "app.exe".into(),
+            executable_path: r"C:\app.exe".into(),
             arguments: args.into(),
             video: VideoSpec {
                 codec: VideoCodec::H265,

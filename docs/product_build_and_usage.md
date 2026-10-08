@@ -126,8 +126,10 @@ Cloud Node、Client、Remote 都由用户或运维运行对应的完整安装包
 安装、覆盖升级和卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录。
 失败恢复由运维使用已验证的上一版本完整包再次覆盖；不存在 Service 激活记录、自动回滚 runner 或跨节点提交事务。
 
-执行前必须设置 `PIXELS_UPDATE_ROOT_FILE` 和 `PIXELS_OFFICIAL_CONSOLE_URL`。包内保存官方 HTTPS origin，应用默认选择官方；
-用户也可在设置中选自定义私有服务器，自定义地址不能等于官方地址。`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；
+执行前必须设置 `PIXELS_UPDATE_ROOT_FILE`。Cloud Node、Remote 和 Client 均不内置 Console 地址；构建时必须清空
+`PIXELS_OFFICIAL_CONSOLE_URL`，安装后在设置中填写 Console HTTPS 地址。Remote 和 Cloud Node 会自动注册并取得 9 位设备码、8 位临时密码；
+Client 仅用于连接远端设备，不会生成本机被控设备码。
+`PIXELS_UPDATE_ROOT_FILE` 必须是离线审批并签名的 TUF 1.0 初始根；
 服务器选择不改变 Pixels 更新签名域。私有部署运维可手工覆盖安装同一包，不得以私有描述或重签方式改变制品发行属性。预检失败不会删除现有产物，
 也不会消耗版本号。
 
@@ -281,6 +283,8 @@ Release 必须使用上述统一入口，不能直接调用 Gradle 的 `assemble
 Single Server 使用自己的套件版本，不参与四个客户端产品的升版。正式 Windows 与 Linux 制品写入同一个
 `build_official/private_server/official/<version>/`，包清单和首次初始化的 Console 环境均固定为
 `distribution=official`、`release_namespace=pixels.official`。Windows Setup 未签名；Linux 包内为版本固定的镜像与 Compose。
+Windows 快速 Release 候选固定输出到 `build_official/private_server/candidates/windows-single-server/`，内含 `package/` 与同版本 Setup.exe；
+重复构建成功后替换这个目录，不在 `.cache` 下另开交付目录。`.cache/single-server-windows` 仅是 Cargo 增量编译目录。
 官方自用与客户私有部署使用同一包，只在首次安装时分别配置公网主机、PostgreSQL、证书、管理员和许可证。旧 `customer` 配置
 不作为新包的覆盖升级输入；开发基线无需兼容转换。安装和恢复命令分别见 [Windows 说明](../deploy/single_server/windows/README.md)、
 [Linux 说明](../deploy/single_server/linux/README.md) 与 [Console 恢复说明](single_server_console_restore.md)。
@@ -395,10 +399,6 @@ scripts_build\build_cpp_product_render.bat remote 18
 scripts_build\build_cpp_product_panel_tests.bat client 18
 ```
 
-聚焦入口固定使用 `PX_DISTRIBUTION=development` 和 `CMAKE_BUILD_TYPE=Release`，并启用 `PX_FAST_RELEASE=ON`（O1、Rust 增量
-Release）；仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256。该目录不含正式发行策略/TUF 发布材料，不能冒充完整发布包。
-需要交付或制作安装包时，必须重新运行第 2 节的完整产品构建，届时 `PX_FAST_RELEASE=OFF` 并使用完整优化 Release。
-
 修改共用主题、控件或桌面布局后，使用下面的 UI 聚焦入口。每个产品都会一起增量构建并发布 `px_panel.exe`（主界面）和
 `px_client.exe`（远程连接窗口），避免只更新连接窗口而留下旧主界面：
 
@@ -417,6 +417,10 @@ scripts_build\build_cpp_product_ui.bat remote 18
 
 聚焦发布会自动创建或刷新 development `product-manifest.json`。清单缺失时，工具核对当前产品的 `product-build.json` 后生成
 产品身份、能力和实际文件摘要；不要求先运行完整发行构建。它只描述当前开发目录里的产物，不能作为完整安装包验收证明。
+
+聚焦入口固定使用 `PX_DISTRIBUTION=development` 和 `CMAKE_BUILD_TYPE=Release`，并启用 `PX_FAST_RELEASE=ON`（O1、Rust 增量
+Release）；仍把变化的运行文件发布到对应产品 `dist` 并核对 SHA-256。该目录不含正式发行策略/TUF 发布材料，不能冒充完整发布包。
+需要交付或制作安装包时，必须重新运行第 2 节的完整产品构建，届时 `PX_FAST_RELEASE=OFF` 并使用完整优化 Release。
 
 ## 7. 清理
 

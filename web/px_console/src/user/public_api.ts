@@ -36,13 +36,8 @@ function requestId(storageKey: string) {
 
 async function guestRequest<T>(request: () => Promise<T>): Promise<T> {
     await ensureGuestSession();
-    try {
-        return await request();
-    } catch (error: any) {
-        if (error?.response?.status !== 401 && error?.response?.status !== 403) throw error;
-        await ensureGuestSession(true);
-        return request();
-    }
+    // Guest identities do not expire. Rejection must not mint a new owner or bypass a block.
+    return request();
 }
 
 async function collectGuestPages<T extends { id: string }>(path: string): Promise<T[]> {
@@ -75,9 +70,8 @@ function mapInstance(record: GuestInstanceRecord, appName = record.application_i
     };
 }
 
-export async function ensureGuestSession(force = false) {
-    if (!force && hasGuestToken()) return;
-    if (force) setGuestToken("");
+export async function ensureGuestSession() {
+    if (hasGuestToken()) return;
     const response = await guestHttp.post<{ token: string }>("/api/console/guest-sessions", {});
     setGuestToken(response.data.token);
 }

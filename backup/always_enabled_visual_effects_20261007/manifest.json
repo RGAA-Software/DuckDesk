@@ -1,0 +1,177 @@
+[
+  {
+    "path": "src/px_panel/ui_imgui/general_settings_page.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/settings_port.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/product/panel_config_store.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/product/product_settings_port.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/product/panel_client_launcher.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_launch_config.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_launch_config.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/product/panel_config_store.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/preview_settings_port.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/panel_preview.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/panel_preview.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/main.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_panel/ui_imgui/product_main.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_main.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_window.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_window.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_toolbar.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_toolbar.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_ui/include/px_ui/theme_tokens.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_ui/theme_tokens.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_text.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/ui_imgui/client_text.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_ui/include/px_ui/localization.h",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M src/px_ui/include/px_ui/localization.h",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_ui/localization.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "M src/px_ui/localization.cpp",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  },
+  {
+    "path": "src/px_client/tests/test_imgui_launch_config.cpp",
+    "base_revision": "eeaf061f8c4c15d823846ad4ac85a90a689e47ba",
+    "local_status": "clean",
+    "reason": "Retire product visual-effects switch/configuration; soften controller shadow",
+    "archive_batch": "always_enabled_visual_effects_20261007"
+  }
+]

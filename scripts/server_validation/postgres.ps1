@@ -479,15 +479,15 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=19;identity=12;control=8;devices=8;applications=8;guests=9;nodes=11;'relay-nodes'=3;deployments=6;instances=17;commands=16;workspaces=6;database=2;sessions=14;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=8;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
+        $suiteCounts = @{unit=19;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=3;deployments=7;instances=19;commands=16;workspaces=6;database=2;sessions=19;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
-        $suiteCounts['directory-api'] = 7
+        $suiteCounts['directory-api'] = 8
         $suiteCounts['cn-license'] = 1
         $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 2
         $suiteCounts['relay-control'] = 1
         $suiteCounts['console-process'] = 1
-        $suiteCounts['console-admin'] = 3
+        $suiteCounts['console-admin'] = 4
         $suiteCounts['schema_gate'] = 4
         $suiteCounts['auth'] = 5
         $suiteCounts['auth-api'] = 9
@@ -799,7 +799,7 @@ try {
     Add-TestCases $consoleApi 'native/console-identity-api' 6
     $directoryApi = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','directory_api','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $directoryApi
-    Add-TestCases $directoryApi 'native/console-directory-api' 7
+    Add-TestCases $directoryApi 'native/console-directory-api' 8
     $nodeControl = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','node_control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeControl
     Add-TestCases $nodeControl 'native/console-node-control' 2
@@ -809,11 +809,11 @@ try {
     Add-Step 'CONSOLE-PROCESS: real listener readiness and terminal database-authority loss'
     $consoleAdmin = Invoke-Checked 'cargo' @('test','--offline','--locked','--manifest-path',$manifest,'-p','px_console_runtime','--features','pg-integration','--test','admin','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $consoleAdmin
-    Add-TestCases $consoleAdmin 'native/console-admin' 3
+    Add-TestCases $consoleAdmin 'native/console-admin' 4
     Add-Step 'CONSOLE-ADMIN: explicit private secret/cache provisioning and owner-only empty-database bootstrap'
     $controlIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','control','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $controlIntegration
-    Add-TestCases $controlIntegration 'native/control' 8
+    Add-TestCases $controlIntegration 'native/control' 9
     Add-Step 'CONTROL: roles, last administrator, atomic revocation/audit, bounded gates and leased outbox'
     $deviceIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','devices','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $deviceIntegration
@@ -829,15 +829,15 @@ try {
     Add-Step 'GUESTS: distinct identity/client type, public ACL, expiry, atomic source/session blocks, management and leased events'
     $nodeIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','nodes','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $nodeIntegration
-    Add-TestCases $nodeIntegration 'native/nodes' 11
+    Add-TestCases $nodeIntegration 'native/nodes' 14
     Add-Step 'NODES: authenticated generations, ordered reports, atomic latest telemetry/GPU inventory, idempotent offline backfill, restart reconciliation, CAS, rotation and rollback'
     $deploymentIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','deployments','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $deploymentIntegration
-    Add-TestCases $deploymentIntegration 'native/deployments' 6
+    Add-TestCases $deploymentIntegration 'native/deployments' 7
     Add-Step 'DEPLOYMENTS: mode contracts, unique identity, preparation revision/generation, roles, CAS and audit rollback'
     $instanceIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','instances','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $instanceIntegration
-    Add-TestCases $instanceIntegration 'native/instances' 16
+    Add-TestCases $instanceIntegration 'native/instances' 19
     Add-Step 'INSTANCES: two-process last-slot race, owner/client identity, atomic GPU selection/budgets, exact retry, gates and command/event reservation'
     $commandIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','commands','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $commandIntegration
@@ -852,7 +852,7 @@ try {
     Add-TestCases $databaseIntegration 'native/composition' 2
     $sessionIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','sessions','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $sessionIntegration
-    Add-TestCases $sessionIntegration 'native/sessions' 13
+    Add-TestCases $sessionIntegration 'native/sessions' 19
     $transferIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','transfers','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $transferIntegration
     Add-TestCases $transferIntegration 'native/transfers' 8

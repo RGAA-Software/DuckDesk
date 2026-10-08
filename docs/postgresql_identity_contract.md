@@ -132,7 +132,7 @@ Windows 后追加 Linux 原生验证：同命令加 `-Linux`，使用现有 Ubun
 这批追加变更已在 `pg-20260917-093329-47b2eafe` 完整跨平台回归中通过；
 密码数据库约束和 schema 锁是之后的增量，以[最新实施状态](server_database_execution_status.md)单独留证。
 
-`GuestStore` 使用 guest_sessions/guest_blocks/guest_events，与 users/login_sessions 分开，UUID 不互相兜底。
+`GuestStore` 使用 guest_sessions/guest_blocks/guest_events，与 users/login_sessions 分开，UUID 不互相兜底。访客会话无固定有效期，直到注销、撤销或封禁；封禁期限与连接票据期限独立保留。
 client_type 仍为 panel/android/user_web，不引入 guest_android 作为 Android 冒充类型；AdminWeb 不可签发访客。
 签发只接受业务层生成并 SHA-256 的 CSPRNG token，存储范围为整数秒 1–86400；这不是产品默认登录时长。
 每次签发产生新 UUID；无传入旧 ID 复活、到期刷新或旧客户端存储导入。重连必须认证同一个仍有效主体。
@@ -162,7 +162,7 @@ issue 在共享 gate 内检查活动来源禁令再创建；先签发者会被�
 guest_events 采用与其他 outbox 一致的有界 claim/租约/重试，事件内容不可由 runtime 覆写或删除。
 入库成功仍不代表实际连接已断开；投递、节点执行和宽限流程继续由后续阶段接入。
 
-`tests/guests.rs` 有 9 项独立 PG 用例：身份/终端/公开 ACL 分离；到期/重复注销/非法时长/旧 token 不复活；
+`tests/guests.rs` 的独立 PG 用例覆盖：身份/终端/公开 ACL 分离；长期有效/重复注销/禁止管理端签发/旧 token 不复活；
 管理员 20 路 CAS 与事件插入失败回滚；20 路租约领取/晚 ack/重试/不可变审计；20 路重复签发唯一赢家与断库失败。
 新增来源阻止/期限、来源阻止事件失败完整回滚、10 轮每轮 20 路签发与阻止竞争，以及 admin/viewer 的有界去密管理分页。
 是否已运行通过以[最新报告](server_database_execution_status.md)为准；不代替登录 API、来源限流或 Android 实机验收。

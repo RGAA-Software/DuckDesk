@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.node_telemetry_alert_conditions(\n node_id,metric,resource_key,resource_name,breach_samples,recovery_samples,open_event_id,last_value_per_mille,last_sampled_at,\n node_generation,report_sequence\n)\nVALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)\nON CONFLICT(node_id,metric,resource_key) DO UPDATE SET\n resource_name=EXCLUDED.resource_name,breach_samples=EXCLUDED.breach_samples,recovery_samples=EXCLUDED.recovery_samples,\n open_event_id=EXCLUDED.open_event_id,last_value_per_mille=EXCLUDED.last_value_per_mille,last_sampled_at=EXCLUDED.last_sampled_at,\n node_generation=EXCLUDED.node_generation,report_sequence=EXCLUDED.report_sequence\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int2",
+        "Int2",
+        "Uuid",
+        "Int2",
+        "Timestamptz",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8cacb308309456718789e0bca8e4885dbbceb813a2932c7e27f014e3fbee6045"
+}

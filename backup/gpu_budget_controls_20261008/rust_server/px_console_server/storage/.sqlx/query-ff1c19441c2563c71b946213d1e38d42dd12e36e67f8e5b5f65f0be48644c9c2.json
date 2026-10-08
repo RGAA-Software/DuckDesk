@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.id,d.public_code,d.name,d.platform,d.disabled,d.revision,d.registered_at FROM pixels.devices d\nWHERE NOT d.disabled AND d.deleted_at IS NULL AND ($2::uuid IS NULL OR d.id>$2) AND ($4::uuid IS NULL OR d.id=$4)\nAND (EXISTS(SELECT 1 FROM pixels.user_devices ud WHERE ud.device_id=d.id AND ud.user_id=$1)\n OR EXISTS(SELECT 1 FROM pixels.group_device_grants gd JOIN pixels.user_groups g ON g.id=gd.group_id\n JOIN pixels.group_members gm ON gm.group_id=g.id\n WHERE gd.device_id=d.id AND g.deleted_at IS NULL AND gm.user_id=$1))\nORDER BY d.id LIMIT $3\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "public_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "platform",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "disabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "revision",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "registered_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "ff1c19441c2563c71b946213d1e38d42dd12e36e67f8e5b5f65f0be48644c9c2"
+}

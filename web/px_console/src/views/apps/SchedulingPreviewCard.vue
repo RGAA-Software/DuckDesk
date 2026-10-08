@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { isAxiosError } from "axios";
 import { useI18n } from "vue-i18n";
 import { listManagedApplications, type ManagedApplication } from "@/model/managed_application_api";
 import { listManagedDeployments, type ManagedDeployment } from "@/model/managed_deployment_api";
@@ -19,6 +20,23 @@ const selectedApplicationId = ref("");
 const selectedDeploymentId = ref("");
 const preview = ref<PlacementPreview>();
 const loading = ref(false);
+const catalogError = ref(false);
+const previewError = ref<
+    | "scheduling.failed"
+    | "scheduling.sessionExpired"
+    | "scheduling.forbidden"
+    | "scheduling.applicationMissing"
+>();
+let previewRequestId = 0;
+let catalogRequestId = 0;
+let disposed = false;
+
+const eligibleCandidates = computed(
+    () => preview.value?.candidates.filter(candidate => candidate.eligible) ?? [],
+);
+const preferredCandidate = computed(() =>
+    eligibleCandidates.value.find(candidate => candidate.rank === 1),
+);
 
 const applicationDeployments = computed(() =>
     deployments.value.filter(
@@ -27,37 +45,84 @@ const applicationDeployments = computed(() =>
 );
 
 async function loadCatalog(): Promise<void> {
-    [applications.value, deployments.value, nodes.value] = await Promise.all([
-        listManagedApplications(),
-        listManagedDeployments(),
-        listManagedNodes(),
-    ]);
-    if (!applications.value.some(application => application.id === selectedApplicationId.value)) {
-        selectedApplicationId.value = applications.value.at(0)?.id || "";
-        selectedDeploymentId.value = "";
+    const requestId = ++catalogRequestId;
+    try {
+        const [applicationRows, deploymentRows, nodeRows] = await Promise.all([
+            listManagedApplications(),
+            listManagedDeployments(),
+            listManagedNodes(),
+        ]);
+        if (disposed || requestId !== catalogRequestId) return;
+        applications.value = applicationRows;
+        deployments.value = deploymentRows;
+        nodes.value = nodeRows;
+        catalogError.value = false;
+        if (
+            !applications.value.some(application => application.id === selectedApplicationId.value)
+        ) {
+            selectedApplicationId.value = applications.value.at(0)?.id || "";
+        }
+        if (
+            !applicationDeployments.value.some(
+                deployment => deployment.id === selectedDeploymentId.value,
+            )
+        ) {
+            selectedDeploymentId.value = "";
+        }
+    } catch {
+        if (!disposed && requestId === catalogRequestId) catalogError.value = true;
     }
 }
 
 async function runPreview(): Promise<void> {
     if (!selectedApplicationId.value) return;
+    const requestId = ++previewRequestId;
     loading.value = true;
-    preview.value = await previewPlacement(
-        selectedApplicationId.value,
-        selectedDeploymentId.value || undefined,
-    ).finally(() => {
-        loading.value = false;
-    });
+    previewError.value = undefined;
+    try {
+        const result = await previewPlacement(
+            selectedApplicationId.value,
+            selectedDeploymentId.value || undefined,
+        );
+        if (!disposed && requestId === previewRequestId) preview.value = result;
+    } catch (error) {
+        if (disposed || requestId !== previewRequestId) return;
+        preview.value = undefined;
+        const status = isAxiosError(error) ? error.response?.status : undefined;
+        previewError.value =
+            status === 401
+                ? "scheduling.sessionExpired"
+                : status === 403
+                  ? "scheduling.forbidden"
+                  : status === 404
+                    ? "scheduling.applicationMissing"
+                    : "scheduling.failed";
+    } finally {
+        if (!disposed && requestId === previewRequestId) loading.value = false;
+    }
 }
 
 async function refresh(): Promise<void> {
     await loadCatalog();
-    if (preview.value && selectedApplicationId.value) await runPreview();
+    if (!disposed && !loading.value && preview.value && selectedApplicationId.value)
+        await runPreview();
 }
 
-function selectApplication(): void {
-    selectedDeploymentId.value = "";
+function resetPreview(): void {
+    ++previewRequestId;
+    loading.value = false;
     preview.value = undefined;
+    previewError.value = undefined;
 }
+
+watch(
+    selectedApplicationId,
+    () => {
+        selectedDeploymentId.value = "";
+    },
+    { flush: "sync" },
+);
+watch([selectedApplicationId, selectedDeploymentId], resetPreview, { flush: "sync" });
 
 function nodeName(candidate: PlacementCandidate): string {
     return (
@@ -66,7 +131,9 @@ function nodeName(candidate: PlacementCandidate): string {
 }
 
 function deploymentName(candidate: PlacementCandidate): string {
-    const deployment = deployments.value.find(item => item.id === candidate.deployment_id);
+    const deployment = deployments.value.find(
+        deployment => deployment.id === candidate.deployment_id,
+    );
     return deployment
         ? `${deployment.kind} · ${candidate.deployment_id.slice(0, 8)}`
         : candidate.deployment_id;
@@ -81,7 +148,12 @@ function memory(value: number | null): string {
 }
 
 onMounted(loadCatalog);
-useManagementRefresh(["nodes", "deployments", "instances"], refresh);
+useManagementRefresh(["applications", "nodes", "deployments", "instances"], refresh);
+onBeforeUnmount(() => {
+    disposed = true;
+    ++previewRequestId;
+    ++catalogRequestId;
+});
 </script>
 
 <template>
@@ -103,7 +175,6 @@ useManagementRefresh(["nodes", "deployments", "instances"], refresh);
                         value: application.id,
                     }))
                 "
-                @change="selectApplication"
             />
             <a-select
                 v-model:value="selectedDeploymentId"
@@ -129,6 +200,48 @@ useManagementRefresh(["nodes", "deployments", "instances"], refresh);
                 new Date(preview.evaluated_at).toLocaleString()
             }}</span>
         </a-space>
+        <a-alert
+            v-if="catalogError"
+            type="error"
+            show-icon
+            :message="t('scheduling.catalogFailed')"
+            style="margin-bottom: 12px"
+        >
+            <template #action
+                ><a-button size="small" @click="loadCatalog">{{
+                    t("scheduling.retry")
+                }}</a-button></template
+            >
+        </a-alert>
+        <a-alert
+            v-if="previewError"
+            type="error"
+            show-icon
+            :message="t(previewError)"
+            style="margin-bottom: 12px"
+        />
+        <p v-else-if="loading" role="status">{{ t("scheduling.checking") }}</p>
+        <a-alert
+            v-else-if="preview"
+            :type="eligibleCandidates.length ? 'success' : 'warning'"
+            show-icon
+            :message="
+                eligibleCandidates.length
+                    ? t('scheduling.available', { count: eligibleCandidates.length })
+                    : t(
+                          preview.candidates.length
+                              ? 'scheduling.noneEligible'
+                              : 'scheduling.noCandidates',
+                      )
+            "
+            :description="
+                preferredCandidate
+                    ? t('scheduling.preferred', { node: nodeName(preferredCandidate) })
+                    : undefined
+            "
+            style="margin-bottom: 12px"
+        />
+        <p v-else role="status">{{ t("scheduling.idle") }}</p>
         <a-table
             v-if="preview"
             :data-source="preview.candidates"

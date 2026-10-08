@@ -310,7 +310,7 @@ void RelayServerSdk::OnRoomPrepared(const std::shared_ptr<RelayMessage>& msg) {
     room->created_timestamp_ = (int64_t)TimeUtil::GetCurrentTimestamp();
     room->creator_device_name_ = rp.creator_device_name();
     room->creator_stream_id_ = rp.creator_stream_id();
-    room->conn_id_ = MD5::Hex(GetUUID());
+    room->conn_id_ = MD5::Hex(GenerateRandomBase64Id());
     rooms_.Insert(room->room_id_, room);
     LOGI("** OnRoomPrepared: {}", room->room_id_);
 }

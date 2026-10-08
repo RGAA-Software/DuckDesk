@@ -690,30 +690,6 @@ impl NodeStore {
         tx.commit().await?;
         Ok(node)
     }
-    pub async fn rotate_key(
-        &self,
-        admin: &TokenDigest,
-        id: Uuid,
-        revision: i64,
-        credential: &TokenDigest,
-    ) -> Result<NodeProfile, StoreError> {
-        let mut tx = self.pool.begin().await?;
-        control::write_gate(&mut tx).await?;
-        let actor = control::authorize(&mut tx, admin, true).await?;
-        Self::lock(&mut tx, id, revision).await?;
-        let node = sqlx::query_file_as!(
-            NodeProfile,
-            "queries/rotate_node_key.sql",
-            id,
-            credential.0.as_slice()
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        Self::audit(&mut tx, actor, id, node.revision, "key_rotated").await?;
-        crate::node_lifecycle::invalidate(&mut tx, Some(id)).await?;
-        tx.commit().await?;
-        Ok(node)
-    }
     pub async fn delete(
         &self,
         admin: &TokenDigest,

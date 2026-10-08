@@ -458,14 +458,6 @@ audioContext.resume();setInterval(()=>audioContext.resume(),500);
             $deploymentConfiguration = @{
                 target = @{ kind = 'webview' }
                 gpu_key = $deployment.gpu_key
-                gpu_profile = @{
-                    memory_bytes = [long]$deployment.gpu_memory_bytes
-                    compute_per_mille = [int]$deployment.gpu_compute_per_mille
-                    encoder_per_mille = [int]$deployment.gpu_encoder_per_mille
-                    memory_reserve_bytes = [long]$deployment.gpu_memory_reserve_bytes
-                    compute_limit_per_mille = [int]$deployment.gpu_compute_limit_per_mille
-                    encoder_limit_per_mille = [int]$deployment.gpu_encoder_limit_per_mille
-                }
                 capacity = [int]$deployment.capacity
                 disabled = [bool]$deployment.disabled
             }
@@ -1079,14 +1071,6 @@ public static class PixelsCloudInputProbe {
                 $deploymentConfiguration = @{
                     target = @{ kind = 'webview' }
                     gpu_key = $deployment.gpu_key
-                    gpu_profile = @{
-                        memory_bytes = [long]$deployment.gpu_memory_bytes
-                        compute_per_mille = [int]$deployment.gpu_compute_per_mille
-                        encoder_per_mille = [int]$deployment.gpu_encoder_per_mille
-                        memory_reserve_bytes = [long]$deployment.gpu_memory_reserve_bytes
-                        compute_limit_per_mille = [int]$deployment.gpu_compute_limit_per_mille
-                        encoder_limit_per_mille = [int]$deployment.gpu_encoder_limit_per_mille
-                    }
                     capacity = [int]$deployment.capacity
                     disabled = [bool]$deployment.disabled
                 }

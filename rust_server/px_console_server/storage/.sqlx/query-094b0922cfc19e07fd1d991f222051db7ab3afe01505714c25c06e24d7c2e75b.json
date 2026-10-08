@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT kind,executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision FROM pixels.instances WHERE id=$1\r\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "executable_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "arguments",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "entry_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "codec",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "bitrate_kbps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "gpu_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "gpu_inventory_revision",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "094b0922cfc19e07fd1d991f222051db7ab3afe01505714c25c06e24d7c2e75b"
+}

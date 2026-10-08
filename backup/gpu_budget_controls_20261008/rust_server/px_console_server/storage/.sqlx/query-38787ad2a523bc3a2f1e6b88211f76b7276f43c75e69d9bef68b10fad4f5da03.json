@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH moved AS (UPDATE pixels.connection_observations SET state='unknown',\nreason=CASE WHEN $2::uuid IS NULL THEN 'control_lost' ELSE 'frontend_closed' END,revision=revision+1,updated_at=clock_timestamp()\nWHERE state='active' AND ($1::uuid IS NULL OR node_id=$1) AND ($2::uuid IS NULL OR session_id=$2)\nRETURNING id,revision,sequence,state,sent_bytes,received_bytes,elapsed_ms)\nINSERT INTO pixels.connection_observation_events(id,connection_id,revision,sequence,state,sent_bytes,received_bytes,elapsed_ms)\nSELECT gen_random_uuid(),id,revision,sequence,state,sent_bytes,received_bytes,elapsed_ms FROM moved\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "38787ad2a523bc3a2f1e6b88211f76b7276f43c75e69d9bef68b10fad4f5da03"
+}

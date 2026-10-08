@@ -78,10 +78,6 @@ pub enum PlacementRejectionReason {
     GpuInventoryUnavailable,
     PinnedGpuMissing,
     GpuBindingUnavailable,
-    GpuMetricsUnknown,
-    GpuMemoryExhausted,
-    GpuComputeExhausted,
-    GpuEncoderExhausted,
 }
 
 impl PlacementRejectionReason {
@@ -114,10 +110,6 @@ impl PlacementRejectionReason {
             "gpu_inventory_unavailable" => Ok(Self::GpuInventoryUnavailable),
             "pinned_gpu_missing" => Ok(Self::PinnedGpuMissing),
             "gpu_binding_unavailable" => Ok(Self::GpuBindingUnavailable),
-            "gpu_metrics_unknown" => Ok(Self::GpuMetricsUnknown),
-            "gpu_memory_exhausted" => Ok(Self::GpuMemoryExhausted),
-            "gpu_compute_exhausted" => Ok(Self::GpuComputeExhausted),
-            "gpu_encoder_exhausted" => Ok(Self::GpuEncoderExhausted),
             _ => Err(StoreError::Database(px_pg::DatabaseError::Operation)),
         }
     }

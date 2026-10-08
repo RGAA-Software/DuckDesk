@@ -204,6 +204,10 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
                          f"pixels_console?sslrootcert={encoded_ca_path}")
             runtime_url = (f"postgresql://pixels_console_runtime:{runtime_password}@localhost:{postgres_port}/"
                            f"pixels_console?sslrootcert={encoded_ca_path}")
+            upgrade_directory = config_root / "database-upgrade"
+            upgrade_directory.mkdir()
+            configure_private_directory(upgrade_directory)
+            write_private(upgrade_directory / "console-owner.url", owner_url.split("?", 1)[0])
             package_bin = PACKAGE_ROOT / "bin"
             admin_environment = os.environ.copy()
             admin_environment.update({"PIXELS_CONSOLE_GUEST_SOURCE_KEY": str(config_root / "guest-source.key"),
@@ -248,9 +252,7 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
                 "PIXELS_CONSOLE_TLS_KEY": str(console_key),
                 "PIXELS_CONSOLE_PUBLIC_ORIGIN": f"https://localhost:{console_port}",
                 "PIXELS_CONSOLE_REGISTRATION": "0",
-                "PIXELS_CONSOLE_GUESTS": "0",
                 "PIXELS_CONSOLE_SESSION_LIFETIME_SECONDS": "3600",
-                "PIXELS_CONSOLE_GUEST_LIFETIME_SECONDS": "3600",
                 "PIXELS_CONSOLE_GUEST_SOURCE_KEY": str(config_root / "guest-source.key"),
                 "PIXELS_CONSOLE_WORKSPACE_ACTIVE_KEY": workspace_key_id,
                 "PIXELS_CONSOLE_WORKSPACE_KEYS": "'" + json.dumps([{
@@ -469,7 +471,7 @@ GRANT SELECT ON pixels.deployment_identity TO pixels_console_runtime;
             postgres_sql(postgres_container, "postgres",
                          "CREATE DATABASE pixels_console_restore OWNER pixels_console_owner;")
             restore_environment = os.environ.copy()
-            restore_environment.update({"PGSSLMODE": "verify-full", "PGSSLROOTCERT": str(pg_ca),
+            restore_environment.update({"PGSSLMODE": "prefer",
                                         "PGPASSFILE": str(config_root / "console.pgpass")})
             checked([str(install_root / "current/postgresql/bin/pg_restore.exe"), "--exit-on-error",
                      "--no-owner", "--no-password", "--host", "localhost", "--port", str(postgres_port),

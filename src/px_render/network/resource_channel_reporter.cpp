@@ -182,7 +182,8 @@ PxAwaitable<void> ResourceChannelReporter::OpenAsync(std::weak_ptr<ResourceChann
         co_return;
     }
     auto result =
-        co_await service_client->RequestResourceChannelOpenAsync(GetUUID(), activity->source_id, activity->logical_session_id, activity->channel_kind,
+        co_await service_client->RequestResourceChannelOpenAsync(GenerateRandomBase64Id(), activity->source_id, activity->logical_session_id,
+                                                              activity->channel_kind,
                                                                  std::chrono::steady_clock::now() + std::chrono::seconds(12));
     if (!result.HasValue() || !result.Value().accepted_ || !IsCanonicalUuid(result.Value().channel_id_) || result.Value().state_ != "active") {
         LOGW(
@@ -289,7 +290,7 @@ PxAwaitable<void> ResourceChannelReporter::ReportLoopAsync(std::weak_ptr<Resourc
         if (!owner || !service_client) {
             co_return;
         }
-        auto result = co_await service_client->RequestResourceChannelReportAsync(GetUUID(), activity->channel_id, sequence, sent_bytes,
+        auto result = co_await service_client->RequestResourceChannelReportAsync(GenerateRandomBase64Id(), activity->channel_id, sequence, sent_bytes,
                                                                                  received_bytes, elapsed_ms, outcome,
                                                                                  std::chrono::steady_clock::now() + std::chrono::seconds(12));
         if (!result.HasValue() || !result.Value().accepted_) {

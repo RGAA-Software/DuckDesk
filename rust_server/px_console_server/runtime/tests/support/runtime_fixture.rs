@@ -62,13 +62,7 @@ pub fn policy() -> IngressPolicy {
     IngressPolicy::new(ORIGIN, true, Duration::from_secs(3600), false).unwrap()
 }
 pub fn guests() -> GuestAdmission {
-    GuestAdmission::for_isolated_test(
-        deployment(),
-        Zeroizing::new([42; 32]),
-        true,
-        Duration::from_secs(3600),
-    )
-    .unwrap()
+    GuestAdmission::for_isolated_test(deployment(), Zeroizing::new([42; 32])).unwrap()
 }
 pub async fn start() -> ConsoleRuntime {
     initialize().await;
@@ -103,13 +97,7 @@ pub async fn start_isolated_deployment(
         deployment_id,
         vault(),
         IngressPolicy::new(origin, true, Duration::from_secs(3600), false).unwrap(),
-        GuestAdmission::for_isolated_test(
-            deployment_id,
-            Zeroizing::new([42; 32]),
-            true,
-            Duration::from_secs(3600),
-        )
-        .unwrap(),
+        GuestAdmission::for_isolated_test(deployment_id, Zeroizing::new([42; 32])).unwrap(),
     )
     .await
     .unwrap()

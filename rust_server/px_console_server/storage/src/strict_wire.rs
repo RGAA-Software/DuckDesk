@@ -34,6 +34,7 @@ mod tests {
     fn all_empty_tagged_payloads_reject_extra_and_duplicate_fields() {
         check::<ApplicationLaunch>("kind", "rdp");
         check::<DeploymentTarget>("kind", "rdp");
+        check::<DeploymentTarget>("kind", "game_hook");
         check::<DeploymentTarget>("kind", "webview");
         check::<PreparationState>("state", "pending");
         check::<PreparationState>("state", "ready");
