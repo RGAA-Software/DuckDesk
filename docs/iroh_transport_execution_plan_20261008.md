@@ -178,7 +178,7 @@ Relay 必须支持 Windows 和 Linux，复用 Windows Service、Linux systemd/�
 
 ### 0.9 本次完整任务：Windows/Linux iroh 网络交付（不含 Android）
 
-执行结果（2026-10-11）：A–E 必要功能及当前环境完整安装已验收，F 提交收束；详细身份和证据见
+执行结果（2026-10-11）：A–F 本次功能交付已完成，实现及证据 `bf5ebc03a` 已推送；详细身份和证据见
 [本轮报告](validation/iroh_transport/20261011_windows_completion.md)。追加修复独立文件入口仍占控制席的 409，
 Server schema 40 / 1.0.56 与 Cloud Node 3.3.97 已安装。**direct 画面仍低帧率和频繁恢复，性能未通过**；
 真实 NAT、规模、长期稳定性保持未验收。Android 排除、已叫停专项保持停止。下文为本次执行约定。
