@@ -6,7 +6,7 @@
 
 namespace px::client::imgui {
 
-enum class ClientStatisticsTransport : std::uint8_t { DirectUdp, DirectWebSocket, RelayWebSocket, Rdp };
+enum class ClientStatisticsTransport : std::uint8_t { DirectUdp, DirectWebSocket, RelayWebSocket, Rdp, Iroh, RdpIroh };
 
 struct ClientStatisticsSnapshot final {
     ClientStatisticsTransport transport{ClientStatisticsTransport::DirectUdp};

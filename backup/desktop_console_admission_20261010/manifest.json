@@ -1,0 +1,30 @@
+[
+  {
+    "original_path": "src/px_render/network/frontend_admission.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modified": true,
+    "reason": "Desktop Console session must use existing admission instead of device-password branch",
+    "archive_batch": "backup\\desktop_console_admission_20261010"
+  },
+  {
+    "original_path": "src/px_render/network/ws/frontend_lease_renewal.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modified": true,
+    "reason": "Desktop Console session must use existing admission instead of device-password branch",
+    "archive_batch": "backup\\desktop_console_admission_20261010"
+  },
+  {
+    "original_path": "src/px_render/network/ws/frontend_lease_renewal.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modified": true,
+    "reason": "Desktop Console session must use existing admission instead of device-password branch",
+    "archive_batch": "backup\\desktop_console_admission_20261010"
+  },
+  {
+    "original_path": "src/px_render/modules/render_module_registry.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modified": true,
+    "reason": "Desktop Render has device identity but no application instance",
+    "archive_batch": "backup\\desktop_console_admission_20261010"
+  }
+]

@@ -1,0 +1,42 @@
+   Compiling fastrand v2.3.0
+   Compiling reqwest v0.12.24
+   Compiling futures-lite v2.6.1
+   Compiling tempfile v3.23.0
+   Compiling n0-future v0.3.2
+   Compiling n0-dns-resolver v0.1.0
+   Compiling iroh-dns v1.3.0
+   Compiling iroh-relay v1.3.0
+   Compiling px_relay_server v3.2.1 (D:\GoCloud\GammaRayPremium\rust_server\px_relay_server)
+    Finished `release` profile [optimized] target(s) in 20.90s
+     Running unittests src\lib.rs (C:/Users/chess/AppData/Local/PixelsRelayBuild\release\deps\px_relay_server-faa37d71e2a80bb6.exe)
+
+running 14 tests
+test iroh::config::tests::configuration_rejects_invalid_capacity_ports_and_unknown_fields ... ok
+test tests::payload_requires_acceptance_monotonic_sequence_and_completed_delivery_accounting ... ok
+test tests::replacement_connection_fences_stale_disconnect_and_removes_old_rooms ... ok
+test iroh::admission::tests::draining_retains_existing_connections_and_can_resume ... ok
+test iroh::admission::tests::concurrent_connections_respect_capacity_and_exact_disconnect ... ok
+test tests::rejects_invalid_app_key_before_websocket_upgrade ... ok
+test tests::retired_notification_channel_is_rejected ... ok
+test tests::accepts_only_a_current_ticket_bound_to_the_frontend_route ... ok
+test tests::forwards_control_and_payload_only_inside_an_authorized_room ... ok
+test tests::draining_rejects_new_connections_without_interrupting_existing_connections ... ok
+test iroh::tests::certificate_paths_resolve_against_configuration_directory ... ok
+test iroh::tests::cancellation_releases_both_listeners_for_repeated_start ... ok
+test iroh::tests::occupied_qad_port_does_not_leak_https_listener ... ok
+test tests::disconnects_a_silent_connection_after_the_idle_timeout ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running unittests src\main.rs (C:/Users/chess/AppData/Local/PixelsRelayBuild\release\deps\px_relay-098430578dab3726.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests px_relay_server
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

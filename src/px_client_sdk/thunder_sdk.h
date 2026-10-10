@@ -168,9 +168,11 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
 
     std::atomic_bool need_clear_video_tasks_{false};
     std::atomic_bool decoder_resync_requested_{false};
+    std::atomic_uint64_t media_generation_{};
     std::atomic_bool decoder_failure_notified_{false};
 
-    std::map<std::string, int64_t> last_frame_indices_;
+    // Updated only after the decoder accepts the input; the receiver can advance ahead of this queue.
+    std::map<std::string, std::uint64_t> last_frame_indices_{};
 
     // save received stream
     std::map<std::string, std::shared_ptr<File>> received_files_;

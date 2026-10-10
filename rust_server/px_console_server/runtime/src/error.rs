@@ -24,6 +24,8 @@ pub enum ApiError {
     ConnectionRetiring,
     #[error("connection capacity is occupied")]
     ConnectionBusy,
+    #[error("transport endpoint is not ready")]
+    TransportNotReady,
     #[error("rate limited")]
     RateLimited,
     #[error("service unavailable")]
@@ -42,6 +44,7 @@ impl IntoResponse for ApiError {
             Self::Conflict => (StatusCode::CONFLICT, "conflict"),
             Self::ConnectionRetiring => (StatusCode::CONFLICT, "connection_retiring"),
             Self::ConnectionBusy => (StatusCode::CONFLICT, "connection_busy"),
+            Self::TransportNotReady => (StatusCode::SERVICE_UNAVAILABLE, "transport_not_ready"),
             Self::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             Self::Unavailable => (StatusCode::SERVICE_UNAVAILABLE, "unavailable"),
             Self::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "internal"),
@@ -66,6 +69,7 @@ impl From<StoreError> for ApiError {
             StoreError::LicenseRestriction => Self::Rejected,
             StoreError::ConnectionRetiring => Self::ConnectionRetiring,
             StoreError::ConnectionBusy => Self::ConnectionBusy,
+            StoreError::TransportNotReady => Self::TransportNotReady,
             StoreError::NotFound => Self::NotFound,
             StoreError::Database(database_error) => database_error.into(),
             _ => Self::Unavailable,

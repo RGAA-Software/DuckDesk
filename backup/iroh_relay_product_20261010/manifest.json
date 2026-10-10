@@ -1,0 +1,10 @@
+{
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Preserve existing service entry before explicit iroh data-plane integration; old active consumers remain until Android migration",
+  "paths": [
+    "rust_server/px_relay_server/src/main.rs",
+    "rust_server/px_relay_server/src/lib.rs",
+    "rust_server/px_relay_server/Cargo.toml"
+  ],
+  "local_status": null
+}

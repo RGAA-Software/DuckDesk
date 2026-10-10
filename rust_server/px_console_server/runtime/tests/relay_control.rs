@@ -416,6 +416,15 @@ async fn two_relays_converge_independently_and_fail_closed_when_console_stops() 
     .await;
     assert!(draining_profile.desired_draining);
 
+    verify_iroh_management(
+        &console_router,
+        console_address,
+        &admin_secret,
+        &relay_nodes,
+        &admin,
+    )
+    .await;
+
     runtime.cancellation_token().cancel();
     console_stop.cancel();
     console_server.await.unwrap();
@@ -425,4 +434,122 @@ async fn two_relays_converge_independently_and_fail_closed_when_console_stops() 
     second_relay.shutdown().await;
     relay_nodes.close().await;
     runtime.shutdown().await;
+}
+
+async fn verify_iroh_management(
+    console_router: &axum::Router,
+    console_address: SocketAddr,
+    admin_secret: &str,
+    relay_nodes: &RelayNodeStore,
+    admin: &TokenDigest,
+) {
+    use px_relay_server::iroh::{IrohRelay, IrohRelayConfig};
+    let directory = tempfile::tempdir().unwrap();
+    let certificate = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+    let configuration = IrohRelayConfig {
+        https_bind: std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap(),
+        qad_bind: std::net::UdpSocket::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap(),
+        qad_public_port: Some(24605),
+        console_managed: true,
+        certificate_file: directory.path().join("relay.pem"),
+        private_key_file: directory.path().join("relay-key.pem"),
+        max_connections: 64,
+    };
+    std::fs::write(&configuration.certificate_file, certificate.cert.pem()).unwrap();
+    std::fs::write(
+        &configuration.private_key_file,
+        certificate.signing_key.serialize_pem(),
+    )
+    .unwrap();
+    let (relay_id, relay_secret) = create_managed_relay(
+        console_router,
+        admin_secret,
+        format!("iroh-relay-{}", Uuid::new_v4()),
+        "localhost",
+        configuration.https_bind.port(),
+    )
+    .await;
+    let relay = IrohRelay::start(&configuration).await.unwrap();
+    let management = relay.management();
+    management.set_draining(true);
+    let cancellation = CancellationToken::new();
+    let relay_task = tokio::spawn(relay.run(cancellation.clone()));
+    let control_task = tokio::spawn(control::run_iroh(
+        management,
+        ControlPlaneConfig {
+            url: format!("ws://{console_address}/api/console/relay-control"),
+            token: Arc::new(Zeroizing::new(relay_secret)),
+            product_version_code: 3002001,
+            tls_config: None,
+        },
+        cancellation.clone(),
+    ));
+    let initial = wait_for_profile(relay_nodes, admin, relay_id, |profile| {
+        profile.state == "ready"
+    })
+    .await;
+    assert_eq!(initial.iroh_qad_port, Some(24605));
+    assert_eq!(initial.max_rooms, None);
+    assert_eq!(initial.current_rooms, None);
+    assert_eq!(initial.current_connections, Some(0));
+    assert!(relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .is_empty());
+    let (status, changed) = call(
+        console_router,
+        "PATCH",
+        &format!("/api/console/managed/relays/{relay_id}"),
+        "admin_web",
+        Some(admin_secret),
+        json!({"revision":initial.revision,"configuration":{"draining":false,"disabled":false}}),
+    )
+    .await;
+    assert_eq!(status.as_u16(), 200, "{changed}");
+    let accepting = wait_for_profile(relay_nodes, admin, relay_id, |profile| {
+        profile.reported_draining == Some(false)
+    })
+    .await;
+    let endpoints = relay_nodes.available_iroh_relays().await.unwrap();
+    assert_eq!(endpoints.len(), 1);
+    assert_eq!(
+        endpoints[0].url,
+        format!("https://localhost:{}/", configuration.https_bind.port())
+    );
+    assert_eq!(endpoints[0].qad_port, Some(24605));
+    assert_eq!(accepting.max_connections, Some(64));
+    let (status, changed) = call(
+        console_router,
+        "PATCH",
+        &format!("/api/console/managed/relays/{relay_id}"),
+        "admin_web",
+        Some(admin_secret),
+        json!({"revision":accepting.revision,"configuration":{"draining":true,"disabled":false}}),
+    )
+    .await;
+    assert_eq!(status.as_u16(), 200, "{changed}");
+    // Desired maintenance takes effect in address selection before the next report.
+    assert!(relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .is_empty());
+    wait_for_profile(relay_nodes, admin, relay_id, |profile| {
+        profile.reported_draining == Some(true)
+    })
+    .await;
+    cancellation.cancel();
+    control_task.await.unwrap();
+    relay_task.await.unwrap().unwrap();
+    wait_for_profile(relay_nodes, admin, relay_id, |profile| {
+        profile.state == "offline"
+    })
+    .await;
 }

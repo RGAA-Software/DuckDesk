@@ -1,0 +1,48 @@
+{
+  "version": "3.3.97",
+  "candidate": "iroh-file-credit-20261010",
+  "development": {
+    "client/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "15AED9AC7C93FBBB2761DE35DF0DEB41B3975E802DD2C83D13958EA0C7B854E5"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "15AED9AC7C93FBBB2761DE35DF0DEB41B3975E802DD2C83D13958EA0C7B854E5"
+      }
+    },
+    "cloud_node/px_render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "6C04ADC6EBA2553DCEDAC3B278FE7B76930F26DAAFA4C9C1FF97AAE07F73D730"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "6C04ADC6EBA2553DCEDAC3B278FE7B76930F26DAAFA4C9C1FF97AAE07F73D730"
+      }
+    },
+    "cloud_node/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "995296262A04F3FE9E1E16010AA4E11BD4931ADC4B312310A8F7CFF0DCECED35"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "995296262A04F3FE9E1E16010AA4E11BD4931ADC4B312310A8F7CFF0DCECED35"
+      }
+    }
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-file-credit-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "E4B0C47449BE3DDD4206C0DFF679D3A32F19842EE6D3A5BC58E92A28F56E14EE"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-file-credit-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "B7B681F7DA1D772B4EF7FA35354CFB3F45C9C51362A05A6E86D0E71FEBAC1DC8"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-file-credit-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "952F3EFE0794FDCBCB3ECE660C048AE815174CF5525ED94BD065269FE0DDF84A"
+  }
+}

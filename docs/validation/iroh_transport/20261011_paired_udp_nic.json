@@ -1,0 +1,53 @@
+{
+  "layers": {
+    "forward": {
+      "client_tcpip_not_nic": 0,
+      "client_nic_not_tcpip": 0,
+      "server_tcpip_not_nic": 0,
+      "server_nic_not_tcpip": 0
+    },
+    "reverse": {
+      "client_tcpip_not_nic": 0,
+      "client_nic_not_tcpip": 0,
+      "server_tcpip_not_nic": 0,
+      "server_nic_not_tcpip": 0
+    }
+  },
+  "repair_windows": [
+    {
+      "server_repair_submit": "2026-10-11 00:04:01.071",
+      "window_ms": 17,
+      "sent_packets": 18,
+      "missing": 18,
+      "missing_packet_sizes": [
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        1129,
+        61,
+        49
+      ],
+      "note": "Encrypted datagrams in submission window; frame identity cannot be inferred from packet timing alone."
+    },
+    {
+      "server_repair_submit": "2026-10-11 00:04:16.488",
+      "window_ms": 17,
+      "sent_packets": 0,
+      "missing": 0,
+      "missing_packet_sizes": [],
+      "note": "Encrypted datagrams in submission window; frame identity cannot be inferred from packet timing alone."
+    }
+  ]
+}

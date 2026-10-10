@@ -38,6 +38,7 @@ class VideoEncoderModule;
 class MonitorCaptureSource;
 class WsTransport;
 class UdpTransport;
+class IrohTransport;
 class RelayTransport;
 class PxConnectedClientInfo;
 class WebRtcTransportHandle;
@@ -118,12 +119,17 @@ public:
     void InsertIdr(const std::string& monitor_name = {});
     [[nodiscard]] bool InvalidateReferenceFrame(const std::string& monitor_name, std::uint64_t invalid_frame_index);
     [[nodiscard]] std::uint64_t EffectiveVideoBitrate(std::uint64_t requested_bps) const;
+    [[nodiscard]] int EffectiveVideoFrameRate(int requested_fps) const;
+    [[nodiscard]] bool CanEncodeVideo(const std::string& monitor) const;
     [[nodiscard]] int64_t QueuedNetworkMediaMessages();
     [[nodiscard]] int64_t QueuedNetworkFileTransferMessages();
     int GetTotalConnectedClientsCount();
     int GetTotalMediaConsumersCount();
     std::vector<std::shared_ptr<PxConnectedClientInfo>> GetConnectedClientsInfo();
 
+    [[nodiscard]] std::string IrohEndpointAddress() const;
+    [[nodiscard]] std::string IrohEndpointConfiguration() const;
+    [[nodiscard]] bool UpdateIrohRelays(const std::string& relays_json);
     void DumpModuleInfo();
 
     void On1Second();
@@ -145,6 +151,7 @@ public:
     bool IsDdaCapture(const std::shared_ptr<MonitorCaptureSource>& source);
 
 private:
+    [[nodiscard]] std::shared_ptr<IrohTransport> SnapshotIrohTransport() const;
     [[nodiscard]] std::vector<std::shared_ptr<RenderModule>> SnapshotModules();
     [[nodiscard]] std::vector<std::shared_ptr<VideoEncoderModule>> SnapshotEncoders();
     [[nodiscard]] std::vector<std::shared_ptr<WebRtcTransportHandle>> SnapshotWebRtcLibraries();
@@ -167,6 +174,7 @@ private:
     std::shared_ptr<MonitorCaptureSource> gdi_capture_;
     std::shared_ptr<WsTransport> ws_transport_;
     std::shared_ptr<UdpTransport> udp_transport_;
+    std::shared_ptr<IrohTransport> iroh_transport_{};
     std::shared_ptr<RelayTransport> relay_transport_;
     // Fixed dynamic network components. They intentionally do not enter
     // the flow-node extension graph.

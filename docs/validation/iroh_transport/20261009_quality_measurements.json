@@ -1,0 +1,542 @@
+[
+  {
+    "scenario": "webview_page_failure",
+    "instance": "0ded9ff8-743b-46e0-8e16-88e302e85913",
+    "paths": [
+      "relay"
+    ],
+    "windows": [
+      {
+        "timestamp": "2026-10-09 19:49:20.067",
+        "fps": 22.4,
+        "max_gap_ms": 953.0,
+        "gaps_gt_100ms": 6,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:25.069",
+        "fps": 2.2,
+        "max_gap_ms": 469.9,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:30.085",
+        "fps": 2.2,
+        "max_gap_ms": 468.8,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:35.523",
+        "fps": 2.2,
+        "max_gap_ms": 466.9,
+        "gaps_gt_100ms": 12,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:40.584",
+        "fps": 2.2,
+        "max_gap_ms": 468.9,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:46.036",
+        "fps": 2.2,
+        "max_gap_ms": 467.1,
+        "gaps_gt_100ms": 12,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:51.500",
+        "fps": 2.2,
+        "max_gap_ms": 469.4,
+        "gaps_gt_100ms": 12,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:49:56.532",
+        "fps": 2.2,
+        "max_gap_ms": 468.3,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:01.551",
+        "fps": 2.2,
+        "max_gap_ms": 471.0,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:06.984",
+        "fps": 2.2,
+        "max_gap_ms": 465.7,
+        "gaps_gt_100ms": 12,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:11.984",
+        "fps": 2.2,
+        "max_gap_ms": 468.0,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:17.017",
+        "fps": 2.2,
+        "max_gap_ms": 468.0,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:22.483",
+        "fps": 2.2,
+        "max_gap_ms": 468.9,
+        "gaps_gt_100ms": 12,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:50:27.498",
+        "fps": 2.2,
+        "max_gap_ms": 467.8,
+        "gaps_gt_100ms": 11,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "fps_range": [
+      2.2,
+      22.4
+    ],
+    "max_gap_ms": 953.0,
+    "max_gap_after_first_window_ms": 471.0,
+    "idr": 0,
+    "rfi": 0
+  },
+  {
+    "scenario": "webview_loaded",
+    "instance": "81ec39c8-29dd-49c0-a814-9e45c6dae856",
+    "paths": [
+      "relay"
+    ],
+    "windows": [
+      {
+        "timestamp": "2026-10-09 19:53:19.864",
+        "fps": 24.4,
+        "max_gap_ms": 989.5,
+        "gaps_gt_100ms": 6,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:24.873",
+        "fps": 53.5,
+        "max_gap_ms": 136.5,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:29.887",
+        "fps": 44.3,
+        "max_gap_ms": 210.5,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 2
+      },
+      {
+        "timestamp": "2026-10-09 19:53:34.888",
+        "fps": 60.0,
+        "max_gap_ms": 46.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:39.903",
+        "fps": 39.9,
+        "max_gap_ms": 135.9,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:44.903",
+        "fps": 60.0,
+        "max_gap_ms": 39.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:49.904",
+        "fps": 59.4,
+        "max_gap_ms": 49.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:53:54.996",
+        "fps": 50.9,
+        "max_gap_ms": 215.7,
+        "gaps_gt_100ms": 4,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:00.001",
+        "fps": 53.3,
+        "max_gap_ms": 131.2,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 1
+      },
+      {
+        "timestamp": "2026-10-09 19:54:05.122",
+        "fps": 50.0,
+        "max_gap_ms": 179.6,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:10.134",
+        "fps": 48.3,
+        "max_gap_ms": 122.2,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:15.142",
+        "fps": 45.1,
+        "max_gap_ms": 135.3,
+        "gaps_gt_100ms": 4,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:20.152",
+        "fps": 48.5,
+        "max_gap_ms": 226.7,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:25.152",
+        "fps": 60.0,
+        "max_gap_ms": 41.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:54:30.155",
+        "fps": 59.8,
+        "max_gap_ms": 46.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "fps_range": [
+      24.4,
+      60.0
+    ],
+    "max_gap_ms": 989.5,
+    "max_gap_after_first_window_ms": 226.7,
+    "idr": 0,
+    "rfi": 3
+  },
+  {
+    "scenario": "game_2mbps",
+    "instance": "3cce8bff-92e4-4091-ab75-83bc053245db",
+    "paths": [
+      "relay"
+    ],
+    "windows": [
+      {
+        "timestamp": "2026-10-09 19:55:03.287",
+        "fps": 58.5,
+        "max_gap_ms": 174.6,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:08.288",
+        "fps": 59.4,
+        "max_gap_ms": 54.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:13.289",
+        "fps": 60.0,
+        "max_gap_ms": 22.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:18.291",
+        "fps": 60.0,
+        "max_gap_ms": 39.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:23.303",
+        "fps": 60.0,
+        "max_gap_ms": 23.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:28.442",
+        "fps": 43.2,
+        "max_gap_ms": 282.9,
+        "gaps_gt_100ms": 7,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:33.449",
+        "fps": 33.8,
+        "max_gap_ms": 95.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:38.468",
+        "fps": 32.3,
+        "max_gap_ms": 79.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:43.489",
+        "fps": 29.9,
+        "max_gap_ms": 171.6,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:48.503",
+        "fps": 37.9,
+        "max_gap_ms": 252.3,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 2
+      },
+      {
+        "timestamp": "2026-10-09 19:55:53.506",
+        "fps": 56.4,
+        "max_gap_ms": 36.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:55:58.510",
+        "fps": 52.8,
+        "max_gap_ms": 187.2,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:56:03.525",
+        "fps": 60.0,
+        "max_gap_ms": 46.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:56:08.545",
+        "fps": 60.0,
+        "max_gap_ms": 38.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:56:13.554",
+        "fps": 60.1,
+        "max_gap_ms": 38.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "fps_range": [
+      29.9,
+      60.1
+    ],
+    "max_gap_ms": 282.9,
+    "max_gap_after_first_window_ms": 282.9,
+    "idr": 0,
+    "rfi": 2
+  },
+  {
+    "scenario": "game_direct",
+    "instance": "5beac3fa-2494-40ca-9c33-cb68f6096b7a",
+    "paths": [
+      "direct"
+    ],
+    "windows": [
+      {
+        "timestamp": "2026-10-09 19:56:49.772",
+        "fps": 60.3,
+        "max_gap_ms": 34.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:56:54.788",
+        "fps": 47.3,
+        "max_gap_ms": 305.1,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 4
+      },
+      {
+        "timestamp": "2026-10-09 19:56:59.791",
+        "fps": 47.0,
+        "max_gap_ms": 171.3,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-09 19:57:04.870",
+        "fps": 47.6,
+        "max_gap_ms": 106.2,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:09.894",
+        "fps": 56.5,
+        "max_gap_ms": 52.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:14.902",
+        "fps": 60.1,
+        "max_gap_ms": 37.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:19.905",
+        "fps": 60.0,
+        "max_gap_ms": 33.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:24.916",
+        "fps": 52.5,
+        "max_gap_ms": 268.1,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:29.941",
+        "fps": 59.9,
+        "max_gap_ms": 38.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:34.951",
+        "fps": 60.1,
+        "max_gap_ms": 55.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:39.985",
+        "fps": 56.6,
+        "max_gap_ms": 66.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:45.002",
+        "fps": 54.0,
+        "max_gap_ms": 265.9,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:50.017",
+        "fps": 60.0,
+        "max_gap_ms": 34.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:57:55.033",
+        "fps": 60.0,
+        "max_gap_ms": 62.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-09 19:58:00.038",
+        "fps": 58.9,
+        "max_gap_ms": 107.8,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 1
+      }
+    ],
+    "fps_range": [
+      47.0,
+      60.3
+    ],
+    "max_gap_ms": 305.1,
+    "max_gap_after_first_window_ms": 305.1,
+    "idr": 0,
+    "rfi": 8
+  }
+]

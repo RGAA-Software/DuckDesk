@@ -1,0 +1,22 @@
+[
+  {
+    "source": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "build_official\\client\\dist\\px_client.exe",
+    "sha256": "0dd08923fc34ec893f24e7e23b68f4e1f41426214aaa17fc768d893d8227250a"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "build_official\\cloud_node\\dist\\px_client.exe",
+    "sha256": "b1ee3f982ad55aa677b782d80c23e250a4a2b126d6784b22b5aa9c2726c55a38"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "dist": "build_official\\cloud_node\\dist\\px_render.exe",
+    "sha256": "7951a0690fde51a564074c202bd47bfdbd05a7fc2a552c06a2a48f1a21497a44"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_render\\network\\webrtc\\local\\px_render_rtc.dll",
+    "dist": "build_official\\cloud_node\\dist\\px_render_rtc.dll",
+    "sha256": "1463d8e60e0e0e2bfb04621fd51c01d578135e466a2c4f2d800fe07752662bbd"
+  }
+]

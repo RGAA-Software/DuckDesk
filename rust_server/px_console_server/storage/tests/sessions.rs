@@ -15,6 +15,153 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 #[tokio::test]
+async fn iroh_descriptor_uses_only_the_current_reported_application_launch() {
+    let fixture = Fixture::new().await;
+    let sessions = store().await;
+    let (node, application, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let user = fixture.session("user", ClientType::Panel).await;
+    let instance = running(
+        &fixture,
+        &node,
+        application.id,
+        &user,
+        ClientType::Panel,
+        false,
+    )
+    .await;
+    let session = sessions
+        .open(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            &open_request(application.id, instance.id),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        sessions
+            .descriptor_with_entitlement(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                session.id,
+                session.revision,
+                &token(),
+                RuntimeEntitlement::new(8, true, true, true).unwrap(),
+                true
+            )
+            .await,
+        Err(StoreError::TransportNotReady)
+    ));
+    assert_eq!(
+        sessions
+            .get(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                session.id
+            )
+            .await
+            .unwrap()
+            .revision,
+        session.revision
+    );
+    let (launch_id, port): (Uuid, i32) =
+        sqlx::query_as("SELECT launch_id,port FROM pixels.instances WHERE id=$1")
+            .bind(instance.id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let description = px_node_protocol::IrohConnectionDescription {
+        endpoint_address: serde_json::json!({"id": "a".repeat(64), "addrs": [{"Ip": format!("192.168.31.90:{port}")}]}),
+        endpoint_configuration: serde_json::json!({}),
+    };
+    let mut report = node_report(2);
+    report
+        .render_iroh_endpoints
+        .push(px_node_protocol::RenderIrohEndpoint {
+            port: port.try_into().unwrap(),
+            instance_id: Some(instance.id),
+            launch_id: Some(launch_id),
+            description: description.clone(),
+        });
+    fixture.nodes.report(&node, &report).await.unwrap();
+    let frontend_credential = token();
+    let descriptor = sessions
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            session.id,
+            session.revision,
+            &frontend_credential,
+        )
+        .await
+        .unwrap();
+    assert_eq!(descriptor.iroh, Some(description.clone()));
+    let expiry_before: chrono::DateTime<chrono::Utc> = sqlx::query_scalar(
+        "SELECT descriptor_expires_at FROM pixels.resource_sessions WHERE id=$1",
+    )
+    .bind(session.id)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    let mut updated_description = description.clone();
+    updated_description.endpoint_address["addrs"] =
+        serde_json::json!([{"Relay": "https://bj-relay.example:4605/"}]);
+    report.sequence = 3;
+    report.render_iroh_endpoints[0].description = updated_description.clone();
+    fixture.nodes.report(&node, &report).await.unwrap();
+    let refreshed = sessions
+        .frontend_iroh_endpoint(
+            session.id,
+            descriptor.session.revision,
+            &frontend_credential,
+            RuntimeEntitlement::new(8, true, true, true).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(refreshed, updated_description);
+    let (revision_after, expiry_after): (i64, chrono::DateTime<chrono::Utc>) = sqlx::query_as(
+        "SELECT revision,descriptor_expires_at FROM pixels.resource_sessions WHERE id=$1",
+    )
+    .bind(session.id)
+    .fetch_one(&fixture.owner)
+    .await
+    .unwrap();
+    assert_eq!(revision_after, descriptor.session.revision);
+    assert_eq!(expiry_after, expiry_before);
+    report.render_iroh_endpoints[0].description = description;
+    report.sequence = 4;
+    report.render_iroh_endpoints[0].launch_id = Some(Uuid::new_v4());
+    fixture.nodes.report(&node, &report).await.unwrap();
+    let unavailable = sessions
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            session.id,
+            descriptor.session.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    assert!(unavailable.iroh.is_none());
+    report.sequence = 5;
+    report.render_iroh_endpoints[0].launch_id = Some(launch_id);
+    fixture.nodes.report(&node, &report).await.unwrap();
+    report.sequence = 6;
+    report.render_iroh_endpoints.clear();
+    fixture.nodes.report(&node, &report).await.unwrap();
+    let disconnected = sessions
+        .descriptor(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            session.id,
+            unavailable.session.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    assert!(disconnected.iroh.is_none());
+}
+
+#[tokio::test]
 async fn unadmitted_close_revokes_descriptor_and_immediately_releases_capacity() {
     let (fixture, session_store, node, user, instance, session) = opened().await;
     let ticket = token();
@@ -275,6 +422,7 @@ async fn license_stream_quota_and_service_gate_new_grants() {
                 session.revision,
                 &token(),
                 without_cloud,
+                false,
             )
             .await,
         Err(StoreError::LicenseRestriction)
@@ -890,8 +1038,9 @@ async fn ready_relay(
                 draining: false,
                 max_connections: 100,
                 current_connections: 10,
-                max_rooms,
-                current_rooms,
+                max_rooms: Some(max_rooms),
+                current_rooms: Some(current_rooms),
+                iroh_qad_port: None,
                 uploaded_bytes: 0,
                 forwarded_bytes: 0,
             },

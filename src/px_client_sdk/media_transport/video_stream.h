@@ -14,6 +14,8 @@ struct VideoFrame final {
     std::uint16_t width{};
     std::uint16_t height{};
     std::uint64_t frame_index{};
+    // Receiver-local predecessor; not serialized. Encoded frame indices need not be contiguous.
+    std::optional<std::uint64_t> preceding_frame_index{};
     std::string monitor{};
     Packet encoded{};
 };
@@ -24,6 +26,12 @@ struct VideoStreamOutput final {
     std::vector<VideoLoss> losses{};
     std::optional<std::uint64_t> invalid_reference_frame{};
     std::size_t recovered{};
+    // Complete assembly is network progress even if decoding must wait for reference repair.
+    std::optional<std::uint64_t> completed_frame_index{};
+    std::size_t completed_bytes{};
+    std::uint32_t completed_timestamp_90khz{};
+    std::string completed_monitor{};
+    bool incomplete_frame{};
     bool needs_idr{};
     bool rejected{};
 };

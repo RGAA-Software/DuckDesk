@@ -1,0 +1,52 @@
+{
+  "visits": [
+    {
+      "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+      "name": "RDP 桌面",
+      "kind": "rdp",
+      "instance_id": "e0226a6a-4557-4a1a-bdc2-fd118526aa14",
+      "client_pid": 9768,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 1800,
+        "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+      },
+      "samples": []
+    },
+    {
+      "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+      "name": "RDP 桌面",
+      "kind": "rdp",
+      "instance_id": "1d6e3407-7655-4e97-849f-072624d4dca9",
+      "client_pid": 74536,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 1800,
+        "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+      },
+      "samples": []
+    }
+  ],
+  "frame_progress": [
+    "[2026-10-09 13:29:21.478][thread 83748][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:29:31.482][thread 83748][rdp_session.cpp:524][info] : event=rdp.frame.progress published=64 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:29:41.491][thread 83748][rdp_session.cpp:524][info] : event=rdp.frame.progress published=452 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:29:51.501][thread 83748][rdp_session.cpp:524][info] : event=rdp.frame.progress published=466 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:30:01.505][thread 83748][rdp_session.cpp:524][info] : event=rdp.frame.progress published=475 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:30:31.631][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:30:41.635][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=40 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:30:51.644][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=68 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:31:01.646][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=156 in_flight=156 dirty=false display_channel=false",
+    "[2026-10-09 13:31:11.652][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=278 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-09 13:31:21.730][thread 17172][rdp_session.cpp:524][info] : event=rdp.frame.progress published=278 in_flight=0 dirty=false display_channel=true"
+  ],
+  "scope": "Real iroh reliable RDP sessions, automatic and forced-relay. Functional checks, not FPS acceptance.",
+  "workspace_preserved": {
+    "before_and_after_relay_disconnect": {
+      "notepad_pid": 16496,
+      "windows_session_id": 2,
+      "started_utc": "2026-10-02T01:21:24.8049191Z"
+    },
+    "same_pid_session_and_start_time": true
+  }
+}

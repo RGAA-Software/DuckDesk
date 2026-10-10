@@ -67,6 +67,7 @@ pub fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
 }
 pub fn node_report(sequence: u64) -> NodeReport {
     NodeReport {
+        render_iroh_endpoints: Vec::new(),
         sequence,
         product_version_code: 1,
         public_host: "node.example.test".into(),

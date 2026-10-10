@@ -96,6 +96,7 @@ bool ThunderSdk::Init(const std::shared_ptr<ThunderSdkParams>& params, std::shar
     // network runtime must not retain renderer devices or mutable UI params.
     net_client_ = std::make_shared<NetClient>(
         SdkConnectionParams{
+            .iroh_ = params->iroh_,
             .media_transport_ = params->media_transport_,
             .route_ = params->connection_route_,
             .ssl_ = params->ssl_,
@@ -207,6 +208,7 @@ void ThunderSdk::Start() {
 
     net_client_->SetOnDisconnectedCallback([weak_self]() {
         if (const auto self = weak_self.lock()) {
+            self->media_generation_.fetch_add(1);
             self->has_config_msg_.store(false, std::memory_order_release);
             self->decoder_resync_requested_.store(true, std::memory_order_release);
             self->msg_notifier_->SendAppMessage(SdkMsgNetworkDisConnected{});
@@ -214,20 +216,22 @@ void ThunderSdk::Start() {
         }
     });
 
-    net_client_->SetOnVideoFrameMsgCallback([weak_self](std::shared_ptr<px::Message> video_message) {
+    net_client_->SetOnVideoFrameMsgCallback([weak_self](EncodedVideoDelivery delivery) {
         const auto owner = weak_self.lock();
-        if (!owner || owner->exit_) {
+        if (!owner || owner->exit_ || !delivery.message) {
             return;
         }
         if (owner->encoded_video_frame_cbk_) {
-            owner->encoded_video_frame_cbk_(video_message);
+            owner->encoded_video_frame_cbk_(delivery.message);
         }
 
-        px::VideoFrame frame = video_message->video_frame();
+        const px::VideoFrame frame{delivery.message->video_frame()};
 
-        auto video_task = [weak_self, frame]() -> void {
+        const auto generation = owner->media_generation_.load();
+        auto video_task = [weak_self, frame, generation, dependency = std::move(delivery.dependency)]() -> void {
             const auto self = weak_self.lock();
-            if (!self || self->exit_ || !self->output_available_.load(std::memory_order_acquire)) return;
+            if (!self || self->exit_ || self->media_generation_.load() != generation ||
+                !self->output_available_.load(std::memory_order_acquire)) return;
             auto& video_decoders_ = self->video_decoders_;
             auto& last_received_video_timestamps_ = self->last_received_video_timestamps_;
             auto& received_files_ = self->received_files_;
@@ -247,9 +251,11 @@ void ThunderSdk::Start() {
                 self->last_frame_indices_.clear();
             }
 
-            const auto current_frame_index = static_cast<int64_t>(frame.frame_index());
+            const auto current_frame_index = frame.frame_index();
             const auto previous = self->last_frame_indices_.find(monitor_name);
-            const bool stream_discontinuity = previous != self->last_frame_indices_.end() && current_frame_index != previous->second + 1;
+            const auto previous_frame_index = previous == self->last_frame_indices_.end() ? std::optional<std::uint64_t>{}
+                                                                                        : std::optional<std::uint64_t>{previous->second};
+            const bool stream_discontinuity = RequiresVideoReferenceReset(frame, previous_frame_index, dependency);
             if (stream_discontinuity) {
                 LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index, previous->second,
                      frame.extra());
@@ -258,8 +264,8 @@ void ThunderSdk::Start() {
                     decoder->second->Release();
                     video_decoders_.erase(decoder);
                 }
+                self->last_frame_indices_.erase(monitor_name);
             }
-            self->last_frame_indices_[monitor_name] = current_frame_index;
 
             std::shared_ptr<VideoDecoder> video_decoder = nullptr;
             if (video_decoders_.contains(monitor_name)) {
@@ -336,6 +342,12 @@ void ThunderSdk::Start() {
             // [LAT-decode] 计时单帧解码耗时
             const auto decode_start_time_us = TimeUtil::GetCurrentTimePointUS();
             auto decode_result = video_decoder->Decode(frame.data());
+            if (decode_result.has_value() || decode_result.error() == 0) {
+                self->last_frame_indices_[monitor_name] = current_frame_index;
+            } else {
+                self->last_frame_indices_.erase(monitor_name);
+                self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
+            }
             const auto decode_duration_us = TimeUtil::GetCurrentTimePointUS() - decode_start_time_us;
             ++g_decode_frames;
             g_decode_us_sum += decode_duration_us;
@@ -415,6 +427,7 @@ void ThunderSdk::Start() {
                     }
                 }
             }
+            if (self->media_generation_.load() != generation) return;
             if (self->video_frame_cbk_) {
                 self->video_frame_cbk_(raw_image, capture_monitor_info);
             }
@@ -436,9 +449,10 @@ void ThunderSdk::Start() {
         if (owner->encoded_audio_frame_cbk_) {
             owner->encoded_audio_frame_cbk_(audio_message);
         }
-        owner->PostAudioTask([weak_self, audio_message = std::move(audio_message)]() {
+        const auto generation = owner->media_generation_.load();
+        owner->PostAudioTask([weak_self, generation, audio_message = std::move(audio_message)]() {
             const auto self = weak_self.lock();
-            if (!self || self->exit_) return;
+            if (!self || self->exit_ || self->media_generation_.load() != generation) return;
             const auto audio_frame = audio_message->audio_frame();
             if (!self->audio_decoder_) {
                 self->audio_decoder_ = std::make_shared<OpusAudioDecoder>(audio_frame.samples(), audio_frame.channels());

@@ -297,6 +297,8 @@ export default {
         validation: { device: "请选择尚未绑定节点的设备" },
     },
     relays: {
+        qadPort: "QAD / UDP 端口",
+        notApplicable: "不适用",
         connections: "连接数",
         copyCredential: "复制 Relay 令牌",
         create: "登记 Relay",

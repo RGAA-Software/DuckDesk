@@ -1,0 +1,123 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-201220-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 1610612736,
+  "cancel_retry": false,
+  "instance_id": "f3406374-7140-4b64-bfad-beca0c21e96a",
+  "started_at": "2026-10-10 20:12:29",
+  "posted_input_messages": 3060,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261010-201220-relay\\mixed-5.png"
+  ],
+  "elapsed_seconds": 60.021,
+  "exit_code": 0,
+  "source_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "download_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 302,
+      "fps": 60.3,
+      "max_gap_ms": 53.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 22.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 22.7,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 22.7,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 23.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 23.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 23.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.1,
+      "max_gap_ms": 21.5,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 20.8,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 27.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 22.5,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "functional_transfer_passed": true,
+  "performance_acceptance_passed": false,
+  "acceptance_scope": "File success is not latency acceptance; direct retains two >100 ms gaps, Relay has reproducible mixed-load stutter, and injected outage gaps are reported separately.",
+  "harness_note": "Wrapper returned failure because PowerShell Process.ExitCode was null; child report exit_code=0, acceptance PASS and cleanup completed. Initial report path collision repaired from retained Client log; no product test rerun.",
+  "outage_observed": false,
+  "recovery_verified": false,
+  "superseded_by": "20261010_mixed_relay_unverified_injection.json; use 20261010_mixed_relay_service_outage.json for actual service disruption"
+}

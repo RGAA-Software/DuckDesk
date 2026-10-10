@@ -1,0 +1,1010 @@
+//
+// Created by RGAA on 2023-12-24.
+//
+
+#include "encoder_thread.h"
+#include <d3d11.h>
+#include <memory>
+#include <wrl/client.h>
+#include "rd_app.h"
+#include "rd_context.h"
+#include "px_common/data.h"
+#include "px_common/image.h"
+#include "px_common/thread.h"
+#include "px_common/file.h"
+#include "px_common/log.h"
+#include "px_common/time_util.h"
+#include "px_common/message_notifier.h"
+#include "px_encoder/video_encoder_factory.h"
+#include "px_encoder/video_encoder.h"
+#include "px_encoder/ffmpeg_video_encoder.h"
+#include "px_encoder/nvenc_video_encoder.h"
+#include "settings/rd_settings.h"
+#include "app/app_messages.h"
+#include "rd_statistics.h"
+#include "px_common/win32/d3d_debug_helper.h"
+#include "px_render/modules/render_module_registry.h"
+#include "px_render/modules/module_ids.h"
+#include "architecture/observers/frame_debugger_observer.h"
+#include "architecture/processors/frame_carrier_processor.h"
+#include "architecture/processors/frame_resizer_processor.h"
+#include "architecture/encoders/video_encoder_module.h"
+#include "network/net_message_maker.h"
+#include "px_message.pb.h"
+
+#define DEBUG_FILE 0
+
+namespace
+{
+    // 生产侧诊断:每 5s 输出一次编码线程负载,用于定位"采集 60fps 但编码只产出 40fps"
+    // 到底卡在哪一环:输入速率 / 主任务耗时 / 队列积压 / YUV->编码等待 / 纹理拷贝耗时
+struct EncodingThreadDiagnostics {
+    std::atomic_uint64_t input_frame_count{0};
+    std::atomic_int64_t pending_task_count{0};
+    std::atomic_uint64_t completed_task_count{0};
+    std::atomic_int64_t task_duration_total_ms{0};
+    std::atomic_int64_t max_task_duration_ms{0};
+    std::atomic_int64_t copy_texture_duration_total_ms{0};
+    std::atomic_uint64_t encoder_task_post_count{0};
+    std::atomic_int64_t encoder_task_wait_total_ms{0};
+    std::atomic_int64_t max_encoder_task_wait_ms{0};
+    int64_t window_started_at_ms = 0;
+
+    void LogIfDue() {
+        const auto now_ms = px::TimeUtil::GetCurrentTimestamp();
+        if (window_started_at_ms == 0) {
+            window_started_at_ms = now_ms;
+            return;
+        }
+        const auto elapsed_ms = now_ms - window_started_at_ms;
+        if (elapsed_ms < 5000) return;
+        window_started_at_ms = now_ms;
+        const auto completed_tasks = completed_task_count.exchange(0);
+        const auto task_duration_total = task_duration_total_ms.exchange(0);
+        const auto max_task_duration = max_task_duration_ms.exchange(0);
+        const auto copy_duration_total =
+            copy_texture_duration_total_ms.exchange(0);
+        const auto posted_encoder_tasks = encoder_task_post_count.exchange(0);
+        const auto encoder_wait_total = encoder_task_wait_total_ms.exchange(0);
+        const auto max_encoder_wait = max_encoder_task_wait_ms.exchange(0);
+        const auto input_frames = input_frame_count.exchange(0);
+        LOGI(
+            "enc diag: wall={}ms, in_fps={:.1f}, backlog={}, task_avg={}ms, "
+            "task_max={}ms, "
+            "copy_tex_avg={}ms, enc_posts={}, enc_wait_avg={}ms, "
+            "enc_wait_max={}ms",
+            elapsed_ms,
+            elapsed_ms > 0 ? input_frames * 1000.0 / elapsed_ms : 0.0,
+            pending_task_count.load(),
+            completed_tasks > 0
+                ? task_duration_total / static_cast<int64_t>(completed_tasks)
+                : 0,
+            max_task_duration,
+            completed_tasks > 0
+                ? copy_duration_total / static_cast<int64_t>(completed_tasks)
+                : 0,
+            posted_encoder_tasks,
+            posted_encoder_tasks > 0
+                ? encoder_wait_total /
+                      static_cast<int64_t>(posted_encoder_tasks)
+                : 0,
+            max_encoder_wait);
+    }
+};
+
+EncodingThreadDiagnostics g_encoding_diagnostics;
+
+struct EncoderBacklogGuard {
+    EncoderBacklogGuard() { ++g_encoding_diagnostics.pending_task_count; }
+
+    ~EncoderBacklogGuard() { --g_encoding_diagnostics.pending_task_count; }
+};
+}
+
+namespace px
+{
+
+    std::shared_ptr<EncoderThread> EncoderThread::Make(const std::shared_ptr<RdApplication>& app) {
+        auto encoder = std::make_shared<EncoderThread>(app);
+        encoder->InitListener();
+        return encoder;
+    }
+
+    EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app)
+        : settings_(*RdSettings::Instance()) {
+        frame_rate_.store(render::InitialFrameRate(settings_.encoder_.fps_));
+        app_ = app;
+        stat_ = RdStatistics::Instance();
+        context_ = app->GetContext();
+        module_registry_ = context_->GetRenderModuleRegistry();
+        // 队列过小会频繁丢弃未执行任务;丢弃时若已 ++in_flight 会泄漏并把 backlog 抬飞。
+        // 32 足以吸收短时尖峰,同时仍会在持续过载时丢最旧帧保实时性。
+        enc_thread_ = Thread::Make("encoder_thread", 32);
+        enc_thread_->Poll();
+
+        frame_carrier_processor_ = context_->GetFrameCarrierProcessor();
+        frame_resizer_processor_ = context_->GetFrameResizerProcessor();
+
+    }
+
+    EncoderThread::~EncoderThread() {
+        Exit();
+    }
+
+    void EncoderThread::InitListener() {
+        msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kControl);
+        const auto weak_self = weak_from_this();
+        msg_listener_->Listen<MsgInsertKeyFrame>([weak_self](const MsgInsertKeyFrame&) {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_ || !self->module_registry_) {
+                return;
+            }
+            self->module_registry_->InsertIdr();
+        });
+    }
+
+    void EncoderThread::SetFrameRate(int fps) noexcept {
+        if (render::ValidFrameRate(fps) && !exiting_)
+            frame_rate_.store(fps);
+    }
+
+    int EncoderThread::FrameRate() const noexcept {
+        return frame_rate_.load();
+    }
+
+    void EncoderThread::Encode(const CaptureVideoFrame& cap_video_msg) {
+        if (exiting_ || !frame_carrier_processor_) {
+            return;
+        }
+        ++g_encoding_diagnostics.input_frame_count;
+        // 捕获到 lambda 里:任务被队列挤掉未执行时,guard 析构也会减少积压计数。
+        auto backlog_guard = std::make_shared<EncoderBacklogGuard>();
+        const auto weak_self = weak_from_this();
+        PostEncTask([weak_self, cap_video_msg, backlog_guard]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            static_cast<void>(backlog_guard);
+            self->EncodeOnWorker(cap_video_msg);
+        });
+    }
+
+    void EncoderThread::EncodeOnWorker(CaptureVideoFrame cap_video_msg) {
+        const auto target_fps = FrameRate();
+        const auto task_started_at_ms = TimeUtil::GetCurrentTimestamp();
+        struct TaskDiagnosticsGuard {
+            int64_t started_at_ms;
+            ~TaskDiagnosticsGuard() {
+                const auto task_duration_ms =
+                    TimeUtil::GetCurrentTimestamp() - started_at_ms;
+                g_encoding_diagnostics.task_duration_total_ms +=
+                    task_duration_ms;
+                auto previous_max_ms =
+                    g_encoding_diagnostics.max_task_duration_ms.load();
+                while (task_duration_ms > previous_max_ms &&
+                       !g_encoding_diagnostics.max_task_duration_ms
+                            .compare_exchange_weak(previous_max_ms,
+                                                   task_duration_ms)) {
+                }
+                ++g_encoding_diagnostics.completed_task_count;
+                g_encoding_diagnostics.LogIfDue();
+            }
+        } task_diagnostics_guard{static_cast<std::int64_t>(task_started_at_ms)};
+        if (clear_encoders_) {
+            clear_encoders_ = false;
+            LOGW("clear all encoders!!!");
+            std::lock_guard<std::mutex> encoder_lock(encoder_modules_mtx_);
+            encoders_.clear();
+        }
+
+        auto adapter_uid = cap_video_msg.adapter_uid_;
+
+        // plugins: SharedTexture
+        if (cap_video_msg.handle_ > 0) {
+            const auto module_registry = module_registry_;
+            context_->PostMediaTask(
+                [module_registry, cap_video_msg]() {
+                    module_registry->SubmitRtcLocalSharedTexture(
+                        cap_video_msg.display_name_,
+                        cap_video_msg.frame_index_,
+                        cap_video_msg.frame_width_,
+                        cap_video_msg.frame_height_,
+                        cap_video_msg.handle_,
+                        cap_video_msg.adapter_uid_,
+                        cap_video_msg.frame_format_);
+                });
+        }
+
+        auto settings = RdSettings::Instance();
+        auto frame_index = cap_video_msg.frame_index_;
+        // auto adapter_uid = cap_video_msg.adapter_uid_;
+        auto monitor_name = std::string(cap_video_msg.display_name_);
+        const bool admit_frame = frame_admission_[monitor_name].Admit(
+            render::FrameRateAdmission::Clock::now(), target_fps);
+        if (!admit_frame && cap_video_msg.handle_ == 0) return;
+        bool frame_meta_info_changed =
+            [&]() {
+                auto last_video_frame_exists = last_video_frames_.contains(monitor_name);
+                if (!last_video_frame_exists) {
+                    return true;
+                }
+                auto last_video_frame = last_video_frames_[monitor_name];
+                if (last_video_frame == std::nullopt) {
+                    return true;
+                }
+                return last_video_frame.value().frame_width_ != cap_video_msg.frame_width_
+                    || last_video_frame.value().frame_height_ != cap_video_msg.frame_height_;
+            }();
+
+        bool full_color_mode_changed = false;
+        bool frame_rate_changed{};
+        auto target_encoder = GetEncoderForMonitor(monitor_name);
+
+        // Size thrash (windowed ↔ exclusive fullscreen) used to Exit/recreate
+        // NVENC every few seconds and drop the WebRTC picture. Wait until the
+        // new size is stable. Important: do NOT pause the whole encode path for
+        // the debounce window — that made glass-to-glass lag feel like ~1s+
+        // while fps stayed smooth on the last good size. Only drop frames whose
+        // capture size != current encoder; keep streaming matches.
+        constexpr int64_t kSizeChangeDebounceMs = 800;
+        if (frame_meta_info_changed && target_encoder) {
+            const auto new_size = std::make_pair(cap_video_msg.frame_width_,
+                                                 cap_video_msg.frame_height_);
+            const auto now_ms = TimeUtil::GetCurrentTimestamp();
+            auto& pending = pending_frame_size_[monitor_name];
+            auto& since = pending_frame_size_since_ms_[monitor_name];
+            if (pending != new_size) {
+                pending = new_size;
+                since = now_ms;
+                LOGW(
+                    "Capture size change pending {}x{} (debounce {}ms), keep "
+                    "current encoder",
+                    new_size.first, new_size.second, kSizeChangeDebounceMs);
+            }
+            if (now_ms - since < kSizeChangeDebounceMs) {
+                auto enc_cfg = target_encoder->Configuration(monitor_name);
+                const bool size_matches_encoder =
+                    enc_cfg.has_value() &&
+                    enc_cfg->width == cap_video_msg.frame_width_ &&
+                    enc_cfg->height == cap_video_msg.frame_height_;
+                if (!size_matches_encoder) {
+                    return;
+                }
+                // Same as current encoder: keep encoding, suppress recreate for
+                // now.
+                frame_meta_info_changed = false;
+            } else {
+                LOGI("Capture size settled at {}x{}, recreating encoder",
+                     new_size.first, new_size.second);
+            }
+        } else if (!frame_meta_info_changed) {
+            pending_frame_size_.erase(monitor_name);
+            pending_frame_size_since_ms_.erase(monitor_name);
+        }
+        const auto effective_bitrate = module_registry_->EffectiveVideoBitrate(
+            static_cast<std::uint64_t>(
+                std::max(1, settings->encoder_.bitrate_)) *
+            1'000'000);
+        bool bitrate_changed{};
+        if (target_encoder) {
+            auto encoder_config_res =
+                target_encoder->Configuration(monitor_name);
+            if (encoder_config_res.has_value()) {
+                const auto selected_encoder_config = encoder_config_res.value();
+                frame_rate_changed = selected_encoder_config.fps != target_fps;
+                bitrate_changed =
+                    selected_encoder_config.bitrate != effective_bitrate;
+                if (selected_encoder_config.enable_full_color_mode_ !=
+                    settings_.EnableFullColorMode()) {
+                    full_color_mode_changed = true;
+                    LOGI("full_color_mode_changed!!!");
+                }
+            } else {
+                LOGI("EncoderThread encoder_config_res no value");
+            }
+        } else {
+            LOGI(
+                "EncoderThread target_encoder is nullptr, will create "
+                "encoder.");
+        }
+
+        // 全彩强制 HEVC 只影响本次有效格式,不得改写 settings
+        // 里用户/启动参数选定的 encoder_format_, 否则关全彩后会永久卡在
+        // HEVC(WebRTC/多数 Win 端按 H264 解 → 黑屏)。
+        const auto effective_format = settings_.EnableFullColorMode()
+                                          ? Encoder::EncoderFormat::kHEVC
+                                          : settings->encoder_.encoder_format_;
+        const bool switched_to_hevc =
+            (effective_format == Encoder::EncoderFormat::kHEVC &&
+             encoder_format_ != Encoder::EncoderFormat::kHEVC);
+
+        if (target_encoder && bitrate_changed && !frame_rate_changed && !full_color_mode_changed && !frame_meta_info_changed &&
+            encoder_format_ == effective_format && target_encoder->IsEnabled() &&
+            target_encoder->TryUpdateBitrate(monitor_name, static_cast<std::uint32_t>(effective_bitrate))) {
+            bitrate_changed = false;
+        }
+
+        if (bitrate_changed || frame_rate_changed || full_color_mode_changed ||
+            frame_meta_info_changed || encoder_format_ != effective_format ||
+            !target_encoder || !target_encoder->IsEnabled()) {
+            if (frame_rate_changed) {
+                LOGI(
+                    "Synchronize capture admission and encoder: monitor={}, "
+                    "fps={}",
+                    monitor_name, target_fps);
+                cap_video_msg.request_idr_ = true;
+            }
+            if (target_encoder) {
+                // todo : Test it!
+                target_encoder->Remove(monitor_name);
+                target_encoder = nullptr;
+            }
+            px::EncoderConfig encoder_config{};
+            // WebView OSR frames arrive as CPU BGRA images without a
+            // desktop-capture module. Route frames through the CPU-input
+            // encoder chain just like GDI frames; texture-only encoders
+            // cannot consume this buffer.
+            const bool is_cpu_frame = cap_video_msg.raw_image_ != nullptr &&
+                                      cap_video_msg.handle_ == 0;
+            bool is_gdi_capture =
+                is_cpu_frame || module_registry_->IsGdiCapture(
+                                    app_->GetWorkingMonitorCaptureSource());
+            if (settings_.encoder_.encode_res_type_ ==
+                    Encoder::EncodeResolutionType::kOrigin ||
+                is_gdi_capture) {
+                encoder_config.width = cap_video_msg.frame_width_;
+                encoder_config.height = cap_video_msg.frame_height_;
+                encoder_config.encode_width = cap_video_msg.frame_width_;
+                encoder_config.encode_height = cap_video_msg.frame_height_;
+                encoder_config.frame_resize = false;
+            } else {
+                encoder_config.width = settings_.encoder_.encode_width_;
+                encoder_config.height = settings_.encoder_.encode_height_;
+                encoder_config.encode_width = settings_.encoder_.encode_width_;
+                encoder_config.encode_height =
+                    settings_.encoder_.encode_height_;
+                // resize will be enabled when dda capture working
+                encoder_config.frame_resize = true;
+            }
+
+            if (settings_.EnableFullColorMode()) {
+                LOGI("full color mode, use HEVC (settings format kept: {})",
+                     (int)settings->encoder_.encoder_format_);
+            }
+
+            encoder_config.codec_type =
+                effective_format == Encoder::EncoderFormat::kH264
+                    ? px::EVideoCodecType::kH264
+                    : px::EVideoCodecType::kHEVC;
+            encoder_config.enable_adaptive_quantization = true;
+            encoder_config.gop_size = -1;
+            encoder_config.quality_preset = 1;
+            encoder_config.fps = target_fps;
+            encoder_config.multi_pass =
+                px::ENvdiaEncMultiPass::kMultiPassDisabled;
+            encoder_config.rate_control_mode =
+                px::ERateControlMode::kRateControlModeCbr;
+            // The generic QP-36 quality floor can exceed a reduced network budget on
+            // complex scenes. Let CBR use the full quantizer range to meet that budget.
+            encoder_config.max_qp = 51;
+            encoder_config.sample_desc_count = 1;
+            encoder_config.supports_intra_refresh = true;
+            // frame carrier 会把非 8bit 捕获格式(如 UE5 D3D12 的 R10G10B10A2)
+            // 转成 B8G8R8A8 再送编码;编码器输入格式必须与转换后的纹理一致,
+            // 否则 NVENC 按 ABGR10 初始化却收到 BGRA 纹理,编码失败甚至挂起
+            // GPU。
+            const auto cap_fmt =
+                static_cast<DXGI_FORMAT>(cap_video_msg.frame_format_);
+            encoder_config.texture_format =
+                (cap_fmt == DXGI_FORMAT_B8G8R8A8_UNORM ||
+                 cap_fmt == DXGI_FORMAT_B8G8R8X8_UNORM ||
+                 cap_fmt == DXGI_FORMAT_R8G8B8A8_UNORM)
+                    ? cap_video_msg.frame_format_
+                    : static_cast<int>(DXGI_FORMAT_B8G8R8A8_UNORM);
+            encoder_config.bitrate = effective_bitrate;
+            encoder_config.adapter_uid_ = cap_video_msg.adapter_uid_;
+            encoder_config.enable_full_color_mode_ =
+                settings_.EnableFullColorMode();
+
+            PrintEncoderConfig(encoder_config);
+
+            // generate d3d device/context
+            auto d3d_device = app_->GetD3DDevice(adapter_uid);
+            auto d3d_context = app_->GetD3DContext(adapter_uid);
+            if (d3d_device) {
+                const auto removed_reason =
+                    d3d_device->GetDeviceRemovedReason();
+                if (removed_reason != S_OK) {
+                    app_->HandleD3DDeviceFailure(
+                        adapter_uid,
+                        std::format("device removed/reset: {}",
+                                    static_cast<int>(removed_reason)));
+                    d3d_device = nullptr;
+                    d3d_context = nullptr;
+                }
+            }
+
+            if (!d3d_device || !d3d_context) {
+                if (!app_->GenerateD3DDevice(adapter_uid)) {
+                    LOGE("Generate D3DDevice failed!");
+                    app_->HandleD3DDeviceFailure(adapter_uid,
+                                                 "GenerateD3DDevice failed");
+                    return;
+                }
+                d3d_device = app_->GetD3DDevice(adapter_uid);
+                d3d_context = app_->GetD3DContext(adapter_uid);
+            } else {
+                LOGI("We use d3d device from capture.");
+            }
+
+            if (!d3d_device || !d3d_context) {
+                app_->HandleD3DDeviceFailure(
+                    adapter_uid, "empty D3D device/context after generation");
+                return;
+            }
+
+            module_registry_->UpdateModuleD3DResources(adapter_uid, d3d_device,
+                                                       d3d_context);
+
+            // video frame carrier
+            const auto initialization_result =
+                frame_carrier_processor_->InitializeMonitor(
+                    render::FrameCarrierParams{
+                        .monitor_id = monitor_name,
+                        .device = d3d_device,
+                        .device_context = d3d_context,
+                        .adapter_uid = static_cast<std::uint64_t>(
+                            cap_video_msg.adapter_uid_),
+                        .full_color = encoder_config.enable_full_color_mode_,
+                    });
+            if (!initialization_result) {
+                LOGE("Init Frame Carrier failed");
+            }
+
+            // Create the encoder module.
+
+            auto select_encoder_with_capability_func =
+                [=, &target_encoder](
+                    const std::shared_ptr<VideoEncoderModule>& encoder,
+                    const std::string& monitor_name) {
+                    if (!encoder_config.enable_full_color_mode_) {
+                        target_encoder = encoder;
+                    }
+                    else {
+                        auto capability_result =
+                            encoder->Capability(monitor_name);
+                        if (capability_result.has_value()) {
+                            const auto capability = capability_result.value();
+                            if (px::EVideoCodecType::kH264 == encoder_config.codec_type) {
+                                if (capability.support_h264_yuv444_) {
+                                    target_encoder = encoder;
+                                }
+                            }
+                            else if (px::EVideoCodecType::kHEVC == encoder_config.codec_type) {
+                                if (capability.support_hevc_yuv444_) {
+                                    target_encoder = encoder;
+                                }
+                            }
+                        }
+                    }
+                };
+
+            if (!target_encoder) {
+                LOGI("Hardware disabled? {}", hardware_disabled_.load());
+                // GDI 采集产出 CPU 裸帧,走 Encode(Image) 路径;NVENC/AMF
+                // 只实现纹理编码, Encode(Image) 基类返回
+                // kNotImplemented。选了它们会在编码失败→清空→重建
+                // 中原地死循环,永远出不了图,必须直接跳到 FFmpeg 链(其
+                // kNvEnc/kQsv 硬编 由 ffmpeg 内部完成 CPU→GPU 上传)。
+                auto nvenc_encoder = module_registry_->GetNvencEncoder();
+                if (!is_gdi_capture && !hardware_disabled_ && nvenc_encoder &&
+                    nvenc_encoder->IsEnabled() &&
+                    nvenc_encoder->Initialize(encoder_config, monitor_name)) {
+                    select_encoder_with_capability_func(nvenc_encoder,
+                                                        monitor_name);
+                }
+
+                if (!target_encoder) {
+                    LOGW("Init NVENC {}failed, will try AMF.",
+                         is_gdi_capture ? "skipped(GDI raw frames), " : "");
+                    auto amf_encoder = module_registry_->GetAmfEncoder();
+                    if (!is_gdi_capture && !hardware_disabled_ && amf_encoder &&
+                        amf_encoder->IsEnabled() &&
+                        amf_encoder->Initialize(encoder_config, monitor_name)) {
+                        select_encoder_with_capability_func(amf_encoder,
+                                                            monitor_name);
+                    }
+                }
+
+                auto ffmpeg_encoder = module_registry_->GetFFmpegEncoder();
+                if (!target_encoder) {
+                    LOGW("Init AMF failed, will try FFmpeg(kNvEnc).");
+                    // 让ffmpeg尝试硬编码初始化
+                    encoder_config.Hardware = EHardwareEncoder::kNvEnc;
+                    if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() &&
+                        ffmpeg_encoder->Initialize(encoder_config,
+                                                   monitor_name)) {
+                        select_encoder_with_capability_func(ffmpeg_encoder,
+                                                            monitor_name);
+                    }
+                }
+
+                if (!target_encoder) {
+                    // Intel Quick Sync 兜底:无 N/A 卡的机器(如只有 Intel 核显)
+                    // 用 QSV 硬编,把 1080p 编码从 x264
+                    // 软编的一个多大核上卸下来, 否则软编与采集/同机浏览器抢
+                    // CPU,DDA 采集被压到 32~40fps。 注意必须插在 FFmpeg(kAmf)
+                    // 之前:kAmf 分支在 ffmpeg 插件内 实际映射为 libx264
+                    // 且总能初始化成功,排在它后面永远轮不到。
+                    LOGW("Init FFmpeg(kNvEnc) failed, will try FFmpeg(kQsv).");
+                    encoder_config.Hardware = EHardwareEncoder::kQsv;
+                    if (!hardware_disabled_ && ffmpeg_encoder &&
+                        ffmpeg_encoder->IsEnabled() &&
+                        ffmpeg_encoder->Initialize(encoder_config,
+                                                   monitor_name)) {
+                        select_encoder_with_capability_func(ffmpeg_encoder,
+                                                            monitor_name);
+                    }
+                }
+
+                if (!target_encoder) {
+                    LOGW("Init FFmpeg(kQsv) failed, will try FFmpeg(kAmf).");
+                    // 让ffmpeg尝试硬编码初始化
+                    encoder_config.Hardware = EHardwareEncoder::kAmf;
+                    if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() &&
+                        ffmpeg_encoder->Initialize(encoder_config,
+                                                   monitor_name)) {
+                        select_encoder_with_capability_func(ffmpeg_encoder,
+                                                            monitor_name);
+                    }
+                }
+
+                if (!target_encoder) {
+                    LOGW("Init FFmpeg(kAmf) failed, will try FFmpeg(kNone).");
+                    // 让ffmpeg尝试软件编码初始化
+                    encoder_config.Hardware = EHardwareEncoder::kNone;
+                    if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() &&
+                        ffmpeg_encoder->Initialize(encoder_config,
+                                                   monitor_name)) {
+                        select_encoder_with_capability_func(ffmpeg_encoder,
+                                                            monitor_name);
+                    }
+                }
+
+                if (!target_encoder) {
+                    LOGW(
+                        "Init FFmpeg(kAmf) failed, will try FFmpeg(kNone). "
+                        "without capability!");
+                    // 让ffmpeg尝试软件编码初始化
+                    encoder_config.Hardware = EHardwareEncoder::kNone;
+                    if (ffmpeg_encoder && ffmpeg_encoder->IsEnabled() &&
+                        ffmpeg_encoder->Initialize(encoder_config,
+                                                   monitor_name)) {
+                        target_encoder = ffmpeg_encoder;
+                    }
+                }
+
+                if (!target_encoder) {
+                    LOGE(
+                        "Init FFmpeg failed, we can't encode frame in this "
+                        "machine!");
+                    return;
+                }
+            }
+
+            {
+                std::lock_guard<std::mutex> encoder_lock(encoder_modules_mtx_);
+                encoders_[monitor_name] = target_encoder;
+            }
+            LOGI("Selected encoder module: {}, version: {} for monitor: {}",
+                 target_encoder->Name(), target_encoder->VersionName(),
+                 monitor_name);
+
+            auto video_type = [=]() -> EncodedVideoType {
+                if (effective_format == Encoder::EncoderFormat::kH264) {
+                    return EncodedVideoType::kH264;
+                } else if (effective_format == Encoder::EncoderFormat::kHEVC) {
+                    return EncodedVideoType::kH265;
+                } else {
+                    return EncodedVideoType::kH264;
+                }
+            }();
+
+            if (const auto observer = context_->GetFrameDebuggerObserver()) {
+                static_cast<void>(
+                    observer->SubmitEncoderReady(render::VideoEncoderReady{
+                        .monitor_id = monitor_name,
+                        .codec = video_type == EncodedVideoType::kH264 ? "h264"
+                                                                       : "h265",
+                        .width =
+                            static_cast<std::uint32_t>(encoder_config.width),
+                        .height =
+                            static_cast<std::uint32_t>(encoder_config.height),
+                    }));
+            }
+
+            stat_->video_encoder_format_ = effective_format;
+
+            encoder_format_ = effective_format;
+            last_video_frames_[monitor_name] = cap_video_msg;
+
+            // Win 客户端可解 H265;WebRTC 只协商 H264。切到 H265 时若有 RTC
+            // 连接则下发提示。
+            if (switched_to_hevc) {
+                const bool full_color = settings_.EnableFullColorMode();
+                const std::string reason =
+                    full_color ? "full_color" : "encoder_format";
+                auto tip = NetMessageMaker::MakeVideoCodecChanged(
+                    px::VideoType::kNetHevc, full_color, reason);
+                if (module_registry_->PostRtcLocalMessage(tip, false)) {
+                    LOGW(
+                        "Notify WebRTC clients: pipeline switched to H265 ({})",
+                        reason);
+                }
+            }
+        }
+
+        // from texture handle
+        if (cap_video_msg.handle_ > 0 && frame_carrier_processor_) {
+            // 1. copy shared texture
+            const auto copy_started_at_ms = TimeUtil::GetCurrentTimestamp();
+            auto copy_result = frame_carrier_processor_->CopyTexture(
+                monitor_name, cap_video_msg.handle_, frame_index);
+            if (!copy_result || !copy_result->texture) {
+                LOGE("CopyTexture failed: empty result or texture");
+                return;
+            }
+            // The Hook producer waits for this texture's keyed-mutex handoff.
+            // Always consume/release it, even when this input is above the
+            // encoding frame-rate budget, or capture can stop permanently.
+            if (!admit_frame) return;
+
+            ComPtr<ID3D11Texture2D> target_texture = copy_result->texture;
+            // 2. resize ?
+            if (auto encoder_configuration =
+                    target_encoder->Configuration(monitor_name);
+                encoder_configuration.has_value() &&
+                encoder_configuration.value().frame_resize) {
+                const auto configuration = encoder_configuration.value();
+                if (frame_resizer_processor_) {
+                    const auto resize_device = app_->GetD3DDevice(adapter_uid);
+                    const auto resize_context =
+                        app_->GetD3DContext(adapter_uid);
+                    if (!resize_device || !resize_context) {
+                        LOGE(
+                            "Resize failed: D3D device/context unavailable for "
+                            "adapter {}",
+                            adapter_uid);
+                        return;
+                    }
+                    auto resized_texture = frame_resizer_processor_->Process(
+                        copy_result->texture, resize_device, resize_context,
+                        adapter_uid, monitor_name,
+                        static_cast<std::uint32_t>(configuration.encode_width),
+                        static_cast<std::uint32_t>(
+                            configuration.encode_height));
+                    if (resized_texture) {
+                        target_texture = std::move(resized_texture);
+                    } else {
+                        LOGE("Resize failed!");
+                        return;
+                    }
+                }
+            }
+
+            const auto copy_finished_at_ms = TimeUtil::GetCurrentTimestamp();
+            const auto copy_duration_ms =
+                copy_finished_at_ms - copy_started_at_ms;
+            stat_->CaptureInfo(monitor_name)
+                ->AppendCopyTextureDuration(
+                    static_cast<int32_t>(copy_duration_ms));
+            g_encoding_diagnostics.copy_texture_duration_total_ms +=
+                copy_duration_ms;
+
+            // video_encoder_->Encode(target_texture, frame_index);
+            bool can_encode_texture = false;
+            if (target_encoder && target_encoder->CanEncodeTexture()) {
+                can_encode_texture = true;
+                // plugins: EncodeTexture
+                auto encode_result = target_encoder->Encode(
+                    target_texture, frame_index, cap_video_msg);
+                if (!encode_result.Success()) {
+                    if (encode_result.type_ ==
+                        VideoEncoderErrorType::kEncodeFailed) {
+                        LOGW(
+                            "<!!> Encode failed, will release this encoder for "
+                            "display and disable hardware: {}",
+                            monitor_name);
+                        target_encoder->Remove(monitor_name);
+                        {
+                            std::lock_guard<std::mutex> encoder_lock(
+                                encoder_modules_mtx_);
+                            encoders_.erase(monitor_name);
+                        }
+                        // disable hardware encoder
+                        hardware_disabled_ = true;
+                    }
+                    LOGE(
+                        "event=encoder.frame component={} input=texture "
+                        "outcome=failed error={} detail={} monitor={}",
+                        target_encoder->Name(), (int)encode_result.type_,
+                        encode_result.GetReadableType(), monitor_name);
+                    return;
+                }
+            }
+
+            // TODO: Add Texture Mapping duration
+            if (!can_encode_texture /*|| other configs*/) {
+                // Todo: TEST
+                // TimeDuration td("Measure Map Raw Texture");
+
+                const auto mapping_started_at_ms =
+                    TimeUtil::GetCurrentTimestamp();
+
+                D3D11_TEXTURE2D_DESC desc;
+                target_texture->GetDesc(&desc);
+                const auto weak_self = weak_from_this();
+                auto rgba_callback =
+                    [weak_self, monitor_name,
+                     cap_video_msg](const std::shared_ptr<Image>& image) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_ || !self->context_ || !self->module_registry_) {
+                            return;
+                        }
+                        self->ObserveRawFrame(
+                            monitor_name,
+                            cap_video_msg.frame_index_,
+                            cap_video_msg.frame_width_,
+                            cap_video_msg.frame_height_);
+                    };
+                auto yuv_callback =
+                    [weak_self, monitor_name, cap_video_msg,
+                     mapping_started_at_ms, can_encode_texture,
+                     frame_index](const std::shared_ptr<Image>& image) {
+                        const auto self = weak_self.lock();
+                        if (!self || self->exiting_ || !self->context_ || !self->module_registry_) {
+                            return;
+                        }
+                        // calculate used time
+                        const auto mapping_finished_at_ms =
+                            TimeUtil::GetCurrentTimestamp();
+                        const auto mapping_duration_ms =
+                            mapping_finished_at_ms - mapping_started_at_ms;
+                        self->stat_->CaptureInfo(monitor_name)
+                            ->AppendMapCvtTextureDuration(
+                                static_cast<int32_t>(mapping_duration_ms));
+
+                        // callback in YUV converter thread
+                        if (!can_encode_texture && self->HasEncoderForMonitor(monitor_name)) {
+                            const auto encoder_task_posted_at_ms =
+                                TimeUtil::GetCurrentTimestamp();
+                            ++g_encoding_diagnostics.encoder_task_post_count;
+                            auto encoder_backlog_guard =
+                                std::make_shared<EncoderBacklogGuard>();
+                            self->PostEncTask([weak_self, monitor_name, image,
+                                               frame_index, cap_video_msg,
+                                               encoder_task_posted_at_ms,
+                                               encoder_backlog_guard]() {
+                                const auto self = weak_self.lock();
+                                if (!self || self->exiting_) {
+                                    return;
+                                }
+                                static_cast<void>(encoder_backlog_guard);
+                                const auto encoder_task_wait_ms =
+                                    TimeUtil::GetCurrentTimestamp() -
+                                    encoder_task_posted_at_ms;
+                                g_encoding_diagnostics
+                                    .encoder_task_wait_total_ms +=
+                                    encoder_task_wait_ms;
+                                auto previous_max_wait_ms =
+                                    g_encoding_diagnostics
+                                        .max_encoder_task_wait_ms.load();
+                                while (encoder_task_wait_ms >
+                                           previous_max_wait_ms &&
+                                       !g_encoding_diagnostics
+                                            .max_encoder_task_wait_ms
+                                            .compare_exchange_weak(
+                                                previous_max_wait_ms,
+                                                encoder_task_wait_ms)) {
+                                }
+                                const auto encoder = self->GetEncoderForMonitor(monitor_name);
+                                if (!encoder) {
+                                    return;
+                                }
+                                auto encode_result = encoder->Encode(image, frame_index, cap_video_msg);
+                                if (!encode_result.Success()) {
+                                    LOGE("event=encoder.frame component={} input=yuv outcome=failed error={} detail={} monitor={}",
+                                         encoder->Name(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                    return;
+                                }
+                            });
+                        }
+                    };
+                // map the texture from GPU -> CPU
+                static_cast<void>(frame_carrier_processor_->MapRawTexture(
+                    monitor_name, target_texture, desc.Format,
+                    static_cast<int>(desc.Height), std::move(rgba_callback),
+                    std::move(yuv_callback)));
+            }
+        } else {
+            ObserveRawFrame(monitor_name, frame_index,
+                            cap_video_msg.frame_width_,
+                            cap_video_msg.frame_height_);
+            const auto mapping_started_at_ms = TimeUtil::GetCurrentTimestamp();
+            const auto weak_self = weak_from_this();
+
+            auto rgba_callback =
+                [weak_self, monitor_name,
+                 cap_video_msg](const std::shared_ptr<Image>& image) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_ || !self->module_registry_) {
+                        return;
+                    }
+                    self->ObserveRawFrame(
+                        monitor_name,
+                        cap_video_msg.frame_index_,
+                        cap_video_msg.frame_width_,
+                        cap_video_msg.frame_height_);
+                };
+
+            auto yuv_callback =
+                [weak_self, monitor_name, cap_video_msg, frame_index,
+                 mapping_started_at_ms](const std::shared_ptr<Image>& image) {
+                    const auto self = weak_self.lock();
+                    if (!self || self->exiting_ || !self->context_ || !self->module_registry_) {
+                        return;
+                    }
+                    // calculate used time
+                    const auto mapping_finished_at_ms =
+                        TimeUtil::GetCurrentTimestamp();
+                    const auto mapping_duration_ms =
+                        mapping_finished_at_ms - mapping_started_at_ms;
+                    self->stat_->CaptureInfo(monitor_name)
+                        ->AppendMapCvtTextureDuration(
+                            static_cast<int32_t>(mapping_duration_ms));
+
+                    // callback in YUV converter thread
+                    if (self->HasEncoderForMonitor(monitor_name)) {
+                        self->PostEncTask([weak_self, monitor_name, image, frame_index,
+                                           cap_video_msg]() {
+                            const auto self = weak_self.lock();
+                            if (!self || self->exiting_) {
+                                return;
+                            }
+                            const auto encoder = self->GetEncoderForMonitor(monitor_name);
+                            if (!encoder) {
+                                return;
+                            }
+                            auto encode_result = encoder->Encode(image, frame_index, cap_video_msg);
+                            if (!encode_result.Success()) {
+                                LOGE("event=encoder.frame component={} input=yuv outcome=failed error={} detail={} monitor={}",
+                                     encoder->Name(), (int)encode_result.type_, encode_result.GetReadableType(), cap_video_msg.display_name_);
+                                self->clear_encoders_ = true;
+                                return;
+                            }
+                        });
+                    }
+                    const auto module_registry = self->module_registry_;
+                    self->context_->PostMediaTask(
+                        [module_registry, monitor_name, cap_video_msg, image]() {
+                        module_registry->SubmitRtcLocalYuv(
+                            monitor_name, cap_video_msg.frame_index_,
+                            cap_video_msg.frame_width_,
+                            cap_video_msg.frame_height_, image);
+                    });
+                };
+            static_cast<void>(frame_carrier_processor_->ConvertRawImage(
+                monitor_name, cap_video_msg.raw_image_,
+                std::move(rgba_callback), std::move(yuv_callback)));
+        }
+    }
+
+    void EncoderThread::Exit() {
+        if (exiting_.exchange(true)) {
+            return;
+        }
+        if (msg_listener_) {
+            msg_listener_->UnListenAll();
+            msg_listener_.reset();
+        }
+        if (enc_thread_) {
+            enc_thread_->Exit();
+            enc_thread_->Clear();
+            enc_thread_.reset();
+        }
+        app_.reset();
+        context_.reset();
+        module_registry_.reset();
+        stat_.reset();
+        frame_carrier_processor_.reset();
+        frame_resizer_processor_.reset();
+    }
+
+    void EncoderThread::HandleD3DDeviceFailure(uint64_t adapter_uid) {
+        const auto weak_self = weak_from_this();
+        PostEncTask([weak_self, adapter_uid]() {
+            const auto self = weak_self.lock();
+            if (!self || self->exiting_) {
+                return;
+            }
+            LOGW("Reset encoder pipeline after D3D device failure, adapter_uid={}", adapter_uid);
+            std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+                working_encoders;
+            {
+                std::lock_guard<std::mutex> encoder_lock(
+                    self->encoder_modules_mtx_);
+                working_encoders.swap(self->encoders_);
+            }
+            for (const auto& [monitor_name, encoder] : working_encoders) {
+                if (encoder) {
+                    encoder->Remove(monitor_name);
+                }
+            }
+            self->last_video_frames_.clear();
+            if (self->frame_resizer_processor_) {
+                self->frame_resizer_processor_->ClearAdapter(adapter_uid);
+            }
+            if (self->frame_carrier_processor_) {
+                self->frame_carrier_processor_->ClearAdapter(adapter_uid);
+            }
+            self->clear_encoders_ = false;
+        });
+    }
+
+    void EncoderThread::PostEncTask(std::function<void()>&& task) {
+        if (!exiting_ && enc_thread_ && task) {
+            enc_thread_->Post(std::move(task));
+        }
+    }
+
+    std::map<std::string, std::shared_ptr<VideoEncoderModule>>
+    EncoderThread::GetWorkingVideoEncoders() {
+        std::lock_guard<std::mutex> encoder_lock(encoder_modules_mtx_);
+        return encoders_;
+    }
+
+    bool EncoderThread::HasEncoderForMonitor(const std::string& monitor_name) {
+        return GetEncoderForMonitor(monitor_name) != nullptr;
+    }
+
+    std::shared_ptr<VideoEncoderModule>
+    EncoderThread::GetEncoderForMonitor(const std::string& monitor_name) {
+        std::lock_guard<std::mutex> encoder_lock(encoder_modules_mtx_);
+        for (const auto& [name, encoder] : encoders_) {
+            if (name == monitor_name) {
+                return encoder;
+            }
+        }
+        return {};
+    }
+
+    void EncoderThread::ObserveRawFrame(const std::string& monitor_name,
+                                        const std::uint64_t frame_index,
+                                        const std::uint32_t width,
+                                        const std::uint32_t height) const {
+        if (!context_) {
+            return;
+        }
+        if (const auto observer = context_->GetFrameDebuggerObserver()) {
+            observer->ObserveRawFrame(render::RawVideoFrameObservation{
+                .monitor_id = monitor_name,
+                .frame_index = frame_index,
+                .width = width,
+                .height = height,
+            });
+        }
+    }
+
+    void EncoderThread::PrintEncoderConfig(const px::EncoderConfig& config) {
+        LOGI("---------------------------------------------------");
+        LOGI("Encoder configs:");
+        LOGI("width x height:{}x{}", config.width, config.height);
+        LOGI("gop size: {}", config.gop_size);
+        LOGI("gop bitrate: {}", config.bitrate);
+        LOGI("enable full color: {}", config.enable_full_color_mode_);
+        LOGI("encoder codec_type: {}", static_cast<int>(config.codec_type));
+        LOGI("***************************************************");
+    }
+
+}

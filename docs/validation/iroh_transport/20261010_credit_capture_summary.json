@@ -1,0 +1,68 @@
+{
+  "confirmed_retransmission_associated_events": 5,
+  "events": [
+    {
+      "frame_time": "2026-10-10 22:33:45.118",
+      "receive_gap_us": 103142,
+      "ack_stalled_ms": 25.326,
+      "duplicate_acks": 18,
+      "sender_transmissions": 2
+    },
+    {
+      "frame_time": "2026-10-10 22:33:57.384",
+      "receive_gap_us": 149152,
+      "ack_stalled_ms": 81.124,
+      "duplicate_acks": 30,
+      "sender_transmissions": 3
+    },
+    {
+      "frame_time": "2026-10-10 22:34:03.165",
+      "receive_gap_us": 106998,
+      "ack_stalled_ms": 9.016,
+      "duplicate_acks": 3,
+      "sender_transmissions": 2
+    },
+    {
+      "frame_time": "2026-10-10 22:34:03.396",
+      "receive_gap_us": 116250,
+      "ack_stalled_ms": 11.168,
+      "duplicate_acks": 4,
+      "sender_transmissions": 2
+    },
+    {
+      "frame_time": "2026-10-10 22:34:04.331",
+      "receive_gap_us": 132073,
+      "ack_stalled_ms": 10.417,
+      "duplicate_acks": 4,
+      "sender_transmissions": 2
+    }
+  ],
+  "capture_identity": [
+    {
+      "path": ".cache/iroh-credit-capture-20261010-a/relay1.pcapng",
+      "bytes": 391312,
+      "sha256": "ac9ab073e568188b625be6b2102bbf3aadf4fd07b4c5a66d7ae08a6625e30bc7"
+    },
+    {
+      "path": ".cache/iroh-credit-capture-20261010-a/remote-tcpip.pcapng",
+      "bytes": 1460948,
+      "sha256": "65b802b3686a0bb70164f0981ac9cfb7fce4d3546a957ac1a0f4976a383b1f20"
+    },
+    {
+      "path": ".cache/iroh-credit-capture-20261010-b/relay1.pcapng",
+      "bytes": 29681072,
+      "sha256": "b2b01ff003f022888e85938ad292df501aad529907e25bb577575bddf7ac0d77"
+    },
+    {
+      "path": ".cache/iroh-credit-capture-20261010-b/remote-tcpip.pcapng",
+      "bytes": 89968820,
+      "sha256": "db78ede5c2263fe5c03d678db1610578320e01dad6fea65385cfee97250be6a1"
+    },
+    {
+      "path": ".cache/iroh-credit-capture-20261010-b/remote-tcpip-part2.pcapng",
+      "bytes": 26514556,
+      "sha256": "b8bb2215e2ed362f3414370d7b4ef425aed88cb8f38d8af3632ff969c86ee3e1"
+    }
+  ],
+  "limitations": "Correlation is by matching sequence bytes and each machine own durations, not direct cross-host wall-clock subtraction. Not every media gap is classified. Source gap is packetizer submission timing, not an isolated game-render timing."
+}

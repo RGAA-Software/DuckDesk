@@ -177,7 +177,8 @@ public:
 private:
     [[nodiscard]] bool SendMedia(const std::shared_ptr<px::Data>& data) const;
     bool InitializeRdp();
-    void StartRdpProtocol(std::uint16_t loopbackPort);
+    void StartRdpProtocol(std::uint16_t loopbackPort, std::uint64_t generation);
+    void ResetRdpTransport();
     void ApplyRdpFrame(const std::shared_ptr<const px::rdp::DesktopFrame>& frame);
     [[nodiscard]] std::shared_ptr<px::ft::FtAsyncSession> FileTransfer() const;
     [[nodiscard]] std::shared_ptr<px::VoiceCallController> VoiceCall() const;
@@ -192,6 +193,7 @@ private:
     std::shared_ptr<px::SdkTimer> rdpTimer_{};
     std::shared_ptr<px::rdp::RdpClientEndpoint> rdpEndpoint_{};
     std::shared_ptr<px::rdp::RdpSession> rdpSession_{};
+    std::atomic_uint64_t rdpGeneration_{};
     std::unique_ptr<ClientAudioOutput> audio_{};
     std::shared_ptr<px::ft::FtAsyncSession> fileTransfer_{};
     std::shared_ptr<px::RecordingSession> recording_{};

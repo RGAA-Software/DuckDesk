@@ -1,0 +1,536 @@
+{
+  "capture": ".cache\\iroh-credit-capture-20261010-a\\relay1.pcapng",
+  "captured_packets": 3451,
+  "limitations": "NIC capture uses offload and 96-byte truncation. Overlap can be reordering, duplicate capture or retransmission; no TLS decryption. TCP gaps alone do not distinguish host scheduling from upstream network.",
+  "flows": [
+    {
+      "flow": "39.71.45.66:4605-local:26443",
+      "packets": 19,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1262,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 403,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "49.232.233.61:4605-local:26444",
+      "packets": 20,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1223,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 405,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "39.71.45.66:4605-local:26446",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "49.232.233.61:4605-local:26447",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "39.71.45.66:4605-local:26448",
+      "packets": 3306,
+      "directions": {
+        "receive": {
+          "payload_bytes": 404737,
+          "overlap_count": 30,
+          "overlap_samples": [
+            {
+              "time": 1791642584.719554,
+              "direction": "receive",
+              "seq": 1082890679,
+              "ack": 2957854732,
+              "window": 8194,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642584.792633,
+              "direction": "receive",
+              "seq": 1082928073,
+              "ack": 2957943612,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.848626,
+              "direction": "receive",
+              "seq": 1082990643,
+              "ack": 2958171150,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.851904,
+              "direction": "receive",
+              "seq": 1083002908,
+              "ack": 2958188104,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 26
+            },
+            {
+              "time": 1791642584.851905,
+              "direction": "receive",
+              "seq": 1083003118,
+              "ack": 2958195304,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.868683,
+              "direction": "receive",
+              "seq": 1083004646,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.875141,
+              "direction": "receive",
+              "seq": 1083020177,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 92
+            },
+            {
+              "time": 1791642584.875185,
+              "direction": "receive",
+              "seq": 1083020733,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.87523,
+              "direction": "receive",
+              "seq": 1083021420,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.875265,
+              "direction": "receive",
+              "seq": 1083021535,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.875265,
+              "direction": "receive",
+              "seq": 1083021880,
+              "ack": 2958276230,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.902558,
+              "direction": "receive",
+              "seq": 1083060173,
+              "ack": 2958438125,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.902628,
+              "direction": "receive",
+              "seq": 1083060313,
+              "ack": 2958438125,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 92
+            },
+            {
+              "time": 1791642584.914842,
+              "direction": "receive",
+              "seq": 1083073134,
+              "ack": 2958477673,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.918951,
+              "direction": "receive",
+              "seq": 1083085786,
+              "ack": 2958477673,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 90
+            },
+            {
+              "time": 1791642584.952143,
+              "direction": "receive",
+              "seq": 1083101163,
+              "ack": 2958647374,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.952143,
+              "direction": "receive",
+              "seq": 1083101279,
+              "ack": 2958648814,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.95224,
+              "direction": "receive",
+              "seq": 1083101859,
+              "ack": 2958677028,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.9665,
+              "direction": "receive",
+              "seq": 1083102924,
+              "ack": 2958770136,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791642584.968839,
+              "direction": "receive",
+              "seq": 1083114861,
+              "ack": 2958773122,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 24
+            }
+          ],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 1213303,
+          "overlap_count": 6,
+          "overlap_samples": [
+            {
+              "time": 1791642585.032862,
+              "direction": "send",
+              "seq": 2958833571,
+              "ack": 1083161610,
+              "window": 1025,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642585.032975,
+              "direction": "send",
+              "seq": 2958846899,
+              "ack": 1083162066,
+              "window": 1023,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642585.334023,
+              "direction": "send",
+              "seq": 2958859859,
+              "ack": 1083162408,
+              "window": 1029,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642585.938034,
+              "direction": "send",
+              "seq": 2958859859,
+              "ack": 1083162408,
+              "window": 1029,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642587.138832,
+              "direction": "send",
+              "seq": 2958859859,
+              "ack": 1083162408,
+              "window": 1029,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791642589.551499,
+              "direction": "send",
+              "seq": 2958859859,
+              "ack": 1083162408,
+              "window": 1029,
+              "flags": 16,
+              "payload_bytes": 1440
+            }
+          ],
+          "zero_window_count": 0,
+          "gaps_over_80ms": [
+            {
+              "start": 1791642585.334023,
+              "end": 1791642585.938034,
+              "gap_ms": 604.011,
+              "seq_jump": -1440
+            },
+            {
+              "start": 1791642585.938034,
+              "end": 1791642587.138832,
+              "gap_ms": 1200.798,
+              "seq_jump": -1440
+            },
+            {
+              "start": 1791642587.138832,
+              "end": 1791642589.551499,
+              "gap_ms": 2412.667,
+              "seq_jump": -1440
+            }
+          ]
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "39.71.45.66:4605-local:26681",
+      "packets": 36,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1658,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": [
+            {
+              "start": 1791642613.56006,
+              "end": 1791642628.565748,
+              "gap_ms": 15005.688,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642628.567027,
+              "end": 1791642643.571286,
+              "gap_ms": 15004.259,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642643.571405,
+              "end": 1791642658.580578,
+              "gap_ms": 15009.173,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642658.580578,
+              "end": 1791642673.585247,
+              "gap_ms": 15004.669,
+              "seq_jump": 0
+            }
+          ]
+        },
+        "send": {
+          "payload_bytes": 931,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": [
+            {
+              "start": 1791642613.556748,
+              "end": 1791642628.561701,
+              "gap_ms": 15004.953,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642628.561701,
+              "end": 1791642643.568244,
+              "gap_ms": 15006.543,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642643.568244,
+              "end": 1791642658.573304,
+              "gap_ms": 15005.06,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642658.573304,
+              "end": 1791642673.582795,
+              "gap_ms": 15009.491,
+              "seq_jump": 0
+            },
+            {
+              "start": 1791642673.582795,
+              "end": 1791642674.168138,
+              "gap_ms": 585.343,
+              "seq_jump": 0
+            }
+          ]
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "39.71.45.66:4605-local:26796",
+      "packets": 19,
+      "directions": {
+        "receive": {
+          "payload_bytes": 772,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 494,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "49.232.233.61:4605-local:26797",
+      "packets": 18,
+      "directions": {
+        "receive": {
+          "payload_bytes": 772,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 496,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": [
+            {
+              "start": 1791642634.00194,
+              "end": 1791642634.086305,
+              "gap_ms": 84.365,
+              "seq_jump": 0
+            }
+          ]
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "39.71.45.66:4605-local:26798",
+      "packets": 17,
+      "directions": {
+        "receive": {
+          "payload_bytes": 772,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 494,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    },
+    {
+      "flow": "49.232.233.61:4605-local:26799",
+      "packets": 10,
+      "directions": {
+        "receive": {
+          "payload_bytes": 219,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 309,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": []
+    }
+  ],
+  "stutters": []
+}

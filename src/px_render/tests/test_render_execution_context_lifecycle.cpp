@@ -94,7 +94,7 @@ TEST_F(RenderExecutionContextLifecycleTest, PanelSettingsRefreshPreservesStartup
         .device_id = "desktop-device-id",
         .public_device_code = "934886467",
         .console_origin = "https://39.71.45.66:4600",
-        .application_instance_id = "desktop-device-id",
+        .application_instance_id = {},
     }));
 
     module->UpdateSettings(RenderModuleSettings{.device_random_password = "UPDATED123"});
@@ -102,7 +102,7 @@ TEST_F(RenderExecutionContextLifecycleTest, PanelSettingsRefreshPreservesStartup
     EXPECT_EQ(settings.device_id, "desktop-device-id");
     EXPECT_EQ(settings.public_device_code, "934886467");
     EXPECT_EQ(settings.console_origin, "https://39.71.45.66:4600");
-    EXPECT_EQ(settings.application_instance_id, "desktop-device-id");
+    EXPECT_TRUE(settings.application_instance_id.empty());
     EXPECT_EQ(settings.device_random_password, "UPDATED123");
 
     module->UpdateSettings(RenderModuleSettings{
@@ -115,7 +115,7 @@ TEST_F(RenderExecutionContextLifecycleTest, PanelSettingsRefreshPreservesStartup
     EXPECT_EQ(settings.device_id, "desktop-device-id");
     EXPECT_EQ(settings.public_device_code, "934886467");
     EXPECT_EQ(settings.console_origin, "https://39.71.45.66:4600");
-    EXPECT_EQ(settings.application_instance_id, "desktop-device-id");
+    EXPECT_TRUE(settings.application_instance_id.empty());
     EXPECT_TRUE(module->Destroy());
 }
 

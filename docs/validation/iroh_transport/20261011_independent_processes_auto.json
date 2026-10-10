@@ -1,0 +1,91 @@
+{
+  "started_at": "2026-10-11T01:01:03.695225",
+  "case": "auto",
+  "evidence": ".cache\\iroh-native-live-20261011-010103-auto",
+  "passed": true,
+  "phases": [
+    {
+      "name": "warmup",
+      "started_at": "2026-10-11T01:01:08.508336",
+      "ended_at": "2026-10-11T01:01:13.924548"
+    },
+    {
+      "name": "video_only_before",
+      "started_at": "2026-10-11T01:01:13.924548",
+      "ended_at": "2026-10-11T01:01:33.975738"
+    },
+    {
+      "name": "separate_file_process",
+      "started_at": "2026-10-11T01:01:33.975738",
+      "ended_at": "2026-10-11T01:02:02.151064"
+    },
+    {
+      "name": "video_only_after",
+      "started_at": "2026-10-11T01:02:02.151064",
+      "ended_at": "2026-10-11T01:02:23.005722"
+    }
+  ],
+  "processes": {
+    "video": {
+      "pid": 77280,
+      "mode": "desktop",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "fd1070db9b6faf3512d29cd6fcb0d5fd42992121e743761e2c5fd633105a609f",
+      "resource_session_id": "88c599fa-dbbc-4c3e-a349-b75d0e2ab0b0",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4613,
+      "launched_at": "2026-10-11T01:01:07.449697"
+    },
+    "file": {
+      "pid": 49752,
+      "mode": "file-transfer",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "3f17c8cc626061d3693ec18db141add39e9fbc96f26a9569d2a7be330e0a13e3",
+      "resource_session_id": "fa27cd71-a815-4c3c-83b3-bb75e695555f",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4601,
+      "launched_at": "2026-10-11T01:01:34.763642"
+    }
+  },
+  "cleanup_errors": [],
+  "remote_test_file": "D:\\112233\\pixels-independent-1a9632efb4a34419a10a8e58490d3e86.bin",
+  "source_bytes": 67108864,
+  "access_before": {
+    "groups": [],
+    "users": []
+  },
+  "instance_id": "0a4cc5f6-ff88-4416-8c2b-3ce7c6337b9c",
+  "posted_input_messages": 3960,
+  "udp_endpoints": [
+    {
+      "OwningProcess": 49752,
+      "LocalAddress": "::",
+      "LocalPort": 63198
+    },
+    {
+      "OwningProcess": 77280,
+      "LocalAddress": "::",
+      "LocalPort": 61057
+    },
+    {
+      "OwningProcess": 49752,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 63196
+    },
+    {
+      "OwningProcess": 77280,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 61055
+    }
+  ],
+  "transfer_seconds": 28.09,
+  "file_exit_code": 0,
+  "source_sha256": "47bf416c0d068a3fa989e04e238a615d66d4abb4f5b605993c2587078e2144fc",
+  "download_sha256": "47bf416c0d068a3fa989e04e238a615d66d4abb4f5b605993c2587078e2144fc",
+  "access_after": {
+    "groups": [],
+    "users": []
+  },
+  "access_restored": true,
+  "ended_at": "2026-10-11T01:02:24.663097"
+}

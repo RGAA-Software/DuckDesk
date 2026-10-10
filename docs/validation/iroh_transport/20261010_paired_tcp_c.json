@@ -1,0 +1,23 @@
+{
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261010-212856-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "32de38e7-aeb9-4e74-9dd5-ec63f9081f97",
+  "started_at": "2026-10-10 21:28:58",
+  "posted_input_messages": 4917,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-5.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-6.png",
+    ".cache\\iroh-native-live-20261010-212856-relay\\mixed-7.png"
+  ],
+  "elapsed_seconds": 90.018,
+  "exit_code": 6,
+  "error": "PIXELS_FILE_TRANSFER_ACCEPTANCE=FAIL:FILE_TRANSFER_TIMEOUT\n"
+}

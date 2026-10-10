@@ -1,0 +1,15 @@
+{
+  "datagram_maximum_gap_ms": 1339,
+  "datagrams_received": 1156,
+  "datagrams_sent": 1201,
+  "final_paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18449/)], selected: Some(PathId(0)), closed: false }, .. }",
+  "initial_paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18449/)], selected: Some(PathId(0)), closed: false }, .. }",
+  "latest_datagram_sent_ms": 20004,
+  "reliable_exchanges": 175,
+  "reliable_maximum_gap_ms": 1399,
+  "same_quic_connection": true,
+  "scenario": "loopback private HTTPS Relay restarted; same endpoint and QUIC connection",
+  "relay_process_interruption_ms": 1013,
+  "relay_only": true,
+  "scope": "transport recovery, not business re-admission or physical network migration"
+}

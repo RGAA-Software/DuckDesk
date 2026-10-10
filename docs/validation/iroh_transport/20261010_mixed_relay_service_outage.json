@@ -1,0 +1,196 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-201634-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 1610612736,
+  "cancel_retry": false,
+  "instance_id": "d310e23c-b765-46d3-a1f6-05eb246bce80",
+  "started_at": "2026-10-10 20:16:44",
+  "posted_input_messages": 3360,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261010-201634-relay\\mixed-5.png"
+  ],
+  "elapsed_seconds": 62.391,
+  "exit_code": 0,
+  "source_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "download_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 306,
+      "fps": 61.0,
+      "max_gap_ms": 25.5,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.1,
+      "max_gap_ms": 25.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 72,
+      "fps": 10.8,
+      "max_gap_ms": 5486.1,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 3
+    },
+    {
+      "frames": 95,
+      "fps": 19.0,
+      "max_gap_ms": 181.1,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 254,
+      "fps": 50.7,
+      "max_gap_ms": 91.1,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 261,
+      "fps": 49.9,
+      "max_gap_ms": 438.7,
+      "gaps_gt_100ms": 6,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 310,
+      "fps": 61.9,
+      "max_gap_ms": 101.0,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 243,
+      "fps": 48.5,
+      "max_gap_ms": 338.2,
+      "gaps_gt_100ms": 7,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 297,
+      "fps": 59.4,
+      "max_gap_ms": 649.5,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 272,
+      "fps": 54.3,
+      "max_gap_ms": 246.1,
+      "gaps_gt_100ms": 6,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 271,
+      "fps": 52.3,
+      "max_gap_ms": 425.1,
+      "gaps_gt_100ms": 2,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "functional_transfer_passed": true,
+  "performance_acceptance_passed": false,
+  "acceptance_scope": "File success is not latency acceptance; direct retains two >100 ms gaps, Relay has reproducible mixed-load stutter, and injected outage gaps are reported separately.",
+  "outage_observed": true,
+  "automatic_media_and_transfer_recovery_verified": true,
+  "total_video_gap_ms": 5486.1,
+  "connection_admissions": 1,
+  "cleanup": {
+    "remote_file_exists": false,
+    "services": [
+      {
+        "Name": "Pixels.Console",
+        "Status": "Running"
+      },
+      {
+        "Name": "Pixels.Relay",
+        "Status": "Running"
+      },
+      {
+        "Name": "px_service",
+        "Status": "Running"
+      }
+    ],
+    "renders": [
+      {
+        "Id": 15760,
+        "SessionId": 2
+      }
+    ]
+  },
+  "relays_after_cleanup": [
+    {
+      "control_epoch": 68,
+      "current_connections": 0,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 0,
+      "fresh": true,
+      "generation": 13,
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T12:18:40.354733Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "BJ-200M Relay",
+      "product_version_code": 3002001,
+      "public_host": "49.232.233.61",
+      "public_port": 4605,
+      "report_sequence": 1567,
+      "reported_draining": false,
+      "revision": 2,
+      "state": "ready",
+      "uploaded_bytes": 0
+    },
+    {
+      "control_epoch": 68,
+      "current_connections": 1,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 31807026,
+      "fresh": true,
+      "generation": 88,
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T12:18:37.055807Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "Single Server Relay",
+      "product_version_code": 3002001,
+      "public_host": "39.71.45.66",
+      "public_port": 4605,
+      "report_sequence": 18,
+      "reported_draining": false,
+      "revision": 6,
+      "state": "ready",
+      "uploaded_bytes": 31807026
+    }
+  ]
+}

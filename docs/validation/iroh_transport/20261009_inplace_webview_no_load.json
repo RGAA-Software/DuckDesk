@@ -1,0 +1,15 @@
+[
+  {
+    "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "instance_id": "09076f20-0983-4457-bf11-5a24c395657b",
+    "client_pid": 68512,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 3600,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": []
+  }
+]

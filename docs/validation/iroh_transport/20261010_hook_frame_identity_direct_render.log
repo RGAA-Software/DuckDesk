@@ -1,0 +1,58 @@
+[2026-10-10 23:23:37.654][thread 9256][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=152 size=1279x718
+[2026-10-10 23:23:37.683][thread 23568][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=152 gap_ms=0 bytes=5447
+[2026-10-10 23:23:37.814][thread 23568][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=153 gap_ms=130 bytes=29748
+[2026-10-10 23:23:37.905][thread 17376][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=160 size=1279x718
+[2026-10-10 23:23:38.379][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:38.384][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=190 kind=5 request_age_us=4503
+[2026-10-10 23:23:38.655][thread 17376][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=205 size=1279x718
+[2026-10-10 23:23:38.881][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83323 queued=0 pending=7 bytes=90200 oldest=209 newest=215 age_us=195405 probe_us=154502 feedback_age_us=67857
+[2026-10-10 23:23:38.881][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=40727 cwnd_bytes=26517 datagram_space=23807 congestion_events=3 progress_age_us=67857 budget_bytes=51506 forward_delay_growth_us=131056
+[2026-10-10 23:23:38.897][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=99978 queued=0 pending=4 bytes=46200 oldest=212 newest=215 age_us=162827 probe_us=137846 feedback_age_us=5596
+[2026-10-10 23:23:38.897][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=46214 cwnd_bytes=26517 datagram_space=32512 congestion_events=3 progress_age_us=5596 budget_bytes=51506 forward_delay_growth_us=136300
+[2026-10-10 23:23:38.902][thread 23568][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=222 gap_ms=116 bytes=27315
+[2026-10-10 23:23:39.000][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=85620 queued=0 pending=3 bytes=66000 oldest=214 newest=222 age_us=231373 probe_us=151840 feedback_age_us=17269
+[2026-10-10 23:23:39.000][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=47113 cwnd_bytes=26517 datagram_space=52715 congestion_events=3 progress_age_us=17269 budget_bytes=51506 forward_delay_growth_us=154266
+[2026-10-10 23:23:39.031][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=116696 queued=0 pending=1 bytes=35200 oldest=222 newest=222 age_us=129235 probe_us=120764 feedback_age_us=3376
+[2026-10-10 23:23:39.031][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=48284 cwnd_bytes=27969 datagram_space=59996 congestion_events=3 progress_age_us=3376 budget_bytes=51506 forward_delay_growth_us=179044
+[2026-10-10 23:23:39.035][thread 23568][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=230 gap_ms=133 bytes=29157
+[2026-10-10 23:23:39.131][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83550 queued=0 pending=2 bytes=72600 oldest=222 newest=230 age_us=229187 probe_us=154297 feedback_age_us=44570
+[2026-10-10 23:23:39.131][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=60372 cwnd_bytes=27969 datagram_space=53826 congestion_events=3 progress_age_us=103328 budget_bytes=51506 forward_delay_growth_us=179044
+[2026-10-10 23:23:39.181][thread 3572][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=134038 queued=0 pending=1 bytes=37400 oldest=230 newest=230 age_us=146189 probe_us=103810 feedback_age_us=16387
+[2026-10-10 23:23:39.181][thread 3572][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=63029 cwnd_bytes=27969 datagram_space=65536 congestion_events=3 progress_age_us=16387 budget_bytes=149600 forward_delay_growth_us=175713
+[2026-10-10 23:23:39.186][thread 23568][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=239 gap_ms=150 bytes=20105
+[2026-10-10 23:23:42.233][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:42.252][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=423 kind=5 request_age_us=18789
+[2026-10-10 23:23:42.344][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:42.352][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=429 kind=5 request_age_us=7650
+[2026-10-10 23:23:42.685][thread 3572][encoder_thread.cpp:91][info] : enc diag: wall=5002ms, in_fps=59.6, backlog=1, task_avg=3ms, task_max=29ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 23:23:42.685][thread 23568][media_datagrams.cpp:46][info] : event=iroh.send_window offered=268 idr=1 busy=0 completed=268 failed=0 max_send_us=44435 path=1 rtt_us=12170 tx_packets=13778 tx_lost=69
+[2026-10-10 23:23:43.159][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:43.169][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=478 kind=5 request_age_us=10635
+[2026-10-10 23:23:43.358][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:43.369][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=490 kind=5 request_age_us=10379
+[2026-10-10 23:23:44.008][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:44.019][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=529 kind=5 request_age_us=10957
+[2026-10-10 23:23:45.183][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:45.202][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=600 kind=5 request_age_us=18671
+[2026-10-10 23:23:45.971][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:45.985][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=647 kind=5 request_age_us=14350
+[2026-10-10 23:23:46.966][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:46.985][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=707 kind=5 request_age_us=19022
+[2026-10-10 23:23:47.686][thread 3572][encoder_thread.cpp:91][info] : enc diag: wall=5001ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=7ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 23:23:47.686][thread 23568][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=116 path=1 rtt_us=37278 tx_packets=26629 tx_lost=291
+[2026-10-10 23:23:47.729][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:47.736][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=752 kind=5 request_age_us=7025
+[2026-10-10 23:23:48.142][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:48.152][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=777 kind=5 request_age_us=9773
+[2026-10-10 23:23:48.328][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:48.335][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=788 kind=5 request_age_us=7436
+[2026-10-10 23:23:52.704][thread 3572][encoder_thread.cpp:91][info] : enc diag: wall=5018ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=7ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 23:23:52.704][thread 23568][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=88 path=1 rtt_us=11269 tx_packets=45887 tx_lost=602
+[2026-10-10 23:23:53.327][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:53.335][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=1088 kind=5 request_age_us=8320
+[2026-10-10 23:23:56.421][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:56.435][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=1274 kind=5 request_age_us=14801
+[2026-10-10 23:23:57.719][thread 3572][encoder_thread.cpp:91][info] : enc diag: wall=5015ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=7ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 23:23:57.719][thread 23568][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=134 path=1 rtt_us=6361 tx_packets=65768 tx_lost=800
+[2026-10-10 23:23:58.739][thread 21628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook
+[2026-10-10 23:23:58.752][thread 23568][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=232eeff5-91d7-40a7-9d02-72fba71e408a monitor=game-hook frame=1413 kind=5 request_age_us=13242

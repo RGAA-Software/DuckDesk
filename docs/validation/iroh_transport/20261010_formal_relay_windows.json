@@ -1,0 +1,22 @@
+{
+  "relay_sha256": "19b35d1ada8b5179748ffda704cca3d304c90c46f5d69adfe5d2c15f61da7fdf",
+  "platform": "nt",
+  "https_port": 11667,
+  "qad_port": 57288,
+  "installation_test": false,
+  "probe_stdout": "{\"datagrams_echoed\":120,\"datagrams_sent\":120,\"elapsed_ms\":2013,\"maximum_datagram_round_trip_us\":35941,\"maximum_datagram_size\":1288,\"paths\":\"PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:11667/)], selected: Some(PathId(0)), closed: false }, .. }\",\"reliable_bytes_verified\":6291520}\n",
+  "probe_stderr": "",
+  "probe_exit_code": 0,
+  "measurements": {
+    "datagrams_echoed": 120,
+    "datagrams_sent": 120,
+    "elapsed_ms": 2013,
+    "maximum_datagram_round_trip_us": 35941,
+    "maximum_datagram_size": 1288,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:11667/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "datagrams_missing": 0,
+  "relay_exit_code": 1,
+  "shutdown_method": "owned-process termination; lifecycle covered by unit tests"
+}

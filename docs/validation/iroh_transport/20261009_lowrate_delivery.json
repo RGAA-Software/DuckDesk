@@ -1,0 +1,15 @@
+{
+  "candidate": "iroh-lowrate-recovery-20261009",
+  "upload_operation": "0d402e65-77b4-48ad-84bf-abf2d92439ae",
+  "install_operation": "0c50bb28-7786-4cce-8268-f0554986dc58",
+  "verification": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "31635DE2C069097C6835294D3E00284AA1E463A1B6EC584FF85DFC81C3E0F299",
+    "manifest_sha256": "DC3A32A4B4C27DF160377A20E2F0DCC0BD201AB14A11F6F15819ECD31BCAB973",
+    "setup_sha256": "AFEBC58E8D5F37527E2FFD4B68ECD8A76A526C7FF08F2256C4BBBF3370DDCE79"
+  },
+  "development_render_sha256": "97D30F79789AA7530618B4E9EB914710818E2998B427AA50FCAF85BCCAFAF0BF",
+  "development_render_build_dist_match": true
+}

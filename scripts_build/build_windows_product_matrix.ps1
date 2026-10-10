@@ -72,6 +72,9 @@ if ($Product -eq 'cloud_node') {
 Invoke-NativeChecked -FilePath $python.Source -Arguments @((Join-Path $repoRoot 'scripts\validate_product_manifests.py'))
 Invoke-NativeChecked -FilePath $python.Source -Arguments @((Join-Path $repoRoot 'scripts\validate_product_branding.py'))
 Invoke-NativeChecked -FilePath 'cmd.exe' -Arguments @('/d', '/c', (Join-Path $PSScriptRoot 'build_cpp_rdp_sdk.bat'))
+Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_transport.ps1'), '-Profile', 'Publication'
+)
 
 $versionOutput = & $python.Source (Join-Path $repoRoot 'set_product_version.py') '--product' $Product '--bump' '--json'
 if ($LASTEXITCODE -ne 0) {

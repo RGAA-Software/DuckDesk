@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-175010-auto",
+  "instance_id": "d6dc6ec3-9455-4422-9d91-749551d66521",
+  "client_pid": 76592,
+  "clipboard_roundtrip": true,
+  "roundtrip_seconds": 4.722,
+  "local_clipboard_restored": true,
+  "remote_clipboard_restored": true,
+  "remote_user_session": 2,
+  "game_render_pid": 2404,
+  "forced_relay_config": true,
+  "owned_instance_stopped": true,
+  "installed_version": "3.3.97",
+  "verified_installed_artifacts": 314,
+  "node_service_status": "Running"
+}

@@ -1,0 +1,96 @@
+[2026-10-10 11:33:50.375][thread 8500][iroh_dialer.cpp:100][info] : event=iroh.connect outcome=accepted reconnect=false
+[2026-10-10 11:33:50.455][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-10 11:33:50.512][thread 47232][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=236
+[2026-10-10 11:33:50.536][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=1 avg_us=18576 max_us=18576
+[2026-10-10 11:33:55.458][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=1124 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=300 loss=0 malformed=0
+[2026-10-10 11:33:55.529][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=38682 tx_packets=1317 rx_packets=2336 tx_lost=0 tx_datagrams=91 rx_datagrams=1527
+[2026-10-10 11:33:55.529][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=305, fps=60.8, max_gap_ms=63.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:33:55.554][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=298 avg_us=599 max_us=20244
+[2026-10-10 11:34:00.475][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=2005 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=601 loss=0 malformed=0
+[2026-10-10 11:34:00.536][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=31547 tx_packets=2328 rx_packets=4374 tx_lost=0 tx_datagrams=181 rx_datagrams=2796
+[2026-10-10 11:34:00.536][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=50.9, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:00.579][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=302 avg_us=703 max_us=16625
+[2026-10-10 11:34:05.482][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=4450 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=902 loss=0 malformed=0
+[2026-10-10 11:34:05.552][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=32272 tx_packets=3787 rx_packets=8119 tx_lost=0 tx_datagrams=272 rx_datagrams=5628
+[2026-10-10 11:34:05.552][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=47.2, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:05.589][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=495 max_us=1622
+[2026-10-10 11:34:10.494][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=7000 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=1202 loss=0 malformed=0
+[2026-10-10 11:34:10.564][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=31371 tx_packets=5260 rx_packets=11963 tx_lost=0 tx_datagrams=363 rx_datagrams=8556
+[2026-10-10 11:34:10.564][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=36.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:10.599][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=485 max_us=1722
+[2026-10-10 11:34:11.075][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1469 source_gap_us=16900 receive_gap_us=49661 excess_us=112143 assembly_call_us=20
+[2026-10-10 11:34:11.283][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1472 source_gap_us=16988 receive_gap_us=156119 excess_us=270485 assembly_call_us=17
+[2026-10-10 11:34:11.283][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1472 gap_ms=156.2
+[2026-10-10 11:34:11.429][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1477 source_gap_us=16588 receive_gap_us=100193 excess_us=333132 assembly_call_us=13
+[2026-10-10 11:34:11.429][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1477 gap_ms=100.2
+[2026-10-10 11:34:11.537][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1502 source_gap_us=183766 receive_gap_us=106636 excess_us=23953 assembly_call_us=24
+[2026-10-10 11:34:11.537][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1502 gap_ms=106.7
+[2026-10-10 11:34:13.495][thread 47232][media_datagrams.cpp:320][info] : event=iroh.feedback_generated stream=0 frame=1609 gap_us=184772
+[2026-10-10 11:34:13.495][thread 47232][media_datagrams.cpp:267][info] : event=iroh.receive_worker wait_us=184664 processing_us=178 has_packet=true
+[2026-10-10 11:34:13.495][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1610 source_gap_us=16455 receive_gap_us=185218 excess_us=182574 assembly_call_us=110
+[2026-10-10 11:34:13.495][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1610 gap_ms=185.3
+[2026-10-10 11:34:15.510][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=8634 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=1479 loss=0 malformed=0
+[2026-10-10 11:34:15.575][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=36308 tx_packets=6381 rx_packets=14734 tx_lost=1 tx_datagrams=450 rx_datagrams=10551
+[2026-10-10 11:34:15.575][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=278, fps=55.5, max_gap_ms=185.3, gaps_gt_100ms=4, idr=0, rfi=0
+[2026-10-10 11:34:15.618][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=277 avg_us=567 max_us=3110
+[2026-10-10 11:34:16.398][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1789 source_gap_us=16766 receive_gap_us=51606 excess_us=102129 assembly_call_us=15
+[2026-10-10 11:34:16.510][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1793 source_gap_us=17400 receive_gap_us=63541 excess_us=146653 assembly_call_us=27
+[2026-10-10 11:34:16.649][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1800 source_gap_us=16422 receive_gap_us=53614 excess_us=170371 assembly_call_us=19
+[2026-10-10 11:34:16.779][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1808 source_gap_us=16655 receive_gap_us=60895 excess_us=166145 assembly_call_us=14
+[2026-10-10 11:34:16.928][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1815 source_gap_us=16322 receive_gap_us=51113 excess_us=199148 assembly_call_us=17
+[2026-10-10 11:34:17.102][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1836 source_gap_us=267277 receive_gap_us=103753 excess_us=22158 assembly_call_us=28
+[2026-10-10 11:34:17.102][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1836 gap_ms=103.8
+[2026-10-10 11:34:17.282][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1845 source_gap_us=66622 receive_gap_us=98196 excess_us=52901 assembly_call_us=25
+[2026-10-10 11:34:17.512][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1861 source_gap_us=217222 receive_gap_us=135371 excess_us=15910 assembly_call_us=22
+[2026-10-10 11:34:17.512][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1861 gap_ms=135.4
+[2026-10-10 11:34:17.796][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1864 source_gap_us=16933 receive_gap_us=258161 excess_us=249558 assembly_call_us=21
+[2026-10-10 11:34:17.796][thread 47232][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1864 gap_ms=258.3
+[2026-10-10 11:34:20.520][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=10039 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=1730 loss=0 malformed=0
+[2026-10-10 11:34:20.592][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=34215 tx_packets=7527 rx_packets=17321 tx_lost=1 tx_datagrams=540 rx_datagrams=12331
+[2026-10-10 11:34:20.592][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=250, fps=49.8, max_gap_ms=258.3, gaps_gt_100ms=3, idr=0, rfi=0
+[2026-10-10 11:34:20.623][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=250 avg_us=496 max_us=1584
+[2026-10-10 11:34:25.522][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=11659 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=2030 loss=0 malformed=0
+[2026-10-10 11:34:25.613][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=34290 tx_packets=8947 rx_packets=20266 tx_lost=1 tx_datagrams=632 rx_datagrams=14343
+[2026-10-10 11:34:25.614][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=59.9, max_gap_ms=42.8, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:25.633][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=431 max_us=1188
+[2026-10-10 11:34:30.539][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=13782 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=2331 loss=0 malformed=0
+[2026-10-10 11:34:30.625][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=44658 tx_packets=10315 rx_packets=23664 tx_lost=1 tx_datagrams=723 rx_datagrams=16832
+[2026-10-10 11:34:30.625][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=47.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:30.634][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=300 avg_us=324 max_us=1271
+[2026-10-10 11:34:35.544][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=15938 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=2631 loss=0 malformed=0
+[2026-10-10 11:34:35.636][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=36561 tx_packets=11655 rx_packets=27099 tx_lost=1 tx_datagrams=814 rx_datagrams=19365
+[2026-10-10 11:34:35.636][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=45.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:35.636][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=299 avg_us=329 max_us=1251
+[2026-10-10 11:34:40.552][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=18067 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=2932 loss=0 malformed=0
+[2026-10-10 11:34:40.659][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=31479 tx_packets=13109 rx_packets=30553 tx_lost=1 tx_datagrams=906 rx_datagrams=21888
+[2026-10-10 11:34:40.659][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=302, fps=60.1, max_gap_ms=62.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:40.659][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=302 avg_us=302 max_us=1804
+[2026-10-10 11:34:45.559][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=19725 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=3231 loss=0 malformed=0
+[2026-10-10 11:34:45.628][thread 47232][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3544 source_gap_us=16488 receive_gap_us=39791 excess_us=82998 assembly_call_us=28
+[2026-10-10 11:34:45.695][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=48308 tx_packets=14461 rx_packets=33485 tx_lost=1 tx_datagrams=997 rx_datagrams=23924
+[2026-10-10 11:34:45.695][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=59.8, max_gap_ms=69.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:45.709][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=572 max_us=11216
+[2026-10-10 11:34:50.573][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=21337 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=3533 loss=0 malformed=0
+[2026-10-10 11:34:50.697][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=38135 tx_packets=15681 rx_packets=36319 tx_lost=1 tx_datagrams=1088 rx_datagrams=25910
+[2026-10-10 11:34:50.697][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=39.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:50.711][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=612 max_us=17789
+[2026-10-10 11:34:55.574][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=22958 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=3833 loss=0 malformed=0
+[2026-10-10 11:34:55.700][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=47241 tx_packets=16989 rx_packets=39176 tx_lost=1 tx_datagrams=1178 rx_datagrams=27879
+[2026-10-10 11:34:55.700][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=59.8, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:34:55.722][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=302 avg_us=535 max_us=5170
+[2026-10-10 11:35:00.604][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=23755 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=4134 loss=0 malformed=0
+[2026-10-10 11:35:00.704][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=37675 tx_packets=18237 rx_packets=41203 tx_lost=1 tx_datagrams=1268 rx_datagrams=29047
+[2026-10-10 11:35:00.704][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=48.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:35:00.729][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=300 avg_us=708 max_us=19500
+[2026-10-10 11:35:05.629][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=24644 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=4436 loss=0 malformed=0
+[2026-10-10 11:35:05.720][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=33238 tx_packets=19528 rx_packets=43359 tx_lost=1 tx_datagrams=1359 rx_datagrams=30318
+[2026-10-10 11:35:05.720][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=41.9, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:35:05.757][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=627 max_us=21303
+[2026-10-10 11:35:10.638][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=25480 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=4736 loss=0 malformed=0
+[2026-10-10 11:35:10.727][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=43748 tx_packets=20781 rx_packets=45434 tx_lost=1 tx_datagrams=1449 rx_datagrams=31512
+[2026-10-10 11:35:10.727][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=299, fps=59.7, max_gap_ms=40.6, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:35:10.765][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=302 avg_us=493 max_us=7894
+[2026-10-10 11:35:15.647][thread 47232][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=26147 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=5039 loss=0 malformed=0
+[2026-10-10 11:35:15.731][thread 47232][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=26943 tx_packets=21989 rx_packets=47335 tx_lost=1 tx_datagrams=1539 rx_datagrams=32554
+[2026-10-10 11:35:15.731][thread 47232][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=302, fps=60.4, max_gap_ms=40.5, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:35:15.767][thread 63116][thunder_sdk.cpp:55][info] : [LAT-decode] frames=300 avg_us=284 max_us=1010

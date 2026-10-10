@@ -1,0 +1,8 @@
+2026-10-10T13:08:07.200694Z  INFO relay-actor: iroh::socket::transports::relay::actor: home is now relay https://39.71.45.66:4605/, was None
+2026-10-10T13:08:07.200831Z DEBUG relay-actor: iroh::socket::transports::relay::actor: Adding relay connection url=RelayUrl("https://39.71.45.66:4605/")
+2026-10-10T13:08:07.200928Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 0 active relay conns
+2026-10-10T13:08:07.200944Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 1 active relay conns: relay-https://39.71.45.66:4605/
+2026-10-10T13:09:07.827629Z DEBUG relay-actor: iroh::socket::transports::relay::actor: shutting down
+2026-10-10T13:09:07.827633Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}:connected: iroh::socket::transports::relay::actor: Shutdown.
+2026-10-10T13:09:07.852682Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: exiting
+2026-10-10T13:09:07.852721Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 1 active relay conns: relay-https://39.71.45.66:4605/

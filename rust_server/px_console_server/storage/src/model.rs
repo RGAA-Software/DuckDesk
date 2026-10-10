@@ -21,6 +21,8 @@ pub enum StoreError {
     ConnectionRetiring,
     #[error("connection capacity is occupied")]
     ConnectionBusy,
+    #[error("transport endpoint is not ready")]
+    TransportNotReady,
     #[error("license entitlement rejected the operation")]
     LicenseRestriction,
     #[error("protected workspace requires recovery")]

@@ -1,0 +1,1 @@
+{"services":[{"Name":"Pixels.Console","state":"Running"},{"Name":"Pixels.Relay","state":"Running"},{"Name":"px_service","state":"Running"}],"renders":[{"Id":41916,"Path":"C:\\Program Files\\Pixels Cloud Node\\px_render.exe"}],"qos_count":0,"console_env_sha256":"03352CEEAB08C7B89A342505D398629A6847757A617E19478849BBB567DD4438"}

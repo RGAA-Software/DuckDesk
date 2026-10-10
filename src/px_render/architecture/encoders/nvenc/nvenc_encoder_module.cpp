@@ -198,6 +198,19 @@ namespace px
         }
     }
 
+    bool NvencEncoderModule::TryUpdateBitrate(const std::string& monitor_name, std::uint32_t bits_per_second) {
+        const std::lock_guard lock(encoders_mutex_);
+        const auto encoder = video_encoders_.find(monitor_name);
+        const auto configuration = encoder_configurations_.find(monitor_name);
+        if (bits_per_second == 0 || encoder == video_encoders_.end() || !encoder->second || configuration == encoder_configurations_.end())
+            return false;
+        // Config queues the request; the same encoder applies it before a subsequent Encode.
+        // Keep its reference chain and textures instead of destroying it for network feedback.
+        if (!encoder->second->Config(bits_per_second, configuration->second.fps)) return false;
+        configuration->second.bitrate = bits_per_second;
+        return true;
+    }
+
     std::optional<EncoderCapability> NvencEncoderModule::Capability(const std::string& monitor_name) const {
         const std::lock_guard lock(encoders_mutex_);
         const auto found = video_encoders_.find(monitor_name);

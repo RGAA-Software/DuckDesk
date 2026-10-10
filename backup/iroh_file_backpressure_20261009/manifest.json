@@ -1,0 +1,50 @@
+[
+  {
+    "original_path": "src/px_transport/message_session.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/message_session.cpp",
+    "sha256": "d3f632efc95cd57025fe9927fa083175e75e7e8615e9d1e0efb7c81b16c613dc",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  },
+  {
+    "original_path": "src/px_transport/message_session.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/message_session.h",
+    "sha256": "47f8a151584ae34509c8f6946669f8164704e709f98aad082e56fd82fbd16996",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "9a6f91d2be108bcf8f47d29d81fad41a6f81c52ab64c8bcb391277f54810ad47",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/connection.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "a8c1f33d665e05491e9e5cfb89f29c13971e74c35504c1da9b36196cf77396e1",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/iroh_connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_client_sdk/connection/iroh_connection.cpp",
+    "sha256": "affffbba80575c93b6e1d3e1b7e333f58ac4664d5bef1eda61c25f054a8ad54c",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_net_client.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M src/px_client_sdk/sdk_net_client.cpp",
+    "sha256": "2a3d06b63345c41bf74a7524895af07d07ac8ba84dfb952766294850ebae62b5",
+    "archive_batch": "iroh_file_backpressure_20261009",
+    "reason": "Replace void-only file enqueue with per-channel bounded admission and writable notification."
+  }
+]

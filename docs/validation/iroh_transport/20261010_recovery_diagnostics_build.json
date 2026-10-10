@@ -1,0 +1,22 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "825AA9AB8C569ED3B66C93814B389D6C9E8914BAD1FA83BF4E286DB807D871DB",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "825AA9AB8C569ED3B66C93814B389D6C9E8914BAD1FA83BF4E286DB807D871DB",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8C80152782F6BDB8BE557EC53B55DB7D1378D0AB35D1D031C59D2EC2C5239AA7",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8C80152782F6BDB8BE557EC53B55DB7D1378D0AB35D1D031C59D2EC2C5239AA7",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe"
+  }
+]

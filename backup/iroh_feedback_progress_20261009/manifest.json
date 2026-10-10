@@ -1,0 +1,26 @@
+[
+  {
+    "path": "src/px_transport/video_flight_window.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/video_flight_window.h",
+    "sha256": "F10CB8C8D5000F9EA11FA22D6C138CBDEF218EE3D15A8D53E006CA5D2BC5F6B2",
+    "reason": "Preserve oldest-frame age gate before regression for real 21:55:34-35 fresh-feedback stall",
+    "archive_batch": "backup/iroh_feedback_progress_20261009"
+  },
+  {
+    "path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.cpp",
+    "sha256": "4F219F2A727D432B5CCDEB508A76C4A7DF577ED65FE9A4B019A10CC16FFD8D3E",
+    "reason": "Preserve oldest-frame age gate before regression for real 21:55:34-35 fresh-feedback stall",
+    "archive_batch": "backup/iroh_feedback_progress_20261009"
+  },
+  {
+    "path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "sha256": "DE19B092F322B3070A2A3617EE6828FB720662A303C35DE95264091D30B5E616",
+    "reason": "Preserve oldest-frame age gate before regression for real 21:55:34-35 fresh-feedback stall",
+    "archive_batch": "backup/iroh_feedback_progress_20261009"
+  }
+]

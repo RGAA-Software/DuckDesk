@@ -46,7 +46,8 @@ use axum::{
 pub use backup_control_upgrade::upgrade_single_server_backup_control;
 pub use config::{ConfigurationError, ConsoleLaunch, ConsoleLaunchConfig, RelayAdmission};
 pub use database_upgrade::{
-    preflight_single_server_database, recover_single_server_database_owner, upgrade_single_server_database,
+    preflight_single_server_database, recover_single_server_database_owner,
+    upgrade_single_server_database,
 };
 use error::ApiError;
 pub use guest_source::GuestAdmission;
@@ -99,12 +100,14 @@ pub(crate) struct StateData {
     license_config: Option<LicenseLaunchConfig>,
     release: ReleaseIdentity,
     relay_admission: Option<RelayAdmission>,
+    iroh: Option<px_node_protocol::IrohNetworkConfig>,
     backup_control: Option<Arc<backup_api::BackupControl>>,
 }
 
 pub struct RuntimeResources {
     pub recording_cache: Option<(Arc<CacheRoot>, CacheOptions)>,
     pub relay_admission: Option<RelayAdmission>,
+    pub iroh: Option<px_node_protocol::IrohNetworkConfig>,
     pub release: ReleaseIdentity,
     pub backup_control_token: Option<Zeroizing<String>>,
 }
@@ -213,6 +216,7 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: None,
                 relay_admission: None,
+                iroh: None,
                 release: ReleaseIdentity::integration(),
                 backup_control_token: None,
             },
@@ -240,6 +244,7 @@ impl ConsoleRuntime {
             RuntimeResources {
                 recording_cache: Some((recording_cache_root, recording_cache_options)),
                 relay_admission: None,
+                iroh: None,
                 release: ReleaseIdentity::integration(),
                 backup_control_token: None,
             },
@@ -386,6 +391,7 @@ impl ConsoleRuntime {
             license_config,
             release: resources.release,
             relay_admission: resources.relay_admission,
+            iroh: resources.iroh,
             backup_control: resources
                 .backup_control_token
                 .map(|token| backup_api::BackupControl::new(token).map(Arc::new))

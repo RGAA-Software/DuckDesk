@@ -10,5 +10,5 @@ serde = { version = "1", features = ["derive"] }
 uuid = { version = "1.15.1", features = ["serde"] }
 zeroize = "1.8"
 
-[dev-dependencies]
 serde_json = "1"
+url = "2"

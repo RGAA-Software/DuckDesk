@@ -1,0 +1,8 @@
+{
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261010-172059-auto",
+  "instance_id": "950c5eb0-d823-47e2-b3ed-25667fc81b4d",
+  "client_pid": 69828,
+  "error": "No remote clipboard reply",
+  "local_clipboard_restored": true
+}

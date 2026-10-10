@@ -1,0 +1,309 @@
+正在刷新日志...
+正在合并元数据...
+日志文件: D:\112233\paired-tcp-20261010-b.etl (无事件丢失)
+已删除所有筛选器。
+正在处理...
+
+数据包总数:       265523
+数据包丢弃计数:   23
+格式化数据包数:   132760
+已设置格式的文件:      D:\112233\paired-tcp-20261010-b-tcpip.pcapng
+[2026-10-10 21:23:42.350][thread 19108][frame_debugger_observer.cpp:141][info] : event=observer.start component=frame_debugger queue_capacity=120 save_encoded_video=false outcome=success
+[2026-10-10 21:23:42.350][thread 19108][frame_resizer_processor.cpp:70][info] : event=processor.start component=frame_resizer outcome=success
+[2026-10-10 21:23:42.353][thread 19108][frame_carrier_processor.cpp:298][info] : event=processor.resources component=frame_carrier outcome=success logo_loaded=true logo_points=417 big_logo_points=442 cover_points=528
+[2026-10-10 21:23:42.353][thread 19108][frame_carrier_processor.cpp:104][info] : event=processor.start component=frame_carrier outcome=success
+[2026-10-10 21:23:42.354][thread 19108][file_transfer_service.cpp:228][info] : event=module.start component=file_transfer operation=start outcome=success recoverable=true
+[2026-10-10 21:23:42.629][thread 3256][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=1 idx=1
+[2026-10-10 21:23:45.775][thread 18780][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=155 size=1279x718
+[2026-10-10 21:23:45.775][thread 14540][frame_carrier_processor.cpp:193][info] : event=processor.initialize component=frame_carrier monitor=b84ddb79 adapter_uid=79923 outcome=success
+[2026-10-10 21:23:45.775][thread 14540][nvenc_video_encoder.cpp:39][info] : input_frame_width_ = 1279, input_frame_height_ = 718, dxgi_format = 28 (0x1c), nvenc_format = 0x10000000, m_pD3DRender->GetDevice() = 0x20ddadcd408, config.fps = 60, enable 444: false
+[2026-10-10 21:23:45.779][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:45.811][thread 14540][video_frame_carrier.cpp:263][info] : frame carrier texture: 1279x718 dxgi_format=28 (src_format=28)
+[2026-10-10 21:23:45.815][thread 8320][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=155 gap_ms=0 bytes=29996
+[2026-10-10 21:23:45.863][thread 8320][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=e41d851a-9389-42c6-b161-ddc11d931d36 monitor=game-hook frame=160 kind=2 request_age_us=7578
+[2026-10-10 21:23:45.961][thread 19108][file_transfer_reporter.cpp:249][info] : event=file_transfer.begin component=render outcome=success session=e41d851a-9389-42c6-b161-ddc11d931d36 transfer=5278a798-ffa0-4909-96be-2e894007a0a3 total_bytes=268435456
+[2026-10-10 21:23:46.025][thread 3256][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=170 size=1279x718
+[2026-10-10 21:23:46.112][thread 8320][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=e41d851a-9389-42c6-b161-ddc11d931d36 monitor=game-hook frame=175 kind=2 request_age_us=17316
+[2026-10-10 21:23:46.249][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=174 arrival_gap_us=101116 generated_gap_us=54434 released=4 pending=9 bytes=104500 oldest=175 age_us=136635
+[2026-10-10 21:23:46.775][thread 3256][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=215 size=1279x718
+[2026-10-10 21:23:46.896][thread 8320][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=e41d851a-9389-42c6-b161-ddc11d931d36 monitor=game-hook frame=222 kind=2 request_age_us=17924
+[2026-10-10 21:23:46.964][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=4300800
+[2026-10-10 21:23:47.191][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=221 arrival_gap_us=319599 generated_gap_us=51631 released=7 pending=16 bytes=156200 oldest=222 age_us=294268
+[2026-10-10 21:23:47.636][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=254 arrival_gap_us=164922 generated_gap_us=59110 released=5 pending=12 bytes=34100 oldest=255 age_us=189398
+[2026-10-10 21:23:47.753][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=257 arrival_gap_us=116625 generated_gap_us=59107 released=3 pending=16 bytes=42900 oldest=258 age_us=255308
+[2026-10-10 21:23:47.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:47.966][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=8355840
+[2026-10-10 21:23:48.180][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=291 arrival_gap_us=163470 generated_gap_us=50325 released=4 pending=8 bytes=15400 oldest=292 age_us=115648
+[2026-10-10 21:23:48.969][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=14131200
+[2026-10-10 21:23:49.342][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=354 arrival_gap_us=107145 generated_gap_us=50604 released=2 pending=14 bytes=24200 oldest=355 age_us=227216
+[2026-10-10 21:23:49.451][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=358 arrival_gap_us=109723 generated_gap_us=61122 released=4 pending=17 bytes=33000 oldest=359 age_us=270518
+[2026-10-10 21:23:49.559][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=361 arrival_gap_us=108180 generated_gap_us=50600 released=3 pending=20 bytes=41800 oldest=362 age_us=327459
+[2026-10-10 21:23:49.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:49.972][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=17326080
+[2026-10-10 21:23:50.678][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=432 arrival_gap_us=111750 generated_gap_us=59356 released=5 pending=13 bytes=78100 oldest=436 age_us=214246
+[2026-10-10 21:23:50.787][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=437 arrival_gap_us=108431 generated_gap_us=59410 released=2 pending=18 bytes=94600 oldest=438 age_us=286511
+[2026-10-10 21:23:50.831][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=2492995 video_datagram_bps=2874041 opus_bps=30541 audio_datagram_bps=61881 flight_bytes=104500 flight_limited=0
+[2026-10-10 21:23:50.831][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=296 idr=6 busy=0 completed=296 failed=0 max_send_us=168 path=2 rtt_us=278027 tx_packets=8801 tx_lost=1
+[2026-10-10 21:23:50.831][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:23:50.975][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=19906560
+[2026-10-10 21:23:51.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:51.978][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=24084480
+[2026-10-10 21:23:52.981][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=28753920
+[2026-10-10 21:23:53.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:53.934][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=629 arrival_gap_us=103245 generated_gap_us=50159 released=3 pending=15 bytes=36300 oldest=630 age_us=234233
+[2026-10-10 21:23:53.984][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=33300480
+[2026-10-10 21:23:54.987][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=38215680
+[2026-10-10 21:23:55.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:55.831][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=915610 video_datagram_bps=1246063 opus_bps=30130 audio_datagram_bps=61026 flight_bytes=15400 flight_limited=0
+[2026-10-10 21:23:55.831][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=39 path=2 rtt_us=187908 tx_packets=18550 tx_lost=1
+[2026-10-10 21:23:55.831][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:23:55.990][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=43130880
+[2026-10-10 21:23:56.992][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=47923200
+[2026-10-10 21:23:57.270][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=828 arrival_gap_us=112035 generated_gap_us=57582 released=3 pending=16 bytes=18700 oldest=829 age_us=256011
+[2026-10-10 21:23:57.680][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=848 arrival_gap_us=103322 generated_gap_us=56270 released=3 pending=20 bytes=24200 oldest=849 age_us=331834
+[2026-10-10 21:23:57.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:23:57.994][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=50872320
+[2026-10-10 21:23:58.367][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=884 arrival_gap_us=105261 generated_gap_us=55836 released=3 pending=26 bytes=33000 oldest=885 age_us=419300
+[2026-10-10 21:23:58.961][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=912 arrival_gap_us=118353 generated_gap_us=60345 released=4 pending=33 bytes=49500 oldest=913 age_us=545715
+[2026-10-10 21:23:58.996][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=52715520
+[2026-10-10 21:23:59.073][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=916 arrival_gap_us=112879 generated_gap_us=61532 released=4 pending=36 bytes=55000 oldest=917 age_us=591990
+[2026-10-10 21:23:59.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:00.000][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=57016320
+[2026-10-10 21:24:00.121][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1001 arrival_gap_us=105209 generated_gap_us=54701 released=4 pending=14 bytes=18700 oldest=1002 age_us=223022
+[2026-10-10 21:24:00.387][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1012 arrival_gap_us=109331 generated_gap_us=61087 released=4 pending=19 bytes=39600 oldest=1013 age_us=306574
+[2026-10-10 21:24:00.487][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1015 arrival_gap_us=100196 generated_gap_us=59585 released=3 pending=22 bytes=40700 oldest=1016 age_us=355585
+[2026-10-10 21:24:00.848][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=393606 video_datagram_bps=705092 opus_bps=30131 audio_datagram_bps=61336 flight_bytes=46200 flight_limited=0
+[2026-10-10 21:24:00.848][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=34 path=2 rtt_us=373919 tx_packets=25858 tx_lost=1
+[2026-10-10 21:24:00.848][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:01.003][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=59596800
+[2026-10-10 21:24:01.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:02.006][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=64389120
+[2026-10-10 21:24:02.813][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1161 arrival_gap_us=106076 generated_gap_us=59904 released=4 pending=15 bytes=42900 oldest=1162 age_us=248496
+[2026-10-10 21:24:03.008][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=68689920
+[2026-10-10 21:24:03.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:04.010][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=73482240
+[2026-10-10 21:24:05.012][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=78274560
+[2026-10-10 21:24:05.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:05.865][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=991576 video_datagram_bps=1338253 opus_bps=30323 audio_datagram_bps=61646 flight_bytes=44000 flight_limited=0
+[2026-10-10 21:24:05.865][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=45 path=2 rtt_us=199693 tx_packets=35846 tx_lost=1
+[2026-10-10 21:24:05.865][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:06.015][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=83066880
+[2026-10-10 21:24:06.550][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1384 arrival_gap_us=101148 generated_gap_us=51672 released=3 pending=17 bytes=55000 oldest=1385 age_us=269587
+[2026-10-10 21:24:07.018][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=86384640
+[2026-10-10 21:24:07.354][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1441 arrival_gap_us=109208 generated_gap_us=59500 released=4 pending=8 bytes=8800 oldest=1442 age_us=123166
+[2026-10-10 21:24:07.465][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1444 arrival_gap_us=111314 generated_gap_us=55942 released=3 pending=12 bytes=18700 oldest=1445 age_us=184276
+[2026-10-10 21:24:07.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:07.913][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1458 arrival_gap_us=273198 generated_gap_us=57158 released=4 pending=24 bytes=64900 oldest=1459 age_us=398204
+[2026-10-10 21:24:08.020][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=89333760
+[2026-10-10 21:24:08.051][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1461 arrival_gap_us=138621 generated_gap_us=50814 released=3 pending=30 bytes=80300 oldest=1462 age_us=487312
+[2026-10-10 21:24:08.200][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1463 arrival_gap_us=148507 generated_gap_us=53345 released=2 pending=37 bytes=99000 oldest=1464 age_us=602625
+[2026-10-10 21:24:08.853][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1511 arrival_gap_us=119137 generated_gap_us=61993 released=3 pending=28 bytes=36300 oldest=1512 age_us=456218
+[2026-10-10 21:24:09.023][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=90808320
+[2026-10-10 21:24:09.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:10.025][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=94371840
+[2026-10-10 21:24:10.881][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=747256 video_datagram_bps=1047347 opus_bps=30332 audio_datagram_bps=61297 flight_bytes=13200 flight_limited=0
+[2026-10-10 21:24:10.881][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=299 idr=0 busy=0 completed=299 failed=0 max_send_us=89 path=2 rtt_us=162803 tx_packets=43097 tx_lost=1
+[2026-10-10 21:24:10.881][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:11.028][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=99164160
+[2026-10-10 21:24:11.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:12.031][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=103833600
+[2026-10-10 21:24:13.033][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=108748800
+[2026-10-10 21:24:13.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:14.035][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=113541120
+[2026-10-10 21:24:15.038][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=117964800
+[2026-10-10 21:24:15.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:15.898][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=401083 video_datagram_bps=666601 opus_bps=30205 audio_datagram_bps=61474 flight_bytes=17600 flight_limited=0
+[2026-10-10 21:24:15.898][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=38 path=2 rtt_us=182520 tx_packets=52783 tx_lost=1
+[2026-10-10 21:24:15.898][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:16.040][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=122757120
+[2026-10-10 21:24:16.935][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2010 arrival_gap_us=104754 generated_gap_us=57072 released=3 pending=14 bytes=18700 oldest=2011 age_us=220690
+[2026-10-10 21:24:17.042][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=127180800
+[2026-10-10 21:24:17.124][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2016 arrival_gap_us=102851 generated_gap_us=52367 released=3 pending=19 bytes=23100 oldest=2017 age_us=309751
+[2026-10-10 21:24:17.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:18.045][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=130252800
+[2026-10-10 21:24:18.111][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2080 arrival_gap_us=113197 generated_gap_us=55854 released=3 pending=14 bytes=15400 oldest=2081 age_us=229876
+[2026-10-10 21:24:18.227][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2084 arrival_gap_us=116175 generated_gap_us=52485 released=4 pending=17 bytes=19800 oldest=2085 age_us=279928
+[2026-10-10 21:24:18.345][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2087 arrival_gap_us=118321 generated_gap_us=56024 released=3 pending=21 bytes=24200 oldest=2088 age_us=346829
+[2026-10-10 21:24:19.047][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=132464640
+[2026-10-10 21:24:19.126][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2125 arrival_gap_us=153366 generated_gap_us=60237 released=3 pending=30 bytes=41800 oldest=2126 age_us=495721
+[2026-10-10 21:24:19.756][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2162 arrival_gap_us=101363 generated_gap_us=60300 released=4 pending=31 bytes=45100 oldest=2163 age_us=508568
+[2026-10-10 21:24:19.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:19.860][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2166 arrival_gap_us=103912 generated_gap_us=60996 released=4 pending=33 bytes=47300 oldest=2167 age_us=545640
+[2026-10-10 21:24:20.050][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=134062080
+[2026-10-10 21:24:20.898][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=374073 video_datagram_bps=658216 opus_bps=30248 audio_datagram_bps=61583 flight_bytes=14300 flight_limited=0
+[2026-10-10 21:24:20.898][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=36 path=2 rtt_us=193614 tx_packets=59844 tx_lost=1
+[2026-10-10 21:24:20.898][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:21.053][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=138977280
+[2026-10-10 21:24:21.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:22.055][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=143032320
+[2026-10-10 21:24:22.334][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2338 arrival_gap_us=175649 generated_gap_us=56971 released=4 pending=10 bytes=14300 oldest=2339 age_us=153287
+[2026-10-10 21:24:23.058][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=148316160
+[2026-10-10 21:24:23.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:23.969][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2432 arrival_gap_us=105970 generated_gap_us=55931 released=3 pending=14 bytes=16500 oldest=2433 age_us=222386
+[2026-10-10 21:24:24.060][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=152862720
+[2026-10-10 21:24:24.801][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2479 arrival_gap_us=137678 generated_gap_us=56775 released=3 pending=17 bytes=25300 oldest=2480 age_us=270439
+[2026-10-10 21:24:25.062][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=157040640
+[2026-10-10 21:24:25.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:25.914][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=388193 video_datagram_bps=664844 opus_bps=30347 audio_datagram_bps=61323 flight_bytes=9900 flight_limited=0
+[2026-10-10 21:24:25.914][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=33 path=2 rtt_us=85165 tx_packets=68983 tx_lost=1
+[2026-10-10 21:24:25.915][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:25.958][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2557 arrival_gap_us=106824 generated_gap_us=53117 released=3 pending=8 bytes=9900 oldest=2558 age_us=127717
+[2026-10-10 21:24:26.064][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=160972800
+[2026-10-10 21:24:26.232][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2567 arrival_gap_us=143985 generated_gap_us=59785 released=4 pending=15 bytes=19800 oldest=2568 age_us=234407
+[2026-10-10 21:24:27.066][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=164904960
+[2026-10-10 21:24:27.603][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2651 arrival_gap_us=121900 generated_gap_us=51127 released=3 pending=13 bytes=15400 oldest=2652 age_us=205818
+[2026-10-10 21:24:27.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:28.068][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=168591360
+[2026-10-10 21:24:28.512][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2692 arrival_gap_us=147893 generated_gap_us=53214 released=4 pending=26 bytes=36300 oldest=2693 age_us=431801
+[2026-10-10 21:24:29.070][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=170926080
+[2026-10-10 21:24:29.123][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2736 arrival_gap_us=155377 generated_gap_us=51171 released=2 pending=19 bytes=24200 oldest=2737 age_us=308819
+[2026-10-10 21:24:29.228][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2741 arrival_gap_us=104889 generated_gap_us=50304 released=5 pending=20 bytes=22000 oldest=2742 age_us=330961
+[2026-10-10 21:24:29.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:30.072][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=174366720
+[2026-10-10 21:24:30.719][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=2833 arrival_gap_us=149204 generated_gap_us=51953 released=2 pending=18 bytes=23100 oldest=2834 age_us=288310
+[2026-10-10 21:24:30.916][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=392776 video_datagram_bps=680974 opus_bps=30187 audio_datagram_bps=61463 flight_bytes=16500 flight_limited=0
+[2026-10-10 21:24:30.916][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=26 path=2 rtt_us=177586 tx_packets=76461 tx_lost=1
+[2026-10-10 21:24:30.916][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:31.074][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=178421760
+[2026-10-10 21:24:31.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:32.077][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=183091200
+[2026-10-10 21:24:33.079][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=187637760
+[2026-10-10 21:24:33.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:33.955][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3031 arrival_gap_us=115824 generated_gap_us=60788 released=3 pending=14 bytes=16500 oldest=3032 age_us=222354
+[2026-10-10 21:24:34.082][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=192184320
+[2026-10-10 21:24:34.091][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3034 arrival_gap_us=135939 generated_gap_us=51917 released=3 pending=19 bytes=24200 oldest=3035 age_us=310166
+[2026-10-10 21:24:34.200][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3038 arrival_gap_us=109025 generated_gap_us=55228 released=4 pending=22 bytes=29700 oldest=3039 age_us=352629
+[2026-10-10 21:24:35.091][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=195133440
+[2026-10-10 21:24:35.700][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3135 arrival_gap_us=105757 generated_gap_us=54568 released=3 pending=15 bytes=19800 oldest=3136 age_us=236079
+[2026-10-10 21:24:35.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:35.827][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3138 arrival_gap_us=127476 generated_gap_us=57890 released=3 pending=19 bytes=26400 oldest=3139 age_us=312471
+[2026-10-10 21:24:35.931][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=373759 video_datagram_bps=647501 opus_bps=30243 audio_datagram_bps=61486 flight_bytes=34100 flight_limited=0
+[2026-10-10 21:24:35.931][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=36 path=2 rtt_us=302953 tx_packets=85085 tx_lost=1
+[2026-10-10 21:24:35.931][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:35.932][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3142 arrival_gap_us=105049 generated_gap_us=57265 released=4 pending=22 bytes=30800 oldest=3143 age_us=352058
+[2026-10-10 21:24:36.093][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=198819840
+[2026-10-10 21:24:36.839][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3197 arrival_gap_us=112922 generated_gap_us=54321 released=5 pending=21 bytes=23100 oldest=3198 age_us=342090
+[2026-10-10 21:24:37.096][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=202014720
+[2026-10-10 21:24:37.327][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3235 arrival_gap_us=113248 generated_gap_us=59583 released=3 pending=12 bytes=13200 oldest=3236 age_us=196017
+[2026-10-10 21:24:37.490][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3242 arrival_gap_us=112679 generated_gap_us=51157 released=3 pending=15 bytes=19800 oldest=3243 age_us=241659
+[2026-10-10 21:24:37.699][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3246 arrival_gap_us=209784 generated_gap_us=50797 released=4 pending=24 bytes=35200 oldest=3247 age_us=383559
+[2026-10-10 21:24:37.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:37.921][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3251 arrival_gap_us=128375 generated_gap_us=57702 released=4 pending=32 bytes=46200 oldest=3252 age_us=523547
+[2026-10-10 21:24:38.099][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=204718080
+[2026-10-10 21:24:38.156][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3255 arrival_gap_us=235458 generated_gap_us=50169 released=4 pending=42 bytes=64900 oldest=3256 age_us=692344
+[2026-10-10 21:24:38.673][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3281 arrival_gap_us=105654 generated_gap_us=58540 released=3 pending=47 bytes=91300 oldest=3282 age_us=775866
+[2026-10-10 21:24:38.782][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3285 arrival_gap_us=108719 generated_gap_us=52846 released=4 pending=50 bytes=97900 oldest=3286 age_us=817943
+[2026-10-10 21:24:39.077][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=30 video_bps=250000 receiver_stalled=true media_backpressure=false
+[2026-10-10 21:24:39.102][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=206069760
+[2026-10-10 21:24:39.580][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3371 arrival_gap_us=109164 generated_gap_us=53301 released=2 pending=5 bytes=5500 oldest=3373 age_us=166479
+[2026-10-10 21:24:39.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:40.105][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=210493440
+[2026-10-10 21:24:40.949][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=357859 video_datagram_bps=606784 opus_bps=30122 audio_datagram_bps=60944 flight_bytes=8800 flight_limited=0
+[2026-10-10 21:24:40.949][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=245 idr=0 busy=0 completed=245 failed=0 max_send_us=41 path=2 rtt_us=200661 tx_packets=92146 tx_lost=2
+[2026-10-10 21:24:40.949][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:41.108][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=214425600
+[2026-10-10 21:24:41.203][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3471 arrival_gap_us=134050 generated_gap_us=53467 released=1 pending=4 bytes=4400 oldest=3473 age_us=121539
+[2026-10-10 21:24:41.765][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3499 arrival_gap_us=108981 generated_gap_us=59790 released=1 pending=7 bytes=7700 oldest=3501 age_us=216582
+[2026-10-10 21:24:41.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:42.109][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=45 video_bps=250000 receiver_stalled=false media_backpressure=false
+[2026-10-10 21:24:42.110][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=219955200
+[2026-10-10 21:24:43.112][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=224256000
+[2026-10-10 21:24:43.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:44.110][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=60 video_bps=250000 receiver_stalled=false media_backpressure=false
+[2026-10-10 21:24:44.115][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=229171200
+[2026-10-10 21:24:44.153][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3640 arrival_gap_us=103372 generated_gap_us=57368 released=3 pending=13 bytes=16500 oldest=3642 age_us=256135
+[2026-10-10 21:24:44.563][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3666 arrival_gap_us=111055 generated_gap_us=60967 released=4 pending=15 bytes=27500 oldest=3667 age_us=248378
+[2026-10-10 21:24:44.793][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3672 arrival_gap_us=137218 generated_gap_us=55865 released=3 pending=23 bytes=53900 oldest=3673 age_us=379566
+[2026-10-10 21:24:45.117][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=231874560
+[2026-10-10 21:24:45.297][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3720 arrival_gap_us=103379 generated_gap_us=59259 released=5 pending=5 bytes=5500 oldest=3721 age_us=82751
+[2026-10-10 21:24:45.453][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3724 arrival_gap_us=155573 generated_gap_us=56651 released=4 pending=11 bytes=15400 oldest=3725 age_us=172066
+[2026-10-10 21:24:45.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:45.964][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=334715 video_datagram_bps=557971 opus_bps=30315 audio_datagram_bps=61662 flight_bytes=29700 flight_limited=0
+[2026-10-10 21:24:45.964][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=236 idr=0 busy=0 completed=236 failed=0 max_send_us=37 path=2 rtt_us=158663 tx_packets=100907 tx_lost=2
+[2026-10-10 21:24:45.964][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:45.995][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3753 arrival_gap_us=144290 generated_gap_us=52302 released=4 pending=14 bytes=28600 oldest=3754 age_us=230839
+[2026-10-10 21:24:46.120][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=236421120
+[2026-10-10 21:24:46.497][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3783 arrival_gap_us=151146 generated_gap_us=61074 released=4 pending=14 bytes=18700 oldest=3784 age_us=232894
+[2026-10-10 21:24:46.710][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3786 arrival_gap_us=213039 generated_gap_us=51567 released=3 pending=24 bytes=35200 oldest=3787 age_us=394839
+[2026-10-10 21:24:47.122][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=239001600
+[2026-10-10 21:24:47.654][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=3853 arrival_gap_us=118412 generated_gap_us=57493 released=3 pending=14 bytes=16500 oldest=3854 age_us=222421
+[2026-10-10 21:24:47.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:48.125][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=242810880
+[2026-10-10 21:24:49.127][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=247726080
+[2026-10-10 21:24:49.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:50.130][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=252641280
+[2026-10-10 21:24:50.965][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=387368 video_datagram_bps=654630 opus_bps=30299 audio_datagram_bps=61298 flight_bytes=16500 flight_limited=0
+[2026-10-10 21:24:50.965][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=38 path=2 rtt_us=176676 tx_packets=109654 tx_lost=2
+[2026-10-10 21:24:50.965][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=265496 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:51.132][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=257433600
+[2026-10-10 21:24:51.770][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:52.134][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=261980160
+[2026-10-10 21:24:53.137][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=266772480
+[2026-10-10 21:24:53.338][thread 19108][file_transfer_reporter.cpp:249][info] : event=file_transfer.begin component=render outcome=success session=e41d851a-9389-42c6-b161-ddc11d931d36 transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 total_bytes=268435456
+[2026-10-10 21:24:53.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:54.141][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=5278a798-ffa0-4909-96be-2e894007a0a3 state=queued transferred_bytes=268435456
+[2026-10-10 21:24:54.341][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=7495680
+[2026-10-10 21:24:55.116][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=4292 arrival_gap_us=55507 generated_gap_us=55682 released=2 pending=16 bytes=31900 oldest=4293 age_us=368928
+[2026-10-10 21:24:55.131][thread 8320][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4316 gap_ms=116 bytes=3887
+[2026-10-10 21:24:55.343][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=7495680
+[2026-10-10 21:24:55.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:55.797][thread 8320][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4356 gap_ms=100 bytes=996
+[2026-10-10 21:24:55.981][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=372730 video_datagram_bps=626318 opus_bps=30223 audio_datagram_bps=61510 flight_bytes=18700 flight_limited=0
+[2026-10-10 21:24:55.981][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=272 idr=0 busy=0 completed=272 failed=0 max_send_us=81 path=2 rtt_us=440618 tx_packets=122171 tx_lost=2
+[2026-10-10 21:24:55.981][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=4121018 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:24:56.345][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=12410880
+[2026-10-10 21:24:56.410][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=30 video_bps=250000 receiver_stalled=false media_backpressure=true
+[2026-10-10 21:24:57.348][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=15851520
+[2026-10-10 21:24:57.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:58.350][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=20766720
+[2026-10-10 21:24:59.353][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=27279360
+[2026-10-10 21:24:59.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:24:59.959][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=45 video_bps=250000 receiver_stalled=false media_backpressure=false
+[2026-10-10 21:25:00.355][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=32440320
+[2026-10-10 21:25:00.982][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=216190 video_datagram_bps=353690 opus_bps=30206 audio_datagram_bps=61507 flight_bytes=19800 flight_limited=0
+[2026-10-10 21:25:00.982][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=173 idr=0 busy=0 completed=173 failed=0 max_send_us=43 path=2 rtt_us=307307 tx_packets=139016 tx_lost=2
+[2026-10-10 21:25:00.982][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=7054056 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:25:01.358][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=36003840
+[2026-10-10 21:25:01.770][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:02.361][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=40796160
+[2026-10-10 21:25:03.373][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=44236800
+[2026-10-10 21:25:03.770][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:04.376][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=47554560
+[2026-10-10 21:25:05.379][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=47554560
+[2026-10-10 21:25:05.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=8000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:05.997][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=249918 video_datagram_bps=443889 opus_bps=30349 audio_datagram_bps=61343 flight_bytes=17600 flight_limited=0
+[2026-10-10 21:25:05.997][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=207 idr=0 busy=0 completed=207 failed=0 max_send_us=40 path=2 rtt_us=250883 tx_packets=153267 tx_lost=2
+[2026-10-10 21:25:05.997][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=8817565 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:25:06.382][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=51240960
+[2026-10-10 21:25:07.384][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=56033280
+[2026-10-10 21:25:07.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=8200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:08.386][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=61071360
+[2026-10-10 21:25:09.397][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=64757760
+[2026-10-10 21:25:09.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=8400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:10.093][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=60 video_bps=250000 receiver_stalled=false media_backpressure=false
+[2026-10-10 21:25:10.400][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=69672960
+[2026-10-10 21:25:10.998][thread 8320][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=300754 video_datagram_bps=520833 opus_bps=30224 audio_datagram_bps=61516 flight_bytes=24200 flight_limited=0
+[2026-10-10 21:25:10.998][thread 8320][media_datagrams.cpp:46][info] : event=iroh.send_window offered=234 idr=0 busy=0 completed=234 failed=0 max_send_us=44 path=2 rtt_us=239189 tx_packets=169642 tx_lost=2
+[2026-10-10 21:25:10.998][thread 8320][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=9716353 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:25:11.402][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=74219520
+[2026-10-10 21:25:11.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=8600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:11.829][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=5287 arrival_gap_us=63897 generated_gap_us=51342 released=2 pending=17 bytes=30800 oldest=5288 age_us=496601
+[2026-10-10 21:25:11.847][thread 8320][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=5319 gap_ms=115 bytes=1254
+[2026-10-10 21:25:12.415][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=77783040
+[2026-10-10 21:25:12.660][thread 14540][iroh_session.cpp:182][info] : event=iroh.frame_admission fps=30 video_bps=250000 receiver_stalled=false media_backpressure=true
+[2026-10-10 21:25:12.752][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=5343 arrival_gap_us=107672 generated_gap_us=57097 released=0 pending=21 bytes=33000 oldest=5344 age_us=485192
+[2026-10-10 21:25:12.834][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=5345 arrival_gap_us=81214 generated_gap_us=54242 released=2 pending=19 bytes=30800 oldest=5346 age_us=532826
+[2026-10-10 21:25:12.864][thread 8320][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=5380 gap_ms=166 bytes=2824
+[2026-10-10 21:25:13.073][thread 23664][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=5351 arrival_gap_us=105374 generated_gap_us=56705 released=1 pending=20 bytes=30800 oldest=5352 age_us=674073
+[2026-10-10 21:25:13.423][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=77783040
+[2026-10-10 21:25:13.769][thread 3256][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=8800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 21:25:14.426][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=81223680
+[2026-10-10 21:25:15.405][thread 23664][file_transfer_service.cpp:435][info] : event=transport.window component=file_transfer operation=session_close outcome=success stream=827aed53 accepted=720 busy=68 disconnected=1 transport_errors=0 writable_waits=68 writable_wakeups=68 writable_closures=0 writable_timeouts=0 writable_interruptions=0
+[2026-10-10 21:25:15.428][thread 19108][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=dc5860f9-94bc-4e66-978a-cb3533a733f4 state=queued transferred_bytes=85524480
+[2026-10-10 21:25:17.259][thread 3256][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=500 idx=9463
+[2026-10-10 21:25:21.837][thread 19108][file_transfer_service.cpp:240][info] : event=module.stop component=file_transfer operation=drain outcome=success recoverable=true
+[2026-10-10 21:25:21.837][thread 1164][thread.cpp:223][info] : Ok, thread exit: video frame carrier
+[2026-10-10 21:25:21.838][thread 19108][frame_carrier_processor.cpp:124][info] : event=processor.stop component=frame_carrier outcome=success released_carriers=1
+[2026-10-10 21:25:21.838][thread 19108][frame_resizer_processor.cpp:83][info] : event=processor.stop component=frame_resizer outcome=success released_renderers=0
+[2026-10-10 21:25:21.838][thread 19108][pipeline_statistics_observer.cpp:161][info] : event=observer.stop component=pipeline_statistics outcome=success video_frames=4822 video_bytes=6203663 captured_video_frames=0 captured_video_bytes=0 encoded_audio_packets=4481 encoded_audio_bytes=338863 raw_audio_frames=8963 raw_audio_bytes=17208960
+[2026-10-10 21:25:21.843][thread 19108][frame_debugger_observer.cpp:173][info] : event=observer.stop component=frame_debugger outcome=success accepted=0 dropped=0 high_watermark=0 bytes_written=0 write_failures=0

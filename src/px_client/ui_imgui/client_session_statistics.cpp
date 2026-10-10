@@ -28,7 +28,8 @@ std::optional<float> RecentAverage(const std::vector<float>& samples) {
 
 ClientStatisticsSnapshot ClientSession::StatisticsSnapshot() const {
     const auto session = Snapshot();
-    ClientStatisticsSnapshot result{.transport = config_.rdp          ? ClientStatisticsTransport::Rdp
+    ClientStatisticsSnapshot result{.transport = config_.iroh ? (config_.rdp ? ClientStatisticsTransport::RdpIroh : ClientStatisticsTransport::Iroh)
+                                                 : config_.rdp          ? ClientStatisticsTransport::Rdp
                                                  : config_.forceRelay ? ClientStatisticsTransport::RelayWebSocket
                                                  : config_.forceTcp   ? ClientStatisticsTransport::DirectWebSocket
                                                                       : ClientStatisticsTransport::DirectUdp,

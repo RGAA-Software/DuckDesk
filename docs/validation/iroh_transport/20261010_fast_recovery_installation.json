@@ -1,0 +1,29 @@
+{
+  "product": "cloud_node",
+  "version": "3.3.97",
+  "candidate": "iroh-fast-recovery-20261010",
+  "setup_sha256": "48250CB472AF04FF0DBFAE14FE1BAFB35262C332D3DA448906E6B205B9F568AE",
+  "manifest_sha256": "DAED10C7A0222C44C32600950CC6BD5396104CD27F7138A7384353842BE18B96",
+  "installed_render_sha256": "88F0C6861E0D8B86935E9842E65A531751A82C55D97A56038A1F877456EFE5AE",
+  "verified_artifacts": 314,
+  "service_status": "Running",
+  "client_development_build_dist_sha256": "EF89D54D8835AED2AF8A20E6391A6C7960CA5AAD45F2542567F5C02695558348",
+  "render_development_build_dist_sha256": "B7768B075BC93161D1CE3E1B10E7E304B10CDC875A7EB31FF7589877120F2DBC",
+  "cloud_node_client_development_build_dist_sha256": "6C2688CF793FA9DDA123BC7F614149DDA79093EE18C318FF50F08744044C49D0",
+  "device_code": "428358431",
+  "installer_path": "D:/112233/PixelsCloudNode-fast-recovery-20261010.exe",
+  "release_transport_lib_sha256": "150C695BAC3033AC1B227B33901D61DFCAB30A80933CA88E4225DC5A91D21138",
+  "publication_transport_lib_sha256": "20F5A0861B0FC16CD43729069F7B50A981D20D1BE999CC0945A0968DBCA3940A",
+  "cleanup": {
+    "owned_game_session_client": "stopped",
+    "relay_states": "90 and BJ ready/fresh",
+    "relay_generations": {
+      "90": 80,
+      "BJ": 6
+    },
+    "windows_services": "Pixels.Console, Pixels.Relay, px_service Running",
+    "remaining_render": "desktop PID 41648",
+    "trace_environment": "absent",
+    "persistent_configuration_hashes_unchanged": true
+  }
+}

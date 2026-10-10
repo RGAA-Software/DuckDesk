@@ -40,6 +40,7 @@ fn node_report() -> Value {
             "sequence":1,
             "product_version_code":1,
             "public_host":"node.example.test",
+            "render_iroh_endpoints":[],
             "desktop_port":4601,
             "application_port_start":4613,
             "application_port_end":4998,
@@ -105,6 +106,7 @@ async fn cn_signed_customer_license_controls_live_console_api() {
         fixture::policy(),
         fixture::guests(),
         RuntimeResources {
+            iroh: None,
             recording_cache: None,
             relay_admission: None,
             release: ReleaseIdentity::integration(),

@@ -26,11 +26,11 @@ std::shared_ptr<PanelProductRuntime> PanelProductRuntime::Create(const std::file
         if (!config->SaveIdentity(identity)) return {};
     }
     const auto console = PanelConsoleSession::Create(config);
-    const auto launcher = PanelClientLauncher::Create(config);
     const auto auditStore = PanelAuditStore::Create(config->DataDirectory());
     if (!auditStore) return {};
     const auto localServer = PanelLocalServer::Create(config, auditStore);
     if (!localServer || !localServer->Snapshot().listening) return {};
+    const auto launcher = PanelClientLauncher::Create(config, localServer);
     std::shared_ptr<PanelServiceBridge> service{};
     std::shared_ptr<PanelOsInfoSupervisor> osInfoSupervisor{};
 #if PX_CAPABILITY_DESKTOP_HOST
@@ -64,6 +64,7 @@ PanelProductRuntime::PanelProductRuntime(std::shared_ptr<PanelConfigStore> confi
       notifications_{std::move(notifications)} {}
 
 PanelProductRuntime::~PanelProductRuntime() {
+    if (launcher_) launcher_->Shutdown();
     if (worker_) worker_->Stop();
 #if PX_CAPABILITY_SYSTEM_INFORMATION && !PX_CAPABILITY_DESKTOP_HOST
     if (osInfoSupervisor_) osInfoSupervisor_->Stop();

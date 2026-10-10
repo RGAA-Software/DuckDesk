@@ -30,6 +30,7 @@ mod instance_state;
 mod instance_stop;
 mod instance_summary;
 mod instances;
+mod iroh_endpoints;
 mod model;
 mod node_lifecycle;
 mod node_model;
@@ -70,7 +71,6 @@ pub use application_model::{
     ApplicationAccess, ApplicationLaunch, ApplicationSpec, VideoCodec, VideoSpec,
 };
 pub use applications::{ApplicationCard, ApplicationDefinition, ApplicationStore};
-pub use instance_summary::InstanceSummary;
 pub use bootstrap::initialize_administrator;
 pub use cache_model::{
     CacheAttempt, CacheCredential, CacheOptions, CacheProfile, CacheReadLease, CacheRuntime,
@@ -99,6 +99,7 @@ pub use instance_model::{
     ApplicationInstance, PlacementCandidate, PlacementPreview, PlacementPreviewRequest,
     PlacementRejectionReason, ResourceCredential, ResourceOwner, StartApplication,
 };
+pub use instance_summary::InstanceSummary;
 pub use instances::InstanceStore;
 pub use model::{
     AuthenticatedSession, AvatarContent, ClientType, Credential, PasswordDigest,

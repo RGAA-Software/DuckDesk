@@ -1,0 +1,28 @@
+PASS SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable
+PASS ENV: isolated PostgreSQL healthy
+PASS SCHEMA: three fresh databases, repeatable initialization, runtime readiness
+
+running 4 tests
+test authenticated_reports_are_ordered_bounded_and_fenced_by_connection_generation ... ok
+test disable_is_revision_checked_and_immediately_invalidates_the_active_connection ... ok
+test relay_inventory_starts_draining_and_never_exposes_the_credential ... ok
+test ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+
+   Compiling sqlx-core v0.8.6
+   Compiling px_node_protocol v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_node_protocol)
+   Compiling px_console_store v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_console_server\storage)
+   Compiling sqlx-postgres v0.8.6
+   Compiling sqlx-macros-core v0.8.6
+   Compiling sqlx-macros v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling px_pg v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_pg)
+    Finished `release` profile [optimized] target(s) in 32.13s
+     Running tests\relay_nodes.rs (C:\Users\chess\AppData\Local\PixelsRelayBuild\release\deps\relay_nodes-9866befe46cf3146.exe)
+
+PASS SOURCE: all recorded source hashes unchanged throughout acceptance
+PASS FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance
+PASS CLEANUP: isolated test containers and volume removed
+Report: D:\GoCloud\GammaRayPremium\test-results\server_validation\pg-20261010-162855-fab46d2a

@@ -1,0 +1,1 @@
+{"datagrams_echoed":120,"datagrams_sent":120,"elapsed_ms":5492,"maximum_datagram_round_trip_us":961936,"maximum_datagram_size":1162,"paths":"PathList { snapshot: State { list: [PathData(0, relay:https://49.232.233.61:4605/)], selected: Some(PathId(0)), closed: false }, .. }","reliable_bytes_verified":6291520}

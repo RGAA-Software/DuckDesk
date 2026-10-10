@@ -1,0 +1,48 @@
+{
+  "version": "3.3.97",
+  "candidate": "iroh-return-priority-20261010",
+  "development": {
+    "client/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "0B1C28DC53B3CC824CFC71B86D630D13ECC7F5EFB2907D1E57CEFCDCBEC41FF6"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "0B1C28DC53B3CC824CFC71B86D630D13ECC7F5EFB2907D1E57CEFCDCBEC41FF6"
+      }
+    },
+    "cloud_node/px_render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "8D687A3E77E3C6BDCD67094A2EB7ACA2041207CC36C5D3C22B7568083D553339"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "8D687A3E77E3C6BDCD67094A2EB7ACA2041207CC36C5D3C22B7568083D553339"
+      }
+    },
+    "cloud_node/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "5BDFAE94839BA8A5627FF667F252215D7100CB84E7CA3C25850E06EE8EBD7DE4"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "5BDFAE94839BA8A5627FF667F252215D7100CB84E7CA3C25850E06EE8EBD7DE4"
+      }
+    }
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-return-priority-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "A2C277F51F3187A10F58303C14A56499F7CA6CCE397D71E75C0DE1435F832FA4"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-return-priority-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "BA239B25D044BDC594E11647517D0421BE94B2E7938F20E61725C3226C866C01"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-return-priority-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "1B3F87B5A146EF42A48A1BEC18E721E1C88AD176BD8912E198902427F9CFF869"
+  }
+}

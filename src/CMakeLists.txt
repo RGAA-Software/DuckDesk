@@ -1,6 +1,7 @@
 include(${CMAKE_CURRENT_SOURCE_DIR}/px_base/version.cmake)
 include_directories(${CMAKE_BINARY_DIR}/src/px_base)
 add_subdirectory(px_deps)
+add_subdirectory(px_transport)
 if(WIN32)
     add_subdirectory(px_ui)
     add_subdirectory(px_desktop_shell)

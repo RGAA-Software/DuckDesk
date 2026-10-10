@@ -1,0 +1,178 @@
+{
+  "client_duplicates": 0,
+  "server_duplicates": 0,
+  "directions": {
+    "forward": {
+      "sent": 91546,
+      "received": 89800,
+      "matched": 89800,
+      "unmatched_sent": 1746,
+      "unmatched_received": 0,
+      "minimum_clock_offset_plus_transit_s": -5.681971073150635,
+      "delay_growth_ms": {
+        "p50": 6.199121475219727,
+        "p95": 23.153066635131836,
+        "p99": 48.931121826171875,
+        "max": 87.40115165710449
+      }
+    },
+    "reverse": {
+      "sent": 64531,
+      "received": 62788,
+      "matched": 62788,
+      "unmatched_sent": 1743,
+      "unmatched_received": 0,
+      "minimum_clock_offset_plus_transit_s": 5.6825690269470215,
+      "delay_growth_ms": {
+        "p50": 3.3839941024780273,
+        "p95": 17.863035202026367,
+        "p99": 36.94796562194824,
+        "max": 79.42318916320801
+      }
+    }
+  },
+  "reference_wait_events": [
+    {
+      "log": "[2026-10-11 00:03:55.520][thread 12520][media_datagrams.cpp:298][info] : event=iroh.reference_wait phase=resume stream=0 frame=297 wait_us=137452 withheld_complete_frames=7 kind=5",
+      "matched_datagrams": 678,
+      "max_network_growth_ms": 56.939125061035156,
+      "missing_in_approximate_window": 35,
+      "missing": [
+        {
+          "time": 1791648241.018005,
+          "bytes": 49,
+          "fingerprint": "8627ebc1ff949a4b6694d98c2847ecba1ba678ed2312602a225926a1f9a0298c"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "209e5f88987b110d1ae56bd29872918d3d368d7bea7fe59c3190e0c42c94c380"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "826e7aa8267c5fb8cdcc99b5c418a77994db7da7f1a0d15945080cca964f98f5"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "57919ffe0fec2efedb4f8988e68c6f00439db77e354c351a507461f24a88f3c6"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "521190ce9eb72670427f3aee077216fce887b00b43e0d2ec0f0fb1c839575e63"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "029d9c1e7ab0a4bd768bd09823729ff31e111fe24f7a49cbf9616b5d403c9982"
+        },
+        {
+          "time": 1791648241.021369,
+          "bytes": 1129,
+          "fingerprint": "02583c7c24cdc74637cd09d3cebcbbd46a9acf559b2d35c81c2b8546e561b8e4"
+        },
+        {
+          "time": 1791648241.021388,
+          "bytes": 1129,
+          "fingerprint": "13452a55c2bb35a5248e661f126991c9f2e49ceb036dfc160381bdec3c9e41c6"
+        },
+        {
+          "time": 1791648241.021388,
+          "bytes": 1129,
+          "fingerprint": "0d847fc22731d9a9a9d11ad836e03cc3c01a08b755f9606bdc42b446b9610529"
+        },
+        {
+          "time": 1791648241.021388,
+          "bytes": 1129,
+          "fingerprint": "c78fd96cea76e8db33cd20a07e38401d4e48637bc390b77f969c7ca6a1ab191f"
+        },
+        {
+          "time": 1791648241.021388,
+          "bytes": 1129,
+          "fingerprint": "abff9466b73d800dd2a5bcdc3334ab078272f6823591b38ba7365e6acbd4d9c6"
+        },
+        {
+          "time": 1791648241.027829,
+          "bytes": 130,
+          "fingerprint": "b0f2aa0d4f3f0d60c3f1c13a1a1798e0e8891aad1d3eada5a9ec43b1cee58aad"
+        }
+      ]
+    },
+    {
+      "log": "[2026-10-11 00:04:10.916][thread 12520][media_datagrams.cpp:298][info] : event=iroh.reference_wait phase=resume stream=0 frame=1221 wait_us=129054 withheld_complete_frames=6 kind=5",
+      "matched_datagrams": 436,
+      "max_network_growth_ms": 67.60811805725098,
+      "missing_in_approximate_window": 47,
+      "missing": [
+        {
+          "time": 1791648256.438023,
+          "bytes": 1200,
+          "fingerprint": "f9d50d876292d6a4cb7c1ebd0d68a85163f1209c6219e278e0dad5175fce0af2"
+        },
+        {
+          "time": 1791648256.438023,
+          "bytes": 1200,
+          "fingerprint": "6444880ed18f513aab2e14392aeff32e83da4504808518563d27c0cecbb7735d"
+        },
+        {
+          "time": 1791648256.438023,
+          "bytes": 1200,
+          "fingerprint": "3ac1d15da55549bca3c66cb8089141f153ba79b70e2bae06e19824d95e659170"
+        },
+        {
+          "time": 1791648256.438023,
+          "bytes": 1200,
+          "fingerprint": "a3913937128c419655c50a54f243e169ed20c55d923ec0f2c30d66a92d7402e8"
+        },
+        {
+          "time": 1791648256.438023,
+          "bytes": 1200,
+          "fingerprint": "128ffe8d4b5eeec74dd62a9320ba5cf5b3a3a838715bc22682bad0511960e894"
+        },
+        {
+          "time": 1791648256.438024,
+          "bytes": 1200,
+          "fingerprint": "7ecdfb977ce81a6ae115715ea9c2c0df14f86af7974a9194aab5572e96fa735a"
+        },
+        {
+          "time": 1791648256.438024,
+          "bytes": 1200,
+          "fingerprint": "4c1c7a638d03f4e9631f578492b089e0351efa17776c49808474a2f298bc2bd5"
+        },
+        {
+          "time": 1791648256.438024,
+          "bytes": 1200,
+          "fingerprint": "4edaf32f85556aaec5a004380409c7c3b29d4eb35d290597df99fe0267473da8"
+        },
+        {
+          "time": 1791648256.438024,
+          "bytes": 1200,
+          "fingerprint": "633d0585c665ce28fa484c30bc54d73b0356f6bc293b93f0d28865272a70bb67"
+        },
+        {
+          "time": 1791648256.438024,
+          "bytes": 1200,
+          "fingerprint": "762a6d4fa2a4e50c8ab0afd76b32f196532946dc76a75cd2b891505bddc64b33"
+        },
+        {
+          "time": 1791648256.438035,
+          "bytes": 1200,
+          "fingerprint": "1fbe380e6c93a3295819d5e36554a1ed7b69ec8ebd225dc949cec353259b37c0"
+        },
+        {
+          "time": 1791648256.438036,
+          "bytes": 1200,
+          "fingerprint": "7bfc138f2557bc45afe6b496a9927c464d1d978d9ce29dbd2ec11691148039c5"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Matching encrypted UDP prefix only; cannot identify media frame without endpoint trace.",
+    "Delay growth subtracts the minimum matching-packet offset; not absolute one-way latency.",
+    "Unmatched sent packets are absent at destination capture; ETW loss/offload and capture boundaries must be checked.",
+    "Captures filtered to actual external peer; discovery candidates excluded."
+  ]
+}

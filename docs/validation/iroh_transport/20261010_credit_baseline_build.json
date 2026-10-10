@@ -1,0 +1,48 @@
+{
+  "version": "3.3.97",
+  "candidate": "iroh-credit-baseline-20261010",
+  "development": {
+    "client/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "08624954F6D71B2CA16C78CD71B20296E163DA09C15C8837CA96DCF44654DF74"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "08624954F6D71B2CA16C78CD71B20296E163DA09C15C8837CA96DCF44654DF74"
+      }
+    },
+    "cloud_node/px_render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "760E92907C2BA32E925E1B2A98393D5864311A2FA4ACAAF1372822DAE73EA227"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "760E92907C2BA32E925E1B2A98393D5864311A2FA4ACAAF1372822DAE73EA227"
+      }
+    },
+    "cloud_node/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "7DECC63FA65FCB89E9DCD5906B5BAF29A31A88B288206C0A05E7EE1F49DBCA92"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "7DECC63FA65FCB89E9DCD5906B5BAF29A31A88B288206C0A05E7EE1F49DBCA92"
+      }
+    }
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-credit-baseline-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "61DCF9DB461FBAE9F4535A5727A6972569B5A95758E9AEC08393C2E3D4A59441"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-credit-baseline-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "63A39E39FC5F28465366BEE1740FA7EEA2DFE9192B5279451565BC7091196B56"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-credit-baseline-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "83EE1980EDEA6620DA8C0155E5A99598DCC321F6E476D785A378CBAB1FC491FF"
+  }
+}

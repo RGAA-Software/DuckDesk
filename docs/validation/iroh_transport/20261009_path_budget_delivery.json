@@ -1,0 +1,13 @@
+{
+  "candidate": "iroh-path-budget-20261009",
+  "upload_operation": "76624540-3b31-4c17-9326-365895c1708c",
+  "install_operation": "c9f688a9-c98b-4dd8-9c64-a61b16a8836c",
+  "verification": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "8B7679289FE23481596FCA5060B00B1D30C64E559B246E70143AD986D025C518",
+    "manifest_sha256": "AC247B5FB0136A00A24398B0C55A10B501CFC109978F40E4FAD0BE62E1B66CE4",
+    "setup_sha256": "4F869AF43BE7EBF73ED4A3FD60EDEF36395D1CE806DDFF740C58B8CCDD01E0D6"
+  }
+}

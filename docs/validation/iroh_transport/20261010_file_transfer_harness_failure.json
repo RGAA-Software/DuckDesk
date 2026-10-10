@@ -1,0 +1,10 @@
+{
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261010-171522-auto",
+  "transport_requested": "iroh-relay",
+  "bytes": 8388864,
+  "cancel_retry": true,
+  "instance_id": "7e5d957d-7e00-4683-8a17-75be4da1a95d",
+  "exit_code": 6,
+  "error": "PIXELS_FILE_TRANSFER_ACCEPTANCE=FAIL:FILE_TRANSFER_TIMEOUT\n"
+}

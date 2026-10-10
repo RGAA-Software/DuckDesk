@@ -1,0 +1,28 @@
+{
+  "candidate": "iroh-adaptive-cbr-20261009",
+  "hashes": [
+    {
+      "Hash": "F6F4305B0B776C536646DE96867A1F7D4A192EEA9F3FBB4C606A50EB9E69082B",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-adaptive-cbr-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe"
+    },
+    {
+      "Hash": "DF9D7D837BD02AADB44C863A170CA563F6D4E67D8F3C360AC1ACA785014A22FE",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\product-manifest.json"
+    },
+    {
+      "Hash": "33EB649CC5AC9AA010DC0BFE0DE6CE7728A421A6EC73D5480F0022CCE00BE26A",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\px_render.exe"
+    }
+  ],
+  "development_render_sha256": "0B4AC2D33483AAC2E135243F34A70D523392F8797DFEA85A9EC1AE2BB9F9333F",
+  "development_build_matches_dist": true,
+  "upload_operation": "3c24319e-f4bc-452a-b76f-8c1c183fe421",
+  "install_operation": "66559b85-f5a0-478e-898c-c89be657e3ca",
+  "install_task": "db0fd6bc-6e2b-4c06-bafe-eecd4e0afa32",
+  "remote_installation": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "33EB649CC5AC9AA010DC0BFE0DE6CE7728A421A6EC73D5480F0022CCE00BE26A"
+  }
+}

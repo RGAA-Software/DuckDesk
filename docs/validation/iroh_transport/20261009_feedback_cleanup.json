@@ -1,0 +1,13 @@
+{
+  "config_hash": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "console_status": "Running",
+  "relay_stopped": true,
+  "qos": 0,
+  "renders": [
+    {
+      "Id": 43080,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "operation_id": "b35a5f6b-7642-4579-8811-b3399bc06c5d"
+}

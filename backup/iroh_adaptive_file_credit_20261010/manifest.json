@@ -1,0 +1,16 @@
+{
+  "revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Replace fixed bulk receive credit with bounded delay-sensitive background credit",
+  "files": [
+    {
+      "path": "src/px_transport/file_send_window.h",
+      "sha256": "94F3117582CEE5D9C69DFA8FB113E2E66ABDAA6D264390A2F6B330D87A404F01",
+      "status": "?? src/px_transport/file_send_window.h"
+    },
+    {
+      "path": "src/px_transport/message_session.cpp",
+      "sha256": "BE2F1BC784DBD79A4F4DEB5D5391EBF321EF94778A59C792834BB2C98161B1EC",
+      "status": "?? src/px_transport/message_session.cpp"
+    }
+  ]
+}

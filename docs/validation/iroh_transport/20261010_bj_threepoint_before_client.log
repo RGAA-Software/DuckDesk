@@ -1,0 +1,98 @@
+[2026-10-10 11:51:11.763][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=305, fps=61.0, max_gap_ms=53.6, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:16.772][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=29.8, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:19.296][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1066 source_gap_us=15644 receive_gap_us=24678 excess_us=81356 assembly_call_us=9
+[2026-10-10 11:51:19.411][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1069 source_gap_us=16844 receive_gap_us=25544 excess_us=145358 assembly_call_us=12
+[2026-10-10 11:51:19.525][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1072 source_gap_us=16311 receive_gap_us=37824 excess_us=210374 assembly_call_us=11
+[2026-10-10 11:51:19.668][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1076 source_gap_us=16466 receive_gap_us=103506 excess_us=286262 assembly_call_us=32
+[2026-10-10 11:51:19.668][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1076 gap_ms=103.6
+[2026-10-10 11:51:19.782][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1081 source_gap_us=16655 receive_gap_us=59771 excess_us=316615 assembly_call_us=12
+[2026-10-10 11:51:19.896][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1083 source_gap_us=16688 receive_gap_us=113900 excess_us=397184 assembly_call_us=24
+[2026-10-10 11:51:19.896][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1083 gap_ms=114.0
+[2026-10-10 11:51:20.036][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1103 source_gap_us=266666 receive_gap_us=90606 excess_us=204045 assembly_call_us=19
+[2026-10-10 11:51:20.520][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1144 source_gap_us=266788 receive_gap_us=266338 excess_us=4621 assembly_call_us=6
+[2026-10-10 11:51:20.520][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1144 gap_ms=266.4
+[2026-10-10 11:51:20.788][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1160 source_gap_us=267844 receive_gap_us=268028 excess_us=4804 assembly_call_us=8
+[2026-10-10 11:51:20.788][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1160 gap_ms=268.0
+[2026-10-10 11:51:21.102][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=1178 source_gap_us=149977 receive_gap_us=159897 excess_us=19815 assembly_call_us=21
+[2026-10-10 11:51:21.102][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1178 gap_ms=159.9
+[2026-10-10 11:51:21.784][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=225, fps=44.9, max_gap_ms=268.0, gaps_gt_100ms=5, idr=0, rfi=0
+[2026-10-10 11:51:26.801][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=55.2, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:31.805][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=33.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:36.255][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2083 source_gap_us=15833 receive_gap_us=56695 excess_us=89534 assembly_call_us=23
+[2026-10-10 11:51:36.840][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2118 source_gap_us=17066 receive_gap_us=55118 excess_us=91162 assembly_call_us=20
+[2026-10-10 11:51:36.840][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=294, fps=58.4, max_gap_ms=56.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:37.020][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2124 source_gap_us=16555 receive_gap_us=83954 excess_us=172023 assembly_call_us=8
+[2026-10-10 11:51:37.161][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2125 source_gap_us=16566 receive_gap_us=140779 excess_us=296235 assembly_call_us=28
+[2026-10-10 11:51:37.161][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=2125 gap_ms=140.8
+[2026-10-10 11:51:37.636][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2127 source_gap_us=33388 receive_gap_us=474610 excess_us=737456 assembly_call_us=20
+[2026-10-10 11:51:37.636][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=2127 gap_ms=474.6
+[2026-10-10 11:51:37.929][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2136 source_gap_us=16977 receive_gap_us=200969 excess_us=880755 assembly_call_us=23
+[2026-10-10 11:51:37.929][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=2136 gap_ms=201.0
+[2026-10-10 11:51:38.032][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2166 source_gap_us=266677 receive_gap_us=44938 excess_us=483046 assembly_call_us=24
+[2026-10-10 11:51:41.865][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=244, fps=48.6, max_gap_ms=474.6, gaps_gt_100ms=3, idr=0, rfi=0
+[2026-10-10 11:51:46.868][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=59.0, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:50.295][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2926 source_gap_us=16588 receive_gap_us=82811 excess_us=79875 assembly_call_us=15
+[2026-10-10 11:51:50.404][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2932 source_gap_us=17111 receive_gap_us=20925 excess_us=88296 assembly_call_us=12
+[2026-10-10 11:51:50.542][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2938 source_gap_us=17033 receive_gap_us=38124 excess_us=126603 assembly_call_us=11
+[2026-10-10 11:51:50.671][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2944 source_gap_us=16722 receive_gap_us=39093 excess_us=156214 assembly_call_us=10
+[2026-10-10 11:51:50.774][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2949 source_gap_us=16677 receive_gap_us=12358 excess_us=176141 assembly_call_us=8
+[2026-10-10 11:51:50.895][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2961 source_gap_us=117100 receive_gap_us=39387 excess_us=96518 assembly_call_us=9
+[2026-10-10 11:51:51.014][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2968 source_gap_us=16722 receive_gap_us=40012 excess_us=99661 assembly_call_us=9
+[2026-10-10 11:51:51.121][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2975 source_gap_us=17000 receive_gap_us=26682 excess_us=89028 assembly_call_us=10
+[2026-10-10 11:51:51.281][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2985 source_gap_us=16788 receive_gap_us=25757 excess_us=82202 assembly_call_us=12
+[2026-10-10 11:51:51.390][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2991 source_gap_us=16488 receive_gap_us=13637 excess_us=91753 assembly_call_us=4
+[2026-10-10 11:51:51.894][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=274, fps=54.5, max_gap_ms=82.9, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:51.983][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3027 source_gap_us=16822 receive_gap_us=26469 excess_us=84166 assembly_call_us=10
+[2026-10-10 11:51:52.312][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3046 source_gap_us=16688 receive_gap_us=52401 excess_us=97105 assembly_call_us=8
+[2026-10-10 11:51:52.466][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3056 source_gap_us=16455 receive_gap_us=26157 excess_us=84669 assembly_call_us=7
+[2026-10-10 11:51:52.586][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3063 source_gap_us=16944 receive_gap_us=29075 excess_us=87472 assembly_call_us=9
+[2026-10-10 11:51:56.901][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=291, fps=58.1, max_gap_ms=52.4, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:51:58.676][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3426 source_gap_us=16511 receive_gap_us=102863 excess_us=127536 assembly_call_us=12
+[2026-10-10 11:51:58.676][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=3426 gap_ms=102.9
+[2026-10-10 11:52:01.904][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=102.9, gaps_gt_100ms=1, idr=0, rfi=0
+[2026-10-10 11:52:04.012][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3749 source_gap_us=16477 receive_gap_us=46612 excess_us=81017 assembly_call_us=13
+[2026-10-10 11:52:06.907][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=61.6, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:52:11.920][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=29.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:52:14.082][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4352 source_gap_us=16366 receive_gap_us=116740 excess_us=100373 assembly_call_us=7
+[2026-10-10 11:52:14.082][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4352 gap_ms=116.8
+[2026-10-10 11:52:14.489][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4353 source_gap_us=16700 receive_gap_us=407539 excess_us=491212 assembly_call_us=3
+[2026-10-10 11:52:14.489][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4353 gap_ms=407.5
+[2026-10-10 11:52:14.645][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4354 source_gap_us=16944 receive_gap_us=156014 excess_us=630281 assembly_call_us=4
+[2026-10-10 11:52:14.645][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4354 gap_ms=156.0
+[2026-10-10 11:52:14.932][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4368 source_gap_us=16433 receive_gap_us=238705 excess_us=684226 assembly_call_us=4
+[2026-10-10 11:52:14.932][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4368 gap_ms=238.7
+[2026-10-10 11:52:15.070][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4369 source_gap_us=16622 receive_gap_us=137947 excess_us=805550 assembly_call_us=4
+[2026-10-10 11:52:15.070][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4369 gap_ms=137.9
+[2026-10-10 11:52:15.600][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4399 source_gap_us=267011 receive_gap_us=456004 excess_us=835247 assembly_call_us=14
+[2026-10-10 11:52:15.600][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4399 gap_ms=456.0
+[2026-10-10 11:52:15.707][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4447 source_gap_us=266411 receive_gap_us=90231 excess_us=142726 assembly_call_us=11
+[2026-10-10 11:52:16.178][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4459 source_gap_us=199844 receive_gap_us=470437 excess_us=413318 assembly_call_us=8
+[2026-10-10 11:52:16.178][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4459 gap_ms=470.4
+[2026-10-10 11:52:16.440][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4491 source_gap_us=16600 receive_gap_us=154795 excess_us=142079 assembly_call_us=8
+[2026-10-10 11:52:16.440][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4491 gap_ms=154.9
+[2026-10-10 11:52:16.920][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=187, fps=37.4, max_gap_ms=470.4, gaps_gt_100ms=8, idr=0, rfi=0
+[2026-10-10 11:52:21.935][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=180, fps=35.9, max_gap_ms=48.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 11:52:25.052][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4971 source_gap_us=16500 receive_gap_us=760910 excess_us=754183 assembly_call_us=10
+[2026-10-10 11:52:25.052][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4971 gap_ms=761.0
+[2026-10-10 11:52:25.185][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=4976 source_gap_us=16500 receive_gap_us=133238 excess_us=804046 assembly_call_us=8
+[2026-10-10 11:52:25.185][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=4976 gap_ms=133.3
+[2026-10-10 11:52:25.324][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5010 source_gap_us=16233 receive_gap_us=39166 excess_us=376043 assembly_call_us=6
+[2026-10-10 11:52:25.488][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5015 source_gap_us=16711 receive_gap_us=113714 excess_us=456984 assembly_call_us=9
+[2026-10-10 11:52:25.488][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5015 gap_ms=113.8
+[2026-10-10 11:52:25.590][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5020 source_gap_us=17088 receive_gap_us=29695 excess_us=475077 assembly_call_us=7
+[2026-10-10 11:52:25.713][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5039 source_gap_us=266677 receive_gap_us=89603 excess_us=281424 assembly_call_us=12
+[2026-10-10 11:52:25.833][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5055 source_gap_us=266233 receive_gap_us=120452 excess_us=135642 assembly_call_us=12
+[2026-10-10 11:52:25.833][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5055 gap_ms=120.5
+[2026-10-10 11:52:26.240][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5086 source_gap_us=266722 receive_gap_us=284779 excess_us=25367 assembly_call_us=7
+[2026-10-10 11:52:26.240][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5086 gap_ms=284.8
+[2026-10-10 11:52:26.524][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5101 source_gap_us=249777 receive_gap_us=284501 excess_us=60091 assembly_call_us=9
+[2026-10-10 11:52:26.524][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5101 gap_ms=284.5
+[2026-10-10 11:52:26.888][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5125 source_gap_us=266477 receive_gap_us=289026 excess_us=23334 assembly_call_us=11
+[2026-10-10 11:52:26.888][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5125 gap_ms=289.0
+[2026-10-10 11:52:27.145][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5141 source_gap_us=266766 receive_gap_us=257838 excess_us=14405 assembly_call_us=11
+[2026-10-10 11:52:27.145][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5141 gap_ms=257.9
+[2026-10-10 11:52:27.146][thread 85700][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=211, fps=40.5, max_gap_ms=761.0, gaps_gt_100ms=8, idr=0, rfi=0
+[2026-10-10 11:52:27.398][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5157 source_gap_us=266766 receive_gap_us=252698 excess_us=337 assembly_call_us=10
+[2026-10-10 11:52:27.398][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5157 gap_ms=252.7
+[2026-10-10 11:52:27.565][thread 85700][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5167 source_gap_us=166488 receive_gap_us=166703 excess_us=551 assembly_call_us=9
+[2026-10-10 11:52:27.565][thread 85700][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5167 gap_ms=166.7

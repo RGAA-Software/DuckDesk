@@ -1,0 +1,34 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-163848-auto",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+      "passed": true,
+      "instance_id": "6ab3fa53-1512-430f-9f63-f6002b1d62da",
+      "client_pid": 86632,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 1800,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "screenshot": "docs\\validation\\iroh_transport\\20261010_relay_capacity_game_hook.png",
+      "log": "docs\\validation\\iroh_transport\\20261010_relay_capacity_game_hook.log"
+    },
+    {
+      "kind": "rdp",
+      "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+      "passed": true,
+      "instance_id": "e7edd088-9705-4d5a-b4d1-6ce4864e869a",
+      "client_pid": 81940,
+      "screenshot": "docs\\validation\\iroh_transport\\20261010_relay_capacity_rdp.png",
+      "log": "docs\\validation\\iroh_transport\\20261010_relay_capacity_rdp.log",
+      "published_frame_samples": [
+        0,
+        38,
+        56
+      ]
+    }
+  ]
+}

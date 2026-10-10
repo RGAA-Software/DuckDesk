@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-10-11T00:44:33.0231537+08:00",
+  "scope": "Local Release diagnostic logging only; no remote deployment, NIC setting change, or live load test",
+  "artifacts": [
+    {
+      "product": "client",
+      "artifact": "px_client.exe",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "711C06B99DC909E35894265C7E4AB7DD6CB727C19DA7CC8A567610499EA88F53",
+      "matched": true
+    },
+    {
+      "product": "cloud_node",
+      "artifact": "px_client.exe",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "76799BDC1490A9A0AA7EA05AF6CC913AB733255E9D424208AED4D76193E66963",
+      "matched": true
+    },
+    {
+      "product": "cloud_node",
+      "artifact": "px_render.exe",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+      "sha256": "B70510596029646027E2256516B7655964DF49F15C201CB4BC3273F5B171086B",
+      "matched": true
+    }
+  ]
+}

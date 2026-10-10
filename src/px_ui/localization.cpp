@@ -237,7 +237,7 @@ constexpr Catalog kEnglish{
     "Contact remote service",
     "Check permission and connection availability",
     "Verify device password",
-    "Start connection process",
+    "Start client and connect to remote service",
     "The connection target is incomplete or malformed.",
     "Device ID lookup requires a signed-in Console account.",
     "The management service could not resolve this device.",
@@ -251,7 +251,7 @@ constexpr Catalog kEnglish{
     "A current remote-device password is required.",
     "The remote device rejected the supplied password.",
     "The remote service responded, but password verification was unavailable.",
-    "All checks passed, but the connection process could not be started.",
+    "The client could not complete this connection.",
     "The Panel background worker is unavailable.",
     "Waiting",
     "Enable remote access?",
@@ -309,6 +309,10 @@ constexpr Catalog kEnglish{
     "The previous connection's slot has not been released yet. Please try again later; details were recorded in the log.",
     "The server does not have enough available GPU memory to start this application. Free GPU memory and try again.",
     "No server is currently available to start this application. Please check node readiness and available resources, then try again.",
+    "Connecting to remote service",
+    "The client did not confirm a remote connection within 45 seconds. Check the remote service and network, then retry.",
+    "The client exited before connecting to the remote service.",
+    "The client could not connect to the remote service. Check its status and access permissions.",
 };
 
 constexpr Catalog kSimplifiedChinese{
@@ -536,7 +540,7 @@ constexpr Catalog kSimplifiedChinese{
     "连接远程服务",
     "检查权限与连接状态",
     "验证设备密码",
-    "启动连接进程",
+    "启动客户端并连接远端服务",
     "连接目标不完整或格式错误。",
     "使用设备 ID 查询需要先登录管理服务账号。",
     "管理服务无法解析该设备。",
@@ -550,7 +554,7 @@ constexpr Catalog kSimplifiedChinese{
     "需要输入远程设备当前的密码。",
     "远程设备拒绝了该密码。",
     "远程服务已响应，但密码验证接口不可用。",
-    "全部检查已通过，但无法启动连接进程。",
+    "客户端未能完成本次连接。",
     "Panel 后台工作线程不可用。",
     "等待中",
     "开启允许被控制？",
@@ -608,6 +612,10 @@ constexpr Catalog kSimplifiedChinese{
     "上一次连接的名额尚未释放，请稍后重试；处理详情已记录到日志。",
     "服务器显存不足，无法启动此应用。请释放显存后重试。",
     "当前没有可启动此应用的服务器，请检查节点就绪状态和可用资源后重试。",
+    "连接远端服务",
+    "客户端未在 45 秒内确认连接成功。请检查远端服务和网络后重试。",
+    "客户端在连接远端服务成功前退出了。",
+    "客户端无法连接远端服务，请检查服务状态和访问权限。",
 };
 
 static_assert(kEnglish.size() == kTextCount);

@@ -1,0 +1,7 @@
+{
+  "scenario": "owned private Relay unavailable until QUIC closes, followed by business readmission and video",
+  "quic_disconnect_after_ms": 30002,
+  "test_completion_after_relay_restart_ms": 41813,
+  "exit_code": 1,
+  "relay_only": true
+}

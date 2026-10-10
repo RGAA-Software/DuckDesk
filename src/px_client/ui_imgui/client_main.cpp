@@ -14,6 +14,7 @@
 #include "client_file_transfer_window.h"
 #include "client_instance_guard.h"
 #include "client_launch_config.h"
+#include "client_panel_reporter.h"
 #include "client_session.h"
 #include "client_startup_dialog.h"
 #include "client_text.h"
@@ -75,15 +76,19 @@ int main() {
             "OK / 确定", true));
         return 2;
     }
+    px::client::imgui::ClientPanelReporter panelReporter{*config};
+    panelReporter.Start();
     const bool english = config->language == "en-US";
     auto instanceAcquisition = px::client::imgui::ClientInstanceGuard::Acquire(
         config->remoteDeviceId,
         config->fileTransferOnly ? px::client::imgui::ClientInstanceMode::FileTransfer : px::client::imgui::ClientInstanceMode::Desktop);
     if (instanceAcquisition.activatedExisting) {
+        panelReporter.ReportInitializationFailure();
         LOGI("Activated existing {} instance for remote device {}", productName, config->remoteDeviceId);
         return 0;
     }
     if (!instanceAcquisition.instance) {
+        panelReporter.ReportInitializationFailure();
         LOGE("Client instance coordination failed with Windows error {}", instanceAcquisition.systemError);
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
@@ -111,6 +116,7 @@ int main() {
          .edgeToEdgeContent = !config->fileTransferOnly,
          .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
     if (!shellResult) {
+        panelReporter.ReportInitializationFailure();
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             english ? productName + " could not create its window or graphics device. Update the graphics driver, then retry."
                     : productName + " 无法创建窗口或图形设备。请更新显卡驱动后重试。",
@@ -119,6 +125,7 @@ int main() {
     }
     auto shell = std::move(shellResult.value());
     if (!instanceGuard.StartActivationMonitor(px::desktop::DesktopShell::PostShowAndRaiseRequest)) {
+        panelReporter.ReportInitializationFailure();
         LOGE("Client instance activation monitor could not start");
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
@@ -128,6 +135,7 @@ int main() {
     static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
     auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
     if (!session) {
+        panelReporter.ReportInitializationFailure();
         static_cast<void>(px::client::imgui::ShowStartupDialog(
             english ? productName + " could not initialize this connection. Check the launch data and installed runtime files, then retry."
                     : productName + " 无法初始化本次连接。请检查启动数据和已安装的运行库文件后重试。",
@@ -141,14 +149,15 @@ int main() {
     }
     std::optional<px::client::imgui::ClientFileTransferAcceptance> fileTransferAcceptance{};
     if (config->fileTransferAcceptance) {
-        fileTransferAcceptance.emplace(std::ref(shell), session, *config->fileTransferAcceptance);
+        fileTransferAcceptance.emplace(std::ref(shell), session, *config->fileTransferAcceptance, !config->fileTransferOnly);
     }
     int result{};
     if (config->fileTransferOnly) {
         px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, *config, english};
         result = shell.Run(
-            [&window, &audioAcceptance, &fileTransferAcceptance] {
-                window.Draw();
+            [&window, &audioAcceptance, &fileTransferAcceptance, &panelReporter, session] {
+                if (panelReporter.NeedsObservation()) panelReporter.Observe(session->Snapshot());
+                window.Draw(!fileTransferAcceptance.has_value());
                 if (audioAcceptance) audioAcceptance->Tick();
                 if (fileTransferAcceptance) fileTransferAcceptance->Tick();
             },
@@ -164,7 +173,8 @@ int main() {
                                                darkTheme,
                                                px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName)};
         result = shell.Run(
-            [&window, &audioAcceptance, &fileTransferAcceptance] {
+            [&window, &audioAcceptance, &fileTransferAcceptance, &panelReporter, session] {
+                if (panelReporter.NeedsObservation()) panelReporter.Observe(session->Snapshot());
                 window.Draw();
                 if (audioAcceptance) audioAcceptance->Tick();
                 if (fileTransferAcceptance) fileTransferAcceptance->Tick();

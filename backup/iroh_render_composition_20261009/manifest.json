@@ -1,0 +1,42 @@
+[
+  {
+    "original_path": "src/px_render/modules/render_module_registry.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "a14b23ed2173c28c343a73c5c91a8c60ee3094498d9078eeb94945d08d02d15a",
+    "archive_batch": "iroh_render_composition_20261009",
+    "reason": "Compose admitted iroh sessions in the Render registry and route application traffic."
+  },
+  {
+    "original_path": "src/px_render/modules/render_module_registry.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "118397a1357ea7fbab990bccb811470c9810f380272cd43bcd0ff112cca08998",
+    "archive_batch": "iroh_render_composition_20261009",
+    "reason": "Compose admitted iroh sessions in the Render registry and route application traffic."
+  },
+  {
+    "original_path": "src/px_render/settings/rd_settings.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "461a3f7d730419a9524b46a0ed3ce8944d9c9d8938fe2079b8661818831c73c1",
+    "archive_batch": "iroh_render_composition_20261009",
+    "reason": "Compose admitted iroh sessions in the Render registry and route application traffic."
+  },
+  {
+    "original_path": "src/px_render/settings/rd_settings.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "8287e48fe37a0c237fe51224da2c5b35794ff5ce3fa1b6f4d0b86a7c2c90b1db",
+    "archive_batch": "iroh_render_composition_20261009",
+    "reason": "Compose admitted iroh sessions in the Render registry and route application traffic."
+  },
+  {
+    "original_path": "src/px_render/architecture/modules/render_module.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "f3216ca57688628d26b3ed471d4c1337a064d276d2b9d10a2fac0f95052bdc37",
+    "archive_batch": "iroh_render_composition_20261009",
+    "reason": "Compose admitted iroh sessions in the Render registry and route application traffic."
+  }
+]

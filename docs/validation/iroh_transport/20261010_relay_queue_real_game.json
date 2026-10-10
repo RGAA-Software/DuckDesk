@@ -1,0 +1,322 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-150710-auto",
+  "instance_id": "40c74cb5-9f01-4bb5-a29a-f74956eeefc7",
+  "resource_session_id": "e00a3f9a-3da6-4f2d-986e-3e037c621ca2",
+  "client_pid": 83164,
+  "original_address": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4613"
+      },
+      {
+        "Ip": "39.71.45.66:4613"
+      }
+    ],
+    "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+  },
+  "configured_relays": [
+    {
+      "qad_port": 4605,
+      "url": "https://49.232.233.61:4605/"
+    },
+    {
+      "qad_port": 4605,
+      "url": "https://39.71.45.66:4605/"
+    }
+  ],
+  "initial_refresh_http": 200,
+  "address_samples": [
+    {
+      "seconds": 0.01,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 2.06,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 4.12,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 6.17,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 8.57,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 10.62,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 12.66,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 14.69,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 16.72,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 18.77,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 20.81,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 22.87,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 24.93,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 26.99,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    },
+    {
+      "seconds": 29.04,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "3fdcfc002c5058f40898eea74340a7bb7e35c6ca584bbdbfd404456b2fbc6964"
+      }
+    }
+  ],
+  "recovery_seconds": 29.928,
+  "session_after": {
+    "id": "e00a3f9a-3da6-4f2d-986e-3e037c621ca2",
+    "target": {
+      "kind": "cloud_application",
+      "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+      "instance_id": "40c74cb5-9f01-4bb5-a29a-f74956eeefc7"
+    },
+    "owner": {
+      "kind": "guest",
+      "guest_id": "cbb7e59d-7706-4a61-853b-8c13f5cab7fe"
+    },
+    "client_type": "panel",
+    "access_role": "controller",
+    "state": "connected",
+    "revision": 2,
+    "created_at": "2026-10-10T07:07:17.713245Z",
+    "closed_at": null
+  },
+  "instance_after": "running",
+  "cleanup": "complete",
+  "post_reconnect_media_windows": [
+    "iroh media receive window: stream=0, frames=304, fps=60.7, max_gap_ms=30.1, gaps_gt_100ms=0, idr=0, rfi=0"
+  ],
+  "post_reconnect_paths": [
+    "event=iroh.path path=relay open_paths=1 rtt_us=28131 tx_packets=1482 rx_packets=3032 tx_lost=0 tx_datagrams=92 rx_datagrams=2088"
+  ],
+  "quic_connect_attempts": [
+    "event=iroh.reconnect stage=quic outcome=connected elapsed_ms=28"
+  ],
+  "client_log_sha256": "af661f7787f234a298d0f00c01f0e999833de958ec106860bcd27258b67257f2",
+  "selected_relay_remained_off_until_client_cleanup": true,
+  "scope": "Actual 90 game reconnect through BJ using same business session; one real patched outage test, not seamless migration or extended performance acceptance"
+}

@@ -1,0 +1,12 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start  59: iroh_file_flow
+1/3 Test  #59: iroh_file_flow ...................   Passed    0.82 sec
+    Start  60: iroh_transport
+2/3 Test  #60: iroh_transport ...................   Passed    0.59 sec
+    Start 102: iroh_frontend
+3/3 Test #102: iroh_frontend ....................   Passed    2.85 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   4.29 sec

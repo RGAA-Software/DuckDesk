@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-08",
+  "active_clients_preserved": [68468, 40400],
+  "remote_node": "211399447",
+  "observations": {
+    "webview_server_fps_at_203207": 59.98,
+    "webview_server_video_mbps_at_203207": 16.623,
+    "webview_client_fps_at_203207": 36.6,
+    "webview_client_frame_gap_ms_at_203207": 381.2,
+    "webview_frame_loss_events_in_5s": 80,
+    "game_client_fps_at_203342": 49.2,
+    "game_client_frame_gap_ms_at_203342": 288.8,
+    "server_gpu_percent_sample": 33,
+    "server_encoder_percent_sample": 7,
+    "local_udp_receive_errors": 0,
+    "remote_udp_receive_errors": 0
+  },
+  "confirmed_code_defect": "UDP reference-recovery kind 5 is lost when synthesizing VideoFrame protobuf; decoder treats the recovered encoder-frame gap as ordinary discontinuity, destroys reference state, and requests a new IDR.",
+  "exact_trace": [
+    "20:32:52.383 UDP delivers recovery frame 4913 kind=5",
+    "20:32:52.384 SDK treats frame 4913 following 4907 as discontinuity",
+    "20:32:52.390 SDK waits for decoder synchronization key frame",
+    "20:32:52.420 UDP delivers IDR frame 4916 kind=2"
+  ],
+  "secondary_issue": "RequestRfi has no request coalescing/retry interval; node log records repeated requests for invalid frame 2167 within milliseconds.",
+  "not_established": "The exact initial UDP packet loss/ordering location still needs bounded packet capture; late_packets includes normal unused FEC parity and cannot be equated with network loss.",
+  "excluded_false_positive": "OpenSharedTexture km_hr=80070057 with nt_hr=0 means the NT handle open succeeded; this is a noisy warning, not proof of failed capture.",
+  "runtime_changes": "None. No restart, parameter change, or binary replacement during this read-only diagnosis."
+}

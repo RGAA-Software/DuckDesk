@@ -1,0 +1,12 @@
+{
+  "candidate": "iroh-flight-budget-20261009",
+  "setup_sha256": "0F1BEA4C248532D9BE55011F52D63404AD1D7FEAC7F41CA96654166981580730",
+  "manifest_sha256": "8B0F73B4B40A504CAD1190A79CEAD34CEAC3AF8654BBC41629095C2F8F85EEF7",
+  "upload_operation": "aa14e0a3-a0f0-48af-ae76-28de263c10b4",
+  "temporary_relay_pid": 53728,
+  "configuration_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA",
+  "original_configuration_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "remote_workspace": "D:\\112233\\iroh-native-validation-20261009",
+  "enable_operation": "ce0bcd3c-7af1-47a3-8151-8a7c131f623c",
+  "enable_observation": "Command exited 0; MCP output_drain_timeout. Relay identity/configuration/service independently verified by 6838cabe-6d4f-41c9-bf47-25f2b42f9de2. Do not replay."
+}

@@ -1,0 +1,14 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+Note: Google Test filter = IrohTransport.Candidate*
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohTransport
+[ RUN      ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays
+[       OK ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays (1731 ms)
+[ RUN      ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers
+[       OK ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers (1719 ms)
+[----------] 2 tests from IrohTransport (3451 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (3451 ms total)
+[  PASSED  ] 2 tests.

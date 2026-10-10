@@ -1,0 +1,35 @@
+[
+  {
+    "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "instance_id": "7eef7056-7dea-4212-ac25-9f0eb8a4adb1",
+    "client_pid": 83948,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 13:17:02.337][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0",
+      "[2026-10-09 13:17:07.337][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=5987 parity=1252 duplicate=0 late=1248 reordered=0 recovered=4 complete=159 loss=5 malformed=0",
+      "[2026-10-09 13:17:07.383][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=6524 tx_packets=2573 rx_packets=7734 tx_lost=5 tx_datagrams=0 rx_datagrams=7277",
+      "[2026-10-09 13:17:07.383][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=158, fps=31.3, max_gap_ms=920.4, gaps_gt_100ms=4, idr=0, rfi=5",
+      "[2026-10-09 13:17:12.361][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=17043 parity=3551 duplicate=0 late=3466 reordered=0 recovered=30 complete=441 loss=12 malformed=0",
+      "[2026-10-09 13:17:12.383][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=5689 tx_packets=4716 rx_packets=21596 tx_lost=6 tx_datagrams=0 rx_datagrams=20725",
+      "[2026-10-09 13:17:12.383][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=258, fps=51.6, max_gap_ms=143.5, gaps_gt_100ms=3, idr=0, rfi=11",
+      "[2026-10-09 13:17:17.362][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=28570 parity=5960 duplicate=0 late=5875 reordered=0 recovered=30 complete=740 loss=14 malformed=0",
+      "[2026-10-09 13:17:17.393][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=9150 tx_packets=7151 rx_packets=36095 tx_lost=10 tx_datagrams=0 rx_datagrams=34622",
+      "[2026-10-09 13:17:17.393][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=297, fps=59.3, max_gap_ms=47.1, gaps_gt_100ms=0, idr=0, rfi=2",
+      "[2026-10-09 13:17:22.364][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=39897 parity=8312 duplicate=0 late=8189 reordered=0 recovered=30 complete=1030 loss=18 malformed=0",
+      "[2026-10-09 13:17:22.394][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=10678 tx_packets=9097 rx_packets=50355 tx_lost=10 tx_datagrams=0 rx_datagrams=48306",
+      "[2026-10-09 13:17:22.394][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=283, fps=56.6, max_gap_ms=73.4, gaps_gt_100ms=0, idr=0, rfi=6",
+      "[2026-10-09 13:17:27.371][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=51361 parity=10700 duplicate=0 late=10569 reordered=0 recovered=30 complete=1327 loss=20 malformed=0",
+      "[2026-10-09 13:17:27.405][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=14254 tx_packets=11213 rx_packets=64821 tx_lost=13 tx_datagrams=0 rx_datagrams=62169",
+      "[2026-10-09 13:17:27.405][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=296, fps=59.1, max_gap_ms=77.6, gaps_gt_100ms=0, idr=0, rfi=3",
+      "[2026-10-09 13:17:32.372][thread 24872][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=62955 parity=13137 duplicate=0 late=12930 reordered=0 recovered=31 complete=1613 loss=28 malformed=0",
+      "[2026-10-09 13:17:32.405][thread 24872][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=5256 tx_packets=13651 rx_packets=79418 tx_lost=13 tx_datagrams=0 rx_datagrams=76229",
+      "[2026-10-09 13:17:32.405][thread 24872][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=273, fps=54.6, max_gap_ms=126.5, gaps_gt_100ms=2, idr=0, rfi=12"
+    ]
+  }
+]

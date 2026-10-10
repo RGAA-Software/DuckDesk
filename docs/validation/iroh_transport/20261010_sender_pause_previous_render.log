@@ -1,0 +1,605 @@
+[2026-10-10 22:59:28.874][thread 14620][rd_settings.cpp:113][info] : application.mode=game-hook → inner capture + start/inject game (force event-replay-mode=inner)
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:273][info] : --------------In args begin--------------
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:274][info] : steam_app_id: 0
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:275][info] : logfile: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:276][info] : encoder_select_type: auto
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:277][info] : encoder_name: nvenc
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:278][info] : encoder_format: h264
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:279][info] : encoder_bitrate: 20
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:280][info] : encoder_fps: 60
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:281][info] : encoder_resolution_type: origin
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:282][info] : encoder_width: 1280
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:283][info] : encoder_height: 720
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:284][info] : capture_audio: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:285][info] : capture_audio_type: global
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:286][info] : capture_video: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:287][info] : capture_video_type: inner
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:288][info] : websocket enabled: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:289][info] : webrtc enabled: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:290][info] : network_listen_port: 4613
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:291][info] : capture audio device: <os-default>
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:292][info] : app_game_path(b64): RDpcc29mdHdhcmVcMmRhZHZlbnR1cmVcMmRBZHZlbnR1cmUuZXhl
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:293][info] : app_game_path: D:\software\2dadventure\2dAdventure.exe
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:294][info] : app_game_args: -force-d3d11-bitblt-model
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:295][info] : block debug: false
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:296][info] : device id: fb5dca19-f52f-4fcc-b22e-bab09ad9d8ea
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:297][info] : device random password configured: false
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:298][info] : panel server host: 127.0.0.1
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:299][info] : panel server port: 4999
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:300][info] : service server host: 127.0.0.1
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:301][info] : service server port: 4603
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:302][info] : relay host: 
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:303][info] : relay port: 
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:304][info] : can be operated: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:305][info] : virtual display enabled: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:306][info] : file transfer enabled: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:307][info] : audio enabled: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:308][info] : relay enabled: false
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:309][info] : language: 0
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:310][info] : app mode: game-hook => 1
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:311][info] : webview url configured: false
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:312][info] : webview instance id: 
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:313][info] : webview viewport: 1920x1080
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:314][info] : webview accelerated paint: true
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:315][info] : event replay mode: 1 (0=global,1=inner)
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:316][info] : relay admission ticket configured: false
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:317][info] : --------------In args end----------------
+[2026-10-10 22:59:28.874][thread 14620][rd_main.cpp:388][info] : 
+[2026-10-10 22:59:28.874][thread 14620][shared_preference.cpp:42][info] : event=common.shared_preference.open path=C:\Users\Public\Pixels/px_data\pixels_render_4613.dat
+[2026-10-10 22:59:28.907][thread 14620][hardware.cpp:229][info] : hardware desktop=WIN-RASS8RC6V3H cpu_id=BFEBFBFF000B0671 cpu_name=13th Gen Intel(R) Core(TM) i7-13700K cpu_cores=16 memory=63.75GB
+[2026-10-10 22:59:28.907][thread 14620][hardware.cpp:235][info] : hardware mac=08:bf:b8:9c:b0:45
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : [d3d8]
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present=0x0
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : [d3d9]
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present=0x4f430
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present_ex=0x4f4d0
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present_swap=0xcd70
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : d3d9_clsoff=0x4030
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : is_d3d9ex_clsoff=0x55a0
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : [dxgi]
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present=0x1430
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : present1=0x33b20
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : resize=0x27930
+[2026-10-10 22:59:29.142][thread 14620][dx_address_loader.cpp:39][info] : release=0x2dd0
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:96][info] : module base path: C:\Program Files\Pixels Cloud Node
+[2026-10-10 22:59:29.143][thread 26400][render_composition_root.cpp:170][info] : event=composition.start component=render_composition_root module_count=11 outcome=begin
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:97][info] : module base data path: C:\Users\Public\Pixels
+[2026-10-10 22:59:29.143][thread 26400][frame_debugger_observer.cpp:141][info] : event=observer.start component=frame_debugger queue_capacity=120 save_encoded_video=false outcome=success
+[2026-10-10 22:59:29.143][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=bfb3fadc-6f37-401c-a927-88c3ae2d1e95 capability=observer outcome=success
+[2026-10-10 22:59:29.143][thread 26400][media_recorder_sink.cpp:209][info] : event=sink.start component=media_recorder outcome=success queue_capacity=512 auto_enabled=true max_segment_bytes=1073741824 max_file_count=24 dir=C:\Users\Public\Pixels\px_render_records
+[2026-10-10 22:59:29.143][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=21d1c305-e68c-4079-8a4a-d00735be609b capability=sink outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=0f00e864-a7dd-4b83-8921-220fbed78cc5 operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 26400][pipeline_statistics_observer.cpp:144][info] : event=observer.start component=pipeline_statistics outcome=success
+[2026-10-10 22:59:29.143][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=58139f8b-c0dc-4abe-a266-a199adb2ddea capability=observer outcome=success
+[2026-10-10 22:59:29.143][thread 26400][frame_resizer_processor.cpp:70][info] : event=processor.start component=frame_resizer outcome=success
+[2026-10-10 22:59:29.143][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=cd407b93-429c-44a9-9c36-3429d9b390bb capability=processor outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=cap_dda delivery=static outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=6c926697-5511-b138-a35b-c6ffa9cee66d operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 14620][gdi_capture_source.cpp:48][info] : GdiCaptureSource Start
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=cap_gdi delivery=static outcome=success
+[2026-10-10 22:59:29.143][thread 26400][image_generator.cpp:23][info] : Start creating image: 256x48 bg:255 font:0
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=cbc9690d-456a-4f74-b594-44468637f3c3 operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_ffmpeg delivery=static outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=a159a600-9a12-46a1-8e79-cba9645600d2 operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_amf delivery=static outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=95ccd9a2-b277-48dd-a8cd-8c20790742d4 operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_nvenc delivery=static outcome=success
+[2026-10-10 22:59:29.143][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=711882d5-8987-4c80-826f-a783f3df9240 operation=start outcome=success
+[2026-10-10 22:59:29.143][thread 14620][ws_server.cpp:1147][info] : Registered websocket route: /ipc
+[2026-10-10 22:59:29.144][thread 14620][ws_server.cpp:1655][info] : event=module.start component=net_ws operation=serve_web_client outcome=success route=/web
+[2026-10-10 22:59:29.145][thread 14620][ws_server.cpp:404][info] : App server start result: true, listen port: 4613
+[2026-10-10 22:59:29.145][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=net_ws delivery=static outcome=success
+[2026-10-10 22:59:29.145][thread 14620][render_module.cpp:103][info] : event=module.lifecycle component=d99d3cd7-a8ae-4882-908b-21a3e45dadcc operation=start outcome=success
+[2026-10-10 22:59:29.146][thread 26400][image_generator.cpp:23][info] : Start creating image: 256x48 bg:255 font:0
+[2026-10-10 22:59:29.146][thread 26400][image_generator.cpp:23][info] : Start creating image: 280x48 bg:255 font:0
+[2026-10-10 22:59:29.146][thread 26400][frame_carrier_processor.cpp:298][info] : event=processor.resources component=frame_carrier outcome=success logo_loaded=true logo_points=417 big_logo_points=442 cover_points=528
+[2026-10-10 22:59:29.146][thread 26400][frame_carrier_processor.cpp:104][info] : event=processor.start component=frame_carrier outcome=success
+[2026-10-10 22:59:29.146][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=ebde829b-ef0f-4cbc-961a-3cca5f3d646c capability=processor outcome=success
+[2026-10-10 22:59:29.146][thread 26400][opus_encoder_processor.cpp:130][info] : event=processor.start component=opus_encoder outcome=success
+[2026-10-10 22:59:29.146][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=e25954da-205e-430f-af61-99e0e200d119 capability=processor outcome=success
+[2026-10-10 22:59:29.146][thread 26400][input_replay_service.cpp:76][info] : event=service.start component=input_replay outcome=success
+[2026-10-10 22:59:29.146][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=b6cb3d88-f397-4182-863c-2aaed752d1a9 capability=service outcome=success
+[2026-10-10 22:59:29.146][thread 26400][was_audio_capture_source.cpp:115][info] : event=source.start component=was_audio_capture outcome=success
+[2026-10-10 22:59:29.146][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=75f2c0ba-d76b-4955-944c-220838e7b0fe capability=source outcome=success
+[2026-10-10 22:59:29.146][thread 26400][vigem_controller.cpp:88][info] : Joystick type: 0
+[2026-10-10 22:59:29.147][thread 26400][joystick_service.cpp:135][info] : event=service.start component=joystick backend_ready=true outcome=success
+[2026-10-10 22:59:29.147][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=102a229e-295d-444e-9ca0-b6644f3198f6 capability=service outcome=success
+[2026-10-10 22:59:29.148][thread 26400][file_transfer_service.cpp:228][info] : event=module.start component=file_transfer operation=start outcome=success recoverable=true
+[2026-10-10 22:59:29.148][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=3f6c2a18-7e4b-4d59-9a21-8c0e5b6d7f2a capability=service outcome=success
+[2026-10-10 22:59:29.148][thread 26400][voice_call_service.cpp:117][info] : event=service.start component=voice_call enabled=true outcome=success
+[2026-10-10 22:59:29.148][thread 26400][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=5a48bb2e-f98b-4d49-a73a-31e49ae45239 capability=service outcome=success
+[2026-10-10 22:59:29.148][thread 26400][render_composition_root.cpp:231][info] : event=composition.start component=render_composition_root module_count=11 outcome=success
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=net_iroh delivery=static outcome=success
+[2026-10-10 22:59:29.173][thread 14620][webrtc_transport_host.cpp:269][info] : event=webrtc.library.link component=webrtc_transport_host libraries=1 outcome=success
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:304][info] : event=webrtc.library.start component=render_module_registry library=px_render_rtc id=bea7bf25-d07f-440a-acef-ac845d748958 version=1.1.0 outcome=success
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1146][info] : ====> Total modules: 8
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 1. [Common Encoder] vn: [1.2.0], vc: [120], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 2. [NVENC Encoder] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 3. [AMF Encoder] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 4. [DXGI] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 5. [GDI] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 6. [Net WebSocket] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 7. [iroh transport] vn: [1.0.0], vc: [1], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][render_module_registry.cpp:1149][info] : Module 8. [RTC Local] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 22:59:29.173][thread 14620][rd_app.cpp:2177][info] : GenerateD3DDevice, adapter_uid = 18446744073709551615
+[2026-10-10 22:59:29.175][thread 14620][rd_app.cpp:2224][warning] : Adapter uid 18446744073709551615 not found or virtual/RDP path, fallback to generic D3D device creation
+[2026-10-10 22:59:29.257][thread 14620][rd_app.cpp:2249][info] : D3D11 prewarm resolved adapter: NVIDIA GeForce RTX 4090 (uid=79923)
+[2026-10-10 22:59:29.257][thread 14620][rd_app.cpp:2256][info] : D3D11CreateDevice mDevice = 0x1626b26c518
+[2026-10-10 22:59:29.257][thread 14620][rd_app.cpp:641][info] : Will connect the service!
+[2026-10-10 22:59:29.257][thread 14620][rd_app.cpp:647][info] : Will connect the panel!
+[2026-10-10 22:59:29.257][thread 14620][ws_panel_client.cpp:142][info] : Will connect to panel : 127.0.0.1:4999
+[2026-10-10 22:59:29.258][thread 26400][reconnect_supervisor.cpp:123][info] : event=transport.connection_attempt component=render_panel generation=1 outcome=started
+[2026-10-10 22:59:29.258][thread 14620][render_service_client.cpp:218][info] : Will connect to service : 127.0.0.1:4603
+[2026-10-10 22:59:29.258][thread 14620][rd_app.cpp:1318][info] : game-hook audio: defer until inject (PID process-loopback)
+[2026-10-10 22:59:29.258][thread 14620][rd_app.cpp:689][info] : Use inner capture.
+[2026-10-10 22:59:29.258][thread 26400][reconnect_supervisor.cpp:123][info] : event=transport.connection_attempt component=render_service generation=1 outcome=started
+[2026-10-10 22:59:29.258][thread 14620][rd_app.cpp:824][info] : event=application.idle_policy disconnect_grace_seconds=10 startup_grace_seconds=45
+[2026-10-10 22:59:29.258][thread 14620][rd_app.cpp:1374][info] : StartProcessWithHook: game_path=D:\software\2dadventure\2dAdventure.exe, capture_method=1
+[2026-10-10 22:59:29.258][thread 21264][ws_panel_client.cpp:184][info] : WsPanelClient, connect success : 127.0.0.1 20452 
+[2026-10-10 22:59:29.258][thread 26400][reconnect_supervisor.cpp:143][info] : event=transport.connection_ready component=render_panel generation=1 latency_ms=0
+[2026-10-10 22:59:29.259][thread 26400][ws_panel_client.cpp:471][info] : event=panel.settings component=render_panel operation=ignore product_kind=1 outcome=success reason=console_managed_instance
+[2026-10-10 22:59:29.264][thread 14620][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15288: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 22:59:29.264][thread 14620][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15288 bytes=96
+[2026-10-10 22:59:29.264][thread 14620][app_manager_win.cpp:185][info] : event=game.launch outcome=owned pid=15288 path=D:\software\2dadventure\2dAdventure.exe
+[2026-10-10 22:59:29.264][thread 14620][rd_app.cpp:1391][info] : StartProcessWithHook requested OK, inject timer will attach px_gh.dll
+[2026-10-10 22:59:29.264][thread 11972][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15288 (total=1)
+[2026-10-10 22:59:29.264][thread 14876][win_render_message_window.cpp:209][error] : CreateWindowA failed
+[2026-10-10 22:59:29.264][thread 14876][win_render_message_loop.cpp:109][error] : WinMessageLoop create window error.
+[2026-10-10 22:59:29.306][thread 19608][render_service_client.cpp:285][info] : RenderServiceClient, websocket upgrade success
+[2026-10-10 22:59:29.306][thread 26400][reconnect_supervisor.cpp:143][info] : event=transport.connection_ready component=render_service generation=1 latency_ms=48
+[2026-10-10 22:59:29.306][thread 19608][render_service_client.cpp:262][info] : RenderServiceClient, tcp connect success : 127.0.0.1 20453 
+[2026-10-10 22:59:29.369][thread 1860][app_manager_win.cpp:389][info] : event=game.hook_gate outcome=allowed pid=15288 ownership=private_job path=matched
+[2026-10-10 22:59:29.370][thread 1860][app_manager_win.cpp:413][info] : Not injected, will inject for pid: 15288, exe: 2dAdventure.exe
+[2026-10-10 22:59:29.370][thread 1860][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15288: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 22:59:29.370][thread 1860][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15288 bytes=96
+[2026-10-10 22:59:29.370][thread 11972][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15288 (total=1)
+[2026-10-10 22:59:29.370][thread 1860][app_manager_win.cpp:520][info] : Inject: C:/Program Files/Pixels Cloud Node/px_gh_injector.exe C:/Program Files/Pixels Cloud Node/px_gh.dll pid: 15288, tid: 0
+[2026-10-10 22:59:29.370][thread 5260][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15288: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 22:59:29.370][thread 5260][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15288 bytes=96
+[2026-10-10 22:59:29.371][thread 26024][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15288 (total=1)
+[2026-10-10 22:59:29.392][thread 1860][app_manager_win.cpp:440][info] : Inject success for pid: 15288, exe: 2dAdventure.exe
+[2026-10-10 22:59:29.392][thread 14620][rd_app.cpp:917][info] : MsgObsInjected: schedule PID process-loopback on worker pid=15288
+[2026-10-10 22:59:29.392][thread 14620][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=15288
+[2026-10-10 22:59:29.392][thread 24240][rd_app.cpp:945][info] : PID audio worker: Stop+Start begin pid=15288 CoInitializeEx=0x00000000
+[2026-10-10 22:59:29.392][thread 24240][was_audio_capture_runtime.cpp:212][warning] : [WasAudioCaptureRuntime] stop: capture already null
+[2026-10-10 22:59:29.392][thread 24240][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=15288
+[2026-10-10 22:59:29.392][thread 24240][was_audio_capture_runtime.cpp:121][info] : [WasAudioCaptureRuntime] start, loopback_pid=15288
+[2026-10-10 22:59:29.393][thread 22152][process_loopback_audio_capture.cpp:154][warning] : [ProcessLoopback] GetMixFormat failed 0x80004001; using requested format
+[2026-10-10 22:59:29.393][thread 8392][was_audio_capture_runtime.cpp:151][info] : [WasAudioCaptureRuntime] format ready: 48000Hz 2ch 16bit
+[2026-10-10 22:59:29.393][thread 8392][process_loopback_audio_capture.cpp:413][info] : [ProcessLoopback] capturing pid=15288 48000Hz 2ch 16bit
+[2026-10-10 22:59:29.404][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1 last_bytes=1920
+[2026-10-10 22:59:29.404][thread 14620][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=1 idx=1
+[2026-10-10 22:59:29.443][thread 24240][was_audio_capture_runtime.cpp:201][info] : [WasAudioCaptureRuntime] start OK (PID process-loopback)
+[2026-10-10 22:59:29.443][thread 24240][rd_app.cpp:952][info] : PID audio worker: StartProviding OK pid=15288
+[2026-10-10 22:59:29.447][thread 16276][ws_server.cpp:1131][info] : event=session.admit component=net_ws outcome=connected route=ipc peer=08a3d11e port=20454 fd=1528 pid=15288 sessions=1
+[2026-10-10 22:59:31.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=200 last_bytes=1920
+[2026-10-10 22:59:33.010][thread 27416][network_event_ingress.cpp:389][info] : Connection established
+[2026-10-10 22:59:33.010][thread 27416][media_recorder_sink.cpp:423][info] : event=record.session component=media_recorder action=auto_start outcome=success transport=iroh
+[2026-10-10 22:59:33.010][thread 14620][rd_app.cpp:2006][info] : Use synthetic game-hook monitor configuration: 1279x718
+[2026-10-10 22:59:33.010][thread 14620][rd_app.cpp:2030][info] : Will send configuration back, monitor size: 1
+[2026-10-10 22:59:33.010][thread 14620][rd_app.cpp:2045][info] : Will send configuration back, fps: 60
+[2026-10-10 22:59:33.011][thread 27416][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=186 size=1279x718
+[2026-10-10 22:59:33.011][thread 27416][iroh_server.cpp:266][info] : event=session.admit component=net_iroh outcome=connected
+[2026-10-10 22:59:33.011][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=1 sessions=1 bytes=8
+[2026-10-10 22:59:33.011][thread 26948][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=14952800 rtt_us=5648 path=2 media_backpressure=false receiver_stalled=false received_bps=0
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:309][info] : EncoderThread target_encoder is nullptr, will create encoder.
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1000][info] : ---------------------------------------------------
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1001][info] : Encoder configs:
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1002][info] : width x height:1279x718
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1003][info] : gop size: -1
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1004][info] : gop bitrate: 14952800
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1005][info] : enable full color: false
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1006][info] : encoder codec_type: 0
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:1007][info] : ***************************************************
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:438][info] : We use d3d device from capture.
+[2026-10-10 22:59:33.011][thread 26948][frame_carrier_processor.cpp:193][info] : event=processor.initialize component=frame_carrier monitor=b84ddb79 adapter_uid=79923 outcome=success
+[2026-10-10 22:59:33.011][thread 26948][encoder_thread.cpp:494][info] : Hardware disabled? false
+[2026-10-10 22:59:33.011][thread 26948][video_encoder_module.cpp:63][info] : event=encoder.initialize component=95ccd9a2-b277-48dd-a8cd-8c20790742d4 width=1279 height=718 fps=60
+[2026-10-10 22:59:33.011][thread 26948][nvenc_encoder_module.cpp:125][info] : config bitrate: 14952800 for monitor: game-hook
+[2026-10-10 22:59:33.011][thread 26948][nvenc_video_encoder.cpp:39][info] : input_frame_width_ = 1279, input_frame_height_ = 718, dxgi_format = 28 (0x1c), nvenc_format = 0x10000000, m_pD3DRender->GetDevice() = 0x1626b26c518, config.fps = 60, enable 444: false
+[2026-10-10 22:59:33.013][thread 26400][resource_channel_reporter.cpp:207][info] : event=resource_channel.open component=render outcome=success session=e4c65a2b-80ba-45c6-867d-a0b8653e9687 channel=670e1266-cec7-4c01-953e-fba5a379c477
+[2026-10-10 22:59:33.019][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:33.019][thread 6824][opus_encoder_runtime.cpp:200][info] : audio format, samples: 48000, channels: 2, bits: 16
+[2026-10-10 22:59:33.035][thread 26948][nvenc_video_encoder.cpp:72][info] : NVENC init success.
+[2026-10-10 22:59:33.035][thread 26948][encoder_thread.cpp:602][info] : Selected encoder module: NVENC Encoder, version: 1.1.0 for monitor: game-hook
+[2026-10-10 22:59:33.035][thread 26948][video_frame_carrier.cpp:263][info] : frame carrier texture: 1279x718 dxgi_format=28 (src_format=28)
+[2026-10-10 22:59:33.040][thread 18832][media_recorder_sink.cpp:648][info] : event=record.writer component=media_recorder action=create monitor=b84ddb79 outcome=success
+[2026-10-10 22:59:33.040][thread 8216][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=186 gap_ms=0 bytes=29979
+[2026-10-10 22:59:33.069][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=1 hwnd=880026 screen=(404,426) ratio=(0.115,0.233) btn=128
+[2026-10-10 22:59:33.069][thread 11972][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=2 sessions=1 bytes=40
+[2026-10-10 22:59:33.080][thread 16628][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=e4c65a2b-80ba-45c6-867d-a0b8653e9687 monitor=
+[2026-10-10 22:59:33.109][thread 8216][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=e4c65a2b-80ba-45c6-867d-a0b8653e9687 monitor=game-hook frame=191 kind=2 request_age_us=28737
+[2026-10-10 22:59:33.192][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=2 hwnd=880026 screen=(404,426) ratio=(0.115,0.233) btn=128
+[2026-10-10 22:59:33.192][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=3 hwnd=880026 screen=(404,426) ratio=(0.115,0.233) btn=1024
+[2026-10-10 22:59:33.192][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=3 sessions=1 bytes=40
+[2026-10-10 22:59:33.192][thread 11972][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=4 sessions=1 bytes=40
+[2026-10-10 22:59:33.192][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=4 hwnd=880026 screen=(648,526) ratio=(0.306,0.372) btn=128
+[2026-10-10 22:59:33.192][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=5 hwnd=880026 screen=(657,526) ratio=(0.313,0.372) btn=128
+[2026-10-10 22:59:33.192][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=5 sessions=1 bytes=40
+[2026-10-10 22:59:33.194][thread 26400][file_transfer_reporter.cpp:249][info] : event=file_transfer.begin component=render outcome=success session=e4c65a2b-80ba-45c6-867d-a0b8653e9687 transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa total_bytes=67108864
+[2026-10-10 22:59:33.201][thread 4296][message_session.cpp:336][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=262144 receipt_bytes=88 backpressure_count=0
+[2026-10-10 22:59:33.260][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=26 dropped=0 video_packets=14 audio_packets=11 writer_failures=0
+[2026-10-10 22:59:33.262][thread 14620][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=201 size=1279x718
+[2026-10-10 22:59:33.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=400 last_bytes=1920
+[2026-10-10 22:59:34.010][thread 14628][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9
+[2026-10-10 22:59:34.010][thread 14628][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable
+[2026-10-10 22:59:34.012][thread 14620][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=246 size=1279x718
+[2026-10-10 22:59:34.196][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=4300800
+[2026-10-10 22:59:34.261][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=136 dropped=0 video_packets=74 audio_packets=61 writer_failures=0
+[2026-10-10 22:59:34.261][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=14.46 video_mbps=0.994 encoded_audio_pps=12.11 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:34.261][thread 10444][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5117 active_connections=1 connected=1 disconnected=0 inbound_messages=261 inbound_bytes=39672 inbound_mps=51.01 outbound_messages=75 outbound_bytes=2968 outbound_mps=14.66 bytes_per_second=8333.01 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:35.008][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:35.199][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=8970240
+[2026-10-10 22:59:35.261][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=246 dropped=0 video_packets=134 audio_packets=111 writer_failures=0
+[2026-10-10 22:59:35.306][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=318 arrival_gap_us=101099 generated_gap_us=57704 released=4 pending=4 bytes=47300 oldest=319 age_us=62657
+[2026-10-10 22:59:35.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=600 last_bytes=1920
+[2026-10-10 22:59:36.202][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=13271040
+[2026-10-10 22:59:36.265][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=356 dropped=0 video_packets=194 audio_packets=161 writer_failures=0
+[2026-10-10 22:59:36.916][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=200 sessions=1 bytes=40
+[2026-10-10 22:59:36.916][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=200 hwnd=880026 screen=(648,526) ratio=(0.306,0.372) btn=128
+[2026-10-10 22:59:37.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:37.205][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=17694720
+[2026-10-10 22:59:37.264][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=466 dropped=0 video_packets=254 audio_packets=211 writer_failures=0
+[2026-10-10 22:59:37.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=800 last_bytes=1920
+[2026-10-10 22:59:37.584][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=454 arrival_gap_us=108258 generated_gap_us=59484 released=4 pending=5 bytes=24200 oldest=455 age_us=74111
+[2026-10-10 22:59:38.008][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=478 arrival_gap_us=111838 generated_gap_us=59903 released=4 pending=6 bytes=25300 oldest=479 age_us=95522
+[2026-10-10 22:59:38.017][thread 26400][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=670e1266-cec7-4c01-953e-fba5a379c477 state=active sent_bytes=28762 received_bytes=40719514
+[2026-10-10 22:59:38.043][thread 26948][encoder_thread.cpp:91][info] : enc diag: wall=5003ms, in_fps=61.0, backlog=1, task_avg=4ms, task_max=29ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 22:59:38.043][thread 8216][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3398408 video_datagram_bps=3804584 opus_bps=30442 audio_datagram_bps=61538 flight_bytes=60500 flight_limited=0
+[2026-10-10 22:59:38.043][thread 8216][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=4 busy=0 completed=300 failed=0 max_send_us=218 path=2 rtt_us=66562 tx_packets=10755 tx_lost=0
+[2026-10-10 22:59:38.043][thread 8216][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=92415 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:59:38.207][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=20643840
+[2026-10-10 22:59:38.263][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=576 dropped=0 video_packets=314 audio_packets=261 writer_failures=0
+[2026-10-10 22:59:38.873][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=530 arrival_gap_us=109041 generated_gap_us=56060 released=3 pending=6 bytes=37400 oldest=531 age_us=96449
+[2026-10-10 22:59:39.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:39.209][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=24576000
+[2026-10-10 22:59:39.263][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=686 dropped=0 video_packets=374 audio_packets=311 writer_failures=0
+[2026-10-10 22:59:39.263][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.440 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:39.263][thread 8020][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5002 active_connections=1 connected=0 disconnected=0 inbound_messages=300 inbound_bytes=45600 inbound_mps=59.98 outbound_messages=270 outbound_bytes=10800 outbound_mps=53.98 bytes_per_second=11275.49 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:39.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1000 last_bytes=1920
+[2026-10-10 22:59:40.128][thread 11972][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=400 sessions=1 bytes=40
+[2026-10-10 22:59:40.154][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=400 hwnd=880026 screen=(718,526) ratio=(0.361,0.372) btn=128
+[2026-10-10 22:59:40.213][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=28508160
+[2026-10-10 22:59:40.264][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=796 dropped=0 video_packets=434 audio_packets=361 writer_failures=0
+[2026-10-10 22:59:41.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:41.215][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=31580160
+[2026-10-10 22:59:41.265][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=906 dropped=0 video_packets=494 audio_packets=411 writer_failures=0
+[2026-10-10 22:59:41.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1200 last_bytes=1920
+[2026-10-10 22:59:42.218][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=35635200
+[2026-10-10 22:59:42.265][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1016 dropped=0 video_packets=554 audio_packets=461 writer_failures=0
+[2026-10-10 22:59:43.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:43.040][thread 26400][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=670e1266-cec7-4c01-953e-fba5a379c477 state=active sent_bytes=48369 received_bytes=79240178
+[2026-10-10 22:59:43.043][thread 26948][encoder_thread.cpp:91][info] : enc diag: wall=5000ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=7ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 22:59:43.060][thread 8216][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=2968703 video_datagram_bps=3383621 opus_bps=30275 audio_datagram_bps=61545 flight_bytes=12100 flight_limited=0
+[2026-10-10 22:59:43.060][thread 8216][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=104 path=2 rtt_us=35105 tx_packets=20960 tx_lost=0
+[2026-10-10 22:59:43.060][thread 8216][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=121877 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:59:43.220][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=40304640
+[2026-10-10 22:59:43.265][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1126 dropped=0 video_packets=614 audio_packets=511 writer_failures=0
+[2026-10-10 22:59:43.313][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=600 sessions=1 bytes=40
+[2026-10-10 22:59:43.340][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=600 hwnd=880026 screen=(753,526) ratio=(0.388,0.372) btn=128
+[2026-10-10 22:59:43.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1400 last_bytes=1920
+[2026-10-10 22:59:44.222][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=44974080
+[2026-10-10 22:59:44.265][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1236 dropped=0 video_packets=674 audio_packets=561 writer_failures=0
+[2026-10-10 22:59:44.265][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=2.517 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:44.265][thread 24308][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5002 active_connections=1 connected=0 disconnected=0 inbound_messages=300 inbound_bytes=45600 inbound_mps=59.98 outbound_messages=315 outbound_bytes=12600 outbound_mps=62.97 bytes_per_second=11635.35 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:45.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:45.225][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=49643520
+[2026-10-10 22:59:45.266][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1346 dropped=0 video_packets=734 audio_packets=611 writer_failures=0
+[2026-10-10 22:59:45.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1600 last_bytes=1920
+[2026-10-10 22:59:46.228][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=54312960
+[2026-10-10 22:59:46.267][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1456 dropped=0 video_packets=794 audio_packets=661 writer_failures=0
+[2026-10-10 22:59:46.484][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=800 sessions=1 bytes=40
+[2026-10-10 22:59:46.510][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=800 hwnd=880026 screen=(787,526) ratio=(0.415,0.372) btn=128
+[2026-10-10 22:59:47.008][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:47.230][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=58245120
+[2026-10-10 22:59:47.267][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1566 dropped=0 video_packets=854 audio_packets=711 writer_failures=0
+[2026-10-10 22:59:47.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1800 last_bytes=1920
+[2026-10-10 22:59:48.043][thread 26948][encoder_thread.cpp:91][info] : enc diag: wall=5000ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=7ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 22:59:48.062][thread 26400][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=670e1266-cec7-4c01-953e-fba5a379c477 state=active sent_bytes=72124 received_bytes=123902836
+[2026-10-10 22:59:48.077][thread 8216][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=2025864 video_datagram_bps=2378744 opus_bps=30292 audio_datagram_bps=61619 flight_bytes=17600 flight_limited=0
+[2026-10-10 22:59:48.077][thread 8216][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=75 path=2 rtt_us=34324 tx_packets=31642 tx_lost=0
+[2026-10-10 22:59:48.077][thread 8216][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=121877 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:59:48.232][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=62423040
+[2026-10-10 22:59:48.268][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1676 dropped=0 video_packets=914 audio_packets=761 writer_failures=0
+[2026-10-10 22:59:48.417][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1101 arrival_gap_us=130290 generated_gap_us=59439 released=3 pending=8 bytes=26400 oldest=1102 age_us=123268
+[2026-10-10 22:59:48.551][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1108 arrival_gap_us=134233 generated_gap_us=59814 released=3 pending=9 bytes=37400 oldest=1109 age_us=139423
+[2026-10-10 22:59:49.010][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:49.022][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1136 arrival_gap_us=150602 generated_gap_us=61569 released=3 pending=9 bytes=46200 oldest=1137 age_us=143354
+[2026-10-10 22:59:49.235][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=64512000
+[2026-10-10 22:59:49.268][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1786 dropped=0 video_packets=974 audio_packets=811 writer_failures=0
+[2026-10-10 22:59:49.268][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=1.912 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:49.268][thread 10444][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5002 active_connections=1 connected=0 disconnected=0 inbound_messages=300 inbound_bytes=45600 inbound_mps=59.98 outbound_messages=277 outbound_bytes=11080 outbound_mps=55.38 bytes_per_second=11331.47 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:49.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2000 last_bytes=1920
+[2026-10-10 22:59:49.551][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1171 arrival_gap_us=112988 generated_gap_us=61056 released=3 pending=6 bytes=16500 oldest=1172 age_us=91067
+[2026-10-10 22:59:49.717][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1178 arrival_gap_us=104614 generated_gap_us=60311 released=3 pending=9 bytes=27500 oldest=1179 age_us=140792
+[2026-10-10 22:59:50.237][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=66478080
+[2026-10-10 22:59:50.268][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=1896 dropped=0 video_packets=1034 audio_packets=861 writer_failures=0
+[2026-10-10 22:59:50.372][thread 11972][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=1000 sessions=1 bytes=40
+[2026-10-10 22:59:50.372][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=1000 hwnd=880026 screen=(857,526) ratio=(0.469,0.372) btn=128
+[2026-10-10 22:59:50.487][thread 4296][message_session.cpp:336][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=262144 receipt_bytes=176 backpressure_count=0
+[2026-10-10 22:59:50.493][thread 26400][file_transfer_reporter.cpp:249][info] : event=file_transfer.begin component=render outcome=success session=e4c65a2b-80ba-45c6-867d-a0b8653e9687 transfer=70ef8a46-3d6d-49d1-97db-7af745392402 total_bytes=67108864
+[2026-10-10 22:59:51.008][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:51.240][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=d20fee0f-ecc0-4a76-a571-79aa7c1a44aa state=queued transferred_bytes=67108864
+[2026-10-10 22:59:51.269][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2006 dropped=0 video_packets=1094 audio_packets=911 writer_failures=0
+[2026-10-10 22:59:51.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2200 last_bytes=1920
+[2026-10-10 22:59:51.496][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=2703360
+[2026-10-10 22:59:52.269][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2117 dropped=0 video_packets=1154 audio_packets=962 writer_failures=0
+[2026-10-10 22:59:52.499][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=7004160
+[2026-10-10 22:59:53.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:53.044][thread 26948][encoder_thread.cpp:91][info] : enc diag: wall=5001ms, in_fps=60.0, backlog=1, task_avg=4ms, task_max=8ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 22:59:53.066][thread 26400][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=670e1266-cec7-4c01-953e-fba5a379c477 state=active sent_bytes=9930224 received_bytes=134922494
+[2026-10-10 22:59:53.077][thread 8216][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=2503210 video_datagram_bps=2882536 opus_bps=30190 audio_datagram_bps=61154 flight_bytes=13200 flight_limited=0
+[2026-10-10 22:59:53.077][thread 8216][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=78 path=2 rtt_us=56365 tx_packets=43307 tx_lost=0
+[2026-10-10 22:59:53.077][thread 8216][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=1396722 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:59:53.270][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2227 dropped=0 video_packets=1214 audio_packets=1012 writer_failures=0
+[2026-10-10 22:59:53.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2400 last_bytes=1920
+[2026-10-10 22:59:53.452][thread 26024][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=1200 sessions=1 bytes=40
+[2026-10-10 22:59:53.470][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=1200 hwnd=880026 screen=(908,526) ratio=(0.510,0.372) btn=128
+[2026-10-10 22:59:53.502][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=10690560
+[2026-10-10 22:59:54.270][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2337 dropped=0 video_packets=1274 audio_packets=1062 writer_failures=0
+[2026-10-10 22:59:54.270][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=2.569 encoded_audio_pps=50.17 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:54.270][thread 5948][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5002 active_connections=1 connected=0 disconnected=0 inbound_messages=300 inbound_bytes=45600 inbound_mps=59.98 outbound_messages=314 outbound_bytes=12560 outbound_mps=62.77 bytes_per_second=11627.35 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:54.504][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=14499840
+[2026-10-10 22:59:55.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:55.271][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2447 dropped=0 video_packets=1334 audio_packets=1112 writer_failures=0
+[2026-10-10 22:59:55.398][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2600 last_bytes=1920
+[2026-10-10 22:59:55.507][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=18923520
+[2026-10-10 22:59:55.515][thread 4296][message_session.cpp:336][info] : event=iroh.file_flow outstanding_bytes=122977 window_bytes=262144 receipt_bytes=19061741 backpressure_count=154
+[2026-10-10 22:59:56.271][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2554 dropped=0 video_packets=1391 audio_packets=1162 writer_failures=0
+[2026-10-10 22:59:56.407][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1582 arrival_gap_us=102967 generated_gap_us=61257 released=5 pending=6 bytes=22000 oldest=1583 age_us=96585
+[2026-10-10 22:59:56.510][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=22487040
+[2026-10-10 22:59:56.705][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83115 queued=0 pending=11 bytes=49500 oldest=1591 newest=1601 age_us=258418 probe_us=154487 feedback_age_us=99966
+[2026-10-10 22:59:56.705][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=116398 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=99966 budget_bytes=32768 forward_delay_growth_us=147802
+[2026-10-10 22:59:56.721][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1593 arrival_gap_us=115533 generated_gap_us=50768 released=3 pending=8 bytes=34100 oldest=1594 age_us=227268
+[2026-10-10 22:59:56.733][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1595 arrival_gap_us=11929 generated_gap_us=58236 released=2 pending=6 bytes=23100 oldest=1596 age_us=205389
+[2026-10-10 22:59:56.733][thread 16628][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=1400 hwnd=880026 screen=(978,526) ratio=(0.564,0.372) btn=128
+[2026-10-10 22:59:56.733][thread 11972][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=1400 sessions=1 bytes=40
+[2026-10-10 22:59:56.739][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=116710 queued=0 pending=6 bytes=23100 oldest=1596 newest=1601 age_us=211488 probe_us=120892 feedback_age_us=6099
+[2026-10-10 22:59:56.739][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=146841 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=6099 budget_bytes=32768 forward_delay_growth_us=173587
+[2026-10-10 22:59:56.743][thread 8216][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=1609 gap_ms=133 bytes=20174
+[2026-10-10 22:59:57.009][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:57.022][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1609 arrival_gap_us=133377 generated_gap_us=59276 released=0 pending=6 bytes=35200 oldest=1614 age_us=195023
+[2026-10-10 22:59:57.039][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83183 queued=0 pending=6 bytes=35200 oldest=1614 newest=1621 age_us=211714 probe_us=154576 feedback_age_us=16691
+[2026-10-10 22:59:57.039][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=181919 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=150069 budget_bytes=32768 forward_delay_growth_us=104961
+[2026-10-10 22:59:57.110][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1615 arrival_gap_us=33212 generated_gap_us=60594 released=2 pending=4 bytes=24200 oldest=1618 age_us=216684
+[2026-10-10 22:59:57.122][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=166921 queued=0 pending=4 bytes=24200 oldest=1618 newest=1621 age_us=228968 probe_us=70838 feedback_age_us=12284
+[2026-10-10 22:59:57.122][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=209547 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=12284 budget_bytes=32768 forward_delay_growth_us=238750
+[2026-10-10 22:59:57.128][thread 8216][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=1632 gap_ms=184 bytes=22508
+[2026-10-10 22:59:57.222][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=82424 queued=0 pending=5 bytes=48400 oldest=1618 newest=1632 age_us=328576 probe_us=155636 feedback_age_us=111892
+[2026-10-10 22:59:57.222][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=209547 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=111892 budget_bytes=32768 forward_delay_growth_us=238750
+[2026-10-10 22:59:57.250][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1615 arrival_gap_us=139778 generated_gap_us=58542 released=0 pending=5 bytes=48400 oldest=1618 age_us=356463
+[2026-10-10 22:59:57.271][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2633 dropped=0 video_packets=1420 audio_packets=1212 writer_failures=0
+[2026-10-10 22:59:57.389][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=249207 queued=0 pending=5 bytes=48400 oldest=1618 newest=1632 age_us=495360 probe_us=-11147 feedback_age_us=78121
+[2026-10-10 22:59:57.389][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=259940 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=278675 budget_bytes=32768 forward_delay_growth_us=238750
+[2026-10-10 22:59:57.394][thread 8216][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=1648 gap_ms=266 bytes=21322
+[2026-10-10 22:59:57.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2800 last_bytes=1920
+[2026-10-10 22:59:57.489][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83647 queued=0 pending=6 bytes=71500 oldest=1618 newest=1648 age_us=595349 probe_us=155058 feedback_age_us=178110
+[2026-10-10 22:59:57.489][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=259940 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=378665 budget_bytes=32768 forward_delay_growth_us=238750
+[2026-10-10 22:59:57.513][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=23470080
+[2026-10-10 22:59:57.522][thread 26948][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1117077 rtt_us=259940 path=2 media_backpressure=true receiver_stalled=true received_bps=1396347
+[2026-10-10 22:59:57.551][thread 17500][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=1621 arrival_gap_us=240770 generated_gap_us=57925 released=4 pending=2 bytes=47300 oldest=1632 age_us=423797
+[2026-10-10 22:59:57.556][thread 26948][media_datagrams.cpp:199][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=150764 queued=0 pending=2 bytes=47300 oldest=1632 newest=1648 age_us=428254 probe_us=87941 feedback_age_us=3927
+[2026-10-10 22:59:57.556][thread 26948][media_datagrams.cpp:205][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=319954 cwnd_bytes=1952884 datagram_space=65536 congestion_events=0 progress_age_us=4457 budget_bytes=92400 forward_delay_growth_us=416734
+[2026-10-10 22:59:57.556][thread 26948][nvenc_video_encoder.cpp:202][info] : NvEnc Reconfigure success, to: fps: 60, size: 1279x718 bps: 1117077
+[2026-10-10 22:59:57.561][thread 8216][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=1658 gap_ms=167 bytes=8610
+[2026-10-10 22:59:58.039][thread 26948][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=893661 rtt_us=112965 path=2 media_backpressure=true receiver_stalled=false received_bps=1311633
+[2026-10-10 22:59:58.039][thread 26948][nvenc_video_encoder.cpp:202][info] : NvEnc Reconfigure success, to: fps: 60, size: 1279x718 bps: 893661
+[2026-10-10 22:59:58.045][thread 26948][encoder_thread.cpp:91][info] : enc diag: wall=5001ms, in_fps=60.0, backlog=1, task_avg=3ms, task_max=9ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 22:59:58.068][thread 26400][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=670e1266-cec7-4c01-953e-fba5a379c477 state=active sent_bytes=24342221 received_bytes=135088620
+[2026-10-10 22:59:58.079][thread 8216][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=1790835 video_datagram_bps=2102619 opus_bps=30300 audio_datagram_bps=61752 flight_bytes=29700 flight_limited=0
+[2026-10-10 22:59:58.079][thread 8216][media_datagrams.cpp:46][info] : event=iroh.send_window offered=244 idr=0 busy=0 completed=244 failed=0 max_send_us=72 path=2 rtt_us=69553 tx_packets=55881 tx_lost=0
+[2026-10-10 22:59:58.079][thread 8216][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=1985233 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:59:58.271][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2721 dropped=0 video_packets=1458 audio_packets=1262 writer_failures=0
+[2026-10-10 22:59:58.515][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=25436160
+[2026-10-10 22:59:59.011][thread 14620][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 22:59:59.272][thread 26400][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=2831 dropped=0 video_packets=1518 audio_packets=1312 writer_failures=0
+[2026-10-10 22:59:59.272][thread 26400][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=48.78 video_mbps=1.551 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 22:59:59.272][thread 21364][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5001 active_connections=1 connected=0 disconnected=0 inbound_messages=300 inbound_bytes=45600 inbound_mps=59.99 outbound_messages=271 outbound_bytes=10840 outbound_mps=54.19 bytes_per_second=11285.74 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 22:59:59.399][thread 8392][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3000 last_bytes=1920
+[2026-10-10 22:59:59.518][thread 26400][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=70ef8a46-3d6d-49d1-97db-7af745392402 state=queued transferred_bytes=28999680
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : [d3d8]
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present=0x0
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : [d3d9]
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present=0x4f430
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present_ex=0x4f4d0
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present_swap=0xcd70
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : d3d9_clsoff=0x4030
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : is_d3d9ex_clsoff=0x55a0
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : [dxgi]
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present=0x1430
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : present1=0x33b20
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : resize=0x27930
+[2026-10-10 23:00:30.139][thread 26452][dx_address_loader.cpp:39][info] : release=0x2dd0
+[2026-10-10 23:00:30.139][thread 26452][render_module_registry.cpp:96][info] : module base path: C:\Program Files\Pixels Cloud Node
+[2026-10-10 23:00:30.139][thread 26452][render_module_registry.cpp:97][info] : module base data path: C:\Users\Public\Pixels
+[2026-10-10 23:00:30.139][thread 1180][render_composition_root.cpp:170][info] : event=composition.start component=render_composition_root module_count=11 outcome=begin
+[2026-10-10 23:00:30.139][thread 1180][frame_debugger_observer.cpp:141][info] : event=observer.start component=frame_debugger queue_capacity=120 save_encoded_video=false outcome=success
+[2026-10-10 23:00:30.139][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=bfb3fadc-6f37-401c-a927-88c3ae2d1e95 capability=observer outcome=success
+[2026-10-10 23:00:30.139][thread 1180][media_recorder_sink.cpp:209][info] : event=sink.start component=media_recorder outcome=success queue_capacity=512 auto_enabled=true max_segment_bytes=1073741824 max_file_count=24 dir=C:\Users\Public\Pixels\px_render_records
+[2026-10-10 23:00:30.139][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=21d1c305-e68c-4079-8a4a-d00735be609b capability=sink outcome=success
+[2026-10-10 23:00:30.139][thread 1180][pipeline_statistics_observer.cpp:144][info] : event=observer.start component=pipeline_statistics outcome=success
+[2026-10-10 23:00:30.139][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=58139f8b-c0dc-4abe-a266-a199adb2ddea capability=observer outcome=success
+[2026-10-10 23:00:30.139][thread 1180][frame_resizer_processor.cpp:70][info] : event=processor.start component=frame_resizer outcome=success
+[2026-10-10 23:00:30.139][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=cd407b93-429c-44a9-9c36-3429d9b390bb capability=processor outcome=success
+[2026-10-10 23:00:30.139][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=0f00e864-a7dd-4b83-8921-220fbed78cc5 operation=start outcome=success
+[2026-10-10 23:00:30.139][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=cap_dda delivery=static outcome=success
+[2026-10-10 23:00:30.139][thread 1180][image_generator.cpp:23][info] : Start creating image: 256x48 bg:255 font:0
+[2026-10-10 23:00:30.140][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=6c926697-5511-b138-a35b-c6ffa9cee66d operation=start outcome=success
+[2026-10-10 23:00:30.140][thread 26452][gdi_capture_source.cpp:48][info] : GdiCaptureSource Start
+[2026-10-10 23:00:30.140][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=cap_gdi delivery=static outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=cbc9690d-456a-4f74-b594-44468637f3c3 operation=start outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_ffmpeg delivery=static outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=a159a600-9a12-46a1-8e79-cba9645600d2 operation=start outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_amf delivery=static outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=95ccd9a2-b277-48dd-a8cd-8c20790742d4 operation=start outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=enc_nvenc delivery=static outcome=success
+[2026-10-10 23:00:30.140][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=711882d5-8987-4c80-826f-a783f3df9240 operation=start outcome=success
+[2026-10-10 23:00:30.140][thread 26452][ws_server.cpp:1147][info] : Registered websocket route: /ipc
+[2026-10-10 23:00:30.141][thread 26452][ws_server.cpp:1655][info] : event=module.start component=net_ws operation=serve_web_client outcome=success route=/web
+[2026-10-10 23:00:30.142][thread 26452][ws_server.cpp:404][info] : App server start result: true, listen port: 4613
+[2026-10-10 23:00:30.142][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=net_ws delivery=static outcome=success
+[2026-10-10 23:00:30.142][thread 26452][render_module.cpp:103][info] : event=module.lifecycle component=d99d3cd7-a8ae-4882-908b-21a3e45dadcc operation=start outcome=success
+[2026-10-10 23:00:30.142][thread 1180][image_generator.cpp:23][info] : Start creating image: 256x48 bg:255 font:0
+[2026-10-10 23:00:30.142][thread 1180][image_generator.cpp:23][info] : Start creating image: 280x48 bg:255 font:0
+[2026-10-10 23:00:30.142][thread 1180][frame_carrier_processor.cpp:298][info] : event=processor.resources component=frame_carrier outcome=success logo_loaded=true logo_points=417 big_logo_points=442 cover_points=528
+[2026-10-10 23:00:30.142][thread 1180][frame_carrier_processor.cpp:104][info] : event=processor.start component=frame_carrier outcome=success
+[2026-10-10 23:00:30.142][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=ebde829b-ef0f-4cbc-961a-3cca5f3d646c capability=processor outcome=success
+[2026-10-10 23:00:30.142][thread 1180][opus_encoder_processor.cpp:130][info] : event=processor.start component=opus_encoder outcome=success
+[2026-10-10 23:00:30.142][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=e25954da-205e-430f-af61-99e0e200d119 capability=processor outcome=success
+[2026-10-10 23:00:30.142][thread 1180][input_replay_service.cpp:76][info] : event=service.start component=input_replay outcome=success
+[2026-10-10 23:00:30.142][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=b6cb3d88-f397-4182-863c-2aaed752d1a9 capability=service outcome=success
+[2026-10-10 23:00:30.142][thread 1180][was_audio_capture_source.cpp:115][info] : event=source.start component=was_audio_capture outcome=success
+[2026-10-10 23:00:30.142][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=75f2c0ba-d76b-4955-944c-220838e7b0fe capability=source outcome=success
+[2026-10-10 23:00:30.142][thread 1180][vigem_controller.cpp:88][info] : Joystick type: 0
+[2026-10-10 23:00:30.143][thread 1180][joystick_service.cpp:135][info] : event=service.start component=joystick backend_ready=true outcome=success
+[2026-10-10 23:00:30.143][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=102a229e-295d-444e-9ca0-b6644f3198f6 capability=service outcome=success
+[2026-10-10 23:00:30.143][thread 1180][file_transfer_service.cpp:228][info] : event=module.start component=file_transfer operation=start outcome=success recoverable=true
+[2026-10-10 23:00:30.143][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=3f6c2a18-7e4b-4d59-9a21-8c0e5b6d7f2a capability=service outcome=success
+[2026-10-10 23:00:30.143][thread 1180][voice_call_service.cpp:117][info] : event=service.start component=voice_call enabled=true outcome=success
+[2026-10-10 23:00:30.143][thread 1180][render_composition_root.cpp:203][info] : event=module.start component=render_composition_root module=5a48bb2e-f98b-4d49-a73a-31e49ae45239 capability=service outcome=success
+[2026-10-10 23:00:30.143][thread 1180][render_composition_root.cpp:231][info] : event=composition.start component=render_composition_root module_count=11 outcome=success
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:139][info] : event=module.start component=render_module_registry module=net_iroh delivery=static outcome=success
+[2026-10-10 23:00:30.173][thread 26452][webrtc_transport_host.cpp:269][info] : event=webrtc.library.link component=webrtc_transport_host libraries=1 outcome=success
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:304][info] : event=webrtc.library.start component=render_module_registry library=px_render_rtc id=bea7bf25-d07f-440a-acef-ac845d748958 version=1.1.0 outcome=success
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1146][info] : ====> Total modules: 8
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 1. [Common Encoder] vn: [1.2.0], vc: [120], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 2. [NVENC Encoder] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 3. [AMF Encoder] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 4. [DXGI] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 5. [GDI] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 6. [Net WebSocket] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 7. [iroh transport] vn: [1.0.0], vc: [1], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][render_module_registry.cpp:1149][info] : Module 8. [RTC Local] vn: [1.1.0], vc: [110], enabled: [true]
+[2026-10-10 23:00:30.173][thread 26452][rd_app.cpp:2177][info] : GenerateD3DDevice, adapter_uid = 18446744073709551615
+[2026-10-10 23:00:30.175][thread 26452][rd_app.cpp:2224][warning] : Adapter uid 18446744073709551615 not found or virtual/RDP path, fallback to generic D3D device creation
+[2026-10-10 23:00:30.256][thread 26452][rd_app.cpp:2249][info] : D3D11 prewarm resolved adapter: NVIDIA GeForce RTX 4090 (uid=79923)
+[2026-10-10 23:00:30.256][thread 26452][rd_app.cpp:2256][info] : D3D11CreateDevice mDevice = 0x1a92a9c4be8
+[2026-10-10 23:00:30.256][thread 26452][rd_app.cpp:641][info] : Will connect the service!
+[2026-10-10 23:00:30.256][thread 26452][rd_app.cpp:647][info] : Will connect the panel!
+[2026-10-10 23:00:30.256][thread 26452][ws_panel_client.cpp:142][info] : Will connect to panel : 127.0.0.1:4999
+[2026-10-10 23:00:30.257][thread 1180][reconnect_supervisor.cpp:123][info] : event=transport.connection_attempt component=render_panel generation=1 outcome=started
+[2026-10-10 23:00:30.257][thread 26452][render_service_client.cpp:218][info] : Will connect to service : 127.0.0.1:4603
+[2026-10-10 23:00:30.257][thread 26452][rd_app.cpp:1318][info] : game-hook audio: defer until inject (PID process-loopback)
+[2026-10-10 23:00:30.257][thread 26452][rd_app.cpp:689][info] : Use inner capture.
+[2026-10-10 23:00:30.257][thread 1180][reconnect_supervisor.cpp:123][info] : event=transport.connection_attempt component=render_service generation=1 outcome=started
+[2026-10-10 23:00:30.257][thread 26452][rd_app.cpp:824][info] : event=application.idle_policy disconnect_grace_seconds=10 startup_grace_seconds=45
+[2026-10-10 23:00:30.257][thread 26452][rd_app.cpp:1374][info] : StartProcessWithHook: game_path=D:\software\2dadventure\2dAdventure.exe, capture_method=1
+[2026-10-10 23:00:30.257][thread 18876][ws_panel_client.cpp:184][info] : WsPanelClient, connect success : 127.0.0.1 20518 
+[2026-10-10 23:00:30.257][thread 1180][reconnect_supervisor.cpp:143][info] : event=transport.connection_ready component=render_panel generation=1 latency_ms=0
+[2026-10-10 23:00:30.257][thread 1180][ws_panel_client.cpp:471][info] : event=panel.settings component=render_panel operation=ignore product_kind=1 outcome=success reason=console_managed_instance
+[2026-10-10 23:00:30.263][thread 26452][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15804: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 23:00:30.263][thread 26452][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15804 bytes=96
+[2026-10-10 23:00:30.263][thread 26452][app_manager_win.cpp:185][info] : event=game.launch outcome=owned pid=15804 path=D:\software\2dadventure\2dAdventure.exe
+[2026-10-10 23:00:30.263][thread 26452][rd_app.cpp:1391][info] : StartProcessWithHook requested OK, inject timer will attach px_gh.dll
+[2026-10-10 23:00:30.263][thread 25992][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15804 (total=1)
+[2026-10-10 23:00:30.263][thread 6812][win_render_message_window.cpp:209][error] : CreateWindowA failed
+[2026-10-10 23:00:30.263][thread 6812][win_render_message_loop.cpp:109][error] : WinMessageLoop create window error.
+[2026-10-10 23:00:30.292][thread 13484][render_service_client.cpp:285][info] : RenderServiceClient, websocket upgrade success
+[2026-10-10 23:00:30.292][thread 1180][reconnect_supervisor.cpp:143][info] : event=transport.connection_ready component=render_service generation=1 latency_ms=34
+[2026-10-10 23:00:30.292][thread 13484][render_service_client.cpp:262][info] : RenderServiceClient, tcp connect success : 127.0.0.1 20519 
+[2026-10-10 23:00:30.368][thread 9876][app_manager_win.cpp:389][info] : event=game.hook_gate outcome=allowed pid=15804 ownership=private_job path=matched
+[2026-10-10 23:00:30.369][thread 9876][app_manager_win.cpp:413][info] : Not injected, will inject for pid: 15804, exe: 2dAdventure.exe
+[2026-10-10 23:00:30.369][thread 9876][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15804: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 23:00:30.369][thread 9876][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15804 bytes=96
+[2026-10-10 23:00:30.369][thread 25992][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15804 (total=1)
+[2026-10-10 23:00:30.369][thread 9876][app_manager_win.cpp:520][info] : Inject: C:/Program Files/Pixels Cloud Node/px_gh_injector.exe C:/Program Files/Pixels Cloud Node/px_gh.dll pid: 15804, tid: 0
+[2026-10-10 23:00:30.369][thread 6592][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=15804: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0
+[2026-10-10 23:00:30.370][thread 6592][app_shared_info.cpp:104][info] : Wrote protected hook bootstrap pid=15804 bytes=96
+[2026-10-10 23:00:30.370][thread 16516][ws_server.cpp:835][info] : IPC (/ipc) registered allowed pid=15804 (total=1)
+[2026-10-10 23:00:30.392][thread 9876][app_manager_win.cpp:440][info] : Inject success for pid: 15804, exe: 2dAdventure.exe
+[2026-10-10 23:00:30.393][thread 26452][rd_app.cpp:917][info] : MsgObsInjected: schedule PID process-loopback on worker pid=15804
+[2026-10-10 23:00:30.393][thread 26452][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=15804
+[2026-10-10 23:00:30.393][thread 16844][rd_app.cpp:945][info] : PID audio worker: Stop+Start begin pid=15804 CoInitializeEx=0x00000000
+[2026-10-10 23:00:30.393][thread 16844][was_audio_capture_runtime.cpp:212][warning] : [WasAudioCaptureRuntime] stop: capture already null
+[2026-10-10 23:00:30.393][thread 16844][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=15804
+[2026-10-10 23:00:30.393][thread 16844][was_audio_capture_runtime.cpp:121][info] : [WasAudioCaptureRuntime] start, loopback_pid=15804
+[2026-10-10 23:00:30.394][thread 7644][process_loopback_audio_capture.cpp:154][warning] : [ProcessLoopback] GetMixFormat failed 0x80004001; using requested format
+[2026-10-10 23:00:30.394][thread 7272][was_audio_capture_runtime.cpp:151][info] : [WasAudioCaptureRuntime] format ready: 48000Hz 2ch 16bit
+[2026-10-10 23:00:30.394][thread 7272][process_loopback_audio_capture.cpp:413][info] : [ProcessLoopback] capturing pid=15804 48000Hz 2ch 16bit
+[2026-10-10 23:00:30.405][thread 7272][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1 last_bytes=1920
+[2026-10-10 23:00:30.405][thread 26452][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=1 idx=1
+[2026-10-10 23:00:30.443][thread 16844][was_audio_capture_runtime.cpp:201][info] : [WasAudioCaptureRuntime] start OK (PID process-loopback)
+[2026-10-10 23:00:30.443][thread 16844][rd_app.cpp:952][info] : PID audio worker: StartProviding OK pid=15804
+[2026-10-10 23:00:30.447][thread 3896][ws_server.cpp:1131][info] : event=session.admit component=net_ws outcome=connected route=ipc peer=08a3d11e port=20520 fd=1528 pid=15804 sessions=1
+[2026-10-10 23:00:32.399][thread 7272][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=200 last_bytes=1920
+[2026-10-10 23:00:33.315][thread 16392][network_event_ingress.cpp:389][info] : Connection established
+[2026-10-10 23:00:33.315][thread 16392][media_recorder_sink.cpp:423][info] : event=record.session component=media_recorder action=auto_start outcome=success transport=iroh
+[2026-10-10 23:00:33.315][thread 26452][rd_app.cpp:2006][info] : Use synthetic game-hook monitor configuration: 1279x718
+[2026-10-10 23:00:33.315][thread 26452][rd_app.cpp:2030][info] : Will send configuration back, monitor size: 1
+[2026-10-10 23:00:33.315][thread 26452][rd_app.cpp:2045][info] : Will send configuration back, fps: 60
+[2026-10-10 23:00:33.315][thread 16392][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=152 size=1279x718
+[2026-10-10 23:00:33.316][thread 16392][iroh_server.cpp:266][info] : event=session.admit component=net_iroh outcome=connected
+[2026-10-10 23:00:33.316][thread 25992][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=1 sessions=1 bytes=8
+[2026-10-10 23:00:33.316][thread 17404][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=14952800 rtt_us=8463 path=1 media_backpressure=false receiver_stalled=false received_bps=0
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:309][info] : EncoderThread target_encoder is nullptr, will create encoder.
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1000][info] : ---------------------------------------------------
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1001][info] : Encoder configs:
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1002][info] : width x height:1279x718
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1003][info] : gop size: -1
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1004][info] : gop bitrate: 14952800
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1005][info] : enable full color: false
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1006][info] : encoder codec_type: 0
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:1007][info] : ***************************************************
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:438][info] : We use d3d device from capture.
+[2026-10-10 23:00:33.316][thread 17404][frame_carrier_processor.cpp:193][info] : event=processor.initialize component=frame_carrier monitor=b84ddb79 adapter_uid=79923 outcome=success
+[2026-10-10 23:00:33.316][thread 17404][encoder_thread.cpp:494][info] : Hardware disabled? false
+[2026-10-10 23:00:33.316][thread 17404][video_encoder_module.cpp:63][info] : event=encoder.initialize component=95ccd9a2-b277-48dd-a8cd-8c20790742d4 width=1279 height=718 fps=60
+[2026-10-10 23:00:33.316][thread 17404][nvenc_encoder_module.cpp:125][info] : config bitrate: 14952800 for monitor: game-hook
+[2026-10-10 23:00:33.316][thread 17404][nvenc_video_encoder.cpp:39][info] : input_frame_width_ = 1279, input_frame_height_ = 718, dxgi_format = 28 (0x1c), nvenc_format = 0x10000000, m_pD3DRender->GetDevice() = 0x1a92a9c4be8, config.fps = 60, enable 444: false
+[2026-10-10 23:00:33.318][thread 1180][resource_channel_reporter.cpp:207][info] : event=resource_channel.open component=render outcome=success session=011b5139-1a56-4f4b-90f1-c61f2c972ebd channel=e8bacc2c-1d86-40c9-b34b-af0fb7ee3461
+[2026-10-10 23:00:33.319][thread 26452][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 23:00:33.320][thread 14836][opus_encoder_runtime.cpp:200][info] : audio format, samples: 48000, channels: 2, bits: 16
+[2026-10-10 23:00:33.339][thread 17404][nvenc_video_encoder.cpp:72][info] : NVENC init success.
+[2026-10-10 23:00:33.339][thread 17404][encoder_thread.cpp:602][info] : Selected encoder module: NVENC Encoder, version: 1.1.0 for monitor: game-hook
+[2026-10-10 23:00:33.339][thread 17404][video_frame_carrier.cpp:263][info] : frame carrier texture: 1279x718 dxgi_format=28 (src_format=28)
+[2026-10-10 23:00:33.343][thread 11456][media_recorder_sink.cpp:648][info] : event=record.writer component=media_recorder action=create monitor=b84ddb79 outcome=success
+[2026-10-10 23:00:33.344][thread 3832][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=152 gap_ms=0 bytes=5447
+[2026-10-10 23:00:33.383][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=1 hwnd=a4002d2 screen=(654,317) ratio=(0.311,0.081) btn=128
+[2026-10-10 23:00:33.383][thread 16516][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=2 sessions=1 bytes=40
+[2026-10-10 23:00:33.457][thread 1180][file_transfer_reporter.cpp:249][info] : event=file_transfer.begin component=render outcome=success session=011b5139-1a56-4f4b-90f1-c61f2c972ebd transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 total_bytes=67108864
+[2026-10-10 23:00:33.462][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=2 hwnd=a4002d2 screen=(654,317) ratio=(0.311,0.081) btn=128
+[2026-10-10 23:00:33.462][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=3 hwnd=a4002d2 screen=(654,317) ratio=(0.311,0.081) btn=1024
+[2026-10-10 23:00:33.462][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=4 hwnd=a4002d2 screen=(648,526) ratio=(0.306,0.372) btn=128
+[2026-10-10 23:00:33.462][thread 16516][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=3 sessions=1 bytes=40
+[2026-10-10 23:00:33.462][thread 25992][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=4 sessions=1 bytes=40
+[2026-10-10 23:00:33.462][thread 25992][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=5 sessions=1 bytes=40
+[2026-10-10 23:00:33.462][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=5 hwnd=a4002d2 screen=(657,526) ratio=(0.313,0.372) btn=128
+[2026-10-10 23:00:33.466][thread 22168][message_session.cpp:336][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=262144 receipt_bytes=88 backpressure_count=0
+[2026-10-10 23:00:33.477][thread 3832][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=152 gap_ms=133 bytes=29748
+[2026-10-10 23:00:33.523][thread 15468][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=011b5139-1a56-4f4b-90f1-c61f2c972ebd monitor=
+[2026-10-10 23:00:33.525][thread 3832][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=011b5139-1a56-4f4b-90f1-c61f2c972ebd monitor=game-hook frame=156 kind=2 request_age_us=2563
+[2026-10-10 23:00:33.566][thread 26452][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=159 size=1279x718
+[2026-10-10 23:00:34.260][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=96 dropped=0 video_packets=49 audio_packets=46 writer_failures=0
+[2026-10-10 23:00:34.266][thread 10736][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=194 arrival_gap_us=130793 generated_gap_us=50561 released=3 pending=6 bytes=59400 oldest=195 age_us=90914
+[2026-10-10 23:00:34.315][thread 17704][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9
+[2026-10-10 23:00:34.315][thread 17704][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable
+[2026-10-10 23:00:34.316][thread 26452][rd_app.cpp:1824][info] : Replay cached game-hook frame on viewer connect: index=204 size=1279x718
+[2026-10-10 23:00:34.400][thread 7272][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=400 last_bytes=1920
+[2026-10-10 23:00:34.459][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=2703360
+[2026-10-10 23:00:35.260][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=206 dropped=0 video_packets=109 audio_packets=96 writer_failures=0
+[2026-10-10 23:00:35.260][thread 1180][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=21.29 video_mbps=1.591 encoded_audio_pps=18.94 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 23:00:35.260][thread 24264][ws_server.cpp:893][info] : event=transport.window component=net_ws transport=ws window_ms=5120 active_connections=1 connected=1 disconnected=0 inbound_messages=261 inbound_bytes=39672 inbound_mps=50.98 outbound_messages=116 outbound_bytes=4608 outbound_mps=22.66 bytes_per_second=8648.44 dropped=0 queue_depth=0 queue_high_watermark=0 outcome=sampled
+[2026-10-10 23:00:35.310][thread 26452][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 23:00:35.462][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=6144000
+[2026-10-10 23:00:35.754][thread 10736][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=286 arrival_gap_us=100879 generated_gap_us=55923 released=4 pending=3 bytes=19800 oldest=287 age_us=45218
+[2026-10-10 23:00:36.236][thread 10736][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=312 arrival_gap_us=104304 generated_gap_us=52280 released=5 pending=6 bytes=48400 oldest=313 age_us=93457
+[2026-10-10 23:00:36.261][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=316 dropped=0 video_packets=169 audio_packets=146 writer_failures=0
+[2026-10-10 23:00:36.400][thread 7272][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=600 last_bytes=1920
+[2026-10-10 23:00:36.465][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=11673600
+[2026-10-10 23:00:37.202][thread 25992][ws_server.cpp:625][info] : PostIpcBinaryMessage: sent n=200 sessions=1 bytes=40
+[2026-10-10 23:00:37.202][thread 15468][network_event_ingress.cpp:1035][info] : hook-inner mouse: n=200 hwnd=a4002d2 screen=(648,526) ratio=(0.306,0.372) btn=128
+[2026-10-10 23:00:37.261][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=426 dropped=0 video_packets=229 audio_packets=196 writer_failures=0
+[2026-10-10 23:00:37.310][thread 26452][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 23:00:37.467][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=17326080
+[2026-10-10 23:00:37.660][thread 10736][media_datagrams.cpp:177][info] : event=iroh.feedback_trace stream=0 frame=400 arrival_gap_us=108919 generated_gap_us=59087 released=4 pending=3 bytes=19800 oldest=401 age_us=49891
+[2026-10-10 23:00:38.262][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=536 dropped=0 video_packets=289 audio_packets=246 writer_failures=0
+[2026-10-10 23:00:38.320][thread 1180][resource_channel_reporter.cpp:301][info] : event=resource_channel.report component=render outcome=success channel=e8bacc2c-1d86-40c9-b34b-af0fb7ee3461 state=active sent_bytes=29034 received_bytes=40474198
+[2026-10-10 23:00:38.343][thread 17404][encoder_thread.cpp:91][info] : enc diag: wall=5000ms, in_fps=59.4, backlog=1, task_avg=3ms, task_max=27ms, copy_tex_avg=0ms, enc_posts=0, enc_wait_avg=0ms, enc_wait_max=0ms
+[2026-10-10 23:00:38.360][thread 3832][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3482243 video_datagram_bps=4899805 opus_bps=30472 audio_datagram_bps=61858 flight_bytes=25300 flight_limited=0
+[2026-10-10 23:00:38.360][thread 3832][media_datagrams.cpp:46][info] : event=iroh.send_window offered=294 idr=2 busy=0 completed=294 failed=0 max_send_us=168 path=1 rtt_us=42741 tx_packets=11323 tx_lost=0
+[2026-10-10 23:00:38.360][thread 3832][media_datagrams.cpp:49][info] : event=iroh.send_path selected={"Ip":"39.82.198.244:56801"} cwnd_bytes=153281 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 23:00:38.400][thread 7272][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=800 last_bytes=1920
+[2026-10-10 23:00:38.470][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=21135360
+[2026-10-10 23:00:39.263][thread 1180][media_recorder_sink.cpp:298][info] : event=sink.performance component=media_recorder recording=true queue_depth=0 high_watermark=1 accepted=646 dropped=0 video_packets=349 audio_packets=296 writer_failures=0
+[2026-10-10 23:00:39.309][thread 26452][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 23:00:39.473][thread 1180][file_transfer_reporter.cpp:335][info] : event=file_transfer.report component=render outcome=success transfer=c7925d42-f14a-4d7e-a350-faf745fc8b49 state=queued transferred_bytes=31211520

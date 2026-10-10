@@ -7,6 +7,70 @@
 
 namespace px::client::imgui {
 
+TEST(ClientImguiLaunchConfigTest, IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference) {
+    const auto config = ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"private-node","port":4601,"stream_id":"session-1","device_id":"client",
+        "remote_device_id":"remote","connection_nonce":"nonce","frontend_session_id":"session-1",
+        "frontend_session_revision":2,"frontend_token":"existing-session-secret","force_relay":true,
+        "iroh":{"endpoint_address":{"id":"node-identity","addrs":[{"Relay":"https://relay.example"}]},
+        "endpoint_configuration":{"relays":[{"url":"https://relay.example","qad_port":4618}]}}
+    })");
+    ASSERT_TRUE(config);
+    const auto parameters = BuildClientIrohParameters(*config);
+    ASSERT_TRUE(parameters);
+    EXPECT_EQ(parameters->frontend.at("frontend_token"), "existing-session-secret");
+    EXPECT_EQ(parameters->frontend.at("session_revision"), "2");
+    EXPECT_EQ(parameters->frontend.at("client_nonce"), "nonce");
+    EXPECT_EQ(parameters->frontend.at("rdp"), "0");
+    EXPECT_FALSE(parameters->frontend.contains("safety_pwd_md5"));
+    const auto endpointConfiguration = nlohmann::json::parse(parameters->endpoint_configuration);
+    EXPECT_TRUE(endpointConfiguration.at("relay_only").get<bool>());
+    EXPECT_EQ(endpointConfiguration.at("relays").at(0).at("qad_port"), 4618);
+}
+
+TEST(ClientImguiLaunchConfigTest, IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback) {
+    const auto config = ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"private-node","port":4601,"stream_id":"session-1","device_id":"client",
+        "remote_device_id":"remote","connection_nonce":"nonce","remote_password_hash":"existing-password-digest",
+        "iroh":{"endpoint_address":{"id":"node-identity","addrs":[{"Ip":"192.168.31.90:4601"}]},"endpoint_configuration":{}}
+    })");
+    ASSERT_TRUE(config);
+    auto rdpConfig = *config;
+    rdpConfig.rdp = true;
+    const auto parameters = BuildClientIrohParameters(rdpConfig);
+    ASSERT_TRUE(parameters);
+    EXPECT_EQ(parameters->frontend.at("rdp"), "1");
+    EXPECT_EQ(parameters->frontend.at("safety_pwd_md5"), "existing-password-digest");
+    EXPECT_FALSE(parameters->frontend.contains("frontend_token"));
+    EXPECT_EQ(parameters->endpoint_configuration, "{}");
+    EXPECT_EQ(nlohmann::json::parse(parameters->endpoint_address).at("addrs").at(0).at("Ip"), "192.168.31.90:4601");
+}
+
+TEST(ClientImguiLaunchConfigTest, InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport) {
+    constexpr std::string_view prefix{R"({"schema":1,"host":"private-node","port":4601,"stream_id":"session-1","device_id":"client",
+        "remote_device_id":"remote","connection_nonce":"nonce","remote_password_hash":"hash","iroh":)"};
+    for (const std::string_view invalid : {R"({})", R"({"endpoint_address":{},"endpoint_configuration":{}})",
+                                          R"({"endpoint_address":{"id":"identity","addrs":[]},"endpoint_configuration":{}})",
+                                          R"({"endpoint_address":{"id":"identity","addrs":[{"Ip":"127.0.0.1:4601"}]}})"}) {
+        EXPECT_FALSE(ParseClientLaunchEnvelope(std::string{prefix} + std::string{invalid} + "}"));
+    }
+}
+
+TEST(ClientImguiLaunchConfigTest, PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether) {
+    const std::string prefix = R"({"schema":1,"host":"127.0.0.1","port":4601,"stream_id":"stream",
+        "device_id":"client","remote_device_id":"remote","connection_nonce":"nonce","remote_password_hash":"hash",)";
+    const auto config = ParseClientLaunchEnvelope(prefix + R"("panel_port":4999,"panel_launch_id":"ee71cfc9-4ba0-443d-814c-b914cd86b9fe"})");
+    ASSERT_TRUE(config);
+    EXPECT_EQ(config->panelPort, 4999);
+    EXPECT_EQ(config->panelLaunchId, "ee71cfc9-4ba0-443d-814c-b914cd86b9fe");
+    for (const std::string suffix : {R"("panel_port":4999})", R"("panel_launch_id":"ee71cfc9-4ba0-443d-814c-b914cd86b9fe"})",
+                                     R"("panel_port":65536,"panel_launch_id":"ee71cfc9-4ba0-443d-814c-b914cd86b9fe"})",
+                                     R"("panel_port":-1,"panel_launch_id":"ee71cfc9-4ba0-443d-814c-b914cd86b9fe"})",
+                                     R"("panel_port":4999,"panel_launch_id":"invalid&launch_id=another"})"}) {
+        EXPECT_FALSE(ParseClientLaunchEnvelope(prefix + suffix));
+    }
+}
+
 TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunch) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema": 1,
@@ -40,6 +104,21 @@ TEST(ClientImguiLaunchConfigTest, ExplicitTcpUsesDirectEndpointWithoutRelayConfi
     EXPECT_EQ(config->relayPort, 0);
     EXPECT_EQ(config->host, "192.168.31.90");
     EXPECT_EQ(config->port, 4601);
+}
+
+TEST(ClientImguiLaunchConfigTest, ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority) {
+    const auto config = ParseClientLaunchEnvelope(R"({
+        "schema":1,"host":"192.168.31.90","port":4601,"stream_id":"direct-tcp","device_id":"client",
+        "remote_device_id":"remote","connection_nonce":"nonce","remote_password_hash":"hash","force_tcp":true,
+        "iroh":{"endpoint_address":{"id":"identity","addrs":[{"Ip":"192.168.31.90:4601"}]},"endpoint_configuration":{}}
+    })");
+    ASSERT_TRUE(config);
+    EXPECT_FALSE(BuildClientIrohParameters(*config));
+    auto relay_config = *config;
+    relay_config.forceRelay = true;
+    const auto relay_parameters = BuildClientIrohParameters(relay_config);
+    ASSERT_TRUE(relay_parameters);
+    EXPECT_TRUE(nlohmann::json::parse(relay_parameters->endpoint_configuration).at("relay_only").get<bool>());
 }
 
 TEST(ClientImguiLaunchConfigTest, ParsesAppearanceWithoutChangingConnectionRequirements) {

@@ -1,0 +1,23 @@
+[
+  {
+    "original_path": "src/px_render/network/udp/udp_paced_batch.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_render/network/udp/udp_paced_batch.h",
+    "sha256": "739e7f1759ebcf201ba27ef6d44b2b45a0041270789be7617827629dfb9bc1c6",
+    "reason": "Share bounded asynchronous media burst pacing between existing UDP and iroh without changing UDP behavior."
+  },
+  {
+    "original_path": "src/px_render/network/udp/udp_transport.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M src/px_render/network/udp/udp_transport.cpp",
+    "sha256": "eccee495dc807decaa23db7139569318c71676d151e75c13a344c8b9f3baeac7",
+    "reason": "Share bounded asynchronous media burst pacing between existing UDP and iroh without changing UDP behavior."
+  },
+  {
+    "original_path": "src/px_render/tests/unit/test_udp_paced_batch.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_render/tests/unit/test_udp_paced_batch.cpp",
+    "sha256": "652e487240a8d982488c0c2453a7c880e41af53e447a01e85308ca1b180b0b16",
+    "reason": "Share bounded asynchronous media burst pacing between existing UDP and iroh without changing UDP behavior."
+  }
+]

@@ -14,67 +14,58 @@
 
 #include "px_common/file_transfer_send_result.h"
 
-namespace px
-{
+namespace px {
 
-    class Data;
-    class MessageNotifier;
+class Data;
+class MessageNotifier;
 
-    using OnConnectedCallback = std::function<void()>;
-    using OnDisConnectedCallback = std::function<void()>;
-    using OnMessageCallback = std::function<void(std::shared_ptr<Data>)>;
+using OnConnectedCallback = std::function<void()>;
+using OnDisConnectedCallback = std::function<void()>;
+using OnMessageCallback = std::function<void(std::shared_ptr<Data>)>;
 
-    class Connection {
-    public:
-        explicit Connection(const std::shared_ptr<MessageNotifier>& notifier);
+class Connection {
+public:
+    explicit Connection(const std::shared_ptr<MessageNotifier>& notifier);
 
-        virtual ~Connection();
+    virtual ~Connection();
 
-        void RegisterOnConnectedCallback(OnConnectedCallback&& callback) {
-            conn_cbk_ = std::move(callback);
+    void RegisterOnConnectedCallback(OnConnectedCallback&& callback) { conn_cbk_ = std::move(callback); }
+
+    void RegisterOnDisConnectedCallback(OnDisConnectedCallback&& callback) { dis_conn_cbk_ = std::move(callback); }
+
+    void RegisterOnMessageCallback(OnMessageCallback&& callback) { msg_cbk_ = std::move(callback); }
+
+    virtual void Start();
+    virtual void Stop();
+    [[nodiscard]] virtual FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> payload);
+    virtual void PostBinaryMessage(std::shared_ptr<Data> payload) = 0;
+    // Reliable protocol streams require a real write completion. Unsupported transports fail explicitly.
+    virtual void PostReliableBinaryMessage(std::shared_ptr<Data>, std::function<void(bool)> completion) {
+        if (completion) {
+            completion(false);
         }
+    }
+    virtual void PostTextMessage(const std::string& message) { static_cast<void>(message); }
+    virtual int64_t GetQueuingMsgCount();
+    virtual void RequestPauseStream() {}
+    virtual void RequestResumeStream() {}
+    virtual void On16msTimeout() {}
+    virtual bool IsAlive() { return true; }
+    [[nodiscard]] virtual std::shared_ptr<FileTransferWritableSignal> AcquireFileTransferWritableSignal();
 
-        void RegisterOnDisConnectedCallback(OnDisConnectedCallback&& callback) {
-            dis_conn_cbk_ = std::move(callback);
-        }
+protected:
+    void NotifyFileTransferWritable();
+    void NotifyFileTransferClosed();
 
-        void RegisterOnMessageCallback(OnMessageCallback&& callback) {
-            msg_cbk_ = std::move(callback);
-        }
+    OnConnectedCallback conn_cbk_;
+    OnDisConnectedCallback dis_conn_cbk_;
+    OnMessageCallback msg_cbk_;
+    std::atomic_int64_t queuing_message_count_ = 0;
+    std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
+    std::mutex writable_signal_mutex_;
+    std::shared_ptr<FileTransferWritableSignal> writable_signal_;
+};
 
-        virtual void Start();
-        virtual void Stop();
-        virtual void PostBinaryMessage(std::shared_ptr<Data> payload) = 0;
-        // Reliable protocol streams require a real write completion. Unsupported transports fail explicitly.
-        virtual void PostReliableBinaryMessage(std::shared_ptr<Data>, std::function<void(bool)> completion) {
-            if (completion) {
-                completion(false);
-            }
-        }
-        virtual void PostTextMessage(const std::string& message) {
-            static_cast<void>(message);
-        }
-        virtual int64_t GetQueuingMsgCount();
-        virtual void RequestPauseStream() {}
-        virtual void RequestResumeStream() {}
-        virtual void On16msTimeout() {}
-        virtual bool IsAlive() { return true; }
-        [[nodiscard]] virtual std::shared_ptr<FileTransferWritableSignal>
-        AcquireFileTransferWritableSignal();
+}  // namespace px
 
-    protected:
-        void NotifyFileTransferWritable();
-        void NotifyFileTransferClosed();
-
-        OnConnectedCallback conn_cbk_;
-        OnDisConnectedCallback dis_conn_cbk_;
-        OnMessageCallback msg_cbk_;
-        std::atomic_int64_t queuing_message_count_ = 0;
-        std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-        std::mutex writable_signal_mutex_;
-        std::shared_ptr<FileTransferWritableSignal> writable_signal_;
-    };
-
-}
-
-#endif //PIXELSPC_CONNECTION_H
+#endif  // PIXELSPC_CONNECTION_H

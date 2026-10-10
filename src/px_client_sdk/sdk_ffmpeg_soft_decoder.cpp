@@ -150,8 +150,8 @@ namespace px
 
         int ret = avcodec_send_packet(codec_context.get(), packet.get());
         if (ret == AVERROR(EAGAIN)) {
-            LOGW("EAGAIN...");
-            return TRError(0);
+            LOGW("Decoder rejected input while waiting for output; its reference must not advance");
+            return TRError(AVERROR(EAGAIN));
         }
         else if (ret != 0) {
             LOGE("avcodec_send_packet err: {}", ret);

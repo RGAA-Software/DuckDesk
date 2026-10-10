@@ -1,0 +1,95 @@
+{
+  "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-232407-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "78d48f37-7f09-4b74-9843-51082d7b3b08",
+  "started_at": "2026-10-10 23:24:09",
+  "posted_input_messages": 2229,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-232407-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-232407-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-232407-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-232407-relay\\mixed-3.png"
+  ],
+  "elapsed_seconds": 42.061,
+  "exit_code": 0,
+  "source_sha256": "4504a70f5e72175174a411ed60876c34b1dce2d31612c9eaa7264f9c43387a0a",
+  "download_sha256": "4504a70f5e72175174a411ed60876c34b1dce2d31612c9eaa7264f9c43387a0a",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 302,
+      "fps": 60.4,
+      "max_gap_ms": 36.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 59.9,
+      "max_gap_ms": 90.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.2,
+      "max_gap_ms": 37.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 299,
+      "fps": 59.4,
+      "max_gap_ms": 62.0,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 279,
+      "fps": 55.6,
+      "max_gap_ms": 152.4,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 278,
+      "fps": 55.5,
+      "max_gap_ms": 170.4,
+      "gaps_gt_100ms": 2,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 290,
+      "fps": 57.9,
+      "max_gap_ms": 80.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 293,
+      "fps": 58.5,
+      "max_gap_ms": 103.0,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "selected_paths": [
+    "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+  ],
+  "read_only_observation_retries": 0
+}

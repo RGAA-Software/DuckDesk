@@ -1,5 +1,21 @@
 find_package(GTest CONFIG REQUIRED)
 
+add_executable(test_encoder_frame_sequence unit/test_encoder_frame_sequence.cpp ../../px_client_sdk/encoded_video_delivery.cpp)
+target_include_directories(test_encoder_frame_sequence PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+target_link_libraries(test_encoder_frame_sequence PRIVATE px_message pixels::media_transport GTest::gtest GTest::gtest_main)
+add_test(NAME encoder_frame_sequence COMMAND test_encoder_frame_sequence)
+set_tests_properties(encoder_frame_sequence PROPERTIES TIMEOUT 15)
+
+add_executable(test_iroh_frontend unit/test_iroh_frontend.cpp ../session/logical_session_registry.cpp)
+target_link_libraries(test_iroh_frontend PRIVATE net_iroh px_sdk_core GTest::gtest GTest::gtest_main)
+add_test(NAME iroh_frontend COMMAND test_iroh_frontend)
+set_tests_properties(iroh_frontend PROPERTIES TIMEOUT 60)
+
+add_executable(test_udp_paced_batch unit/test_udp_paced_batch.cpp)
+target_link_libraries(test_udp_paced_batch PRIVATE px_common pixels::media_transport GTest::gtest GTest::gtest_main)
+add_test(NAME udp_paced_batch COMMAND test_udp_paced_batch)
+set_tests_properties(udp_paced_batch PROPERTIES TIMEOUT 15)
+
 add_executable(test_application_idle_lifecycle unit/test_application_idle_lifecycle.cpp)
 target_include_directories(test_application_idle_lifecycle PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 target_link_libraries(test_application_idle_lifecycle PRIVATE GTest::gtest GTest::gtest_main)
@@ -202,6 +218,9 @@ add_executable(test_application_text_service test_application_text_service.cpp
     ../ingress/application_text_service.cpp ../session/logical_session_registry.cpp)
 target_link_libraries(test_application_text_service PRIVATE px_message px_ft_engine GTest::gtest GTest::gtest_main)
 add_test(NAME application_text_service COMMAND test_application_text_service)
+add_executable(test_application_clipboard test_application_clipboard.cpp ../ingress/application_clipboard.cpp)
+target_link_libraries(test_application_clipboard PRIVATE px_common GTest::gtest GTest::gtest_main)
+add_test(NAME application_clipboard COMMAND test_application_clipboard)
 
 add_executable(test_render_execution_context_lifecycle test_render_execution_context_lifecycle.cpp)
 target_link_libraries(test_render_execution_context_lifecycle PRIVATE render_architecture_core GTest::gtest GTest::gtest_main)

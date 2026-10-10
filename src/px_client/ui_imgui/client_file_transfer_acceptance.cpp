@@ -12,8 +12,9 @@
 namespace px::client::imgui {
 
 ClientFileTransferAcceptance::ClientFileTransferAcceptance(std::reference_wrapper<px::desktop::DesktopShell> shell,
-                                                           std::shared_ptr<ClientSession> session, ClientFileTransferAcceptanceConfig config)
-    : shell_{shell}, session_{std::move(session)}, config_{std::move(config)} {
+                                                           std::shared_ptr<ClientSession> session, ClientFileTransferAcceptanceConfig config,
+                                                           bool waitForVideo)
+    : shell_{shell}, session_{std::move(session)}, config_{std::move(config)}, waitForVideo_{waitForVideo} {
     const auto fileName = std::filesystem::path{config_.localSourcePath}.filename().string();
     remotePath_ = config_.remoteDirectory;
     if (!remotePath_.empty() && !remotePath_.ends_with('/') && !remotePath_.ends_with('\\')) {
@@ -42,7 +43,7 @@ void ClientFileTransferAcceptance::Tick() {
 
     switch (stage_) {
         case Stage::WaitForConnection:
-            if (snapshot.state != ClientConnectionState::Connected || !snapshot.fileTransferAvailable || !snapshot.frame) {
+            if (snapshot.state != ClientConnectionState::Connected || !snapshot.fileTransferAvailable || (waitForVideo_ && !snapshot.frame)) {
                 return;
             }
             if (config_.exerciseHostRestart && !uploadStartNotBefore_) {
@@ -107,6 +108,8 @@ void ClientFileTransferAcceptance::Tick() {
                 Fail("DOWNLOAD_NOT_STARTED");
                 return;
             }
+            LOGI("event=file_transfer.acceptance component=client operation=upload_complete outcome=success job={}", uploadJobId_);
+            LOGI("event=file_transfer.acceptance component=client operation=start_download outcome=success job={}", downloadJobId_);
             stage_ = Stage::Download;
             return;
         }
@@ -122,6 +125,7 @@ void ClientFileTransferAcceptance::Tick() {
             if (!job->done) {
                 return;
             }
+            LOGI("event=file_transfer.acceptance component=client operation=download_complete outcome=success job={}", downloadJobId_);
             if (!session_->RemoveRemoteEntry(remotePath_, false)) {
                 Fail("REMOTE_CLEANUP_NOT_STARTED");
                 return;

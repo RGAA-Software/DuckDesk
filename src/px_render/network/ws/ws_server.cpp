@@ -16,6 +16,7 @@
 #include "app/app_messages.h"
 #include "app/win/ipc_peer_identity.h"
 #include "frontend_lease_renewal.h"
+#include "px_render/network/frontend_admission.h"
 #include "px_render/network/direct_stream_id.h"
 #include "http_handler.h"
 #include "message_type_ids.h"
@@ -86,27 +87,6 @@ static bool IsIpcProcessAlive(uint32_t pid) {
 }
 
 namespace px {
-static int64_t CurrentSystemMilliseconds() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
-
-struct WsPasswordAdmission {
-    std::vector<std::string> permissions_;
-    std::string logical_session_id_;
-    std::string stream_id_;
-    std::string join_mode_;
-    std::string subject_id_;
-    int64_t expires_at_ms_ = 0;
-    bool allow_observer_ = true;
-    bool allow_takeover_ = true;
-    std::shared_ptr<WebSocketFrontendToken> frontend_token_{};
-    std::optional<ConsoleFrontendGrant> console_frontend_grant_{};
-    std::string descriptor_session_id_{};
-    std::int64_t descriptor_revision_{};
-    std::string direct_quota_id_{};
-    std::uint32_t direct_valid_for_ms_{};
-};
-
 static void RejectWebSocketSession(std::shared_ptr<asio2::http_session> session, const std::string_view control_signal) {
     if (!session || control_signal.empty()) {
         return;
@@ -122,161 +102,6 @@ static void RejectWebSocketSession(std::shared_ptr<asio2::http_session> session,
             session->stop();
         });
     });
-}
-
-static void DispatchCloseLogicalSessionBinding(const std::weak_ptr<WsTransport>& transport, const std::string& logical_session_id,
-                                               const std::string& binding_id) {
-    const auto owner = transport.lock();
-    if (!owner || logical_session_id.empty() || binding_id.empty()) {
-        return;
-    }
-    const auto event = std::make_shared<CloseLogicalSessionBindingEvent>();
-    event->logical_session_id_ = logical_session_id;
-    event->binding_id_ = binding_id;
-    owner->EmitEvent(event);
-}
-
-static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWsPasswordAsync(std::weak_ptr<WsTransport> transport,
-                                                                              std::unordered_map<std::string, std::string> query_parameters,
-                                                                              std::string remote_address, const bool media_stream) {
-    const auto owner = transport.lock();
-    const auto stream_iterator = query_parameters.find("stream_id");
-    const auto nonce_iterator = query_parameters.find("client_nonce");
-    const auto password_iterator = query_parameters.find("safety_pwd_md5");
-    if (!owner || stream_iterator == query_parameters.end() || stream_iterator->second.empty() || nonce_iterator == query_parameters.end() ||
-        nonce_iterator->second.empty() || password_iterator == query_parameters.end() || password_iterator->second.empty()) {
-        co_return PxResult<WsPasswordAdmission>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_password_auth", "device password is missing"));
-    }
-    const auto settings = owner->Settings();
-    const bool valid_safety_password = !settings.device_safety_password.empty() && settings.device_safety_password == password_iterator->second;
-    const bool valid_temporary_password =
-        !settings.device_random_password.empty() && MD5::Hex(settings.device_random_password) == password_iterator->second;
-    if ((!settings.device_safety_password.empty() || !settings.device_random_password.empty()) && !valid_safety_password &&
-        !valid_temporary_password) {
-        co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_password_auth",
-                                                                          "device password was rejected", false, "SESSION_PASSWORD_REJECTED"));
-    }
-    // RDP runtime authorization sends this identifier through Console's strict
-    // binding validator, whose portable identifier alphabet is [A-Za-z0-9_-].
-    const std::string logical_session_id{"password-" + MD5::Hex(stream_iterator->second + "|" + nonce_iterator->second + "|" + remote_address)};
-    std::string quota_id{};
-    std::uint32_t valid_for_ms{};
-    if (media_stream) {
-        quota_id = DirectStreamQuotaId(settings.device_id, logical_session_id);
-        if (quota_id.empty()) {
-            co_return PxResult<WsPasswordAdmission>::Failure(
-                MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "direct_stream_admission", "direct stream identity is invalid"));
-        }
-        auto direct_grant = co_await owner->RequestDirectStream(quota_id, false, std::chrono::steady_clock::now() + std::chrono::seconds(12));
-        if (!direct_grant.HasValue() || direct_grant.Value() == 0) {
-            co_return PxResult<WsPasswordAdmission>::Failure(
-                direct_grant.HasValue()
-                    ? MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "direct_stream_admission", "Console denied direct stream")
-                                        : direct_grant.Error());
-        }
-        valid_for_ms = direct_grant.TakeValue();
-    }
-    co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
-        .permissions_ = {"view", "input", "clipboard", "file", "audio", "rdp"},
-        .logical_session_id_ = logical_session_id,
-        .stream_id_ = stream_iterator->second,
-        .join_mode_ = "control",
-        .subject_id_ = "password:" + MD5::Hex(remote_address + "|" + nonce_iterator->second),
-        .expires_at_ms_ = valid_for_ms == 0 ? 0 : CurrentSystemMilliseconds() + static_cast<std::int64_t>(valid_for_ms),
-        .allow_observer_ = false,
-        .allow_takeover_ = true,
-        .direct_quota_id_ = quota_id,
-        .direct_valid_for_ms_ = valid_for_ms,
-    });
-}
-
-static PxAwaitable<PxResult<WsPasswordAdmission>> AuthenticateWebSocketAsync(std::weak_ptr<WsTransport> transport,
-                                                                             std::unordered_map<std::string, std::string> query_parameters,
-                                                                             std::string remote_address, const bool media_stream) {
-    const auto owner = transport.lock();
-    if (!owner) {
-        co_return PxResult<WsPasswordAdmission>::Failure(
-            MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "ws_frontend_auth", "transport is unavailable", true, "TRANSPORT_UNAVAILABLE"));
-    }
-    if (!owner->RequiresConsoleFrontendAdmission()) {
-        co_return co_await AuthenticateWsPasswordAsync(std::move(transport), std::move(query_parameters), std::move(remote_address), media_stream);
-    }
-
-    auto descriptor = ConsumeWebSocketFrontendDescriptor(query_parameters);
-    if (!descriptor) {
-        co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kInvalidArgument, "ws_frontend_auth",
-                                                                          "Console frontend descriptor is invalid", false,
-                                                                          "CONSOLE_FRONTEND_DESCRIPTOR_INVALID"));
-    }
-
-    auto admitted = co_await owner->AdmitFrontend(
-        ConsoleFrontendAdmissionRequest{
-            .request_id = GenerateRandomBase64Id(),
-            .session_id = descriptor->session_id,
-            .revision = descriptor->revision,
-            .frontend_token = descriptor->token->Copy(),
-        },
-        std::chrono::steady_clock::now() + std::chrono::seconds(12));
-    if (!admitted.HasValue()) {
-        co_return PxResult<WsPasswordAdmission>::Failure(admitted.Error());
-    }
-    auto grant = admitted.TakeValue();
-    const auto settings = owner->Settings();
-    if (!IsAcceptedWebSocketFrontendGrant(*descriptor, settings.application_instance_id, grant)) {
-        LOGW(
-            "event=session.frontend_identity_mismatch component=net_ws code=CONSOLE_FRONTEND_IDENTITY_MISMATCH "
-            "operation=admit_frontend outcome=rejected recoverable=false target_kind_match={} instance_match={} role_match={} "
-            "session_match={} revision_match={} lease_valid={} expected_instance={} grant_instance={}",
-            grant.target_kind == "cloud_application", grant.instance_id == settings.application_instance_id,
-            grant.access_role == "controller" || grant.access_role == "observer", grant.session_id == descriptor->session_id,
-            grant.revision == descriptor->revision, grant.valid_for_ms > 0, PrivacyLogId(settings.application_instance_id),
-            PrivacyLogId(grant.instance_id));
-        co_return PxResult<WsPasswordAdmission>::Failure(MakePxAsyncError(PxAsyncErrorCode::kServiceRejected, "ws_frontend_auth",
-                                                                          "Console frontend identity was rejected", false,
-                                                                          "CONSOLE_FRONTEND_IDENTITY_MISMATCH"));
-    }
-    const bool controller = grant.access_role == "controller";
-    co_return PxResult<WsPasswordAdmission>::Success(WsPasswordAdmission{
-        .permissions_ =
-            controller ? std::vector<std::string>{"view", "input", "clipboard", "file", "audio", "rdp"} : std::vector<std::string>{"view", "audio"},
-        .logical_session_id_ = grant.session_id,
-        .stream_id_ = descriptor->stream_id,
-        .join_mode_ = controller ? "control" : "observe",
-        .subject_id_ = grant.client_type + ":" + grant.session_id,
-        .expires_at_ms_ = CurrentSystemMilliseconds() + static_cast<std::int64_t>(grant.valid_for_ms),
-        .allow_observer_ = !controller,
-        .allow_takeover_ = false,
-        .frontend_token_ = descriptor->token,
-        .console_frontend_grant_ = std::move(grant),
-        .descriptor_session_id_ = descriptor->session_id,
-        .descriptor_revision_ = descriptor->revision,
-    });
-}
-
-static PxAwaitable<PxResult<LogicalSessionAdmission>> AdmitWsSessionAsync(std::weak_ptr<WsTransport> weak_transport, LogicalSessionGrant grant,
-                                                                          const LogicalSessionTransport session_transport, std::string binding_id) {
-    const auto logical_session_id = grant.logical_session_id;
-    co_return co_await AwaitWsValueCallback<LogicalSessionAdmission>(
-        [weak_transport, grant = std::move(grant), session_transport, binding_id](std::function<void(LogicalSessionAdmission)> completion) {
-            const auto owner = weak_transport.lock();
-            if (!owner) {
-                return false;
-            }
-            const auto event = std::make_shared<AdmitLogicalSessionEvent>();
-            event->grant_ = grant;
-            event->transport_ = session_transport;
-            event->binding_id_ = binding_id;
-            event->callback_ = std::move(completion);
-            owner->EmitEvent(event);
-            return true;
-        },
-        std::chrono::steady_clock::now() + std::chrono::seconds(3), "ws_session_admit",
-        [weak_transport, logical_session_id, binding_id](const LogicalSessionAdmission& admission) {
-            if (admission.code == LogicalSessionAdmissionCode::kAccepted) {
-                DispatchCloseLogicalSessionBinding(weak_transport, logical_session_id, binding_id);
-            }
-        });
 }
 
 struct aop_log {
@@ -1329,7 +1154,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         co_return;
     }
     const auto transport = server->transport_;
-    auto authentication_result = co_await AuthenticateWebSocketAsync(transport, query_parameters, session->remote_address(), path == kUrlMedia);
+    auto authentication_result = co_await AuthenticateFrontendAsync(transport, query_parameters, session->remote_address(), path == kUrlMedia);
     if (!authentication_result.HasValue()) {
         const auto& error = authentication_result.Error();
         LOGW(
@@ -1392,7 +1217,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
         .allow_takeover = authentication.allow_takeover_,
         .input_allowed = std::ranges::find(authentication.permissions_, "input") != authentication.permissions_.end(),
     };
-    auto admission_result = co_await AdmitWsSessionAsync(
+    auto admission_result = co_await AdmitFrontendSessionAsync(
         transport, logical_grant, path == kUrlFileTransfer ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kWs, binding_id);
     if (!admission_result.HasValue() || admission_result.Value().code != LogicalSessionAdmissionCode::kAccepted) {
         const bool occupied = admission_result.HasValue() && admission_result.Value().code == LogicalSessionAdmissionCode::kOccupied;
@@ -1474,7 +1299,7 @@ PxAwaitable<void> WsServer::OpenWebSocketAsync(std::weak_ptr<WsServer> owner, st
 }
 
 void WsServer::FinalizeWebSocketOpen(const std::shared_ptr<asio2::http_session>& session, const std::string& path,
-                                     const std::unordered_map<std::string, std::string>& query_parameters, const WsPasswordAdmission& authentication,
+                                     const std::unordered_map<std::string, std::string>& query_parameters, const FrontendAdmission& authentication,
                                      const LogicalSessionAdmission&, const std::string& binding_id, const std::uint64_t socket_fd) {
     const auto transport = transport_.lock();
     if (!transport) {

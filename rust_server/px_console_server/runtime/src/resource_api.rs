@@ -1,13 +1,13 @@
 use crate::{
+    StateData,
     error::ApiError,
     request::{self, Input, Page, Params as Query, Revision, Route as Path},
-    StateData,
 };
 use axum::{
+    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, post},
-    Json, Router,
 };
 use px_console_store::{
     ApplicationInstance, OpenResourceSession, ResourceDescriptor, ResourceSession, SessionTarget,
@@ -67,6 +67,10 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
         )
         .route("/api/console/resource-sessions/{id}/close", post(close))
         .route(
+            "/api/console/resource-sessions/{id}/iroh-endpoint",
+            post(frontend_iroh_endpoint),
+        )
+        .route(
             "/api/console/managed/resource-sessions",
             get(managed_sessions),
         )
@@ -74,6 +78,24 @@ pub(crate) fn routes() -> Router<Arc<StateData>> {
             "/api/console/managed/instances/{id}/stop",
             post(managed_stop),
         )
+}
+
+async fn frontend_iroh_endpoint(
+    State(state): State<Arc<StateData>>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Input(value): Input<Revision>,
+) -> Result<Json<px_node_protocol::IrohConnectionDescription>, ApiError> {
+    let frontend = request::bearer(&headers)?;
+    let mut description = state
+        .db
+        .resource_sessions()
+        .frontend_iroh_endpoint(id, value.revision, &frontend, state.entitlement()?)
+        .await?;
+    description.endpoint_configuration["relays"] =
+        serde_json::to_value(state.db.relay_nodes().available_iroh_relays().await?)
+            .map_err(|_| ApiError::Unavailable)?;
+    Ok(Json(description))
 }
 
 async fn managed_instance_summary(
@@ -241,6 +263,7 @@ async fn descriptor(
             value.revision,
             &digest,
             state.entitlement()?,
+            state.iroh.is_some() && context.client == px_console_store::ClientType::Panel,
         )
         .await?;
     let rdp = if descriptor.transport == "rdp" {
@@ -264,7 +287,7 @@ async fn descriptor(
     } else {
         None
     };
-    let relay = if descriptor.transport == "rdp" {
+    let relay = if descriptor.transport == "rdp" || descriptor.iroh.is_some() {
         None
     } else if let (Some(binding), Some(admission)) =
         (descriptor.relay.as_ref(), state.relay_admission.as_ref())

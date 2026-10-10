@@ -30,6 +30,7 @@
 #include "px_render/network/relay/relay_transport.h"
 #include "px_render/network/transport_types.h"
 #include "px_render/network/udp/udp_transport.h"
+#include "px_render/network/iroh/iroh_transport.h"
 #include "px_render/network/ws/ws_transport.h"
 #include "px_render/pipeline/encoded_video_fanout.h"
 #include "rd_app.h"
@@ -102,10 +103,13 @@ void RenderModuleRegistry::StartModules() {
         .capture_audio_device_id = {},
         .ws_listen_port = settings_.transmission_.listening_port_,
         .udp_listen_port = settings_.transmission_.listening_port_,
+        .iroh_endpoint_configuration = settings_.iroh_endpoint_configuration_,
         .device_id = settings_.device_id_,
         .public_device_code = settings_.public_device_code_,
         .console_origin = settings_.console_origin_,
-        .application_instance_id = settings_.IsRdpMode() ? settings_.rdp_launch_.instance_id : settings_.device_id_,
+        .application_instance_id = settings_.IsRdpMode() ? settings_.rdp_launch_.instance_id
+                                   : settings_.IsGameHookMode() || settings_.IsWebViewMode() ? settings_.device_id_
+                                                                                         : std::string{},
         .direct_allow_takeover = settings_.direct_allow_takeover_,
         .relay_device_id = settings_.relay_device_id_,
         .relay_enabled = settings_.relay_enabled_,
@@ -183,6 +187,11 @@ void RenderModuleRegistry::StartModules() {
                 co_return co_await application->RequestDirectStream(std::move(stream_id), release, deadline);
             });
     };
+    const auto register_iroh = [owner = shared_from_this(), register_builtin] {
+        if (owner->settings_.iroh_endpoint_configuration_.empty() || !owner->ws_transport_) return;
+        const auto transport = std::make_shared<IrohTransport>(owner->ws_transport_, owner->context_->GetAsyncRuntime());
+        if (register_builtin(transport, "net_iroh")) owner->iroh_transport_ = transport;
+    };
     if (settings_.IsRdpMode()) {
         const auto transport = std::make_shared<WsTransport>(context_->GetAsyncRuntime());
         if (register_builtin(transport, "net_ws")) {
@@ -190,8 +199,8 @@ void RenderModuleRegistry::StartModules() {
             configure_controller_availability(transport);
             configure_frontend_authorizer(transport);
         }
-        return;  // No capture, encoders, native media, RTC, relay or host IPC
-                 // in this composition.
+        register_iroh();
+        return;  // RDP forwards its native protocol without host capture or input.
     }
     const auto dda_capture = std::make_shared<DdaCaptureSource>();
     const auto weak_registry = weak_from_this();
@@ -224,38 +233,42 @@ void RenderModuleRegistry::StartModules() {
         configure_controller_availability(ws_transport);
         configure_frontend_authorizer(ws_transport);
     }
-    const auto udp_transport = std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
-    if (register_builtin(udp_transport, "net_udp")) {
-        udp_transport_ = udp_transport;
-    }
-    const auto relay_transport = std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
-    if (register_builtin(relay_transport, "net_relay")) {
-        relay_transport_ = relay_transport;
-        relay_transport->ConfigureFrontendAuthorizer(
-            [weak_application](ConsoleFrontendAdmissionRequest request,
-                               const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<ConsoleFrontendGrant>> {
-                const auto application = weak_application.lock();
-                if (!application) {
-                    std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
-                    co_return PxResult<ConsoleFrontendGrant>::Failure(
-                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "frontend_admission", "Render application is unavailable"));
-                }
-                co_return co_await application->AdmitConsoleFrontend(std::move(request), deadline);
+    if (!settings_.iroh_endpoint_configuration_.empty()) {
+        register_iroh();
+    } else {
+        const auto udp_transport = std::make_shared<UdpTransport>(context_->GetAsyncRuntime());
+        if (register_builtin(udp_transport, "net_udp")) {
+            udp_transport_ = udp_transport;
+        }
+        const auto relay_transport = std::make_shared<RelayTransport>(context_->GetAsyncRuntime());
+        if (register_builtin(relay_transport, "net_relay")) {
+            relay_transport_ = relay_transport;
+            relay_transport->ConfigureFrontendAuthorizer(
+                [weak_application](ConsoleFrontendAdmissionRequest request,
+                                   const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<ConsoleFrontendGrant>> {
+                    const auto application = weak_application.lock();
+                    if (!application) {
+                        std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
+                        co_return PxResult<ConsoleFrontendGrant>::Failure(
+                            MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "frontend_admission", "Render application is unavailable"));
+                    }
+                    co_return co_await application->AdmitConsoleFrontend(std::move(request), deadline);
+                });
+            relay_transport->ConfigureDirectStreamAuthorizer(
+                [weak_application](std::string stream_id, bool release,
+                                   const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<std::uint32_t>> {
+                    const auto application = weak_application.lock();
+                    if (!application) {
+                        co_return PxResult<std::uint32_t>::Failure(
+                            MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "relay_direct_admission", "Render application is unavailable"));
+                    }
+                    co_return co_await application->RequestDirectStream(std::move(stream_id), release, deadline);
+                });
+            relay_transport->ConfigureLogicalLeaseRenewer([weak_sessions](const LogicalSessionGrant& grant, const std::int64_t now_ms) {
+                const auto sessions = weak_sessions.lock();
+                return sessions && sessions->RenewLease(grant, now_ms);
             });
-        relay_transport->ConfigureDirectStreamAuthorizer(
-            [weak_application](std::string stream_id, bool release,
-                               const std::chrono::steady_clock::time_point deadline) -> PxAwaitable<PxResult<std::uint32_t>> {
-                const auto application = weak_application.lock();
-                if (!application) {
-                    co_return PxResult<std::uint32_t>::Failure(
-                        MakePxAsyncError(PxAsyncErrorCode::kServiceStopped, "relay_direct_admission", "Render application is unavailable"));
-                }
-                co_return co_await application->RequestDirectStream(std::move(stream_id), release, deadline);
-            });
-        relay_transport->ConfigureLogicalLeaseRenewer([weak_sessions](const LogicalSessionGrant& grant, const std::int64_t now_ms) {
-            const auto sessions = weak_sessions.lock();
-            return sessions && sessions->RenewLease(grant, now_ms);
-        });
+        }
     }
 
     webrtc_transport_host_ = WebRtcTransportHost::Create();
@@ -463,6 +476,7 @@ void RenderModuleRegistry::StopRouting() {
 }
 
 PxAwaitable<PxResult<void>> RenderModuleRegistry::StopNetworkIngressAsync(const std::chrono::steady_clock::time_point deadline) {
+    if (const auto transport = SnapshotIrohTransport()) transport->Stop();
     std::shared_ptr<WsTransport> ws_transport;
     std::shared_ptr<UdpTransport> udp_transport;
     {
@@ -517,6 +531,7 @@ void RenderModuleRegistry::StopModules() {
         if (gdi_capture_) modules.push_back(gdi_capture_);
         if (ws_transport_) modules.push_back(ws_transport_);
         if (udp_transport_) modules.push_back(udp_transport_);
+        if (iroh_transport_) modules.push_back(iroh_transport_);
         if (relay_transport_) modules.push_back(relay_transport_);
         ffmpeg_encoder_.reset();
         nvenc_encoder_.reset();
@@ -525,6 +540,7 @@ void RenderModuleRegistry::StopModules() {
         gdi_capture_.reset();
         ws_transport_.reset();
         udp_transport_.reset();
+        iroh_transport_.reset();
         relay_transport_.reset();
         if (rtc_local_transport_) {
             webrtc_libraries.push_back(std::move(rtc_local_transport_));
@@ -663,6 +679,7 @@ bool RenderModuleRegistry::UpdateUdpMediaAssociation(const UdpMediaAssociation& 
 }
 
 void RenderModuleRegistry::BroadcastNetworkMessage(const std::shared_ptr<Data>& message, const bool run_through) {
+    if (const auto transport = SnapshotIrohTransport()) transport->Broadcast(message);
     if (!message) {
         return;
     }
@@ -682,6 +699,7 @@ void RenderModuleRegistry::BroadcastNetworkMessage(const std::shared_ptr<Data>& 
 }
 
 void RenderModuleRegistry::BroadcastTargetStreamMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
+    if (const auto transport = SnapshotIrohTransport()) static_cast<void>(transport->SendToStream(stream_id, message));
     if (!message) {
         return;
     }
@@ -703,6 +721,7 @@ void RenderModuleRegistry::BroadcastTargetStreamMessage(const std::string& strea
 }
 
 void RenderModuleRegistry::BroadcastFileTransferMessage(const std::string& stream_id, const std::shared_ptr<Data>& message, const bool run_through) {
+    if (const auto transport = SnapshotIrohTransport()) static_cast<void>(transport->SendFile(stream_id, message));
     if (!message) {
         return;
     }
@@ -731,15 +750,28 @@ void RenderModuleRegistry::BroadcastRawAudio(const std::shared_ptr<Data>& audio_
 
 std::uint64_t RenderModuleRegistry::EffectiveVideoBitrate(std::uint64_t requested_bps) const {
     std::shared_lock lock(modules_mtx_);
+    if (iroh_transport_ && iroh_transport_->HasVideoClient()) return iroh_transport_->VideoEncodingBitrate(requested_bps);
     return udp_transport_ && udp_transport_->ConnectedClientCount() > 0 ? udp_transport_->VideoEncodingBitrate() : requested_bps;
 }
 
 bool RenderModuleRegistry::HasNativeMediaClient() const {
     std::shared_lock lock(modules_mtx_);
-    return udp_transport_ && udp_transport_->ConnectedClientCount() > 0;
+    return (iroh_transport_ && iroh_transport_->HasVideoClient()) || (udp_transport_ && udp_transport_->ConnectedClientCount() > 0);
+}
+
+int RenderModuleRegistry::EffectiveVideoFrameRate(int requested_fps) const {
+    std::shared_lock lock(modules_mtx_);
+    return iroh_transport_ && iroh_transport_->HasVideoClient() ? iroh_transport_->VideoFrameRate(requested_fps) : requested_fps;
+}
+
+bool RenderModuleRegistry::CanEncodeVideo(const std::string& monitor) const {
+    std::shared_lock lock(modules_mtx_);
+    return !iroh_transport_ || !iroh_transport_->HasVideoClient() || iroh_transport_->CanEncodeVideo(monitor);
 }
 
 bool RenderModuleRegistry::PublishNativeEncodedVideo(const std::string& monitor_name, const std::shared_ptr<EncodedVideoFrameEvent>& event) {
+    if (const auto transport = SnapshotIrohTransport()) return event && transport->SubmitVideo(monitor_name, *event);
+
     std::shared_ptr<UdpTransport> udp{};
     {
         std::shared_lock lock(modules_mtx_);
@@ -784,6 +816,7 @@ void RenderModuleRegistry::DispatchNetworkAppEvent(const std::shared_ptr<AppBase
 }
 
 void RenderModuleRegistry::ApplyLogicalSessionCapabilities(const PxLogicalSessionCapabilityUpdate& update) {
+    if (const auto transport = SnapshotIrohTransport()) transport->UpdatePermissions(update.stream_id_, update.permissions_);
     if (const auto registry = app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}) {
         const auto allowed = std::find(update.permissions_.begin(), update.permissions_.end(), "input") != update.permissions_.end();
         registry->UpdateInputCapabilityByStream(update.stream_id_, allowed);
@@ -862,6 +895,7 @@ bool RenderModuleRegistry::IsWsUserProxyConnected() {
 }
 
 bool RenderModuleRegistry::HasWorkingVideoClient() {
+    if (const auto transport = SnapshotIrohTransport(); transport && transport->HasVideoClient()) return true;
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<UdpTransport> udp;
     std::shared_ptr<RelayTransport> relay;
@@ -984,6 +1018,7 @@ std::vector<std::shared_ptr<RenderModule>> RenderModuleRegistry::SnapshotModules
     if (gdi_capture_) modules.push_back(gdi_capture_);
     if (ws_transport_) modules.push_back(ws_transport_);
     if (udp_transport_) modules.push_back(udp_transport_);
+    if (iroh_transport_) modules.push_back(iroh_transport_);
     if (relay_transport_) modules.push_back(relay_transport_);
     return modules;
 }
@@ -1047,6 +1082,7 @@ void RenderModuleRegistry::On1Second() {
         }
 
         int media_consumer_count = 0;
+        if (const auto transport = self->SnapshotIrohTransport()) media_consumer_count += transport->ConnectedClientCount();
         std::shared_ptr<WsTransport> ws;
         std::shared_ptr<UdpTransport> udp;
         std::shared_ptr<RelayTransport> relay;
@@ -1081,6 +1117,28 @@ void RenderModuleRegistry::On1Second() {
             }
         }
     });
+}
+
+std::shared_ptr<IrohTransport> RenderModuleRegistry::SnapshotIrohTransport() const {
+    std::shared_lock lock(modules_mtx_);
+    return iroh_transport_;
+}
+
+bool RenderModuleRegistry::UpdateIrohRelays(const std::string& relays_json) {
+    const auto transport = SnapshotIrohTransport();
+    return transport && transport->UpdateRelays(relays_json);
+}
+
+std::string RenderModuleRegistry::IrohEndpointConfiguration() const {
+    const auto transport = SnapshotIrohTransport();
+    return transport ? transport->EndpointConfiguration() : std::string{};
+}
+
+std::string RenderModuleRegistry::IrohEndpointAddress() const {
+    const auto transport = SnapshotIrohTransport();
+    if (!transport) return {};
+    const auto address = transport->Address();
+    return address ? *address : std::string{};
 }
 
 void RenderModuleRegistry::DumpModuleInfo() {
@@ -1123,6 +1181,10 @@ void RenderModuleRegistry::VisitWebRtcLibraries(const std::function<void(const s
 
 FileTransferSendResult RenderModuleRegistry::SendFileTransferMessageOnRoute(const std::string& transport_id, const std::string& stream_id,
                                                                             const std::shared_ptr<Data>& message, const std::string& connection_id) {
+    if (transport_id == kNetIrohTransportId) {
+        const auto transport = SnapshotIrohTransport();
+        return transport ? transport->SendFile(stream_id, message, connection_id) : FileTransferSendResult::Disconnected("iroh route is unavailable");
+    }
     FileTransferSendResult result = FileTransferSendResult::Disconnected("requested file-transfer transport is unavailable");
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<RelayTransport> relay;
@@ -1146,6 +1208,10 @@ FileTransferSendResult RenderModuleRegistry::SendFileTransferMessageOnRoute(cons
 
 bool RenderModuleRegistry::SendControlMessageOnRoute(const std::string& transport_id, const std::string& stream_id,
                                                      const std::shared_ptr<Data>& message, const bool run_through) {
+    if (transport_id == kNetIrohTransportId) {
+        const auto transport = SnapshotIrohTransport();
+        return transport && transport->SendToStream(stream_id, message);
+    }
     bool sent = false;
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<UdpTransport> udp;
@@ -1175,6 +1241,14 @@ bool RenderModuleRegistry::SendVoiceMessageOnRoute(const std::string& transport_
                                                    const std::shared_ptr<Data>& message) {
     if (!message || stream_id.empty()) {
         return false;
+    }
+    if (transport_id == kNetIrohTransportId) {
+        std::shared_ptr<IrohTransport> transport{};
+        {
+            std::shared_lock lock(modules_mtx_);
+            transport = iroh_transport_;
+        }
+        return transport && transport->SendToStream(stream_id, message);
     }
     bool delivered{};
     std::shared_ptr<WsTransport> ws{};
@@ -1315,6 +1389,7 @@ int64_t RenderModuleRegistry::QueuedNetworkFileTransferMessages() {
 
 int RenderModuleRegistry::GetTotalConnectedClientsCount() {
     int total_size = 0;
+    if (const auto transport = SnapshotIrohTransport()) total_size += transport->ConnectedClientCount();
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<UdpTransport> udp;
     std::shared_ptr<RelayTransport> relay;
@@ -1333,6 +1408,7 @@ int RenderModuleRegistry::GetTotalConnectedClientsCount() {
 
 int RenderModuleRegistry::GetTotalMediaConsumersCount() {
     int total_size = 0;
+    if (const auto transport = SnapshotIrohTransport()) total_size += transport->ConnectedClientCount();
     std::shared_ptr<WsTransport> ws;
     std::shared_ptr<UdpTransport> udp;
     std::shared_ptr<RelayTransport> relay;

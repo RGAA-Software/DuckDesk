@@ -1,0 +1,36 @@
+{
+  "services": [
+    {
+      "Name": "Pixels.Console",
+      "status": "Running"
+    },
+    {
+      "Name": "Pixels.Relay",
+      "status": "Running"
+    },
+    {
+      "Name": "px_service",
+      "status": "Running"
+    }
+  ],
+  "render": [
+    {
+      "Id": 54096,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "config_hashes": [
+    {
+      "Path": "C:\\ProgramData\\Pixels\\Server\\config\\console.env",
+      "Hash": "872CAC22E6D6B4849D7A314BC7F2311D349D3B7960E75CCD57E530F007B26C8D"
+    },
+    {
+      "Path": "C:\\ProgramData\\Pixels\\Server\\config\\relay.env",
+      "Hash": "3DCBB74703D4843427E7C92ADDBC2CB8FFE1E60B98ABB05B7420AAEB172BDBB1"
+    },
+    {
+      "Path": "C:\\ProgramData\\Pixels\\Server\\config\\iroh-relay.json",
+      "Hash": "415C64CB9FDC508068DBE6F43035D8F3FB6B57B2BAE9EBBCFFD33BD2AD283EA8"
+    }
+  ]
+}

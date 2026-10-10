@@ -1,0 +1,7 @@
+[2026-10-10 18:10:52.286][thread 14452][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9
+[2026-10-10 18:10:52.286][thread 14452][joystick_service.cpp:232][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable
+[2026-10-10 18:10:52.286][thread 14452][message_session.cpp:279][info] : event=iroh.message_dispatch kind=1 type=0 queue_us=15 callback_us=1000660 feedback_frame=0
+[2026-10-10 18:10:53.287][thread 14452][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9
+[2026-10-10 18:10:53.287][thread 14452][joystick_service.cpp:232][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable
+[2026-10-10 18:10:53.287][thread 14452][message_session.cpp:279][info] : event=iroh.message_dispatch kind=1 type=0 queue_us=371121 callback_us=1000048 feedback_frame=0
+[{"Property":"queue_us","Maximum":1366221,"Count":347},{"Property":"callback_us","Maximum":1000660,"Count":347}]

@@ -1,0 +1,42 @@
+[
+  {
+    "sha256": "5DEF4CE2E856796D25D574EFB67AD269FD391DA927E25B0BACDE4F6E3500ED72",
+    "original_path": "src/px_transport/media_datagrams.cpp",
+    "local_status": "?? src/px_transport/media_datagrams.cpp",
+    "reason": "Preserve pre-change admission and flight budget before encoded-frame continuity repair",
+    "archive_batch": "backup/iroh_encoded_frame_delivery_20261010",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+  },
+  {
+    "sha256": "BE93CDAC82E3B69F5429877F9EBFDCCCADDABA7DA4F53AD104A4AE47D25DFD19",
+    "original_path": "src/px_transport/media_datagrams.h",
+    "local_status": "?? src/px_transport/media_datagrams.h",
+    "reason": "Preserve pre-change admission and flight budget before encoded-frame continuity repair",
+    "archive_batch": "backup/iroh_encoded_frame_delivery_20261010",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+  },
+  {
+    "sha256": "1C5FD85A1AFE3DA12ECC36884728A82AA57F3044172B55207A5B9F303D805474",
+    "original_path": "src/px_transport/video_flight_window.h",
+    "local_status": "?? src/px_transport/video_flight_window.h",
+    "reason": "Preserve pre-change admission and flight budget before encoded-frame continuity repair",
+    "archive_batch": "backup/iroh_encoded_frame_delivery_20261010",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+  },
+  {
+    "sha256": "4B0F556F929F64024367834DE8E3777967C25D27451655824EA79B91B2C3A981",
+    "original_path": "src/px_transport/video_rate_control.h",
+    "local_status": "?? src/px_transport/video_rate_control.h",
+    "reason": "Preserve pre-change admission and flight budget before encoded-frame continuity repair",
+    "archive_batch": "backup/iroh_encoded_frame_delivery_20261010",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+  },
+  {
+    "sha256": "201749C3013E2D1C5C63A34C71930D860CF1C0DAC07572174B8CB364E32AA16E",
+    "original_path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "reason": "Preserve pre-change admission and flight budget before encoded-frame continuity repair",
+    "archive_batch": "backup/iroh_encoded_frame_delivery_20261010",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+  }
+]

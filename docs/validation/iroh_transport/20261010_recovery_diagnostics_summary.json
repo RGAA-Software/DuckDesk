@@ -1,0 +1,373 @@
+{
+  "video_before": {
+    "path": "docs\\validation\\iroh_transport\\20261010_recovery_diagnostics_video_direct.log",
+    "windows": 8,
+    "fps_min": 59.9,
+    "fps_max": 60.5,
+    "all_logged_gaps": [],
+    "classification_counts": {},
+    "max_logged_gap_ms": 0,
+    "max_window_gap_ms": 51.2,
+    "reference_waits": 0,
+    "recovery_requests": 0,
+    "local_request_send_max_us": 0
+  },
+  "mixed": {
+    "path": "docs\\validation\\iroh_transport\\20261010_recovery_diagnostics_mixed_direct.log",
+    "windows": 6,
+    "fps_min": 42.3,
+    "fps_max": 58.1,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-10T23:33:06.083000",
+        "frame": 269,
+        "gap_ms": 184.3,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 172891,
+          "withheld_complete_frames": 9
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-10T23:33:15.445000",
+        "frame": 822,
+        "gap_ms": 114.5,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "100177",
+          "receive_gap_us": "114370",
+          "assembly_call_us": "25",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:15.558000",
+        "frame": 837,
+        "gap_ms": 107.5,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "100311",
+          "receive_gap_us": "107483",
+          "assembly_call_us": "13",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:16.374000",
+        "frame": 881,
+        "gap_ms": 135.4,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16711",
+          "receive_gap_us": "135362",
+          "assembly_call_us": "19",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:16.662000",
+        "frame": 900,
+        "gap_ms": 106.2,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "49422",
+          "receive_gap_us": "106284",
+          "assembly_call_us": "22",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:18.514000",
+        "frame": 1011,
+        "gap_ms": 106.3,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16511",
+          "receive_gap_us": "106210",
+          "assembly_call_us": "24",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:22.767000",
+        "frame": 1258,
+        "gap_ms": 212.2,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "150555",
+          "receive_gap_us": "212079",
+          "assembly_call_us": "48",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:23.021000",
+        "frame": 1275,
+        "gap_ms": 224.0,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "236066",
+          "receive_gap_us": "223965",
+          "assembly_call_us": "22",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:25.801000",
+        "frame": 1448,
+        "gap_ms": 105.0,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16600",
+          "receive_gap_us": "104862",
+          "assembly_call_us": "32",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:26.076000",
+        "frame": 1463,
+        "gap_ms": 105.6,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16600",
+          "receive_gap_us": "105516",
+          "assembly_call_us": "28",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:26.694000",
+        "frame": 1498,
+        "gap_ms": 154.7,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16888",
+          "receive_gap_us": "154602",
+          "assembly_call_us": "26",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:27.255000",
+        "frame": 1534,
+        "gap_ms": 134.1,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16855",
+          "receive_gap_us": "134058",
+          "assembly_call_us": "9",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:27.540000",
+        "frame": 1552,
+        "gap_ms": 166.1,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 165811,
+          "withheld_complete_frames": 4
+        },
+        "transit": {
+          "source_gap_us": "49922",
+          "receive_gap_us": "75582",
+          "assembly_call_us": "24",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:28.040000",
+        "frame": 1580,
+        "gap_ms": 299.9,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 180679,
+          "withheld_complete_frames": 2
+        },
+        "transit": {
+          "source_gap_us": "100200",
+          "receive_gap_us": "120961",
+          "assembly_call_us": "21",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:28.497000",
+        "frame": 1607,
+        "gap_ms": 105.0,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "200433",
+          "receive_gap_us": "105240",
+          "assembly_call_us": "29",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:31.252000",
+        "frame": 1771,
+        "gap_ms": 120.6,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "66822",
+          "receive_gap_us": "120536",
+          "assembly_call_us": "34",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:32.775000",
+        "frame": 1865,
+        "gap_ms": 136.0,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16055",
+          "receive_gap_us": "135958",
+          "assembly_call_us": "13",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:34.232000",
+        "frame": 1954,
+        "gap_ms": 106.1,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "83522",
+          "receive_gap_us": "106018",
+          "assembly_call_us": "23",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:34.432000",
+        "frame": 1965,
+        "gap_ms": 108.8,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "116944",
+          "receive_gap_us": "108777",
+          "assembly_call_us": "23",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:34.966000",
+        "frame": 1995,
+        "gap_ms": 106.5,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "116777",
+          "receive_gap_us": "106518",
+          "assembly_call_us": "23",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:35.179000",
+        "frame": 2006,
+        "gap_ms": 105.8,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "100122",
+          "receive_gap_us": "105730",
+          "assembly_call_us": "28",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:35.301000",
+        "frame": 2013,
+        "gap_ms": 121.4,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "116722",
+          "receive_gap_us": "121387",
+          "assembly_call_us": "26",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-10T23:33:35.423000",
+        "frame": 2020,
+        "gap_ms": 122.2,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "116700",
+          "receive_gap_us": "122188",
+          "assembly_call_us": "27",
+          "reference_ready": "true"
+        }
+      }
+    ],
+    "classification_counts": {
+      "reference_recovery": 3,
+      "sender_pause": 11,
+      "transit_or_unclassified": 9
+    },
+    "max_logged_gap_ms": 299.9,
+    "max_window_gap_ms": 299.9,
+    "reference_waits": 16,
+    "recovery_requests": 19,
+    "local_request_send_max_us": 2298
+  },
+  "video_after": {
+    "path": "docs\\validation\\iroh_transport\\20261010_recovery_diagnostics_video_after.log",
+    "windows": 8,
+    "fps_min": 58.7,
+    "fps_max": 60.2,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-10T23:34:09.169000",
+        "frame": 154,
+        "gap_ms": 156.7,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "155022",
+          "receive_gap_us": "156592",
+          "assembly_call_us": "54",
+          "reference_ready": "true"
+        }
+      }
+    ],
+    "classification_counts": {
+      "sender_pause": 1
+    },
+    "max_logged_gap_ms": 156.7,
+    "max_window_gap_ms": 156.7,
+    "reference_waits": 0,
+    "recovery_requests": 0,
+    "local_request_send_max_us": 0
+  },
+  "limits": [
+    "Video gaps are frames delivered to the decoder, not every completely assembled frame.",
+    "Receiver reference-wait frames were withheld/dropped, not buffered for later decoding.",
+    "Separate sessions in before/mixed/after; not an identical replayed network trace.",
+    "Local recovery send completion is QUIC write completion, not remote receipt.",
+    "sender_pause classification uses packetization spacing; Render admission logs identify backpressure.",
+    "All logged gaps include the final incomplete five-second sampling window."
+  ]
+}

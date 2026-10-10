@@ -14,6 +14,7 @@ namespace px {
 
 class ThunderSdkParams {
   public:
+    std::optional<IrohDialParameters> iroh_{};
     SdkMediaTransport media_transport_{SdkMediaTransport::kUdp};
     SdkConnectionRoute connection_route_{SdkConnectionRoute::kDirect};
     bool ssl_ = false;

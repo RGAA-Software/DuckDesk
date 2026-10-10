@@ -1,0 +1,48 @@
+{
+  "server": {
+    "version": "1.0.54",
+    "setup": "D:\\GoCloud\\GammaRayPremium\\build_official\\private_server\\candidates\\windows-single-server\\PixelsServer_1.0.54_Setup.exe",
+    "sha256": "DE07DA0685D5045D21D1AA0E77069C3A97AB86FB01F104C6F2B021DCCA5A0454",
+    "manifest_sha256": "6A1E21D3FA489236B88DB4F38BEC7B7504D783B4DC597179AC8CFC33905C6EAC",
+    "verified_files": 35,
+    "remote_setup": "D:\\112233\\iroh-native-validation-20261009\\PixelsServer_1.0.54_Setup.exe",
+    "upload_operation": "19058256-3ce8-4b2c-a9ca-67a0d1a7edec",
+    "upload_state": "completed",
+    "installed": true,
+    "installation_operation": "d749d9de-3b9a-48f2-956e-91caa24d52c4",
+    "installation_state": "succeeded",
+    "service_status": "Running"
+  },
+  "node": {
+    "candidate_id": "iroh-native-20261009",
+    "state": "installed",
+    "setup": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-native-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "DE07452C76309FB2BD00332E86DBBDD5526E9F826B358A08C4B7190C1DE797B5",
+    "manifest_sha256": "8C1BAF91DCFEBB61FCAC0BF0F3E7C6109DA5FDECFFCEA01CABF3CEB69F4645F2",
+    "version": "3.3.97",
+    "verified_files": 314,
+    "remote_setup": "D:\\112233\\iroh-native-validation-20261009\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "installed": true,
+    "upload_operation": "5b1c5a51-332f-42e7-950e-490b966a63ab",
+    "upload_state": "completed",
+    "installation_method": "complete Setup via SSH fallback after MCP Transport closed; original attempt had not started",
+    "service_status": "Running",
+    "installed_render_sha256": "DA0E3C9EACF60322E939751B7943E56586821ED36B0A5188003092145842C6A3"
+  },
+  "transport_publication_library_sha256": "3863092B2E90135FDAC0DEDFF80EFFF3FE292DAA490B52D7D632C0E1D5E1E6C2",
+  "remote_relay_probe": {
+    "directory": "D:\\112233\\iroh-native-validation-20261009",
+    "uploaded": true,
+    "running": true,
+    "operation_id": "f4c15a91-2b6e-46df-8c90-df585e720751",
+    "tcp_port": 4618,
+    "qad_udp_port": 4618,
+    "tls_preflight": "TLS 1.3 CA-chain and IP verified; Python 3.13 strict AKI policy omitted for retained temporary fixture, certificate verification remains enabled."
+  },
+  "sdk_diagnostics_regression": "iroh_sdk_connection: 4 cases passed after receive-window logging change",
+  "test_configuration": {
+    "enabled": true,
+    "original_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "configured_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA"
+  }
+}

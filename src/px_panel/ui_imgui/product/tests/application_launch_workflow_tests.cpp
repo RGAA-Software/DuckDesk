@@ -66,7 +66,7 @@ ApplicationLaunchOperations Operations(const std::shared_ptr<LaunchObservations>
 
 ApplicationLaunchRequest Request() { return {.applicationId = "application", .applicationName = "Test App", .requestId = "request"}; }
 
-TEST(ApplicationLaunchWorkflow, AllStagesPrepareBeforeTheUiAcknowledgesDialogClosure) {
+TEST(ApplicationLaunchWorkflow, PreparationDoesNotCompleteUntilClientConfirmsRemoteConnection) {
     const auto observations = std::make_shared<LaunchObservations>();
     ApplicationLaunchWorkflow workflow{Operations(observations)};
     const auto generation = workflow.Begin(Request());
@@ -86,6 +86,64 @@ TEST(ApplicationLaunchWorkflow, AllStagesPrepareBeforeTheUiAcknowledgesDialogClo
     EXPECT_EQ(observations->launches, 1);
     EXPECT_EQ(observations->closes, 0);
     EXPECT_EQ(workflow.Snapshot()->status, ui::ApplicationLaunchStatus::Succeeded);
+}
+
+TEST(ApplicationLaunchWorkflow, IrohRelayLaunchDoesNotRequireLegacyRelayTicket) {
+    const auto observations = std::make_shared<LaunchObservations>();
+    observations->ready = true;
+    auto operations = Operations(observations);
+    operations.authorize = [authorize = operations.authorize](const std::string& instanceId, bool viewOnly, const std::string& requestId) {
+        auto connection = authorize(instanceId, viewOnly, requestId);
+        if (connection) connection->iroh = px::IrohConnectionDescription{
+            R"({"id":"node","addrs":[{"Relay":"https://relay.example"}]})", R"({"relays":[{"url":"https://relay.example"}]})"};
+        return connection;
+    };
+    operations.launch = [observations](const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
+        EXPECT_TRUE(request.forceRelay);
+        EXPECT_TRUE(connection.iroh);
+        EXPECT_TRUE(connection.relay_admission_ticket.empty());
+        ++observations->launches;
+        return ClientLaunchResult{true};
+    };
+    auto request = Request();
+    request.forceRelay = true;
+    ApplicationLaunchWorkflow workflow{std::move(operations)};
+    const auto generation = workflow.Begin(request);
+    ASSERT_TRUE(generation);
+    workflow.Prepare(*generation);
+    workflow.LaunchPrepared(*generation);
+    EXPECT_EQ(observations->launches, 1);
+    EXPECT_EQ(workflow.Snapshot()->status, ui::ApplicationLaunchStatus::Succeeded);
+}
+
+TEST(ApplicationLaunchWorkflow, KeepsLaunchingUntilRemoteAcknowledgementAndPreservesSpecificFailure) {
+    for (const bool connected : {true, false}) {
+        const auto observations = std::make_shared<LaunchObservations>();
+        auto operations = Operations(observations);
+        const auto entered = std::make_shared<std::promise<void>>();
+        auto enteredFuture = entered->get_future();
+        const auto acknowledgement = std::make_shared<std::promise<ClientLaunchResult>>();
+        const auto acknowledgementFuture = acknowledgement->get_future().share();
+        operations.launch = [entered, acknowledgementFuture](const ApplicationLaunchRequest&, const px_console::ConsoleNativeApplicationConnection&) {
+            entered->set_value();
+            return acknowledgementFuture.get();
+        };
+        const auto workflow = std::make_shared<ApplicationLaunchWorkflow>(std::move(operations));
+        const auto generation = workflow->Begin(Request());
+        ASSERT_TRUE(generation);
+        workflow->Prepare(*generation);
+        auto launched = std::async(std::launch::async, [workflow, generation] { workflow->LaunchPrepared(*generation); });
+        enteredFuture.wait();
+        EXPECT_EQ(workflow->Snapshot()->status, ui::ApplicationLaunchStatus::Launching);
+        EXPECT_EQ(workflow->Snapshot()->stage, ui::ApplicationLaunchStage::ConnectRemote);
+        EXPECT_FALSE(workflow->Begin(Request()));
+        workflow->LaunchPrepared(*generation);
+        acknowledgement->set_value(connected ? ClientLaunchResult{true} : ClientLaunchResult{px::ui::TextId::ConnectionClientConnectTimeout});
+        launched.get();
+        EXPECT_EQ(workflow->Snapshot()->status, connected ? ui::ApplicationLaunchStatus::Succeeded : ui::ApplicationLaunchStatus::Failed);
+        EXPECT_EQ(observations->closes, connected ? 0 : 1);
+        if (!connected) EXPECT_EQ(workflow->Snapshot()->error, px::ui::TextId::ConnectionClientConnectTimeout);
+    }
 }
 
 TEST(ApplicationLaunchWorkflow, CapacityFailureUsesLocalizedTextWithoutEnglishDiagnosticOrClientLaunch) {

@@ -1,0 +1,26 @@
+[
+  {
+    "path": "src/px_transport/video_flight_window.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/video_flight_window.h",
+    "sha256": "C1B4D7D4F376C93C6EB1573F1B3248885D0D15C16F322DF998966CE19D4FD54F",
+    "reason": "Replace round-trip receipt delay as forward video congestion signal; preserve pre-change dirty source",
+    "batch": "iroh_forward_delay_20261010"
+  },
+  {
+    "path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.cpp",
+    "sha256": "C31F60B2EF48F2FC7EED80C6438F195BCFEE4B3A5617BC10C44A38EDC3145601",
+    "reason": "Replace round-trip receipt delay as forward video congestion signal; preserve pre-change dirty source",
+    "batch": "iroh_forward_delay_20261010"
+  },
+  {
+    "path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "sha256": "ECB53273065CD446140FA0516ACE4E5960805D51B9BFE7B53A7D72D81BEADD15",
+    "reason": "Replace round-trip receipt delay as forward video congestion signal; preserve pre-change dirty source",
+    "batch": "iroh_forward_delay_20261010"
+  }
+]

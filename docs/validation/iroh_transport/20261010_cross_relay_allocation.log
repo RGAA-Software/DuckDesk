@@ -1,0 +1,6 @@
+ENDPOINT_ALLOCATED {"endpoint_index":0,"home":"https://49.232.233.61:4605/","online_ms":425}
+ENDPOINT_ALLOCATED {"endpoint_index":1,"home":"https://39.71.45.66:4605/","online_ms":473}
+ENDPOINT_ALLOCATED {"endpoint_index":2,"home":"https://39.71.45.66:4605/","online_ms":362}
+ENDPOINT_ALLOCATED {"endpoint_index":3,"home":"https://49.232.233.61:4605/","online_ms":1161}
+{"datagrams_echoed":115,"datagrams_sent":120,"elapsed_ms":5004,"maximum_datagram_round_trip_us":455388,"maximum_datagram_size":1162,"paths":"PathList { snapshot: State { list: [PathData(0, relay:https://49.232.233.61:4605/)], selected: Some(PathId(0)), closed: false }, .. }","reliable_bytes_verified":6291520}
+ALLOCATION_VERIFIED {"capacity_per_relay":2,"endpoints":4,"healthy_homes_retained":true,"home_counts":[2,2],"traffic_scope":"same-home admitted pair"}

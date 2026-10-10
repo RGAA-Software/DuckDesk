@@ -1,0 +1,27 @@
+{
+  "device": "428358431",
+  "enable": "bd3e63a9-79b6-4d19-8b24-460ac68c8c02",
+  "enable_result": "exit 0 with output_drain_timeout; did not replay; independently verified",
+  "verify": "c2efda2b-4092-4270-9d04-a90f225f8561",
+  "state": {
+    "relay_pid": 46056,
+    "relay_path": "D:\\112233\\iroh-native-validation-20261009\\px_relay_probe.exe",
+    "relay_started": "2026-10-09T16:57:43.5461919Z",
+    "original_hash": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "configured_hash": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA"
+  },
+  "cleanup_pending": false,
+  "upload": "a512d79b-c83a-4a2b-b1a8-9c7e0f282623",
+  "install": "fd5d1f6d-e6ac-4513-a752-fdf94ec895c6",
+  "admission_direct_log": "0f5a086e-7497-4c4b-b93c-273c671c12b1",
+  "admission_relay_log": "8da8a297-9437-41da-a73f-6218fcb19615",
+  "admission_qos": "47de9951-d89f-417c-959f-e1586bcbb973",
+  "admission_qos_log": "0b713a3c-759b-458f-929f-1c29c2ef6dc9",
+  "recovery_upload": "d299d30d-d17d-460d-a39f-bbabf2b2cd80",
+  "recovery_install": "4c5d29fc-dcae-4504-9847-fdcd2752ad1b",
+  "recovery_direct_log": "6b7d95b1-b208-4f47-a77c-bc687e053a50",
+  "recovery_qos": "b8e37250-2144-45a2-a0b2-aa8058b48645",
+  "recovery_qos_log": "910f1bf9-cbb1-43e0-84a3-3d3a1f3401cb",
+  "cleanup": "ce767692-afd8-41c9-891d-ad9c140ba7c7",
+  "https_after_cleanup": {"status": 200, "certificate_required": true, "hostname_verified": true}
+}

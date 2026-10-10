@@ -1,0 +1,19 @@
+[2026-10-10 12:06:59.901][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=305, fps=60.8, max_gap_ms=44.9, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:04.901][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=299, fps=59.8, max_gap_ms=47.4, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:09.908][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=302, fps=60.3, max_gap_ms=50.2, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:14.914][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=298, fps=59.5, max_gap_ms=42.0, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:19.928][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=303, fps=60.4, max_gap_ms=39.3, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:24.953][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=59.9, max_gap_ms=43.5, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:29.957][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=46.3, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:34.974][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=42.2, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:35.564][thread 40860][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=2616 source_gap_us=16555 receive_gap_us=31845 excess_us=94830 assembly_call_us=4
+[2026-10-10 12:07:39.974][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=67.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:44.991][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=33.3, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:07:48.764][thread 40860][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=3407 source_gap_us=16355 receive_gap_us=125581 excess_us=111591 assembly_call_us=4
+[2026-10-10 12:07:48.764][thread 40860][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=3407 gap_ms=125.6
+[2026-10-10 12:07:50.007][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=125.6, gaps_gt_100ms=1, idr=0, rfi=0
+[2026-10-10 12:07:55.009][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=33.5, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:08:00.020][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=37.4, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:08:05.022][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=45.6, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:08:10.023][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=54.7, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 12:08:15.042][thread 40860][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=34.6, gaps_gt_100ms=0, idr=0, rfi=0

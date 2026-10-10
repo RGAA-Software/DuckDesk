@@ -1,0 +1,143 @@
+{
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261010-155939-auto",
+  "scope": "real game, candidate withdrawal and restore with both Relays running",
+  "instance_id": "d2f7e838-eb42-4c49-bc1f-5f27dfb8c8ab",
+  "session_id": "78de2fa5-f681-4e1f-bbcf-ad66cc98e9b9",
+  "original_address": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4613"
+      },
+      {
+        "Ip": "39.71.45.66:4613"
+      }
+    ],
+    "id": "9496cf0a3d4e7928177ac9ad51f99d35b8f9bf1ed7439e76e57397599382ffc6"
+  },
+  "drained_relay_id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+  "client_candidate_update_seconds": 5.055,
+  "render_home_update_seconds": 14.802,
+  "drained_address": {
+    "addrs": [
+      {
+        "Relay": "https://49.232.233.61:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4613"
+      },
+      {
+        "Ip": "39.71.45.66:4613"
+      }
+    ],
+    "id": "9496cf0a3d4e7928177ac9ad51f99d35b8f9bf1ed7439e76e57397599382ffc6"
+  },
+  "continuous_decode_windows": 4,
+  "readmissions_during_drain": 0,
+  "session_during_drain": "connected",
+  "relay_states_during_drain": [
+    {
+      "control_epoch": 66,
+      "current_connections": 3,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 0,
+      "fresh": true,
+      "generation": 7,
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T08:00:16.840783Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "BJ-200M Relay",
+      "product_version_code": 3002001,
+      "public_host": "49.232.233.61",
+      "public_port": 4605,
+      "report_sequence": 98,
+      "reported_draining": false,
+      "revision": 2,
+      "state": "ready",
+      "uploaded_bytes": 0
+    },
+    {
+      "control_epoch": 66,
+      "current_connections": 3,
+      "current_rooms": null,
+      "desired_draining": true,
+      "disabled": false,
+      "forwarded_bytes": 8424588,
+      "fresh": true,
+      "generation": 81,
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T08:00:16.641356Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "Single Server Relay",
+      "product_version_code": 3002001,
+      "public_host": "39.71.45.66",
+      "public_port": 4605,
+      "report_sequence": 99,
+      "reported_draining": true,
+      "revision": 3,
+      "state": "ready",
+      "uploaded_bytes": 8424588
+    }
+  ],
+  "error": "POST /api/console/resource-sessions: HTTP 409 code=connection_retiring",
+  "cleanup": "complete",
+  "relay_states_after": [
+    {
+      "control_epoch": 66,
+      "current_connections": 1,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 0,
+      "fresh": true,
+      "generation": 7,
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T08:00:26.840765Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "BJ-200M Relay",
+      "product_version_code": 3002001,
+      "public_host": "49.232.233.61",
+      "public_port": 4605,
+      "report_sequence": 100,
+      "reported_draining": false,
+      "revision": 2,
+      "state": "ready",
+      "uploaded_bytes": 0
+    },
+    {
+      "control_epoch": 66,
+      "current_connections": 0,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 9889242,
+      "fresh": true,
+      "generation": 81,
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T08:00:26.642651Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "Single Server Relay",
+      "product_version_code": 3002001,
+      "public_host": "39.71.45.66",
+      "public_port": 4605,
+      "report_sequence": 102,
+      "reported_draining": false,
+      "revision": 4,
+      "state": "ready",
+      "uploaded_bytes": 9964049
+    }
+  ]
+}

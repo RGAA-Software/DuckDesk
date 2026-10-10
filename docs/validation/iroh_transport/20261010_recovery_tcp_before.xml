@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="3"
+	failures="3"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="3"
+	timestamp="2026-10-10T09:58:02"
+	>
+	<testcase name="encoded_video_delivery" classname="encoded_video_delivery" time="0.261636" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 14 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 5 tests from VideoRecoveryPolicy
+[ RUN      ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline
+[       OK ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline (0 ms)
+[ RUN      ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference
+[       OK ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference (0 ms)
+[ RUN      ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle
+[       OK ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle (0 ms)
+[ RUN      ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog
+[       OK ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog (0 ms)
+[ RUN      ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss
+D:\GoCloud\GammaRayPremium\src\px_client_sdk\tests\test_encoded_video_delivery.cpp(96): error: Value of: next_request
+  Actual: false
+Expected: true
+
+[  FAILED  ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss (0 ms)
+[----------] 5 tests from VideoRecoveryPolicy (0 ms total)
+
+[----------] 8 tests from VideoDeliveryFixture
+[ RUN      ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference
+[       OK ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference (0 ms)
+[ RUN      ] VideoDeliveryFixture.PartialSuccessorDoesNotRequestRepairUntilItIsCompletelyAssembled
+[       OK ] VideoDeliveryFixture.PartialSuccessorDoesNotRequestRepairUntilItIsCompletelyAssembled (0 ms)
+[ RUN      ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery
+[       OK ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss
+[       OK ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss (0 ms)
+[ RUN      ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery
+[       OK ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames
+[       OK ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames (0 ms)
+[ RUN      ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr
+[       OK ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr (0 ms)
+[ RUN      ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains
+[       OK ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains (0 ms)
+[----------] 8 tests from VideoDeliveryFixture (0 ms total)
+
+[----------] 1 test from VideoReferenceReset
+[ RUN      ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery
+[       OK ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery (0 ms)
+[----------] 1 test from VideoReferenceReset (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 14 tests from 3 test suites ran. (0 ms total)
+[  PASSED  ] 13 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+	<testcase name="client_imgui_launch_config" classname="client_imgui_launch_config" time="0.261494" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 23 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 23 tests from ClientImguiLaunchConfigTest
+[ RUN      ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference
+[       OK ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback
+[       OK ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport
+[       OK ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether
+[       OK ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration
+[       OK ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority
+D:\GoCloud\GammaRayPremium\src\px_client\tests\test_imgui_launch_config.cpp(116): error: Value of: BuildClientIrohParameters(*config)
+  Actual: true
+Expected: false
+
+[  FAILED  ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements
+[       OK ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword
+[       OK ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword
+[       OK ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession
+[       OK ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential
+[       OK ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType
+[       OK ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType (0 ms)
+[----------] 23 tests from ClientImguiLaunchConfigTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 23 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 22 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="2.97439" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 16 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 16 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery (84 ms)
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (73 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (78 ms)
+[ RUN      ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(309): Skipped
+Requires the owned-Relay outage harness
+
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic (57 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (50 ms)
+[ RUN      ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation (61 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (77 ms)
+[ RUN      ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed (1160 ms)
+[ RUN      ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(599): error: Expected equality of these values:
+  state_-&gt;key_frame_requests
+    Which is: 1
+  expected_barriers + 1
+    Which is: 2
+
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(599): error: Expected equality of these values:
+  state_-&gt;key_frame_requests
+    Which is: 1
+  expected_barriers + 1
+    Which is: 3
+
+[  FAILED  ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown (81 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (266 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (38 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (59 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (60 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (96 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (92 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (100 ms)
+[----------] 16 tests from IrohFrontendTest (2438 ms total)
+
+[----------] Global test environment tear-down
+[==========] 16 tests from 1 test suite ran. (2439 ms total)
+[  PASSED  ] 14 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+</testsuite>

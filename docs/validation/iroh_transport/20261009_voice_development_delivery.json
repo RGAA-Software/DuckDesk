@@ -1,0 +1,20 @@
+[
+  {
+    "sha256": "4C8CDBF50CD5F82ABB2A7AE9751E65126CC28F75433DC4DB35415A7C4A0BA89F",
+    "product": "client",
+    "matches": true,
+    "artifact": "px_client"
+  },
+  {
+    "sha256": "F828F315BA1822D16E47FF3AE515E38183BC63A26194E08A61C6BBDA2A1BB7C1",
+    "product": "cloud_node",
+    "matches": true,
+    "artifact": "px_client"
+  },
+  {
+    "sha256": "0B478838AFE72DE6C60F2DFDE3AEB09230572406E9C35FAAE498EA13E5DFBB52",
+    "product": "cloud_node",
+    "matches": true,
+    "artifact": "px_render"
+  }
+]

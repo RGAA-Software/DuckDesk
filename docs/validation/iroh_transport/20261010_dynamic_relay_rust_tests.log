@@ -1,0 +1,14 @@
+   Compiling iroh v1.3.0 (D:\GoCloud\GammaRayPremium\rust_transport\vendor\iroh-1.3.0)
+   Compiling px_transport v0.1.0 (D:\GoCloud\GammaRayPremium\rust_transport\px_transport)
+    Finished `release` profile [optimized] target(s) in 16.89s
+     Running unittests src\lib.rs (rust_transport\target\release\deps\px_transport-c4156c000216da06.exe)
+
+running 5 tests
+test relay_candidates::tests::invalid_replacement_preserves_candidates_and_closed_endpoint_rejects_update ... ok
+test relay_health::tests::closing_the_endpoint_exits_the_health_loop ... ok
+test relay_candidates::tests::cancelling_the_waiter_does_not_abandon_an_accepted_update ... ok
+test relay_health::tests::stop_and_drop_cancel_the_endpoint_worker ... ok
+test connection_liveness_tests::healthy_idle_connection_retains_streams_and_datagrams ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.10s
+

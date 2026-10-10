@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <format>
 #include <nlohmann/json.hpp>
 #include <string_view>
+#include <thread>
 
 #include "console_api.h"
 #include "console_http_client.h"
@@ -108,6 +110,14 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
             MakeConsoleHttpClient(host, port, std::format("/api/console/resource-sessions/{}/descriptor", session_id), 5'000);
         SetPanelRequestHeaders(descriptor_client, access_token, subject);
         auto descriptor_response = descriptor_client->Post({}, json{{"revision", opened_revision}}.dump(), "application/json");
+        const auto endpoint_deadline = std::chrono::steady_clock::now() + std::chrono::seconds{12};
+        while (descriptor_response.status == 503 && std::chrono::steady_clock::now() < endpoint_deadline) {
+            const auto failure = json::parse(descriptor_response.body, nullptr, false);
+            if (!failure.is_object() || failure.value("code", "") != "transport_not_ready") break;
+            LOGI("Resource connection waiting for reported iroh endpoint: session={}", session_id);
+            std::this_thread::sleep_for(std::chrono::milliseconds{500});
+            descriptor_response = descriptor_client->Post({}, json{{"revision", opened_revision}}.dump(), "application/json");
+        }
         if (descriptor_response.status != 200 || descriptor_response.body.empty()) {
             return HttpError<ConsoleResourceConnection>("IssueResourceDescriptor", descriptor_response);
         }
@@ -128,6 +138,10 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
             .session_revision = descriptor_revision,
             .frontend_token = px::SecretBuffer::Take(std::move(frontend_token)),
             .transport = descriptor.value("transport", "")};
+        if (const auto iroh = descriptor.find("iroh"); iroh != descriptor.end() && !iroh->is_null()) {
+            result.iroh = px::ParseIrohConnectionDescription(*iroh);
+            if (!result.iroh) return TcErr(ConsoleApiError::kParseJsonFailed);
+        }
         if (result.transport == "rdp") {
             const auto rdp = payload.find("rdp");
             if (rdp == payload.end() || !rdp->is_object() || rdp->value("schema", 0) != 1) {

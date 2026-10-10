@@ -1,0 +1,13 @@
+{
+  "datagram_maximum_gap_ms": 1689,
+  "datagrams_received": 1122,
+  "datagrams_sent": 1122,
+  "latest_datagram_sent_ms": 20013,
+  "reliable_exchanges": 127,
+  "reliable_maximum_gap_ms": 1865,
+  "same_quic_connection": true,
+  "scenario": "loopback private HTTPS Relay restarted; same endpoint and QUIC connection",
+  "relay_process_interruption_ms": 1032,
+  "relay_only": true,
+  "scope": "transport recovery, not business re-admission or physical network migration"
+}

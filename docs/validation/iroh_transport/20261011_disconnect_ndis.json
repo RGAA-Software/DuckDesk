@@ -1,0 +1,6 @@
+{
+  "TimeCreated": "2026-10-11T00:13:13.6088293+08:00",
+  "Id": 10400,
+  "ProviderName": "Microsoft-Windows-NDIS",
+  "Message": "The network interface \"Realtek Gaming GbE Family Controller\" has begun resetting.  There will be a momentary disruption in network connectivity while the hardware resets. Reason: The network driver detected that its hardware has stopped responding to commands. This network interface has reset 17 time(s) since it was last initialized."
+}

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="2"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="58"
+	timestamp="2026-10-09T11:20:05"
+	>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="18.7496" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(108): error: Value of: probe_-&gt;changed.wait_for(lock, std::chrono::seconds(3), [probe = probe_] { return probe-&gt;video.size() == 1 &amp;&amp; probe-&gt;audio.size() &gt;= 4 &amp;&amp; probe-&gt;sends_completed == 1; })
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams (6544 ms)
+[ RUN      ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+[       OK ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind (3102 ms)
+[ RUN      ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+[       OK ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic (2266 ms)
+[ RUN      ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+[       OK ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery (1124 ms)
+[ RUN      ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(203): error: Expected equality of these values:
+  stopped.wait_for(std::chrono::seconds(3))
+    Which is: 4-byte object &lt;01-00 00-00&gt;
+  std::future_status::ready
+    Which is: 4-byte object &lt;00-00 00-00&gt;
+
+[  FAILED  ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection (4727 ms)
+[----------] 5 tests from IrohMediaTest (17765 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (17765 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 2 tests, listed below:
+[  FAILED  ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[  FAILED  ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+
+ 2 FAILED TESTS
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="39.8227" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (2039 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (1205 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (1185 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (2129 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (1060 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (6053 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (6395 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(424): error: Expected: (std::chrono::steady_clock::now() - started) &lt; (std::chrono::seconds(2)), actual: 3073644000ns vs 2s
+
+[  FAILED  ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (6569 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (801 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (7154 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (1694 ms)
+[----------] 11 tests from IrohFrontendTest (36289 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (36290 ms total)
+[  PASSED  ] 10 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+</testsuite>

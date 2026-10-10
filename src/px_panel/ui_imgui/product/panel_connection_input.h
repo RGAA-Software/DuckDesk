@@ -1,5 +1,7 @@
 #pragma once
 
+#include "px_common/iroh_connection_description.h"
+
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -31,6 +33,7 @@ struct ParsedConnectionInput final {
     std::string frontendSessionId{};
     std::int64_t frontendSessionRevision{};
     std::shared_ptr<const px::SecretBuffer> frontendToken{};
+    std::optional<px::IrohConnectionDescription> iroh{};
     std::string relayHost{};
     int relayPort{};
     std::string relayDeviceId{};

@@ -1,0 +1,543 @@
+{
+  "directory": "C:\\Users\\chess\\AppData\\Local\\PixelsRelayBuild\\bj-threepoint-after",
+  "metadata": {
+    "remote_root": "/home/ubuntu/pixels-relay-stage-20261010/stutter-120647",
+    "remote_minus_local_seconds": 5.071802616119385,
+    "clock_probe_roundtrip_seconds": 0.04540371894836426
+  },
+  "capture_statistics": "tcpdump: listening on eth0, link-type EN10MB (Ethernet), snapshot length 128 bytes\n215800 packets captured\n215800 packets received by filter\n0 packets dropped by kernel\n",
+  "files": [
+    {
+      "name": "client.pcapng",
+      "bytes": 10936568,
+      "sha256": "d681e2c72037d5e60118db3769a0414c0f263e6d64efe7693eb22b2ef4f3cfeb"
+    },
+    {
+      "name": "node.pcapng",
+      "bytes": 5589204,
+      "sha256": "94033e9551c0117a8ea823d2bc15d691a587e1242a3d90f2826e402d8faee8f0"
+    },
+    {
+      "name": "relay.pcap",
+      "bytes": 24358938,
+      "sha256": "aed7a2af9dc0fc63e3ad95e2afcb8ddbf9e378ac1e0a8b34c150836df72ea08e"
+    },
+    {
+      "name": "tcp_state.jsonl",
+      "bytes": 2047680,
+      "sha256": "eed941de0a76343595fdd8a5354346f74720f4bfc5f67774c6a709010fdfc934"
+    },
+    {
+      "name": "render.log",
+      "bytes": 116651,
+      "sha256": "252b4c9fef916df86c6678bd24b96bddd52f76f8092eb089ab31dee294732083"
+    }
+  ],
+  "remaining_gap": {
+    "node:33996 to_BJ": {
+      "all_payload_bytes": 24020229,
+      "packets": 34608,
+      "nearby": 748,
+      "gaps": [
+        {
+          "gap_ms": 14.851093292236328,
+          "before": {
+            "time": 1791605273.749353,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228976656,
+            "ack": 114987279,
+            "bytes": 1193,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.764204,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228977962,
+            "ack": 114987279,
+            "bytes": 116,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 14.449119567871094,
+          "before": {
+            "time": 1791605273.949252,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3229009727,
+            "ack": 114996383,
+            "bytes": 900,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.963701,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3229010627,
+            "ack": 114996936,
+            "bytes": 95,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 13.803958892822266,
+          "before": {
+            "time": 1791605273.715573,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228972496,
+            "ack": 114986745,
+            "bytes": 900,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.729377,
+            "source": "10.0.0.90",
+            "destination": "49.232.233.61",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228973699,
+            "ack": 114987279,
+            "bytes": 95,
+            "flags": 24
+          }
+        }
+      ]
+    },
+    "node:33996 from_BJ": {
+      "all_payload_bytes": 18892,
+      "packets": 294,
+      "nearby": 0,
+      "gaps": []
+    },
+    "relay:33996 to_BJ": {
+      "all_payload_bytes": 27598057,
+      "packets": 38497,
+      "nearby": 838,
+      "gaps": [
+        {
+          "gap_ms": 13.957977294921875,
+          "before": {
+            "time": 1791605273.856915,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228996115,
+            "ack": 114992618,
+            "bytes": 95,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.870873,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228996210,
+            "ack": 114992979,
+            "bytes": 116,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 12.763023376464844,
+          "before": {
+            "time": 1791605273.773868,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228981300,
+            "ack": 114987279,
+            "bytes": 113,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.786631,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228981413,
+            "ack": 114987279,
+            "bytes": 116,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 11.646032333374023,
+          "before": {
+            "time": 1791605273.742338,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228977849,
+            "ack": 114987279,
+            "bytes": 113,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.753984,
+            "source": "39.71.45.66",
+            "destination": "10.2.4.7",
+            "source_port": 33996,
+            "destination_port": 4605,
+            "seq": 3228977962,
+            "ack": 114987279,
+            "bytes": 116,
+            "flags": 24
+          }
+        }
+      ]
+    },
+    "relay:33996 from_BJ": {
+      "all_payload_bytes": 3445592,
+      "packets": 44699,
+      "nearby": 1212,
+      "gaps": [
+        {
+          "gap_ms": 98.31714630126953,
+          "before": {
+            "time": 1791605273.705762,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 114987017,
+            "ack": 3228972496,
+            "bytes": 262,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.804079,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 114987279,
+            "ack": 3228983143,
+            "bytes": 26,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 17.11416244506836,
+          "before": {
+            "time": 1791605274.154513,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 115008278,
+            "ack": 3229081035,
+            "bytes": 107,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605274.171627,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 115008385,
+            "ack": 3229087493,
+            "bytes": 26,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 16.783952713012695,
+          "before": {
+            "time": 1791605274.499278,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 115025330,
+            "ack": 3229186169,
+            "bytes": 262,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605274.516062,
+            "source": "10.2.4.7",
+            "destination": "39.71.45.66",
+            "source_port": 4605,
+            "destination_port": 33996,
+            "seq": 115025592,
+            "ack": 3229190234,
+            "bytes": 26,
+            "flags": 24
+          }
+        }
+      ]
+    },
+    "client:35995 to_BJ": {
+      "all_payload_bytes": 8307342,
+      "packets": 64470,
+      "nearby": 1728,
+      "gaps": [
+        {
+          "gap_ms": 51.83291435241699,
+          "before": {
+            "time": 1791605268.624555,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571095664,
+            "ack": 3847039035,
+            "bytes": 114,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605268.676388,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571096928,
+            "ack": 3847041737,
+            "bytes": 270,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 44.19994354248047,
+          "before": {
+            "time": 1791605268.676392,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571096928,
+            "ack": 3847041737,
+            "bytes": 270,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605268.720592,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571097738,
+            "ack": 3847041737,
+            "bytes": 130,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 33.25295448303223,
+          "before": {
+            "time": 1791605269.572896,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571136377,
+            "ack": 3847294964,
+            "bytes": 114,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605269.606149,
+            "source": "192.168.31.6",
+            "destination": "49.232.233.61",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571137312,
+            "ack": 3847303417,
+            "bytes": 97,
+            "flags": 24
+          }
+        }
+      ]
+    },
+    "client:35995 from_BJ": {
+      "all_payload_bytes": 1401022,
+      "packets": 3153,
+      "nearby": 0,
+      "gaps": []
+    },
+    "relay:35995 to_BJ": {
+      "all_payload_bytes": 3041494,
+      "packets": 22296,
+      "nearby": 605,
+      "gaps": [
+        {
+          "gap_ms": 98.3269214630127,
+          "before": {
+            "time": 1791605273.705687,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571096258,
+            "ack": 3847041737,
+            "bytes": 270,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.804014,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571096528,
+            "ack": 3847041737,
+            "bytes": 270,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 17.09890365600586,
+          "before": {
+            "time": 1791605274.154458,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571115217,
+            "ack": 3847149976,
+            "bytes": 113,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605274.171557,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571115330,
+            "ack": 3847149976,
+            "bytes": 270,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 16.834020614624023,
+          "before": {
+            "time": 1791605274.499167,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571130341,
+            "ack": 3847258196,
+            "bytes": 270,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605274.516001,
+            "source": "39.82.198.244",
+            "destination": "10.2.4.7",
+            "source_port": 35995,
+            "destination_port": 4605,
+            "seq": 3571130611,
+            "ack": 3847258309,
+            "bytes": 270,
+            "flags": 24
+          }
+        }
+      ]
+    },
+    "relay:35995 from_BJ": {
+      "all_payload_bytes": 28031778,
+      "packets": 51703,
+      "nearby": 1314,
+      "gaps": [
+        {
+          "gap_ms": 13.905048370361328,
+          "before": {
+            "time": 1791605273.85704,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847068367,
+            "ack": 3571101616,
+            "bytes": 89,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.870945,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847068456,
+            "ack": 3571102421,
+            "bytes": 24,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 12.798070907592773,
+          "before": {
+            "time": 1791605273.773995,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847053012,
+            "ack": 3571096528,
+            "bytes": 107,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.786793,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847053119,
+            "ack": 3571096528,
+            "bytes": 24,
+            "flags": 24
+          }
+        },
+        {
+          "gap_ms": 11.731147766113281,
+          "before": {
+            "time": 1791605273.74242,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847049417,
+            "ack": 3571096528,
+            "bytes": 107,
+            "flags": 24
+          },
+          "after": {
+            "time": 1791605273.754151,
+            "source": "10.2.4.7",
+            "destination": "39.82.198.244",
+            "source_port": 4605,
+            "destination_port": 35995,
+            "seq": 3847049524,
+            "ack": 3571096528,
+            "bytes": 24,
+            "flags": 24
+          }
+        }
+      ]
+    }
+  },
+  "limitation": "Even with all-component pktmon, most inbound TCP payload is absent from Windows captures. Do not use this absence as proof of packet loss. BJ downstream sends remain continuous around frame 3407; Client network delivery vs receive scheduling is not separated."
+}

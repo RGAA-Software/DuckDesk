@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="13"
+	timestamp="2026-10-10T13:05:02"
+	>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="13.8789" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 17 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+[       OK ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword (555 ms)
+[ RUN      ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery (882 ms)
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRou...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="ws_frontend_admission" classname="ws_frontend_admission" time="0.0481111" status="run">
+		<properties>
+			<property name="cmake_labels" value="render-unit"/>
+		</properties>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from WebSocketFrontendAdmissionTest
+[ RUN      ] WebSocketFrontendAdmissionTest.ConsumesCompleteDescriptorAndRemovesTokenFromQuery
+[       OK ] WebSocketFrontendAdmissionTest.ConsumesCompleteDescriptorAndRemovesTokenFromQuery (0 ms)
+[ RUN      ] WebSocketFrontendAdmissionTest.RejectsIncompleteOrAmbiguousDescriptor
+[       OK ] WebSocketFrontendAdmissionTest.RejectsIncompleteOrAmbiguousDescriptor (0 ms)
+[ RUN      ] WebSocketFrontendAdmissionTest.AcceptsOnlyBoundCloudApplicationGrant
+[       OK ] WebSocketFrontendAdmissionTest.AcceptsOnlyBoundCloudApplicationGrant (0 ms)
+[ RUN      ] WebSocketFrontendAdmissionTest.DesktopGrantMustMatchThisRenderDevice
+[       OK ] WebSocketFrontendAdmissionTest.DesktopGrantMustMatchThisRenderDevice (0 ms)
+[ RUN      ] WebSocketFrontendAdmissionTest.Renewal...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

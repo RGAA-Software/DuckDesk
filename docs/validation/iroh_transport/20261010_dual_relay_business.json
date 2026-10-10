@@ -1,0 +1,21 @@
+{
+  "passed": true,
+  "scope": "SDK fresh-address readmission and video; two loopback TLS Relays",
+  "initial_address": {
+    "id": "46cca2ce68ac1655c684b32d97dab082511c8a44b626fa12846f4d0ed61c6afd",
+    "addrs": [
+      {
+        "Relay": "https://127.0.0.1:18553/"
+      }
+    ]
+  },
+  "refreshed_address": {
+    "id": "46cca2ce68ac1655c684b32d97dab082511c8a44b626fa12846f4d0ed61c6afd",
+    "addrs": [
+      {
+        "Relay": "https://127.0.0.1:18554/"
+      }
+    ]
+  },
+  "refresh_after_interruption_ms": 36058
+}

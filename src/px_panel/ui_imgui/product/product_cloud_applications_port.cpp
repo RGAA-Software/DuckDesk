@@ -46,7 +46,7 @@ public:
             .launch =
                 [weakSelf](const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
                     const auto self = weakSelf.lock();
-                    return self && self->LaunchClient(request, connection);
+                    return self ? self->LaunchClient(request, connection) : ClientLaunchResult{false};
                 },
             .close = [runtime](
                          const std::string& sessionId,
@@ -196,10 +196,10 @@ private:
         std::int64_t revision{};
     };
 
-    bool LaunchClient(const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
+    ClientLaunchResult LaunchClient(const ApplicationLaunchRequest& request, const px_console::ConsoleNativeApplicationConnection& connection) {
         const auto runtime = runtime_;
         const bool rdp = connection.transport == "rdp";
-        const bool launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
+        const auto launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
                                                            .displayName = request.applicationName,
                                                            .remoteDeviceId = connection.device_id,
                                                            .instanceId = connection.instance_id,
@@ -211,6 +211,7 @@ private:
                                                            .frontendSessionId = connection.session_id,
                                                            .frontendSessionRevision = connection.session_revision,
                                                            .frontendToken = connection.frontend_token,
+                                                           .iroh = connection.iroh,
                                                            .relayHost = connection.relay_host,
                                                            .relayPort = connection.relay_port,
                                                            .relayRemoteDeviceId = "server_" + connection.device_id,
@@ -219,7 +220,7 @@ private:
                                                            .viewOnly = request.viewOnly,
                                                            .forceTcp = request.forceTcp,
                                                            .forceRelay = request.forceRelay});
-        if (!launched) return false;
+        if (!launched) return launched;
         {
             const std::scoped_lock lock{mutex_};
             instanceIds_[request.applicationId] = connection.instance_id;

@@ -1,0 +1,26 @@
+{
+  "revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Replace PXQ1 local-write-only file backpressure with PXQ2 control-channel cumulative receipts",
+  "files": [
+    {
+      "path": "src/px_transport/channel.cpp",
+      "sha256": "E7105B014BCC0C6BDFDF40B7C6010088C2353A33C7DAECC3F8CB03B112E79EAA",
+      "status": "?? src/px_transport/channel.cpp"
+    },
+    {
+      "path": "src/px_transport/channel.h",
+      "sha256": "5EEA915C24CD97423F229CC53CF0D0FACE141D7BB297FACD9000D56E4A9F531B",
+      "status": "?? src/px_transport/channel.h"
+    },
+    {
+      "path": "src/px_transport/message_session.cpp",
+      "sha256": "3974D6E989C72072A3253568A216FC2003268640F8A338CD09B664D96049E845",
+      "status": "?? src/px_transport/message_session.cpp"
+    },
+    {
+      "path": "src/px_transport/message_session.h",
+      "sha256": "0181670BBDF2E6EBF626CE4D3DC6592823C604AF77E70E6BB7A8041F85ED6CA5",
+      "status": "?? src/px_transport/message_session.h"
+    }
+  ]
+}

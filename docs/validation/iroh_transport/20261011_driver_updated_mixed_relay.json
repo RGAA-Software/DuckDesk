@@ -1,0 +1,25 @@
+{
+  "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261011-003044-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "0a763bfe-f5eb-4bd9-9f85-f38706f99f23",
+  "started_at": "2026-10-11 00:30:45",
+  "posted_input_messages": 4930,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-5.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-6.png",
+    ".cache\\iroh-native-live-20261011-003044-relay\\mixed-7.png"
+  ],
+  "elapsed_seconds": 91.014,
+  "exit_code": 6,
+  "error": "PIXELS_FILE_TRANSFER_ACCEPTANCE=FAIL:FILE_TRANSFER_TIMEOUT\n",
+  "read_only_observation_retries": 0
+}

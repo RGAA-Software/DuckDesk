@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "client_audio_output.h"
+#include "client_iroh_reconnect.h"
 #include "ct_virtual_display_protocol.h"
 #include "px_client_sdk/platform/voice_audio_endpoint_port.h"
 #include "px_client_sdk/platform/windows/windows_decoder_factory.h"
@@ -81,6 +82,9 @@ bool ClientSession::Initialize() {
     auto params = std::make_shared<px::ThunderSdkParams>();
     params->media_transport_ = config_.forceTcp || config_.forceRelay ? px::SdkMediaTransport::kWebSocket : px::SdkMediaTransport::kUdp;
     params->connection_route_ = config_.forceRelay ? px::SdkConnectionRoute::kWebSocketRelay : px::SdkConnectionRoute::kDirect;
+    params->iroh_ = BuildClientIrohParameters(config_);
+    BindClientIrohRefresh(params->iroh_, config_);
+    if (params->iroh_) params->media_transport_ = px::SdkMediaTransport::kIroh;
     params->enable_audio_ = config_.audio;
     params->enable_video_ = !config_.fileTransferOnly;
     params->enable_controller_ = !config_.viewOnly;

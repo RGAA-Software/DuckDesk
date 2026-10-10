@@ -1,0 +1,48 @@
+{
+  "version": "3.3.97",
+  "candidate": "iroh-hook-frame-identity-20261010",
+  "development": {
+    "client/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "08624954F6D71B2CA16C78CD71B20296E163DA09C15C8837CA96DCF44654DF74"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "08624954F6D71B2CA16C78CD71B20296E163DA09C15C8837CA96DCF44654DF74"
+      }
+    },
+    "cloud_node/px_render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "C1EA2243DC209F9E6F90D1F46A1D09DC8EA44CDC89E9555E0D9B7DA2B895CF5B"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "C1EA2243DC209F9E6F90D1F46A1D09DC8EA44CDC89E9555E0D9B7DA2B895CF5B"
+      }
+    },
+    "cloud_node/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "7DECC63FA65FCB89E9DCD5906B5BAF29A31A88B288206C0A05E7EE1F49DBCA92"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "7DECC63FA65FCB89E9DCD5906B5BAF29A31A88B288206C0A05E7EE1F49DBCA92"
+      }
+    }
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-hook-frame-identity-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "10EF46F3A08614982E7BCF7DD229EA6FD7BA54CAE3FF5AEB68845833AAFB8177"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-hook-frame-identity-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "150CAD86BA0C4849FF584A4E71E4D288C120E7BD2372E116521AEC239BA65C8E"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-hook-frame-identity-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "785DDEBB55324033DE8B6227411347F1E78EB8036E2D3F32A1E10A74DB767222"
+  }
+}

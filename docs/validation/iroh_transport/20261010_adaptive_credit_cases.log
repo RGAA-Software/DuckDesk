@@ -1,0 +1,196 @@
+Start testing: Oct 10 22:40 China Standard Time
+----------------------------------------------------------
+59/147 Testing: iroh_file_flow
+59/147 Test: iroh_file_flow
+Command: "D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport/test_iroh_file_flow.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport
+"iroh_file_flow" start time: Oct 10 22:40 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 7 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from FileSendWindow
+[ RUN      ] FileSendWindow.CreditRequiresMonotonicPeerReceiptAndBoundsOversizedMessages
+[       OK ] FileSendWindow.CreditRequiresMonotonicPeerReceiptAndBoundsOversizedMessages (0 ms)
+[ RUN      ] FileSendWindow.DelayedReceiptsReduceBulkCreditWithoutDiscardingOutstandingDebt
+[       OK ] FileSendWindow.DelayedReceiptsReduceBulkCreditWithoutDiscardingOutstandingDebt (0 ms)
+[ RUN      ] FileSendWindow.HealthyReceiptsRestoreCreditWithHysteresisAndIgnoreDuplicateOrInvalidCounts
+[       OK ] FileSendWindow.HealthyReceiptsRestoreCreditWithHysteresisAndIgnoreDuplicateOrInvalidCounts (0 ms)
+[----------] 3 tests from FileSendWindow (0 ms total)
+
+[----------] 4 tests from FileReceiptTest
+[ RUN      ] FileReceiptTest.CompletedLocalWritesDoNotReleaseFileCreditButInputAndMediaContinue
+[2026-10-10 22:40:54.661] [info] [message_session.cpp:337] event=iroh.file_flow outstanding_bytes=122896 window_bytes=262144 receipt_bytes=122896 backpressure_count=1 receipt_delay_us=1848
+[2026-10-10 22:40:54.662] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-10 22:40:54.662] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-10 22:40:54.662] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-10 22:40:54.662] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] FileReceiptTest.CompletedLocalWritesDoNotReleaseFileCreditButInputAndMediaContinue (81 ms)
+[ RUN      ] FileReceiptTest.ReceiptWakeupCanStopSessionAndRepeatedStopClosesPendingWork
+[2026-10-10 22:40:54.706] [info] [message_session.cpp:337] event=iroh.file_flow outstanding_bytes=122896 window_bytes=262144 receipt_bytes=122896 backpressure_count=1 receipt_delay_us=280
+[2026-10-10 22:40:54.706] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-10 22:40:54.706] [warning] [thread.cpp:151] Thread iroh-receive-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-10 22:40:54.706] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-10 22:40:54.706] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-10 22:40:54.706] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[2026-10-10 22:40:54.706] [warning] [thread.cpp:151] Thread iroh-receive-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[       OK ] FileReceiptTest.ReceiptWakeupCanStopSessionAndRepeatedStopClosesPendingWork (43 ms)
+[ RUN      ] FileReceiptTest.RealReceiverIssuesReceiptsAndBothDirectionsMakeProgress
+[2026-10-10 22:40:54.739] [info] [message_session.cpp:337] event=iroh.file_flow outstanding_bytes=122896 window_bytes=262144 receipt_bytes=122896 backpressure_count=1 receipt_delay_us=1433
+[2026-10-10 22:40:54.749] [info] [message_session.cpp:337] event=iroh.file_flow outstanding_bytes=122896 window_bytes=262144 receipt_bytes=122896 backpressure_count=1 receipt_delay_us=1741
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-10 22:40:54.757] [warning] [thread.cpp:151] Thread iroh-send-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[2026-10-10 22:40:54.757] [warning] [thread.cpp:151] Thread iroh-send-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-10 22:40:54.757] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[       OK ] FileReceiptTest.RealReceiverIssuesReceiptsAndBothDirectionsMakeProgress (51 ms)
+[ RUN      ] FileReceiptTest.StopClosesCreditWaitAndQueuedCompletionsRemainSafe
+[2026-10-10 22:40:54.798] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-10 22:40:54.799] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-10 22:40:54.799] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-10 22:40:54.799] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] FileReceiptTest.StopClosesCreditWaitAndQueuedCompletionsRemainSafe (41 ms)
+[----------] 4 tests from FileReceiptTest (217 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 2 test suites ran. (217 ms total)
+[  PASSED  ] 7 tests.
+<end of output>
+Test time =   0.82 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_file_flow" end time: Oct 10 22:40 China Standard Time
+"iroh_file_flow" time elapsed: 00:00:00
+----------------------------------------------------------
+
+60/147 Testing: iroh_transport
+60/147 Test: iroh_transport
+Command: "D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport/test_iroh_transport.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport
+"iroh_transport" start time: Oct 10 22:40 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from IrohTransport
+[ RUN      ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_transport.cpp(17): Skipped
+requires a private test Relay
+
+[  SKIPPED ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays (0 ms)
+[ RUN      ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_transport.cpp(69): Skipped
+requires at least two private test Relays
+
+[  SKIPPED ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers (0 ms)
+[ RUN      ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection
+[       OK ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection (55 ms)
+[ RUN      ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes
+[       OK ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes (89 ms)
+[ RUN      ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries
+[       OK ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries (134 ms)
+[----------] 5 tests from IrohTransport (279 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (279 ms total)
+[  PASSED  ] 3 tests.
+[  SKIPPED ] 2 tests, listed below:
+[  SKIPPED ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays
+[  SKIPPED ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers
+<end of output>
+Test time =   0.59 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_transport" end time: Oct 10 22:40 China Standard Time
+"iroh_transport" time elapsed: 00:00:00
+----------------------------------------------------------
+
+102/147 Testing: iroh_frontend
+102/147 Test: iroh_frontend
+Command: "D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_render/tests/test_iroh_frontend.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_render/tests
+"iroh_frontend" start time: Oct 10 22:40 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 17 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 17 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+[       OK ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword (53 ms)
+[ RUN      ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery (63 ms)
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (73 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (60 ms)
+[ RUN      ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(335): Skipped
+Requires the owned-Relay outage harness
+
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic (40 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (50 ms)
+[ RUN      ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation (93 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (61 ms)
+[ RUN      ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed (1163 ms)
+[ RUN      ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown (47 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (270 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (39 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (44 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (43 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (48 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (61 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (54 ms)
+[----------] 17 tests from IrohFrontendTest (2274 ms total)
+
+[----------] Global test environment tear-down
+[==========] 17 tests from 1 test suite ran. (2274 ms total)
+[  PASSED  ] 16 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+<end of output>
+Test time =   2.85 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_frontend" end time: Oct 10 22:40 China Standard Time
+"iroh_frontend" time elapsed: 00:00:02
+----------------------------------------------------------
+
+End testing: Oct 10 22:40 China Standard Time

@@ -97,6 +97,8 @@ void VideoEncoderModule::SetClientSideMediaRecording(const bool recording) noexc
 void VideoEncoderModule::Reconfigure(
     const std::string&, std::uint32_t, std::uint32_t) {}
 
+bool VideoEncoderModule::TryUpdateBitrate(const std::string&, std::uint32_t) { return false; }
+
 std::optional<EncoderCapability> VideoEncoderModule::Capability(
     const std::string&) const {
     return std::nullopt;

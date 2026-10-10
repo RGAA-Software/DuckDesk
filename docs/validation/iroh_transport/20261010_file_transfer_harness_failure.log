@@ -1,0 +1,3 @@
+[2026-10-10 17:15:26.752][thread 79080][client_session.cpp:223][info] : event=file_transfer.session component=client operation=start outcome=success
+[2026-10-10 17:15:26.793][thread 47384][client_session.cpp:337][info] : event=file_transfer.capability component=client operation=configure outcome=enabled host_enabled=true
+[2026-10-10 17:16:56.765][thread 79080][client_file_transfer_acceptance.cpp:180][error] : File-transfer acceptance failed: FILE_TRANSFER_TIMEOUT

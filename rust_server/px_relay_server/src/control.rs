@@ -13,10 +13,62 @@ const REPORT_INTERVAL: Duration = Duration::from_secs(5);
 
 type ControlSocket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
+enum ManagedRelay {
+    Rooms(RelayServerState),
+    Iroh(crate::iroh::IrohRelayManagement),
+}
+
+impl ManagedRelay {
+    fn set_draining(&self, draining: bool) {
+        match self {
+            Self::Rooms(state) => state.set_draining(draining),
+            Self::Iroh(state) => state.set_draining(draining),
+        }
+    }
+
+    async fn report(&self, sequence: u64, product_version_code: u32) -> Result<RelayReport, ()> {
+        match self {
+            Self::Iroh(state) => Ok(state.report(sequence, product_version_code)),
+            Self::Rooms(state) => {
+                let snapshot = state.snapshot().await;
+                Ok(RelayReport {
+                    sequence,
+                    product_version_code,
+                    draining: state.is_draining(),
+                    max_connections: u32::try_from(state.config().max_connections)
+                        .map_err(|_| ())?,
+                    current_connections: u32::try_from(snapshot.connections).map_err(|_| ())?,
+                    max_rooms: Some(u32::try_from(state.config().max_rooms).map_err(|_| ())?),
+                    current_rooms: Some(u32::try_from(snapshot.rooms).map_err(|_| ())?),
+                    iroh_qad_port: None,
+                    uploaded_bytes: snapshot.uploaded_payload_bytes,
+                    forwarded_bytes: snapshot.forwarded_payload_bytes,
+                })
+            }
+        }
+    }
+}
+
 pub async fn run(state: RelayServerState, cancellation: CancellationToken) {
     let Some(control_plane) = state.config().control_plane.clone() else {
         return;
     };
+    run_managed(ManagedRelay::Rooms(state), control_plane, cancellation).await;
+}
+
+pub async fn run_iroh(
+    state: crate::iroh::IrohRelayManagement,
+    control_plane: crate::config::ControlPlaneConfig,
+    cancellation: CancellationToken,
+) {
+    run_managed(ManagedRelay::Iroh(state), control_plane, cancellation).await;
+}
+
+async fn run_managed(
+    state: ManagedRelay,
+    control_plane: crate::config::ControlPlaneConfig,
+    cancellation: CancellationToken,
+) {
     state.set_draining(true);
     loop {
         if cancellation.is_cancelled() {
@@ -26,18 +78,24 @@ pub async fn run(state: RelayServerState, cancellation: CancellationToken) {
             .tls_config
             .as_ref()
             .map(|tls_config| Connector::Rustls(Arc::clone(tls_config)));
-        match connect_async_tls_with_config(&control_plane.url, None, false, connector).await {
-            Ok((socket, _)) => {
-                if run_session(&state, &control_plane, socket, &cancellation)
-                    .await
-                    .is_err()
-                {
+        let connected = tokio::select! {
+            _ = cancellation.cancelled() => return,
+            connected = tokio::time::timeout(RESPONSE_DEADLINE, connect_async_tls_with_config(&control_plane.url, None, false, connector)) => connected,
+        };
+        match connected {
+            Ok(Ok((socket, _))) => {
+                let completed = tokio::select! {
+                    _ = cancellation.cancelled() => return,
+                    completed = run_session(&state, &control_plane, socket, &cancellation) => completed,
+                };
+                if completed.is_err() {
                     tracing::warn!(
                         "Relay control connection closed; new admissions remain drained"
                     );
                 }
             }
-            Err(error) => tracing::warn!(%error, "Relay control connection failed"),
+            Ok(Err(error)) => tracing::warn!(%error, "Relay control connection failed"),
+            Err(_) => tracing::warn!("Relay control connection timed out"),
         }
         state.set_draining(true);
         tokio::select! {
@@ -48,7 +106,7 @@ pub async fn run(state: RelayServerState, cancellation: CancellationToken) {
 }
 
 async fn run_session(
-    state: &RelayServerState,
+    state: &ManagedRelay,
     control_plane: &crate::config::ControlPlaneConfig,
     mut socket: ControlSocket,
     cancellation: &CancellationToken,
@@ -88,25 +146,17 @@ async fn run_session(
         }
         request_id = request_id.checked_add(1).ok_or(())?;
         sequence = sequence.checked_add(1).ok_or(())?;
-        let snapshot = state.snapshot().await;
-        let report = RelayReport {
-            sequence,
-            product_version_code: control_plane.product_version_code,
-            draining: state.is_draining(),
-            max_connections: u32::try_from(state.config().max_connections).map_err(|_| ())?,
-            current_connections: u32::try_from(snapshot.connections).map_err(|_| ())?,
-            max_rooms: u32::try_from(state.config().max_rooms).map_err(|_| ())?,
-            current_rooms: u32::try_from(snapshot.rooms).map_err(|_| ())?,
-            uploaded_bytes: snapshot.uploaded_payload_bytes,
-            forwarded_bytes: snapshot.forwarded_payload_bytes,
-        };
+        let report = state
+            .report(sequence, control_plane.product_version_code)
+            .await?;
+        let reported_draining = report.draining;
         send(&mut socket, &RelayRequest::Report { request_id, report }).await?;
         match receive(&mut socket, cancellation).await? {
             RelayResponse::Reported {
                 request_id: response_id,
                 desired_draining,
             } if response_id == request_id => {
-                report_immediately = state.is_draining() != desired_draining;
+                report_immediately = reported_draining != desired_draining;
                 state.set_draining(desired_draining);
             }
             _ => return Err(()),

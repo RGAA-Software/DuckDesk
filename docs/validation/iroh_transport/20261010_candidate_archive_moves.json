@@ -1,0 +1,12 @@
+[
+  {
+    "verified_files": 319,
+    "destination": "C:\\Users\\chess\\AppData\\Local\\PixelsDevArtifacts\\GammaRayPremium\\iroh-pipeline-trace-20261010",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-pipeline-trace-20261010"
+  },
+  {
+    "verified_files": 319,
+    "destination": "C:\\Users\\chess\\AppData\\Local\\PixelsDevArtifacts\\GammaRayPremium\\iroh-byte-credit-20261010",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-byte-credit-20261010"
+  }
+]

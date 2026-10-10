@@ -74,13 +74,11 @@ void UdpDirectConnection::Start(const std::string& host, int udp_port, const std
     last_recv_ms_ = 0;
     last_video_frame_ms_ = 0;
     last_idr_request_ms_ = 0;
-    last_rfi_request_ms_ = 0;
-    last_idr_time_.clear();
-    last_rfi_time_.clear();
     audio_lost_log_count_ = 0;
     media_ready_reported_ = false;
     received_media_packet_ = false;
     video_receiver_.Reset();
+    video_recovery_.Reset();
     audio_receiver_.Reset();
     media_window_ = {};
     last_delivered_us_ = 0;
@@ -151,8 +149,10 @@ void UdpDirectConnection::Start(const std::string& host, int udp_port, const std
                         }
                     }
                 });
-                // 无完整视频帧兜底:2s 内没组出帧再请 IDR(节流 1s)。
-                // Lost frames request throttled IDR; this timer also handles total silence.
+                self->udp_client_->start_timer(kTimerVideoRecovery, 100, [weak_self]() {
+                    if (const auto locked = weak_self.lock()) locked->CheckVideoRecovery();
+                });
+                // Initial readiness and static-desktop refresh are separate from active loss recovery.
                 self->udp_client_->start_timer(kTimerIdrRetry, 1000, [weak_self]() {
                     if (const auto locked = weak_self.lock())
                         locked->CheckNeedIdr();
@@ -275,18 +275,7 @@ void UdpDirectConnection::OnUdpPacket(std::span<const char> packet) {
         if (receive_result.rejected) {
             malformed_video_pkt_count_++;
         }
-        if (receive_result.needs_idr) {
-            const auto now_ms = TimeUtil::GetCurrentTimestamp();
-            if (now_ms - last_idr_request_ms_.load() >= kIdrThrottleMs) {
-                last_idr_request_ms_ = now_ms;
-                ++media_window_.idr_requests;
-                RequestIdr("");
-            }
-        } else if (receive_result.invalid_reference_frame) {
-            // Invalidate after the last delivered encoder timestamp, never using the independent RTP frame number.
-            RequestRfi(*receive_result.invalid_reference_frame, "");
-            ++media_window_.rfi_requests;
-        }
+        if (const auto request = video_recovery_.Observe(datagram->stream, receive_result, now_us)) SendVideoRecoveryRequest(*request);
         if (receive_result.frame) {
             ++media_window_.frames;
             if (last_delivered_us_) {
@@ -399,23 +388,7 @@ void UdpDirectConnection::OnCompleteFrame(const media::VideoFrame& frame) {
     if (stopped_)
         return;
 
-    // 合成与 relay/ws 路径完全一致的标准 kVideoFrame proto,
-    // 让 sdk 的按屏解码链原样接上(reassembler 保证首帧必为 IDR)
-    auto video_message = std::make_shared<px::Message>();
-    video_message->set_type(px::kVideoFrame);
-    auto& video = *video_message->mutable_video_frame();
-    video.set_type(frame.codec == media::VideoCodec::kH265 ? px::kNetHevc : px::kNetH264);
-    video.set_data(frame.encoded.data(), frame.encoded.size());
-    video.set_frame_index(frame.frame_index);
-    video.set_key(frame.kind == media::VideoFrameKind::kIdr);
-    video.set_frame_width(frame.width);
-    video.set_frame_height(frame.height);
-    video.set_mon_name(frame.monitor);
-    video.set_mon_index(frame.stream);
-    // debug 标记:区分 UDP 合成帧与其它 kVideoFrame 来源(参照 webrtc_local 的 rtc_synth)
-    video.set_extra("udp_synth");
-
-    video_msg_cbk_(video_message);
+    video_msg_cbk_(MakeReassembledVideoDelivery(frame));
 }
 
 void UdpDirectConnection::RequestIdr(const std::string& monitor_name) {
@@ -430,6 +403,26 @@ void UdpDirectConnection::RequestRfi(uint64_t invalid_frame_index,
                                      const std::string& monitor_name) {
     this->PostBinaryMessage(
         PxUdpProtocol::BuildRfi(invalid_frame_index, monitor_name));
+}
+
+void UdpDirectConnection::CheckVideoRecovery() {
+    if (stopped_ || !connected_) return;
+    for (const auto& request : video_recovery_.PollDue(media::MediaSteadyMicros())) SendVideoRecoveryRequest(request);
+}
+
+void UdpDirectConnection::SendVideoRecoveryRequest(const media::VideoRecoveryRequest& request) {
+    if (request.kind == media::VideoRecoveryRequestKind::kKeyFrame) {
+        last_idr_request_ms_ = TimeUtil::GetCurrentTimestamp();
+        ++media_window_.idr_requests;
+        LOGW("UDP video recovery: stream={}, monitor={}, action=IDR, recovery_age_ms={}", request.stream, request.monitor,
+             request.recovery_age_us / 1000);
+        RequestIdr(request.monitor);
+    } else if (request.invalid_reference_frame) {
+        ++media_window_.rfi_requests;
+        LOGI("UDP video recovery: stream={}, monitor={}, action=RFI, invalid_frame={}, recovery_age_ms={}", request.stream, request.monitor,
+             *request.invalid_reference_frame, request.recovery_age_us / 1000);
+        RequestRfi(*request.invalid_reference_frame, request.monitor);
+    }
 }
 
 void UdpDirectConnection::CheckNeedIdr() {
@@ -499,9 +492,8 @@ void UdpDirectConnection::RestoreReachability() {
     }
 }
 
-void UdpDirectConnection::SetOnVideoMessageCallback(
-    const std::function<void(std::shared_ptr<px::Message>)>& callback) {
-    video_msg_cbk_ = callback;
+void UdpDirectConnection::SetOnVideoMessageCallback(std::function<void(EncodedVideoDelivery)> callback) {
+    video_msg_cbk_ = std::move(callback);
 }
 
 void UdpDirectConnection::SetOnAudioMessageCallback(

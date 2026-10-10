@@ -1,0 +1,13 @@
+{
+  "candidate": "iroh-sequenced-backpressure-20261009",
+  "upload_operation": "11a64e60-e021-4500-889f-6b75e5017db8",
+  "install_operation": "124e32c5-dfe7-4cdd-b03c-c482fbc2a1f2",
+  "verification": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "BB2712F5B2A445C5940BF29B84E50F9E16B4989AB35AB2010426178386837A87",
+    "manifest_sha256": "1E77482EF7574D6DC64CA7DD80F9070DA05EFB9D834A59F4259BE36503586E65",
+    "setup_sha256": "8CED7C9D8301437F0123217C3981BD3CD1814757DEF31DEEE5EC3C79DE012251"
+  }
+}

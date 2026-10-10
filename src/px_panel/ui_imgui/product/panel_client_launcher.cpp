@@ -10,6 +10,7 @@
 
 #include "panel_connection_links.h"
 #include "px_common/log.h"
+#include "px_common/uuid.h"
 
 namespace px::panel::product {
 namespace {
@@ -90,20 +91,56 @@ struct PanelClientLauncher::Process final {
     DWORD id{};
 };
 
-std::shared_ptr<PanelClientLauncher> PanelClientLauncher::Create(const std::shared_ptr<PanelConfigStore>& config) {
-    return std::make_shared<PanelClientLauncher>(config);
+std::shared_ptr<PanelClientLauncher> PanelClientLauncher::Create(const std::shared_ptr<PanelConfigStore>& config,
+                                                                 const std::shared_ptr<PanelLocalServer>& localServer) {
+    return std::make_shared<PanelClientLauncher>(config, localServer);
 }
 
-PanelClientLauncher::PanelClientLauncher(std::shared_ptr<PanelConfigStore> config) : config_{std::move(config)} {}
-PanelClientLauncher::~PanelClientLauncher() { StopAll(); }
+PanelClientLauncher::PanelClientLauncher(std::shared_ptr<PanelConfigStore> config, std::shared_ptr<PanelLocalServer> localServer)
+    : config_{std::move(config)}, localServer_{std::move(localServer)} {}
+PanelClientLauncher::~PanelClientLauncher() { Shutdown(); }
 
-bool PanelClientLauncher::Launch(const NativeLaunchRequest& request) {
+ClientLaunchResult PanelClientLauncher::Launch(const NativeLaunchRequest& originalRequest) {
+    auto request = originalRequest;
     if (request.directHost.empty() || request.directPort <= 0 || request.directPort > 65535 || request.directStreamId.empty() ||
         request.nonce.empty()) {
         return false;
     }
-    return request.connectionKind == NativeConnectionKind::Rdp ? LaunchRdp(request, request.directHost, request.directPort)
-                                                               : LaunchNative(request, request.directHost, request.directPort);
+    if (stopping_.load() || !localServer_) return false;
+    request.panelLaunchId = px::GetCanonicalUUID();
+    request.panelPort = localServer_->Snapshot().listenPort;
+    const auto startup = std::make_shared<PanelClientStartup>(request.directStreamId);
+    if (!localServer_->RegisterClientStartup(request.panelLaunchId, startup)) return false;
+    struct Registration final {
+        std::shared_ptr<PanelLocalServer> server{};
+        std::string launchId{};
+        ~Registration() { server->ForgetClientStartup(launchId); }
+    } registration{localServer_, request.panelLaunchId};
+    const auto process = request.connectionKind == NativeConnectionKind::Rdp ? LaunchRdp(request, request.directHost, request.directPort)
+                                                                             : LaunchNative(request, request.directHost, request.directPort);
+    if (!process) return false;
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{45};
+    ClientLaunchResult result{px::ui::TextId::ConnectionClientConnectTimeout};
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (const auto reported = startup->WaitFor(std::chrono::milliseconds{50})) {
+            result = *reported;
+            break;
+        }
+        if (stopping_.load() || !process || WaitForSingleObject(process->handle.Get(), 0) != WAIT_TIMEOUT) {
+            result = px::ui::TextId::ConnectionClientExited;
+            break;
+        }
+    }
+    LOGI("event=client.startup component=panel launch={} stream={} outcome={} error={}", request.panelLaunchId, request.directStreamId,
+         result.connected ? "connected" : "failed", result.connected ? 0 : static_cast<int>(result.error));
+    if (!result && process && process->handle.Valid()) {
+        // Cancel only this exact child, never a reused stream/PID or the remote application.
+        static_cast<void>(TerminateProcess(process->handle.Get(), 1));
+        const std::scoped_lock lock{mutex_};
+        const auto found = processes_.find(request.directStreamId);
+        if (found != processes_.end() && found->second == process) processes_.erase(found);
+    }
+    return result;
 }
 
 namespace {
@@ -115,10 +152,13 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
     const std::string localHost{ResolveNodeAccessHost({}, CollectPanelLocalAddresses())};
     const std::array decoderNames{"Auto", "Hardware", "Software"};
     return {{"schema", 1},
+            {"panel_port", request.panelPort},
+            {"panel_launch_id", request.panelLaunchId},
             {"mode", request.fileTransfer ? "file-transfer" : "desktop"},
             {"host", host},
             {"local_host", localHost},
             {"port", port},
+            {"iroh", px::IrohConnectionDescriptionJson(request.iroh)},
             {"appkey", request.relayAdmissionTicket},
             {"stream_id", request.directStreamId},
             {"stream_name", request.displayName},
@@ -152,14 +192,14 @@ nlohmann::json BuildNativeEnvelope(const NativeLaunchRequest& request, const std
 
 }  // namespace
 
-bool PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const std::string& host, const int port) {
+std::shared_ptr<PanelClientLauncher::Process> PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const std::string& host, const int port) {
     const auto executable = config_->ExecutableDirectory() / "px_client.exe";
-    if (!std::filesystem::exists(executable)) return false;
+    if (!std::filesystem::exists(executable)) return {};
     std::string envelope{BuildNativeEnvelope(request, host, port, *config_).dump()};
     SECURITY_ATTRIBUTES security{.nLength = sizeof(SECURITY_ATTRIBUTES), .lpSecurityDescriptor = nullptr, .bInheritHandle = TRUE};
     HANDLE readPipe{};   // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
     HANDLE writePipe{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
-    if (!CreatePipe(&readPipe, &writePipe, &security, 0)) return false;
+    if (!CreatePipe(&readPipe, &writePipe, &security, 0)) return {};
     WinHandle childInput{readPipe};
     WinHandle parentInput{writePipe};
     static_cast<void>(SetHandleInformation(parentInput.Get(), HANDLE_FLAG_INHERIT, 0));
@@ -174,7 +214,7 @@ bool PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const
     if (!CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT, nullptr,
                         config_->ExecutableDirectory().c_str(), &startup, &processInfo)) {
         LOGE("Native client failed to start: {}", GetLastError());
-        return false;
+        return {};
     }
     CloseHandle(processInfo.hThread);
     childInput.Reset();
@@ -186,23 +226,26 @@ bool PanelClientLauncher::LaunchNative(const NativeLaunchRequest& request, const
     if (!sent) {
         TerminateProcess(processInfo.hProcess, 1);
         CloseHandle(processInfo.hProcess);
-        return false;
+        return {};
     }
     const auto process = std::make_shared<Process>();
     process->handle = WinHandle{processInfo.hProcess};
     process->id = processInfo.dwProcessId;
     const std::scoped_lock lock{mutex_};
     processes_[request.directStreamId] = process;
-    return true;
+    return process;
 }
 
-bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const std::string& host, const int port) {
-    if (request.viewOnly || !request.rdpConfiguration) return false;
+std::shared_ptr<PanelClientLauncher::Process> PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const std::string& host,
+                                                                             const int port) {
+    if (request.viewOnly || !request.rdpConfiguration) return {};
     const auto executable = config_->ExecutableDirectory() / "px_client.exe";
-    if (!std::filesystem::exists(executable)) return false;
+    if (!std::filesystem::exists(executable)) return {};
     const auto settings = config_->Settings();
     const auto console = config_->Console();
     nlohmann::json launch{{"schema", 1},
+                          {"panel_port", request.panelPort},
+                          {"panel_launch_id", request.panelLaunchId},
                           {"host", host},
                           {"port", port},
                           {"stream_id", request.directStreamId},
@@ -224,7 +267,7 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
     SECURITY_ATTRIBUTES security{.nLength = sizeof(SECURITY_ATTRIBUTES), .lpSecurityDescriptor = nullptr, .bInheritHandle = TRUE};
     HANDLE readPipe{};   // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
     HANDLE writePipe{};  // NOLINT(pixels-raw-pointer-boundary): CreatePipe boundary, immediately wrapped
-    if (!CreatePipe(&readPipe, &writePipe, &security, 0)) return false;
+    if (!CreatePipe(&readPipe, &writePipe, &security, 0)) return {};
     WinHandle childInput{readPipe};
     WinHandle parentInput{writePipe};
     static_cast<void>(SetHandleInformation(parentInput.Get(), HANDLE_FLAG_INHERIT, 0));
@@ -238,7 +281,7 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
     PROCESS_INFORMATION processInfo{};
     if (!CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, TRUE, CREATE_UNICODE_ENVIRONMENT, nullptr,
                         config_->ExecutableDirectory().c_str(), &startup, &processInfo)) {
-        return false;
+        return {};
     }
     CloseHandle(processInfo.hThread);
     childInput.Reset();
@@ -247,13 +290,17 @@ bool PanelClientLauncher::LaunchRdp(const NativeLaunchRequest& request, const st
         WriteFile(parentInput.Get(), envelope.data(), static_cast<DWORD>(envelope.size()), &written, nullptr) != FALSE && written == envelope.size();
     if (!envelope.empty()) SecureZeroMemory(envelope.data(), envelope.size());
     parentInput.Reset();
-    if (!sent) TerminateProcess(processInfo.hProcess, 1);
+    if (!sent) {
+        TerminateProcess(processInfo.hProcess, 1);
+        CloseHandle(processInfo.hProcess);
+        return {};
+    }
     const auto process = std::make_shared<Process>();
     process->handle = WinHandle{processInfo.hProcess};
     process->id = processInfo.dwProcessId;
     const std::scoped_lock lock{mutex_};
     processes_[request.directStreamId] = process;
-    return sent;
+    return process;
 }
 
 bool PanelClientLauncher::Stop(const std::string& streamId) {
@@ -268,7 +315,13 @@ bool PanelClientLauncher::Stop(const std::string& streamId) {
     return !process->handle.Valid() || TerminateProcess(process->handle.Get(), 0) != FALSE;
 }
 
+void PanelClientLauncher::Shutdown() {
+    stopping_.store(true);
+    StopAll();
+}
+
 void PanelClientLauncher::StopAll() {
+    if (localServer_) localServer_->CancelClientStartups();
     std::unordered_map<std::string, std::shared_ptr<Process>> processes{};
     {
         const std::scoped_lock lock{mutex_};

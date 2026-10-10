@@ -1,0 +1,3 @@
+CAPACITY_DENIED https://127.0.0.1:18608/
+{"datagrams_echoed":119,"datagrams_sent":120,"elapsed_ms":5010,"maximum_datagram_round_trip_us":25813,"maximum_datagram_size":1288,"paths":"PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18607/)], selected: Some(PathId(0)), closed: false }, .. }","reliable_bytes_verified":6291520}
+CAPACITY_RECOVERED {"both_relays_reusable":true,"capacity_per_relay":2,"recovery_ms":231,"release_denied":false,"released_relay":"https://127.0.0.1:18607/"}

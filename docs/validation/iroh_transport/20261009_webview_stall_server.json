@@ -1,0 +1,162 @@
+{
+  "changed": true,
+  "complete": true,
+  "operation_ref": {
+    "device_code": "428358431",
+    "kind": "command",
+    "operation_id": "5b15719f-3c1c-463f-8845-1a69610a6b71",
+    "task_id": "ebe7a4e4-aa58-42b8-880d-711e3f40d546"
+  },
+  "os_reminder": "Target ba889233-f860-4cc1-8a53-1f6929bd4824/ffc68590-74dc-4355-a452-555da0b92473 | Windows x86_64 | native | no implicit shell | Windows paths | user=NT AUTHORITY\\SYSTEM (S-1-5-18) | cwd=C:\\Windows\\system32 | env=native-v2:61f25b661fe554f203e17f8e73eab05649546065afef8688af3f0e70eb49c76e",
+  "output": {
+    "stderr": {
+      "decoding_replacements": false,
+      "encoding": "utf8",
+      "filter_scope": null,
+      "gap": null,
+      "next_offset": 0,
+      "offset": 0,
+      "pending_bytes": 0,
+      "range": {
+        "available_to": 0,
+        "complete": true,
+        "retained_from": 0
+      },
+      "start_boundary_unverified": false,
+      "text": "",
+      "truncated": false,
+      "wait_expired": false
+    },
+    "stdout": {
+      "decoding_replacements": false,
+      "encoding": "utf8",
+      "filter_scope": null,
+      "gap": null,
+      "next_offset": 1918,
+      "offset": 0,
+      "pending_bytes": 0,
+      "range": {
+        "available_to": 1918,
+        "complete": true,
+        "retained_from": 0
+      },
+      "start_boundary_unverified": false,
+      "text": "[2026-10-09 13:39:23.595][thread 39392][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=2 completed=298 failed=0 max_send_us=16763 path=2 rtt_us=6683 tx_packets=57512 tx_lost=0\r\n[2026-10-09 13:39:24.960][thread 16808][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=14.913 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled\r\n[2026-10-09 13:39:28.596][thread 39392][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=0 completed=300 failed=0 max_send_us=8036 path=2 rtt_us=12333 tx_packets=68672 tx_lost=0\r\n[2026-10-09 13:39:29.963][thread 16808][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.16 video_mbps=14.567 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled\r\n[2026-10-09 13:39:33.613][thread 39392][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=0 completed=300 failed=0 max_send_us=6920 path=2 rtt_us=13482 tx_packets=79762 tx_lost=0\r\n[2026-10-09 13:39:34.967][thread 16808][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.76 video_mbps=14.380 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled\r\n[2026-10-09 13:39:38.629][thread 39392][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=0 completed=301 failed=0 max_send_us=15511 path=2 rtt_us=864216 tx_packets=89598 tx_lost=0\r\n[2026-10-09 13:39:39.969][thread 16808][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=12.543 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled\r\n",
+      "truncated": false,
+      "wait_expired": false
+    }
+  },
+  "revision": "e5b2734f4fa4fffcc49903e03c5dcd1aed3cf274c88f074200fef613905c0dfc",
+  "stderr": {
+    "available_to": 0,
+    "complete": true,
+    "retained_from": 0
+  },
+  "stdout": {
+    "available_to": 1918,
+    "complete": true,
+    "retained_from": 0
+  },
+  "task": {
+    "capability": {
+      "name": "process.exec",
+      "version": 2
+    },
+    "completion": {
+      "exit_code": 0,
+      "summary": "process exited successfully"
+    },
+    "created_at_unix_ms": 1791525591103,
+    "display_summary": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe …",
+    "error": null,
+    "execution_context": {
+      "architecture": "x86_64",
+      "cwd": "D:\\112233",
+      "environment_revision": "native-v2:61f25b661fe554f203e17f8e73eab05649546065afef8688af3f0e70eb49c76e",
+      "execution_scope": "native",
+      "identity": {
+        "account_id": "S-1-5-18",
+        "account_name": "NT AUTHORITY\\SYSTEM",
+        "environment_source": "service_process",
+        "home": "C:\\Windows\\system32\\config\\systemprofile",
+        "logon_id": "00000000:000003e7",
+        "mode": "service",
+        "primary_group": null,
+        "session_id": "0"
+      },
+      "interpreter": null,
+      "os_family": "windows",
+      "os_name": "Windows",
+      "os_version": "10.0.20348",
+      "path_style": "windows"
+    },
+    "finished_at_unix_ms": 1791525592021,
+    "initiated_by": {
+      "guest_endpoint_key": [
+        100,
+        93,
+        13,
+        152,
+        40,
+        180,
+        21,
+        123,
+        244,
+        244,
+        119,
+        147,
+        53,
+        238,
+        165,
+        96,
+        43,
+        62,
+        76,
+        109,
+        14,
+        212,
+        223,
+        152,
+        45,
+        11,
+        134,
+        0,
+        243,
+        12,
+        50,
+        167
+      ]
+    },
+    "initiating_user": {
+      "user_id": "78e7862f-93c8-4757-8d62-20b8acb78102",
+      "username": "home"
+    },
+    "latest_event_seq": 3,
+    "output": {
+      "stderr": {
+        "available_to": 0,
+        "complete": true,
+        "retained_from": 0
+      },
+      "stdout": {
+        "available_to": 1918,
+        "complete": true,
+        "retained_from": 0
+      }
+    },
+    "progress": null,
+    "request_id": "5b15719f-3c1c-463f-8845-1a69610a6b71",
+    "schema_version": 1,
+    "stage": null,
+    "started_at_unix_ms": 1791525591104,
+    "state": "succeeded",
+    "task_ref": {
+      "device_ref": {
+        "device_id": "ffc68590-74dc-4355-a452-555da0b92473",
+        "tenant_id": "ba889233-f860-4cc1-8a53-1f6929bd4824"
+      },
+      "task_id": "ebe7a4e4-aa58-42b8-880d-711e3f40d546"
+    }
+  },
+  "wait_expired": false
+}

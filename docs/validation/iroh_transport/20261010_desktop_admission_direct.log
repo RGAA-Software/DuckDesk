@@ -1,0 +1,13 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start 101: iroh_frontend
+1/2 Test #101: iroh_frontend ....................   Passed    3.07 sec
+    Start 113: ws_frontend_admission
+2/2 Test #113: ws_frontend_admission ............   Passed    0.23 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Label Time Summary:
+render-unit    =   0.23 sec*proc (1 test)
+
+Total Test time (real) =   3.62 sec

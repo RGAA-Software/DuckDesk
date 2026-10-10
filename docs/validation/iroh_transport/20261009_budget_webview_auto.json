@@ -1,0 +1,44 @@
+[
+  {
+    "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "instance_id": "f7208646-d378-48ce-8cb5-55b458c804c3",
+    "client_pid": 87856,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 13:34:10.873][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0",
+      "[2026-10-09 13:34:15.880][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=296 parity=283 duplicate=0 late=283 reordered=0 recovered=0 complete=129 loss=0 malformed=0",
+      "[2026-10-09 13:34:15.889][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=4130 tx_packets=768 rx_packets=1136 tx_lost=0 tx_datagrams=0 rx_datagrams=630",
+      "[2026-10-09 13:34:15.889][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=130, fps=25.9, max_gap_ms=929.0, gaps_gt_100ms=5, idr=0, rfi=0",
+      "[2026-10-09 13:34:20.881][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=8903 parity=2068 duplicate=0 late=2056 reordered=0 recovered=0 complete=424 loss=3 malformed=0",
+      "[2026-10-09 13:34:20.908][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=13724 tx_packets=3685 rx_packets=11953 tx_lost=4 tx_datagrams=0 rx_datagrams=11040",
+      "[2026-10-09 13:34:20.908][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=293, fps=58.4, max_gap_ms=117.0, gaps_gt_100ms=1, idr=0, rfi=2",
+      "[2026-10-09 13:34:25.882][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=17624 parity=3873 duplicate=0 late=3861 reordered=0 recovered=0 complete=723 loss=4 malformed=0",
+      "[2026-10-09 13:34:25.924][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=4666 tx_packets=5630 rx_packets=23067 tx_lost=4 tx_datagrams=0 rx_datagrams=21577",
+      "[2026-10-09 13:34:25.924][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=299, fps=59.6, max_gap_ms=44.7, gaps_gt_100ms=0, idr=0, rfi=1",
+      "[2026-10-09 13:34:30.895][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=26280 parity=5673 duplicate=0 late=5661 reordered=0 recovered=0 complete=1023 loss=4 malformed=0",
+      "[2026-10-09 13:34:30.942][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=4897 tx_packets=9428 rx_packets=34140 tx_lost=10 tx_datagrams=0 rx_datagrams=32075",
+      "[2026-10-09 13:34:30.942][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=54.1, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:34:35.896][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=34872 parity=7474 duplicate=0 late=7433 reordered=0 recovered=6 complete=1319 loss=4 malformed=0",
+      "[2026-10-09 13:34:35.947][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=3103 tx_packets=13075 rx_packets=45091 tx_lost=10 tx_datagrams=0 rx_datagrams=42480",
+      "[2026-10-09 13:34:35.947][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=293, fps=58.5, max_gap_ms=65.2, gaps_gt_100ms=0, idr=0, rfi=1",
+      "[2026-10-09 13:34:40.902][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=43576 parity=9274 duplicate=0 late=9233 reordered=0 recovered=6 complete=1619 loss=4 malformed=0",
+      "[2026-10-09 13:34:40.963][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=4729 tx_packets=16540 rx_packets=56187 tx_lost=18 tx_datagrams=0 rx_datagrams=53001",
+      "[2026-10-09 13:34:40.963][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=51.1, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:34:45.913][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=52195 parity=11064 duplicate=0 late=11023 reordered=0 recovered=6 complete=1915 loss=5 malformed=0",
+      "[2026-10-09 13:34:45.964][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=3285 tx_packets=19798 rx_packets=67164 tx_lost=19 tx_datagrams=0 rx_datagrams=63399",
+      "[2026-10-09 13:34:45.964][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=294, fps=58.8, max_gap_ms=61.1, gaps_gt_100ms=0, idr=0, rfi=1",
+      "[2026-10-09 13:34:50.924][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=60878 parity=12870 duplicate=0 late=12823 reordered=0 recovered=6 complete=2215 loss=5 malformed=0",
+      "[2026-10-09 13:34:50.980][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=4004 tx_packets=23740 rx_packets=78214 tx_lost=19 tx_datagrams=0 rx_datagrams=73882",
+      "[2026-10-09 13:34:50.980][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=299, fps=59.6, max_gap_ms=55.6, gaps_gt_100ms=0, idr=0, rfi=1",
+      "[2026-10-09 13:34:55.934][thread 37624][media_datagrams.cpp:152][info] : event=iroh.reassembly stream=0 data=69533 parity=14666 duplicate=0 late=14619 reordered=0 recovered=6 complete=2513 loss=5 malformed=0",
+      "[2026-10-09 13:34:56.013][thread 37624][iroh_connection.cpp:37][info] : event=iroh.path path=direct open_paths=2 rtt_us=5143 tx_packets=27301 rx_packets=89097 tx_lost=21 tx_datagrams=0 rx_datagrams=84331",
+      "[2026-10-09 13:34:56.013][thread 37624][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=298, fps=59.2, max_gap_ms=51.5, gaps_gt_100ms=0, idr=0, rfi=0"
+    ]
+  }
+]

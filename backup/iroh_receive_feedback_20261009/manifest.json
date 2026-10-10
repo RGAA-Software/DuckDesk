@@ -1,0 +1,68 @@
+[
+  {
+    "path": "src/px_client_sdk/media_transport/video_stream.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "M src/px_client_sdk/media_transport/video_stream.cpp",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_client_sdk/media_transport/video_stream.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "M src/px_client_sdk/media_transport/video_stream.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_client_sdk/media_transport/video_recovery_policy.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_client_sdk/media_transport/video_recovery_policy.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_transport/media_datagrams.cpp",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_transport/media_datagrams.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_transport/media_datagrams.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_transport/video_rate_control.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_transport/video_rate_control.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_client_sdk/connection/iroh_connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_client_sdk/connection/iroh_connection.cpp",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_client_sdk/connection/iroh_connection.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_client_sdk/connection/iroh_connection.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_render/network/iroh/iroh_session.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_render/network/iroh/iroh_session.cpp",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_render/network/iroh/iroh_session.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "?? src/px_render/network/iroh/iroh_session.h",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  },
+  {
+    "path": "src/px_deps/px_message/px_message.proto",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "status": "M src/px_deps/px_message/px_message.proto",
+    "reason": "Replace speculative loss and send-failure recovery with complete-frame feedback and bounded recovery."
+  }
+]

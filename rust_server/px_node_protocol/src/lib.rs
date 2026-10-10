@@ -7,7 +7,11 @@ use uuid::Uuid;
 use zeroize::Zeroizing;
 
 mod executable_path;
+mod iroh_endpoint;
 pub use executable_path::is_absolute_windows_executable_path;
+pub use iroh_endpoint::{
+    IrohConnectionDescription, IrohNetworkConfig, IrohRelayConfig, RenderIrohEndpoint,
+};
 
 fn serialize_secret<S>(value: &Zeroizing<String>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -125,6 +129,7 @@ pub struct RdpWorkspaceCredential {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeReport {
+    pub render_iroh_endpoints: Vec<RenderIrohEndpoint>,
     pub sequence: u64,
     pub product_version_code: u32,
     pub public_host: String,
@@ -653,11 +658,13 @@ pub enum NodeResponse {
         generation: i64,
         control_epoch: i64,
         relay: Option<RelayEndpoint>,
+        iroh: Option<IrohNetworkConfig>,
     },
     Reported {
         request_id: u64,
         state: String,
         endpoint_revision: i64,
+        iroh_relays: Option<Vec<IrohRelayConfig>>,
     },
     TelemetryBackfilled {
         request_id: u64,
@@ -801,7 +808,7 @@ impl NodeResponse {
 }
 
 mod strict_empty {
-    use serde::{de::MapAccess, Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer, de::MapAccess};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<(), D::Error>
     where
@@ -863,6 +870,7 @@ mod tests {
             generation: 2,
             control_epoch: 3,
             relay: None,
+            iroh: None,
         })
         .unwrap();
         assert!(!response.contains("token"));

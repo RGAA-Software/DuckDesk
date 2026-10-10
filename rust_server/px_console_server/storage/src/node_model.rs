@@ -81,6 +81,7 @@ impl NodeConfiguration {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NodeReport {
+    pub render_iroh_endpoints: Vec<px_node_protocol::RenderIrohEndpoint>,
     pub sequence: u64,
     pub product_version_code: u32,
     pub public_host: String,
@@ -138,6 +139,29 @@ impl NodeReport {
             }
             _ => return Err(StoreError::InvalidInput),
         };
+        let mut reported_ports = std::collections::HashSet::new();
+        if self.render_iroh_endpoints.len() > 256 {
+            return Err(StoreError::InvalidInput);
+        }
+        for endpoint in &self.render_iroh_endpoints {
+            let valid_target = if endpoint.port == self.desktop_port {
+                endpoint.instance_id.is_none() && endpoint.launch_id.is_none()
+            } else {
+                (self.application_port_start..=self.application_port_end).contains(&endpoint.port)
+                    && endpoint
+                        .instance_id
+                        .is_some_and(|identity| !identity.is_nil())
+                    && endpoint
+                        .launch_id
+                        .is_some_and(|identity| !identity.is_nil())
+            };
+            if !valid_target
+                || !endpoint.description.is_valid()
+                || !reported_ports.insert(endpoint.port)
+            {
+                return Err(StoreError::InvalidInput);
+            }
+        }
         Ok(ValidatedNodeReport {
             sequence,
             host,
@@ -528,6 +552,7 @@ mod tests {
     #[test]
     fn node_reports_reject_overflow_uri_ports_and_unknown_endpoint_values() {
         let mut report = NodeReport {
+            render_iroh_endpoints: Vec::new(),
             sequence: 1,
             product_version_code: 1,
             public_host: "node.example.test".into(),

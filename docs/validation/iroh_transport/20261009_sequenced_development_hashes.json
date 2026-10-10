@@ -1,0 +1,20 @@
+[
+  {
+    "product": "client",
+    "runtime": "px_client.exe",
+    "sha256": "d7c79afffcdd7647889d73a9e419026625faa244be8116bcb995f6af0320a659",
+    "build_dist_match": true
+  },
+  {
+    "product": "cloud_node",
+    "runtime": "px_client.exe",
+    "sha256": "787b7696e4a1fa3f2f496b1bd4da5fced7206d41a5d1da39107dbd5dc9acfde2",
+    "build_dist_match": true
+  },
+  {
+    "product": "cloud_node",
+    "runtime": "px_render.exe",
+    "sha256": "cbeb4391b1ef7d300dbc314341a3cd3379f5261babe0aa7da78d1455b018f6b1",
+    "build_dist_match": true
+  }
+]

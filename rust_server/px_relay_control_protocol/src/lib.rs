@@ -14,8 +14,9 @@ pub struct RelayReport {
     pub draining: bool,
     pub max_connections: u32,
     pub current_connections: u32,
-    pub max_rooms: u32,
-    pub current_rooms: u32,
+    pub max_rooms: Option<u32>,
+    pub current_rooms: Option<u32>,
+    pub iroh_qad_port: Option<u16>,
     pub uploaded_bytes: u64,
     pub forwarded_bytes: u64,
 }

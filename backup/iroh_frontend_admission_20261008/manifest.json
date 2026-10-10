@@ -1,0 +1,18 @@
+[
+  {
+    "original_path": "src/px_render/network/ws/ws_server.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": null,
+    "sha256": "982038960837A3A7E5D6FBF53622D00CAB00E19CF0D3E4281E55FC384F24D770",
+    "reason": "Extract existing frontend and logical-session admission for iroh reuse without adding authentication",
+    "archive_batch": "iroh_frontend_admission_20261008"
+  },
+  {
+    "original_path": "src/px_render/network/ws/ws_server.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "6dc2a9678ff7ccdc62cef7d615fa1cdfdab0743bc263e43494e4cfe0c68a6c9f",
+    "reason": "Share existing frontend admission type for iroh transport",
+    "archive_batch": "iroh_frontend_admission_20261008"
+  }
+]

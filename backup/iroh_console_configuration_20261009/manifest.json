@@ -1,0 +1,37 @@
+[
+  {
+    "original_path": "rust_client/px_service/src/service_host.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M rust_client/px_service/src/service_host.rs",
+    "sha256": "fc222ab29eb9dc2a7c155d44d34d59e2f166ecf6af5bb3f787e18fb190cdb954",
+    "reason": "Iroh configured nodes stop receiving legacy Relay launch credentials; retain pre-change branches."
+  },
+  {
+    "original_path": "rust_client/px_service/src/node_control_client.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M rust_client/px_service/src/node_control_client.rs",
+    "sha256": "488d42d4aaf9adcdd160cf6ec4071cbbf86d96cea33013599821eb7d27736158",
+    "reason": "Iroh configured nodes stop receiving legacy Relay launch credentials; retain pre-change branches."
+  },
+  {
+    "original_path": "rust_server/px_console_server/runtime/src/node_api.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "",
+    "sha256": "d69cd6c979c76fe67f934fdb5c18896e31a11a0ae1d8c6dd4f87f1608cb153dc",
+    "reason": "Iroh configured nodes stop receiving legacy Relay launch credentials; retain pre-change branches."
+  },
+  {
+    "original_path": "rust_server/px_console_server/storage/src/resource_sessions.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M rust_server/px_console_server/storage/src/resource_sessions.rs",
+    "sha256": "92e8b72ac47831988594a26c65fea2b79ddc29162be7a65ee86a52352e8ce9e4",
+    "reason": "Configured iroh sessions wait for endpoint before descriptor issuance instead of receiving legacy transport."
+  },
+  {
+    "original_path": "src/px_deps/px_console_client/console_resource_api.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M src/px_deps/px_console_client/console_resource_api.cpp",
+    "sha256": "9e4ff4357c7de9d9e7703840629e170043d2ee38ffe9333c11c8ca93deb89538",
+    "reason": "Configured iroh sessions wait for endpoint before descriptor issuance instead of receiving legacy transport."
+  }
+]

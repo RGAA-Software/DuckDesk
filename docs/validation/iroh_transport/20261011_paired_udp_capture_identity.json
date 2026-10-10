@@ -1,0 +1,37 @@
+[
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\direct1.etl",
+    "bytes": 553648128,
+    "sha256": "15af8e2b334b3778e685c347675fed768bb837882abc062694f7aea2d389717c"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\direct2.etl",
+    "bytes": 12298,
+    "sha256": "fcaa5764ccd43e37e7c4922f63147968b84fa11f1279e605ea4c4e2624684eea"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\direct1.pcapng",
+    "bytes": 26643700,
+    "sha256": "c660a6b1c180fbdc918c25412c016b36599b950208535c027410fe24b15b0713"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\direct2.pcapng",
+    "bytes": 180,
+    "sha256": "8fea6d47e01ee444cb6f7046993ee578966d4663152750415f62fed9fc7e4444"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\local-nic.pcapng",
+    "bytes": 26643700,
+    "sha256": "564bc9e4abd580f2b6b08f34d6a99e43dd12a066fe422c626097629af6f44a8e"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\remote1.pcapng",
+    "bytes": 26662004,
+    "sha256": "074b3aa46aa77431f50e983d9959d1dfc59563af84a12aa5cef0ac0c1510100c"
+  },
+  {
+    "path": ".cache\\iroh-paired-udp-20261011\\remote-nic.pcapng",
+    "bytes": 26662004,
+    "sha256": "45d417883df924950e926e59d5245864e83d54b40634a639dbbe9879cbe74160"
+  }
+]

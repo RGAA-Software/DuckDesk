@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="3"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="3"
+	timestamp="2026-10-09T15:12:01"
+	>
+	<testcase name="iroh_transport" classname="iroh_transport" time="0.842689" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from IrohTransport
+[ RUN      ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection
+[       OK ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection (74 ms)
+[ RUN      ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes
+[       OK ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes (335 ms)
+[ RUN      ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries
+[       OK ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries (131 ms)
+[----------] 3 tests from IrohTransport (541 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (541 ms total)
+[  PASSED  ] 3 tests.
+</system-out>
+	</testcase>
+	<testcase name="iroh_sdk_connection" classname="iroh_sdk_connection" time="0.908003" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (172 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-09 15:12:03.561] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 15:12:03.561] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-09 15:12:03.561] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (98 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-09 15:12:03.597] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 15:12:03.597] ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="1.673" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (89 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (73 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (71 ms)
+[ RUN      ] IrohFrontendTest.NetCli...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

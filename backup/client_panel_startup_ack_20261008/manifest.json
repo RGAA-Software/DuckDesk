@@ -1,0 +1,142 @@
+[
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_client_launcher.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_client_launcher.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_local_server.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_local_server.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/panel_product_runtime.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/product_cloud_applications_port.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product/product_remote_control_port.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/cloud_application_progress_dialog.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/cloud_application_progress_dialog.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/cloud_application_progress.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/CMakeLists.txt",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_client/CMakeLists.txt",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_main.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_launch_config.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_launch_config.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_ui/include/px_ui/localization.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_ui/localization.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Replace process-created dialog completion with Client remote-connection acknowledgement",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  },
+  {
+    "original_path": "src/px_panel/ui_imgui/product_main.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Cancel pending client launches before Panel UI exits",
+    "archive_batch": "client_panel_startup_ack_20261008"
+  }
+]

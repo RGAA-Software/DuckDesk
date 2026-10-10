@@ -1,0 +1,12 @@
+{
+  "candidate": "iroh-receive-feedback-20261009",
+  "setup_sha256": "48655D74524BB9B2E4C651C225F847294100E64637FFFFB4AE2D05D22AB26C29",
+  "manifest_sha256": "87613EC66239A28EA43806551648EBF14E917086897F011A8372641E2FB3473F",
+  "upload_operation": "8a431dae-2ba2-48a0-ae0b-cb0d4c6844e1",
+  "temporary_relay_pid": 8580,
+  "configuration_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA",
+  "original_configuration_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "remote_workspace": "D:\\112233\\iroh-native-validation-20261009",
+  "enable_operation": "e5cd1c78-37e9-4071-9818-3ddc071020d4",
+  "enable_observation": "Command exited 0, MCP reported output_drain_timeout; actual process/config/service independently verified by 399411f2-9564-4aee-a02a-96d89f0f3b69. Do not replay."
+}

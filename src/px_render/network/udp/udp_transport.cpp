@@ -5,6 +5,7 @@
 
 #include "udp_transport.h"
 #include "windows_udp_batch.h"
+#include "px_transport/paced_media_batch.h"
 #include "media_transport/packet_timing.h"
 #include "media_transport/send_policy.h"
 #include <chrono>
@@ -840,8 +841,7 @@ std::uint16_t UdpRuntimeState::MediaDatagramSize(const std::uint16_t server_limi
 
 bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool audio) {
     auto& pending = audio ? audio_send_pending_ : media_send_pending_;
-    if (stopping_ || !server_ || !server_->is_started() || server_->running_in_this_thread() || pending.exchange(true))
-        return false;
+    if (stopping_ || !server_ || !server_->is_started() || server_->running_in_this_thread() || pending.exchange(true)) return false;
     const auto estimated_wire_bytes = packets.empty() ? 0ULL : static_cast<std::uint64_t>(packets.size()) * (packets.front().size() + 48);
     const auto pacing_duration = audio ? std::chrono::nanoseconds::zero() : media::UdpVideoBurstPacing::Duration(estimated_wire_bytes);
     const auto completion_timeout = std::chrono::milliseconds(100) + pacing_duration;
@@ -850,100 +850,80 @@ bool UdpRuntimeState::SendMediaBatch(std::vector<media::Packet> packets, bool au
     const auto started = std::chrono::steady_clock::now();
     auto completion_result = completion->get_future();
     const auto weak_runtime = weak_from_this();
-    server_->post([weak_runtime, completion, cancelled, audio, packets = std::move(packets)]() {
+    server_->post([weak_runtime, completion, cancelled, audio, packets = std::move(packets)]() mutable {
+        const auto finish = [weak_runtime, completion, audio](bool succeeded) {
+            if (const auto runtime = weak_runtime.lock()) (audio ? runtime->audio_send_pending_ : runtime->media_send_pending_).store(false);
+            completion->set_value(succeeded);
+        };
         const auto runtime = weak_runtime.lock();
-        bool succeeded = runtime && !runtime->stopping_ && !cancelled->load() && runtime->server_->is_started();
-        if (succeeded) {
-            try {
-                runtime->sessions_.ApplyAll([&](const std::string&, const std::shared_ptr<UdpSession>& session) {
-                    if (!session->bound_ || !session->sess_)
-                        return;
-                    asio::error_code error{};
-                    runtime->server_->acceptor().non_blocking(true, error);
-                    if (error) {
-                        succeeded = false;
-                        return;
-                    }
-                    std::size_t packet_offset{};
-                    std::uint64_t paced_wire_bytes{};
-                    const auto pacing_start = std::chrono::steady_clock::now();
-                    while (packet_offset < packets.size() && succeeded) {
-                        const auto first_packet_bytes = packets[packet_offset].size();
-                        const auto socket_batch_limit =
-                            first_packet_bytes == 0 ? std::size_t{1} : std::max<std::size_t>(1, 65'536 / first_packet_bytes);
-                        const auto maximum_batch =
-                            audio ? socket_batch_limit : std::min(socket_batch_limit, media::UdpVideoBurstPacing::kPacketsPerBatch);
-                        const auto batch_packet_count = std::min(maximum_batch, packets.size() - packet_offset);
-                        const std::span<const media::Packet> packet_batch{packets.data() + packet_offset, batch_packet_count};
-                        if (!audio && packet_offset != 0) {
-                            const auto batch_deadline = pacing_start + media::UdpVideoBurstPacing::Duration(paced_wire_bytes);
-                            while (!cancelled->load() && !runtime->stopping_ && std::chrono::steady_clock::now() < batch_deadline) {
-                                std::this_thread::yield();
-                            }
-                            if (cancelled->load() || runtime->stopping_) {
-                                succeeded = false;
-                                break;
-                            }
-                        }
-                        if (!audio && batch_packet_count > 1 && !cancelled->load() && !runtime->stopping_) {
-                            const auto batch_result = TryWindowsUdpBatch(runtime->server_->acceptor(), session->sess_->hash_key(), packet_batch);
-                            if (batch_result == UdpBatchResult::kSent) {
-                                runtime->stat_sent_shards_ += batch_packet_count;
-                                runtime->stat_batch_packets_ += batch_packet_count;
-                                for (const auto& packet : packet_batch)
-                                    TrackVideoSend(runtime->send_timing_, packet);
-                                packet_offset += batch_packet_count;
-                                paced_wire_bytes += batch_packet_count * (first_packet_bytes + 48);
-                                continue;
-                            }
-                            if (batch_result == UdpBatchResult::kIncomplete) {
-                                ++runtime->stat_send_short_writes_;
-                                succeeded = false;
-                                break;
-                            }
-                            ++runtime->stat_batch_fallbacks_;
-                        }
-                        for (const auto& packet : packet_batch) {
-                            if (cancelled->load() || runtime->stopping_) {
-                                succeeded = false;
-                                break;
-                            }
-                            const auto bytes_sent = runtime->server_->acceptor().send_to(asio::buffer(packet), session->sess_->hash_key(), 0, error);
-                            if (error || bytes_sent != packet.size()) {
-                                ++runtime->stat_send_short_writes_;
-                                succeeded = false;
-                                break;
-                            }
-                            ++runtime->stat_sent_shards_;
-                            if (!audio)
-                                TrackVideoSend(runtime->send_timing_, packet);
-                        }
-                        packet_offset += batch_packet_count;
-                        paced_wire_bytes += batch_packet_count * (first_packet_bytes + 48);
-                    }
-                });
-            } catch (const std::exception& error) {
-                LOGW("UDP media v2 socket batch failed: {}", error.what());
-                succeeded = false;
-            }
+        if (!runtime || runtime->stopping_ || cancelled->load() || !runtime->server_->is_started()) {
+            finish(false);
+            return;
         }
-        if (runtime)
-            (audio ? runtime->audio_send_pending_ : runtime->media_send_pending_).store(false);
-        completion->set_value(succeeded);
+        std::vector<std::shared_ptr<UdpSession>> destinations{};
+        runtime->sessions_.ApplyAll([&destinations](const std::string&, const std::shared_ptr<UdpSession>& session) {
+            if (session && session->bound_ && session->sess_) destinations.push_back(session);
+        });
+        asio::error_code error{};
+        runtime->server_->acceptor().non_blocking(true, error);
+        if (error || destinations.empty()) {
+            finish(false);
+            return;
+        }
+        const auto batch = std::make_shared<PacedMediaBatch>(
+            runtime->server_->acceptor().get_executor(), std::move(packets), audio,
+            [weak_runtime, cancelled, audio, destinations](std::span<const media::Packet> packet_batch) {
+                const auto active_runtime = weak_runtime.lock();
+                if (!active_runtime || active_runtime->stopping_ || cancelled->load()) return false;
+                for (const auto& session : destinations) {
+                    if (!session->bound_ || !session->sess_) return false;
+                    if (!audio && packet_batch.size() > 1) {
+                        const auto result = TryWindowsUdpBatch(active_runtime->server_->acceptor(), session->sess_->hash_key(), packet_batch);
+                        if (result == UdpBatchResult::kSent) {
+                            active_runtime->stat_sent_shards_ += packet_batch.size();
+                            active_runtime->stat_batch_packets_ += packet_batch.size();
+                            for (const auto& packet : packet_batch) TrackVideoSend(active_runtime->send_timing_, packet);
+                            continue;
+                        }
+                        if (result == UdpBatchResult::kIncomplete) {
+                            ++active_runtime->stat_send_short_writes_;
+                            return false;
+                        }
+                        ++active_runtime->stat_batch_fallbacks_;
+                    }
+                    for (const auto& packet : packet_batch) {
+                        if (cancelled->load() || active_runtime->stopping_) return false;
+                        asio::error_code send_error{};
+                        const auto sent =
+                            active_runtime->server_->acceptor().send_to(asio::buffer(packet), session->sess_->hash_key(), 0, send_error);
+                        if (send_error || sent != packet.size()) {
+                            ++active_runtime->stat_send_short_writes_;
+                            return false;
+                        }
+                        ++active_runtime->stat_sent_shards_;
+                        if (!audio) TrackVideoSend(active_runtime->send_timing_, packet);
+                    }
+                }
+                return true;
+            },
+            [weak_runtime, cancelled] {
+                const auto active_runtime = weak_runtime.lock();
+                return active_runtime && !active_runtime->stopping_ && !cancelled->load() && active_runtime->server_->is_started();
+            },
+            finish);
+        batch->Start();
     });
     bool ready{};
     do {
         ready = completion_result.wait_for(std::chrono::milliseconds(1)) == std::future_status::ready;
     } while (!ready && !stopping_ && std::chrono::steady_clock::now() - started < completion_timeout);
-    if (!ready)
-        cancelled->store(true);
+    if (!ready) cancelled->store(true);
     const auto waited =
         static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
     auto previous = stat_batch_wait_max_us_.load();
     while (waited > previous && !stat_batch_wait_max_us_.compare_exchange_weak(previous, waited)) {
     }
-    if (!ready)
-        ++stat_batch_timeouts_;
+    if (!ready) ++stat_batch_timeouts_;
     return ready && completion_result.get();
 }
 

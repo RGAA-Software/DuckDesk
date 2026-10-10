@@ -1,0 +1,49 @@
+{
+  "source": "docs\\validation\\iroh_transport\\20261010_sender_pause_previous_render.log",
+  "comparison_clock": "Render host only; no cross-host wall-clock subtraction",
+  "submission_gaps": [
+    {
+      "timestamp": "2026-10-10T22:59:56.743000",
+      "frame": 1609,
+      "submission_gap_ms": 133,
+      "admission_blocked_us": 116710,
+      "resume_to_submission_ms": 4.0
+    },
+    {
+      "timestamp": "2026-10-10T22:59:57.128000",
+      "frame": 1632,
+      "submission_gap_ms": 184,
+      "admission_blocked_us": 166921,
+      "resume_to_submission_ms": 6.0
+    },
+    {
+      "timestamp": "2026-10-10T22:59:57.394000",
+      "frame": 1648,
+      "submission_gap_ms": 266,
+      "admission_blocked_us": 249207,
+      "resume_to_submission_ms": 5.0
+    },
+    {
+      "timestamp": "2026-10-10T22:59:57.561000",
+      "frame": 1658,
+      "submission_gap_ms": 167,
+      "admission_blocked_us": 150764,
+      "resume_to_submission_ms": 5.0
+    },
+    {
+      "timestamp": "2026-10-10T23:00:33.477000",
+      "frame": 152,
+      "submission_gap_ms": 133,
+      "admission_blocked_us": null,
+      "resume_to_submission_ms": null
+    }
+  ],
+  "startup_duplicate": {
+    "frame": 152,
+    "cached_first": "23:00:33.344",
+    "live_second": "23:00:33.477",
+    "source_gap_us": 133133,
+    "receive_gap_us": 169487,
+    "note": "Duplicate identity explains a reference-reset hazard, not the entire startup interval."
+  }
+}

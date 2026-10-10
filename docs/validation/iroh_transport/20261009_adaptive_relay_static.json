@@ -1,0 +1,44 @@
+[
+  {
+    "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "instance_id": "45db8ddd-fdad-4858-8308-3ecb1df185ea",
+    "client_pid": 83812,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 14:16:19.631][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0",
+      "[2026-10-09 14:16:24.645][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=319 parity=604 duplicate=0 late=604 reordered=0 recovered=0 complete=302 loss=0 malformed=0",
+      "[2026-10-09 14:16:24.645][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=4977 tx_packets=800 rx_packets=1440 tx_lost=0 tx_datagrams=0 rx_datagrams=925",
+      "[2026-10-09 14:16:24.645][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=302, fps=60.3, max_gap_ms=23.6, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:29.658][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=619 parity=1204 duplicate=0 late=1204 reordered=0 recovered=0 complete=602 loss=0 malformed=0",
+      "[2026-10-09 14:16:29.659][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=6322 tx_packets=1483 rx_packets=2817 tx_lost=0 tx_datagrams=0 rx_datagrams=1825",
+      "[2026-10-09 14:16:29.659][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=300, fps=59.8, max_gap_ms=41.3, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:34.663][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=926 parity=1806 duplicate=0 late=1806 reordered=0 recovered=0 complete=903 loss=0 malformed=0",
+      "[2026-10-09 14:16:34.663][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=5799 tx_packets=2438 rx_packets=4348 tx_lost=0 tx_datagrams=0 rx_datagrams=2734",
+      "[2026-10-09 14:16:34.664][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=40.4, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:39.683][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=1240 parity=2408 duplicate=0 late=2408 reordered=0 recovered=0 complete=1204 loss=0 malformed=0",
+      "[2026-10-09 14:16:39.683][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=11518 tx_packets=3382 rx_packets=5894 tx_lost=0 tx_datagrams=0 rx_datagrams=3650",
+      "[2026-10-09 14:16:39.683][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=47.4, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:44.707][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=1550 parity=3010 duplicate=0 late=3010 reordered=0 recovered=0 complete=1505 loss=0 malformed=0",
+      "[2026-10-09 14:16:44.707][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=6080 tx_packets=4339 rx_packets=7436 tx_lost=0 tx_datagrams=0 rx_datagrams=4562",
+      "[2026-10-09 14:16:44.707][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=59.9, max_gap_ms=241.4, gaps_gt_100ms=1, idr=0, rfi=0",
+      "[2026-10-09 14:16:49.712][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=1861 parity=3612 duplicate=0 late=3612 reordered=0 recovered=0 complete=1806 loss=0 malformed=0",
+      "[2026-10-09 14:16:49.712][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=7650 tx_packets=5304 rx_packets=8980 tx_lost=0 tx_datagrams=0 rx_datagrams=5475",
+      "[2026-10-09 14:16:49.712][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=36.1, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:54.722][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=2183 parity=4212 duplicate=0 late=4212 reordered=0 recovered=0 complete=2106 loss=0 malformed=0",
+      "[2026-10-09 14:16:54.723][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=10928 tx_packets=6259 rx_packets=10527 tx_lost=0 tx_datagrams=0 rx_datagrams=6397",
+      "[2026-10-09 14:16:54.723][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=46.0, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:16:59.726][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=2484 parity=4814 duplicate=0 late=4814 reordered=0 recovered=0 complete=2407 loss=0 malformed=0",
+      "[2026-10-09 14:16:59.727][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=4588 tx_packets=7219 rx_packets=12059 tx_lost=0 tx_datagrams=0 rx_datagrams=7300",
+      "[2026-10-09 14:16:59.727][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.2, max_gap_ms=38.4, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 14:17:04.745][thread 80996][media_datagrams.cpp:156][info] : event=iroh.reassembly stream=0 data=2791 parity=5416 duplicate=0 late=5416 reordered=0 recovered=0 complete=2708 loss=0 malformed=0",
+      "[2026-10-09 14:17:04.745][thread 80996][iroh_connection.cpp:37][info] : event=iroh.path path=relay open_paths=1 rtt_us=5246 tx_packets=8093 rx_packets=13556 tx_lost=0 tx_datagrams=0 rx_datagrams=8209",
+      "[2026-10-09 14:17:04.745][thread 80996][iroh_connection.cpp:40][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=23.1, gaps_gt_100ms=0, idr=0, rfi=0"
+    ]
+  }
+]

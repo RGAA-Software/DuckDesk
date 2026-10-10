@@ -39,6 +39,7 @@ namespace px
         void RemoveAll() override;
         std::map<std::string, WorkingEncoderInfoPtr> WorkingCaptures() const override;
         void Reconfigure(const std::string& mon_name, uint32_t bps, uint32_t fps) override;
+        [[nodiscard]] bool TryUpdateBitrate(const std::string& monitor_name, std::uint32_t bits_per_second) override;
 
         std::optional<EncoderCapability> Capability(const std::string& monitor_name) const override;
     private:

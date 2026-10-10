@@ -1,0 +1,16 @@
+   Compiling bitflags v2.13.2
+   Compiling fastrand v2.3.0
+   Compiling tower-http v0.6.11
+   Compiling simple-dns v0.12.0
+   Compiling futures-lite v2.6.1
+   Compiling reqwest v0.13.5
+   Compiling n0-future v0.3.2
+   Compiling n0-dns-resolver v0.1.0
+   Compiling tokio-rustls-acme v0.9.1
+   Compiling iroh-metrics v1.0.2
+   Compiling iroh-dns v1.3.0
+   Compiling iroh-relay v1.3.0
+   Compiling px_relay_server v3.2.1 (/mnt/d/GoCloud/GammaRayPremium/rust_server/px_relay_server)
+    Finished `release` profile [optimized] target(s) in 14.49s
+HASH OK px_relay b6f14494c56024b9f5d41d8460cc725ece12b3fa061d9cbb585c8d346427681c
+Relay development build: /home/chessplayer/pixels-relay-dev-20261010

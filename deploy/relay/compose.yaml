@@ -1,0 +1,22 @@
+services:
+  relay:
+    image: ${PIXELS_RELAY_IMAGE:?Set the verified Relay image tag}
+    restart: unless-stopped
+    read_only: true
+    user: "10001:10001"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 15s
+    env_file: ./config/relay-control.env
+    ports:
+      - "${PIXELS_RELAY_HTTPS_PORT:-4605}:4605/tcp"
+      - "${PIXELS_RELAY_QAD_PORT:-4605}:4605/udp"
+    volumes:
+      - ./config:/etc/pixels/relay:ro
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

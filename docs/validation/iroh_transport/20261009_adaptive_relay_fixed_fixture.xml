@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="24"
+	timestamp="2026-10-09T14:11:23"
+	>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="3.19864" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 8 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly
+[       OK ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly (0 ms)
+[ RUN      ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth
+[       OK ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth (0 ms)
+[----------] 2 tests from IrohVideoRateControl (0 ms total)
+
+[----------] 5 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[2026-10-09 14:11:24.480] [info] [media_datagrams.cpp:156] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.PacedVideoAndAudioU...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="21.3281" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(195): error: Expected equality of these values:
+  ready.wait_for(std::chrono::seconds(5))
+    Which is: 4-byte object &lt;01-00 00-00&gt;
+  std::future_status::ready
+    Which is: 4-byte object &lt;00-00 00-00&gt;
+
+[  FAILED  ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (11220 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (2351 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (788 ms)
+[ RUN      ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation (1213 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (755 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (772 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (675 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (518 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (506 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (802 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (745 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (875 ms)
+[----------] 12 tests from IrohFrontendTest (21225 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (21225 ms total)
+[  PASSED  ] 11 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+</testsuite>

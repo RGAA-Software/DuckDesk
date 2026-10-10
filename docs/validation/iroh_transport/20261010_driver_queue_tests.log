@@ -1,0 +1,14 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start 120: joystick_service
+1/2 Test #120: joystick_service .....................   Passed    0.28 sec
+    Start 132: render_execution_context_lifecycle
+2/2 Test #132: render_execution_context_lifecycle ...   Passed    0.34 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Label Time Summary:
+render-lifecycle    =   0.34 sec*proc (1 test)
+render-unit         =   0.28 sec*proc (1 test)
+
+Total Test time (real) =   0.64 sec

@@ -1,4 +1,7 @@
 #include <memory>
+#include <future>
+#include <chrono>
+#include <thread>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -18,6 +21,8 @@ struct FakeJoystickState final {
     std::uint64_t remove_calls{0};
     std::uint64_t shutdown_calls{0};
     std::string last_stream_id;
+    std::function<void()> before_allocate{};
+    std::function<void()> on_shutdown{};
 };
 
 class FakeJoystickBackend final : public JoystickBackend {
@@ -35,6 +40,7 @@ public:
     }
 
     bool AllocateController(const std::string& stream_id) override {
+        if (state_->before_allocate) state_->before_allocate();
         ++state_->allocate_calls;
         state_->last_stream_id = stream_id;
         return state_->prepared;
@@ -54,6 +60,7 @@ public:
 
     void Shutdown() override {
         ++state_->shutdown_calls;
+        if (state_->on_shutdown) state_->on_shutdown();
     }
 
     void TriggerRumble(
@@ -148,6 +155,87 @@ TEST(JoystickServiceTest, MissingDriverIsIsolatedFromComposition) {
     ASSERT_TRUE(service->Stop());
 }
 
+TEST(JoystickServiceTest, SlowDriverDoesNotBlockNetworkQueueAndDisconnectCancelsPendingInput) {
+    using namespace std::chrono_literals;
+    const auto state = std::make_shared<FakeJoystickState>();
+    const auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    const auto release = std::make_shared<std::promise<void>>();
+    const auto released = release->get_future().share();
+    state->before_allocate = [entered, released] {
+        entered->set_value();
+        static_cast<void>(released.wait_for(2s));
+    };
+    const auto service = JoystickService::Create([state] { return std::make_shared<FakeJoystickBackend>(state); });
+    ASSERT_TRUE(service->Start());
+    const auto started = std::chrono::steady_clock::now();
+    ASSERT_TRUE(service->QueueMessage(MakeHello("slow-driver"), "iroh"));
+    EXPECT_LT(std::chrono::steady_clock::now() - started, 500ms);
+    ASSERT_EQ(entered_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(service->QueueMessage(MakeGamepad("slow-driver"), "iroh"));
+    for (int pending_index{}; pending_index < 127; ++pending_index) {
+        ASSERT_TRUE(service->QueueMessage(MakeGamepad("slow-driver"), "iroh"));
+    }
+    EXPECT_FALSE(service->QueueMessage(MakeGamepad("slow-driver"), "iroh"));
+    auto disconnected = std::async(std::launch::async, [service] { service->HandleClientDisconnected("slow-driver"); });
+    // A stopped service cancels queued messages even while an active driver call finishes.
+    auto stopped = std::async(std::launch::async, [service] { return service->Stop(); });
+    const auto stop_deadline = std::chrono::steady_clock::now() + 1s;
+    while (service->Snapshot().running && std::chrono::steady_clock::now() < stop_deadline) std::this_thread::yield();
+    EXPECT_FALSE(service->Snapshot().running);
+    release->set_value();
+    ASSERT_EQ(stopped.wait_for(3s), std::future_status::ready);
+    ASSERT_TRUE(stopped.get());
+    ASSERT_EQ(disconnected.wait_for(3s), std::future_status::ready);
+    disconnected.get();
+    EXPECT_EQ(state->replay_calls, 0U);
+    ASSERT_TRUE(service->Start());
+    EXPECT_FALSE(service->QueueMessage(MakeGamepad("slow-driver"), "iroh"));
+    ASSERT_TRUE(service->Stop());
+}
+
+TEST(JoystickServiceTest, QueuedDriverCallbackCanStopItsService) {
+    using namespace std::chrono_literals;
+    const auto state = std::make_shared<FakeJoystickState>();
+    const auto shutdown = std::make_shared<std::promise<void>>();
+    auto shutdown_completed = shutdown->get_future();
+    state->on_shutdown = [shutdown] { shutdown->set_value(); };
+    const auto service = JoystickService::Create([state] { return std::make_shared<FakeJoystickBackend>(state); });
+    state->before_allocate = [owner = std::weak_ptr<JoystickService>{service}] {
+        if (const auto active = owner.lock()) static_cast<void>(active->Stop());
+    };
+    ASSERT_TRUE(service->Start());
+    ASSERT_TRUE(service->QueueMessage(MakeHello("callback-stop"), "iroh"));
+    ASSERT_EQ(shutdown_completed.wait_for(3s), std::future_status::ready);
+    EXPECT_FALSE(service->Snapshot().running);
+    ASSERT_TRUE(service->Stop());
+}
+
+TEST(JoystickServiceTest, ReleasingOwnerDuringDriverCallCancelsQueuedMessages) {
+    using namespace std::chrono_literals;
+    const auto state = std::make_shared<FakeJoystickState>();
+    const auto entered = std::make_shared<std::promise<void>>();
+    auto entered_future = entered->get_future();
+    const auto release = std::make_shared<std::promise<void>>();
+    const auto released = release->get_future().share();
+    const auto shutdown = std::make_shared<std::promise<void>>();
+    auto shutdown_completed = shutdown->get_future();
+    state->on_shutdown = [shutdown] { shutdown->set_value(); };
+    state->before_allocate = [entered, released] {
+        entered->set_value();
+        static_cast<void>(released.wait_for(2s));
+    };
+    auto service = JoystickService::Create([state] { return std::make_shared<FakeJoystickBackend>(state); });
+    ASSERT_TRUE(service->Start());
+    ASSERT_TRUE(service->QueueMessage(MakeHello("owner-release"), "iroh"));
+    ASSERT_EQ(entered_future.wait_for(1s), std::future_status::ready);
+    ASSERT_TRUE(service->QueueMessage(MakeGamepad("owner-release"), "iroh"));
+    service.reset();
+    release->set_value();
+    ASSERT_EQ(shutdown_completed.wait_for(3s), std::future_status::ready);
+    EXPECT_EQ(state->replay_calls, 0U);
+}
+
 TEST(JoystickServiceTest, RoutesRumbleToTheOriginatingTransport) {
     const auto state = std::make_shared<FakeJoystickState>();
     const auto backend = std::make_shared<FakeJoystickBackend>(state);
@@ -155,16 +243,14 @@ TEST(JoystickServiceTest, RoutesRumbleToTheOriginatingTransport) {
     std::string sent_stream;
     std::uint64_t send_calls{0};
     Message sent_message;
-    const auto service = JoystickService::Create(
-        [backend] {
-            return backend;
-        },
-        [&](const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& data) {
-            ++send_calls;
-            sent_transport = transport_id;
-            sent_stream = stream_id;
-            return data && sent_message.ParseFromArray(data->Bytes().data(), static_cast<int>(data->Size()));
-        });
+    const auto service =
+        JoystickService::Create([backend] { return backend; },
+                                [&](const std::string& transport_id, const std::string& stream_id, const std::shared_ptr<Data>& payload) {
+                                    ++send_calls;
+                                    sent_transport = transport_id;
+                                    sent_stream = stream_id;
+                                    return payload && sent_message.ParseFromArray(payload->Bytes().data(), static_cast<int>(payload->Size()));
+                                });
 
     ASSERT_TRUE(service->Start());
     service->HandleMessage(MakeHello("stream-rumble"), "ws-transport");

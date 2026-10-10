@@ -1,0 +1,65 @@
+[
+  {
+    "path": "rust_transport/px_transport_ffi/src/lib.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? rust_transport/px_transport_ffi/src/lib.rs",
+    "sha256": "c1851485355398d9500473e78ab919e6b64cf0f8e4c9ee5ccf09d3476481116a",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/transport_abi.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/transport_abi.h",
+    "sha256": "f93107615e11d3d279a9c159968f3b03eb366f45c2adddf707c609e23fce5ed3",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/transport.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/transport.h",
+    "sha256": "9d86813d1a895e251f4a8d4dfb91714bacf6525698f7eb94aaf547bd84fcd871",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/transport.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/transport.cpp",
+    "sha256": "4669d42b544d4b7558d9fa6b31d2327fafe91e61f0485b5cd0804b2fcbd2af2f",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/media_datagrams.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.h",
+    "sha256": "e3220a487908a0ca880d447c2b4730010e4e9b0f69e4d07aa5f31ce04f7e2270",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.cpp",
+    "sha256": "e3ffd4e52b310f9098aec79a925e408d6da154e27dff7461b818faec351c06d2",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_client_sdk/media_transport/video_stream.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M src/px_client_sdk/media_transport/video_stream.h",
+    "sha256": "d5248dea4e1f525baaf58c43cb034842b64d02822f4eeb033db40083398771da",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_client_sdk/media_transport/video_stream.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "M src/px_client_sdk/media_transport/video_stream.cpp",
+    "sha256": "24488e8f4d94ece50a385309625ec7eb05bb2af943101e0581c63517dc05abe2",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  },
+  {
+    "path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "sha256": "fd18b98c9b5916d84ad2c39f8262e39e381365e7dc48e0d169d4e1cc29a7b253",
+    "reason": "Preserve dirty pre-change pipeline diagnostics boundary; reference only"
+  }
+]

@@ -37,7 +37,7 @@ NetClient::NetClient(SdkConnectionParams params, const std::shared_ptr<MessageNo
       udp_media_association_(params_.udp_media_association_.empty() ? GenerateRandomBase64Id() : params_.udp_media_association_),
       msg_notifier_(notifier),
       stat_(SdkStatistics::Instance()) {
-    stat_->media_transport_.store(params_.media_transport_);
+    stat_->media_transport_.store(params_.iroh_ ? SdkMediaTransport::kIroh : params_.media_transport_);
 }
 
 NetClient::~NetClient() { Exit(); }
@@ -125,7 +125,7 @@ void NetClient::ReplaceUdpDirectConnection(std::shared_ptr<UdpDirectConnection> 
     udp_direct_conn_ = std::move(connection);
 }
 
-void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>& connection, uint64_t generation) {
+void NetClient::StartManagedConnection(const std::shared_ptr<Connection>& connection, uint64_t generation) {
     const auto weak_self = weak_from_this();
     const std::weak_ptr<Connection> weak_connection = connection;
     connection->RegisterOnConnectedCallback([weak_self, generation]() {
@@ -137,6 +137,7 @@ void NetClient::StartManagedUdpMediaConnection(const std::shared_ptr<Connection>
     connection->RegisterOnDisConnectedCallback([weak_self, generation]() {
         const auto self = weak_self.lock();
         if (!self || !self->IsCurrentManagedMediaConnection(generation)) return;
+        if (self->params_.iroh_ && !self->connection_notified_.exchange(false)) return;
         // 已认证 WS 是控制/文件会话的生命期边界，UDP 故障不改变它。
         // generation 只过滤被后续启动或退出替换掉的旧回调。
         if (self->dis_conn_cbk_) self->dis_conn_cbk_();
@@ -204,6 +205,7 @@ void NetClient::StartUdpDirectMedia() {
 }
 
 void NetClient::StartFileTransferConnection() {
+    if (params_.iroh_) return;
     bool expected = false;
     if (!file_transfer_started_.compare_exchange_strong(expected, true)) {
         return;
@@ -248,16 +250,6 @@ void NetClient::Start() {
         return;
     }
     if (exited_ || started_.exchange(true)) return;
-    if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
-        (params_.session_mode_ != SdkSessionMode::kNative || params_.media_transport_ != SdkMediaTransport::kWebSocket ||
-         params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
-         params_.appkey_.empty())) {
-        LOGE("Relay connection parameters are incomplete or incompatible with this session.");
-        return;
-    }
-    if (params_.media_transport_ == SdkMediaTransport::kUdp && params_.session_mode_ != SdkSessionMode::kRdp && !params_.file_transfer_only_ &&
-        !udp_media_state_.BeginProbe())
-        return;
     const auto weak_self = weak_from_this();
     connection_notified_ = false;
     if (!msg_listener_) {
@@ -268,6 +260,26 @@ void NetClient::Start() {
             }
         });
     }
+    if (params_.iroh_) {
+#ifdef PX_HAS_IROH_TRANSPORT
+        StartIrohConnection();
+#else
+        LOGE("iroh transport is unavailable in this SDK build");
+        if (dis_conn_cbk_) dis_conn_cbk_();
+#endif
+        return;
+    }
+
+    if (params_.route_ == SdkConnectionRoute::kWebSocketRelay &&
+        (params_.session_mode_ != SdkSessionMode::kNative || params_.media_transport_ != SdkMediaTransport::kWebSocket ||
+         params_.relay_host_.empty() || params_.relay_port_ <= 0 || params_.relay_device_id_.empty() || params_.relay_remote_device_id_.empty() ||
+         params_.appkey_.empty())) {
+        LOGE("Relay connection parameters are incomplete or incompatible with this session.");
+        return;
+    }
+    if (params_.media_transport_ == SdkMediaTransport::kUdp && params_.session_mode_ != SdkSessionMode::kRdp && !params_.file_transfer_only_ &&
+        !udp_media_state_.BeginProbe())
+        return;
     // GameStream 风格双通道:ws 控制面(可靠消息/状态机全复用) + 裸 UDP 媒体面,
     // 见 docs/native_udp_media_v2_wire.md
     LOGI("Start native connection mode={}, route={}, control={}:{}", static_cast<int>(params_.session_mode_), static_cast<int>(params_.route_),
@@ -329,17 +341,18 @@ void NetClient::Start() {
     if (const auto udp_connection = CurrentUdpDirectConnection()) {
         // UDP 媒体面:组帧后合成的 kVideoFrame,交给 SDK 解码,
         // 同样不回 Ack(裸 UDP 无应用层确认,丢帧走 IDR 请求恢复)
-        udp_connection->SetOnVideoMessageCallback([weak_self](std::shared_ptr<px::Message> video_message) {
+        udp_connection->SetOnVideoMessageCallback([weak_self](EncodedVideoDelivery delivery) {
             const auto self = weak_self.lock();
             if (!self) return;
             if (!self->udp_media_state_.AcceptsMedia()) return;
             self->OnUdpMediaReady();
-            self->stat_->AppendRecvDataSize(static_cast<int64_t>(video_message->ByteSizeLong()));
+            if (!delivery.message) return;
+            self->stat_->AppendRecvDataSize(static_cast<int64_t>(delivery.message->ByteSizeLong()));
             if (self->raw_msg_cbk_) {
-                self->raw_msg_cbk_(video_message);
+                self->raw_msg_cbk_(delivery.message);
             }
             if (self->video_frame_cbk_) {
-                self->video_frame_cbk_(video_message);
+                self->video_frame_cbk_(std::move(delivery));
             }
         });
         // UDP 音频:jitter buffer 按序交付/丢帧信号(空 data)都从这里上送,
@@ -397,7 +410,7 @@ void NetClient::Start() {
     if (media_connection) {
         // Configure every UDP callback before an accepted WS application
         // message can prove the association and start the media socket.
-        StartManagedUdpMediaConnection(media_connection, managed_media_generation_.fetch_add(1) + 1);
+        StartManagedConnection(media_connection, managed_media_generation_.fetch_add(1) + 1);
     }
 }
 
@@ -405,6 +418,9 @@ void NetClient::Exit() {
     if (exited_.exchange(true)) {
         return;
     }
+#ifdef PX_HAS_IROH_TRANSPORT
+    StopIrohConnection();
+#endif
     msg_listener_.reset();
     udp_media_state_.Stop();
     udp_media_probe_deadline_ms_ = 0;
@@ -467,7 +483,7 @@ std::shared_ptr<Message> NetClient::ParseMessage(std::shared_ptr<Data> serialize
                 raw_msg_cbk_(parsed_message);
             }
             if (!exited_.load() && video_frame_cbk_) {
-                video_frame_cbk_(parsed_message);
+                video_frame_cbk_(EncodedVideoDelivery{.message = parsed_message});
             }
         } else if (parsed_message->type() == kAudioFrame && params_.enable_audio_ && audio_frame_cbk_) {
             if (!tcp_receive_window_.audio_seen) {
@@ -559,6 +575,9 @@ bool NetClient::PostVoiceAudioMessage(const std::shared_ptr<Message>& message) {
     if (frame.opus().empty() || frame.opus().size() > UdpVoiceProtocol::kMaxOpusBytes) {
         return false;
     }
+#ifdef PX_HAS_IROH_TRANSPORT
+    if (params_.iroh_) return PostIrohVoice(*message);
+#endif
     if (params_.media_transport_ == SdkMediaTransport::kWebSocket) {
         const auto connection = CurrentMediaConnection();
         if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
@@ -596,6 +615,14 @@ void NetClient::PostRdpMessage(std::shared_ptr<Data> payload, std::function<void
 }
 
 void NetClient::PostMediaMessage(std::shared_ptr<Data> payload) {
+    if (params_.iroh_) {
+        if (exited_ || !payload) return;
+        if (const auto connection = CurrentMediaConnection()) {
+            stat_->AppendSentDataSize(payload->Size());
+            connection->PostBinaryMessage(std::move(payload));
+        }
+        return;
+    }
     {
         const auto media_connection = CurrentMediaConnection();
         auto queuing_msg_count = media_connection ? media_connection->GetQueuingMsgCount() : 0;
@@ -631,7 +658,7 @@ bool NetClient::PostReliableControlMessage(std::shared_ptr<Data> payload) {
          envelope.type() != kApplicationTextBarrier))
         return false;
     const auto connection = CurrentMediaConnection();
-    if (!connection || !connection->IsAlive() || connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) return false;
+    if (!connection || !connection->IsAlive() || (!params_.iroh_ && connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages)) return false;
     // The managed media connection is the reliable WS/WSS control connection;
     // UDP video/audio has a separate owner. A server result, not this enqueue,
     // determines success. Lost writes time out without an automatic replay.
@@ -652,23 +679,11 @@ FileTransferSendResult NetClient::PostFileTransferMessage(std::shared_ptr<Data> 
     }
 
     const auto payload_size = payload->Size();
-    {
-        const auto file_connection = params_.file_transfer_only_ ? ft_conn_ : CurrentMediaConnection();
-        if (!file_connection || !file_connection->IsAlive()) {
-            return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
-        }
-        if (file_connection->GetQueuingMsgCount() >= kMaxFileTransferQueuedMessages) {
-            const auto signal = file_connection->AcquireFileTransferWritableSignal();
-            if (file_connection->GetQueuingMsgCount() <= kFileTransferQueueLowWatermark) {
-                signal->NotifyWritable();
-            }
-            return FileTransferSendResult::Busy("file-transfer connection queue is full", signal);
-        }
-        file_connection->PostBinaryMessage(std::move(payload));
-    }
-
-    stat_->AppendSentDataSize(payload_size);
-    return FileTransferSendResult::Accepted();
+    const auto file_connection = params_.file_transfer_only_ && !params_.iroh_ ? ft_conn_ : CurrentMediaConnection();
+    if (!file_connection) return FileTransferSendResult::Disconnected("file-transfer connection is not alive");
+    const auto result = file_connection->PostFileTransferMessage(std::move(payload));
+    if (result.accepted()) stat_->AppendSentDataSize(payload_size);
+    return result;
 }
 
 void NetClient::SetOnVideoFrameMsgCallback(OnVideoFrameMsgCallback&& callback) { video_frame_cbk_ = std::move(callback); }
@@ -704,7 +719,7 @@ void NetClient::HeartBeat() {
     heartbeat.set_timestamp(static_cast<int64_t>(TimeUtil::GetCurrentTimestamp()));
     if (auto buffer = px::ProtoAsData(heartbeat_message); buffer) {
         this->PostMediaMessage(buffer);
-        if (params_.file_transfer_only_) {
+        if (params_.file_transfer_only_ && !params_.iroh_) {
             static_cast<void>(this->PostFileTransferMessage(buffer));
         }
     }
@@ -719,7 +734,7 @@ int64_t NetClient::GetQueuingMediaMsgCount() {
 }
 
 int64_t NetClient::GetQueuingFtMsgCount() {
-    if (!params_.file_transfer_only_) {
+    if (!params_.file_transfer_only_ || params_.iroh_) {
         if (const auto media_connection = CurrentMediaConnection()) {
             return media_connection->GetQueuingMsgCount();
         }

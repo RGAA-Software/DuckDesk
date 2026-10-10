@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-09",
+  "change": "asynchronous UDP burst pacing and iroh frontend/channel foundation",
+  "installer": {
+    "schema_version": 4,
+    "product": "cloud_node",
+    "distribution": "official",
+    "release_namespace": "pixels.official",
+    "oem_id": null,
+    "company": "Pixels",
+    "publisher_name": "Pixels",
+    "installer_basename": "PixelsCloudNode",
+    "oem_profile_sha256": null,
+    "product_version": "3.3.97",
+    "product_version_code": 30397,
+    "git_revision": "183b9a046e72",
+    "windows_code_signing": "unsigned",
+    "payload_manifest_sha256": "5E04AC11DD7294202FD63916C6317567BCD502A1C9643915BBDED3093335A253",
+    "payload_artifact_count": 314,
+    "installer": {
+      "path": "PixelsCloudNode_official_3.3.97_Setup.exe",
+      "sha256": "4DEA00FE6E4CC9B04D68080E92D04AD9482CF07A905D43F6703DB91059338D0E"
+    }
+  },
+  "development_hashes": {
+    "px_render.exe": "C53022DD39B9892F4482A6252B896EBCC75E434E98C046D3A1B8D814635268F5",
+    "px_client.exe": "3C4AD6D62DC4A054E51D6EDE3E5CCE71CE5714F149BCDF69FB57023C9316EFB6"
+  },
+  "official_render_sha256": "0D572C204E8C6A55B7F9396031E6CDB7D2EA45A801B13F2D07E9E7C598778236",
+  "checks": {
+    "cloud_node": [
+      "udp_paced_batch",
+      "iroh_frontend",
+      "iroh_sdk_connection",
+      "iroh_transport",
+      "application_idle_lifecycle",
+      "rdp_route_close"
+    ],
+    "client": [
+      "encoded_video_delivery"
+    ]
+  },
+  "remote": {
+    "device_code": "428358431",
+    "workspace": "D:\\112233",
+    "installation_operation": "a57c3fe7-3ba5-43bd-a415-7dd4f7c1b9f4",
+    "state": "installed",
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "0D572C204E8C6A55B7F9396031E6CDB7D2EA45A801B13F2D07E9E7C598778236"
+  },
+  "product_iroh_migrated": false
+}

@@ -260,6 +260,11 @@ bool UpdateSettings(RdSettings& settings) {
     settings.webview_smoke_test_ = FLAGS_webview_smoke_test;
 
     private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_RELAY_TICKET", settings.appkey_);
+    std::string console_iroh_configuration{};
+    private_environment_loaded &= ReadAndClearPrivateEnvironment(L"PIXELS_RENDER_IROH_CONFIGURATION", console_iroh_configuration);
+    if (!console_iroh_configuration.empty()) {
+        settings.iroh_endpoint_configuration_ = std::move(console_iroh_configuration);
+    }
     return private_environment_loaded;
 }
 

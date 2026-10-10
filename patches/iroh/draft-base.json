@@ -1,0 +1,7 @@
+{
+  "crate": "iroh",
+  "version": "1.3.0",
+  "file": "src/socket/transports/relay/actor.rs",
+  "base_sha256": "f002a5e999fc17035a078b31bb09a8f2f9e67dcfaff4820eb6224816b009d3d9",
+  "status": "review-only; not applied to registry or product dependency"
+}

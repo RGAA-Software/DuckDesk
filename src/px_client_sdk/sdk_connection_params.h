@@ -1,17 +1,32 @@
 #pragma once
 
+#include <optional>
+#include <functional>
 #include <string>
+#include <unordered_map>
+
+#include "px_common/iroh_connection_description.h"
 
 namespace px {
 
 enum class SdkSessionMode { kNative, kRdp };
-enum class SdkMediaTransport { kUdp, kWebSocket };
+enum class SdkMediaTransport { kUdp, kWebSocket, kIroh };
 enum class SdkConnectionRoute { kDirect, kWebSocketRelay };
+
+struct IrohDialParameters final {
+    std::string endpoint_address{};
+    std::string endpoint_configuration{"{}"};
+    // Existing resource-session/frontend parameters; this transport creates no additional credentials.
+    std::unordered_map<std::string, std::string> frontend{};
+    // Composition supplies a bounded lookup for this same resource session.
+    std::function<std::optional<IrohConnectionDescription>()> refresh_endpoint{};
+};
 
 // Value configuration for the native transport. No renderer, codec, OS handle or
 // UI state belongs here. NetClient owns an immutable snapshot for one session;
 // a new authorization attempt creates a new client with its new credentials.
 struct SdkConnectionParams final {
+    std::optional<IrohDialParameters> iroh_{};
     SdkSessionMode session_mode_{SdkSessionMode::kNative};
     SdkMediaTransport media_transport_{SdkMediaTransport::kUdp};
     SdkConnectionRoute route_{SdkConnectionRoute::kDirect};
@@ -41,4 +56,4 @@ struct SdkConnectionParams final {
     std::string udp_media_association_{};
 };
 
-} // namespace px
+}  // namespace px

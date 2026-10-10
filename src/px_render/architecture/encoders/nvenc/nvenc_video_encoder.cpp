@@ -155,7 +155,9 @@ namespace px
         if (fps < 15) fps = 15;
         if (fps > 60) fps = 60;
 
-        constexpr int64_t kMinReconfigureIntervalMs = 2000;
+        // Apply congestion reductions promptly. Holding a high rate for another
+        // two seconds can fill the transport before the encoder catches up.
+        const int64_t reconfigure_interval_ms = bps < applied_bps_ ? 200 : 2000;
         const int64_t now_ms = static_cast<int64_t>(TimeUtil::GetCurrentTimestamp());
         const bool bps_changed = applied_bps_ == 0
             || (bps > applied_bps_ ? (bps - applied_bps_) : (applied_bps_ - bps)) > applied_bps_ / 10; // >10%
@@ -164,7 +166,7 @@ namespace px
         if (!bps_changed && !fps_changed) {
             return true;
         }
-        if (last_reconfigure_ms_ != 0 && (now_ms - last_reconfigure_ms_) < kMinReconfigureIntervalMs) {
+        if (last_reconfigure_ms_ != 0 && (now_ms - last_reconfigure_ms_) < reconfigure_interval_ms) {
             // Keep pending so the next encode after the interval can apply the latest target.
             pending_bps_.store(bps);
             pending_fps_.store(fps);

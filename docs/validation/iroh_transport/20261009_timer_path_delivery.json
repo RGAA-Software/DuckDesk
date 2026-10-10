@@ -1,0 +1,35 @@
+{
+  "artifacts": [
+    {
+      "product": "client",
+      "artifact": "px_client.exe",
+      "build_sha256": "cdcf7c387702f5600f6bd8ffbb7a9a5b66e0997bbb48e5f307ea3a83881afc1d",
+      "dist_sha256": "cdcf7c387702f5600f6bd8ffbb7a9a5b66e0997bbb48e5f307ea3a83881afc1d"
+    },
+    {
+      "product": "cloud_node",
+      "artifact": "px_client.exe",
+      "build_sha256": "f5f0ffff1ea61b133511406588aad2019f19742c541333bac387c6376977c348",
+      "dist_sha256": "f5f0ffff1ea61b133511406588aad2019f19742c541333bac387c6376977c348"
+    },
+    {
+      "product": "cloud_node",
+      "artifact": "px_render.exe",
+      "build_sha256": "dbc6a5b997964aadfe0813396b490a38c7d100037ac864bff578b8d5ae99b956",
+      "dist_sha256": "dbc6a5b997964aadfe0813396b490a38c7d100037ac864bff578b8d5ae99b956"
+    }
+  ],
+  "checks": {
+    "direct": "23 cases passed across transport/media/SDK/frontend",
+    "relay": "media 5 and frontend 11 passed across private HTTPS relay; original close-bound failure retained"
+  },
+  "candidate": {
+    "id": "iroh-timer-path-20261009",
+    "setup_sha256": "1883AC4038E19D5A54FC729DB922CB9F6467BCD19F4370934DB3AFB8020EC294",
+    "manifest_sha256": "CE473528995D09BF95D30A14DA88A7E8C0F5BB2E13F37778EF9CC2190FAF23AB",
+    "verified_artifacts": 314,
+    "installed": true,
+    "installed_render_sha256": "54C659B2673DB1ACF8A9885AF03AC791AA6F2CD009F5CCCEEFD2AC6CEB5FE9A7",
+    "service_status": "Running"
+  }
+}

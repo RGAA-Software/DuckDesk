@@ -34,6 +34,7 @@ bool RdSettings::LoadSettings(const std::string& path) {
         }
     }
     transmission_.listening_port_ = result["network"]["listen_port"].value_or(transmission_.listening_port_);
+    iroh_endpoint_configuration_ = result["network"]["iroh_endpoint_configuration"].value_or(iroh_endpoint_configuration_);
     service_server_host_ = result["network"]["service_host"].value_or(service_server_host_);
     service_server_port_ = result["network"]["service_port"].value_or(service_server_port_);
     rtc_advertised_ipv4_ = result["rtc"]["advertised_ipv4"].value_or(rtc_advertised_ipv4_);

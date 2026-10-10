@@ -35,6 +35,7 @@ function relayProfile(id: string, revision = 1): ManagedRelay {
         current_connections: null,
         max_rooms: null,
         current_rooms: null,
+        iroh_qad_port: null,
         uploaded_bytes: null,
         forwarded_bytes: null,
         fresh: false,

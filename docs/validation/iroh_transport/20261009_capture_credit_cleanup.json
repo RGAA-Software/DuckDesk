@@ -1,0 +1,14 @@
+{
+    "configuration_sha256":  "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "console_status":  "Running",
+    "stopped_relay_pid":  53728,
+    "relay_stopped":  true,
+    "qos_remaining":  0,
+    "renders":  [
+                    {
+                        "Id":  51580,
+                        "Path":  "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+                    }
+                ],
+    "date":  "2026-10-09T18:45:02.3393836+08:00"
+}

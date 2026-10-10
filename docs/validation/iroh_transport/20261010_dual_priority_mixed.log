@@ -1,0 +1,130 @@
+[2026-10-10 21:02:20.562][thread 75484][client_session.cpp:223][info] : event=file_transfer.session component=client operation=start outcome=success
+[2026-10-10 21:02:20.940][thread 86744][iroh_dialer.cpp:147][info] : event=iroh.connect outcome=accepted reconnect=false
+[2026-10-10 21:02:20.944][thread 83772][client_session.cpp:337][info] : event=file_transfer.capability component=client operation=configure outcome=enabled host_enabled=true
+[2026-10-10 21:02:20.975][thread 83016][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-10 21:02:20.975][thread 83016][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=150
+[2026-10-10 21:02:20.995][thread 68032][thunder_sdk.cpp:55][info] : [LAT-decode] frames=1 avg_us=19641 max_us=19641
+[2026-10-10 21:02:21.004][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(672.0,165.0) remote=(0.311,0.081) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:21.088][thread 75484][client_file_transfer_acceptance.cpp:64][info] : event=file_transfer.acceptance component=client operation=start_upload outcome=success job=1
+[2026-10-10 21:02:21.141][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=152 source_gap_us=167422 receive_gap_us=166151 excess_us=0 assembly_call_us=5
+[2026-10-10 21:02:21.141][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=152 gap_ms=166.2
+[2026-10-10 21:02:21.151][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.311,0.081) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:21.514][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(955.0,540.0) remote=(0.442,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:22.029][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1394.0,540.0) remote=(0.645,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:22.184][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:22.190][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:22.537][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(940.0,540.0) remote=(0.435,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:23.039][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1365.0,540.0) remote=(0.632,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:23.228][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:23.231][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:23.542][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(911.0,540.0) remote=(0.422,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:24.055][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1350.0,540.0) remote=(0.625,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:24.262][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:24.974][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:24.989][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(648.0,540.0) remote=(0.300,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:25.506][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1101.0,540.0) remote=(0.510,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:25.981][thread 83016][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=2354 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=292 loss=0 malformed=0
+[2026-10-10 21:02:25.981][thread 83016][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=5441 tx_packets=3659 rx_packets=4674 tx_lost=0 tx_datagrams=92 rx_datagrams=2739
+[2026-10-10 21:02:25.981][thread 83016][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=52041 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:02:25.981][thread 83016][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=293, fps=58.5, max_gap_ms=166.2, gaps_gt_100ms=1, idr=0, rfi=0
+[2026-10-10 21:02:25.996][thread 68032][thunder_sdk.cpp:55][info] : [LAT-decode] frames=292 avg_us=424 max_us=15011
+[2026-10-10 21:02:26.007][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1512.0,540.0) remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:26.007][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:26.009][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:26.523][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1087.0,540.0) remote=(0.503,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:27.041][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:27.043][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:27.056][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(648.0,540.0) remote=(0.300,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:27.562][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1087.0,540.0) remote=(0.503,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:28.077][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:28.080][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:28.089][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(648.0,540.0) remote=(0.300,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:28.598][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1087.0,540.0) remote=(0.503,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:29.099][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1512.0,540.0) remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:29.116][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:29.120][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:29.602][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1058.0,540.0) remote=(0.490,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:30.118][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1497.0,540.0) remote=(0.693,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:30.152][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:30.154][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:30.633][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1058.0,540.0) remote=(0.490,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:30.998][thread 83016][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=4257 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=593 loss=0 malformed=0
+[2026-10-10 21:02:30.998][thread 83016][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=5389 tx_packets=7288 rx_packets=8953 tx_lost=0 tx_datagrams=184 rx_datagrams=5015
+[2026-10-10 21:02:30.998][thread 83016][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=52041 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:02:30.998][thread 83016][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=58.1, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 21:02:30.999][thread 68032][thunder_sdk.cpp:55][info] : [LAT-decode] frames=300 avg_us=238 max_us=933
+[2026-10-10 21:02:31.149][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1497.0,540.0) remote=(0.693,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:31.183][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:31.186][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:31.665][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1058.0,540.0) remote=(0.490,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:32.182][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1497.0,540.0) remote=(0.693,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:32.216][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:32.218][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:32.682][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1043.0,540.0) remote=(0.483,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:33.198][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1482.0,540.0) remote=(0.686,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:33.251][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:33.253][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:33.699][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1028.0,540.0) remote=(0.476,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:34.212][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1468.0,540.0) remote=(0.680,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:34.281][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:34.283][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:34.729][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1028.0,540.0) remote=(0.476,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:35.230][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1453.0,540.0) remote=(0.673,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:35.317][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:35.899][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:35.907][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(648.0,540.0) remote=(0.300,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:36.001][thread 83016][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=5970 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=893 loss=0 malformed=0
+[2026-10-10 21:02:36.001][thread 83016][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=8523 tx_packets=11240 rx_packets=15000 tx_lost=0 tx_datagrams=276 rx_datagrams=7103
+[2026-10-10 21:02:36.001][thread 83016][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=52041 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:02:36.001][thread 83016][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=75.6, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 21:02:36.002][thread 68032][thunder_sdk.cpp:55][info] : [LAT-decode] frames=300 avg_us=283 max_us=1875
+[2026-10-10 21:02:36.416][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1087.0,540.0) remote=(0.503,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:36.930][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:36.932][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:36.940][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(648.0,540.0) remote=(0.300,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:37.246][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1111 source_gap_us=18655 receive_gap_us=123610 excess_us=136640 assembly_call_us=17
+[2026-10-10 21:02:37.246][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1111 gap_ms=123.7
+[2026-10-10 21:02:37.446][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1087.0,540.0) remote=(0.503,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:37.476][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1122 source_gap_us=15244 receive_gap_us=183696 excess_us=185720 assembly_call_us=19
+[2026-10-10 21:02:37.476][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1122 gap_ms=183.7
+[2026-10-10 21:02:37.700][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1137 source_gap_us=18000 receive_gap_us=117646 excess_us=158299 assembly_call_us=18
+[2026-10-10 21:02:37.700][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1137 gap_ms=117.7
+[2026-10-10 21:02:37.884][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1146 source_gap_us=15077 receive_gap_us=94828 excess_us=193069 assembly_call_us=28
+[2026-10-10 21:02:37.946][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1512.0,540.0) remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:37.964][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:37.968][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:37.984][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1153 source_gap_us=18077 receive_gap_us=9249 excess_us=175617 assembly_call_us=4
+[2026-10-10 21:02:38.121][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1159 source_gap_us=18077 receive_gap_us=38956 excess_us=212368 assembly_call_us=13
+[2026-10-10 21:02:38.232][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1165 source_gap_us=17566 receive_gap_us=37479 excess_us=224087 assembly_call_us=19
+[2026-10-10 21:02:38.333][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1170 source_gap_us=14788 receive_gap_us=40174 excess_us=241877 assembly_call_us=11
+[2026-10-10 21:02:38.450][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1058.0,540.0) remote=(0.490,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:38.533][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1188 source_gap_us=267077 receive_gap_us=189340 excess_us=141873 assembly_call_us=19
+[2026-10-10 21:02:38.533][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1188 gap_ms=189.4
+[2026-10-10 21:02:38.685][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1194 source_gap_us=99722 receive_gap_us=152190 excess_us=194341 assembly_call_us=15
+[2026-10-10 21:02:38.685][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1194 gap_ms=152.2
+[2026-10-10 21:02:38.790][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1200 source_gap_us=50144 receive_gap_us=55450 excess_us=199692 assembly_call_us=12
+[2026-10-10 21:02:38.950][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1482.0,540.0) remote=(0.686,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:39.003][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:39.005][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:39.121][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1218 source_gap_us=267388 receive_gap_us=254570 excess_us=229496 assembly_call_us=13
+[2026-10-10 21:02:39.121][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1218 gap_ms=254.6
+[2026-10-10 21:02:39.334][thread 83016][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=1232 source_gap_us=233233 receive_gap_us=213677 excess_us=209940 assembly_call_us=14
+[2026-10-10 21:02:39.334][thread 83016][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=1232 gap_ms=213.7
+[2026-10-10 21:02:39.452][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1028.0,540.0) remote=(0.476,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:39.968][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1468.0,540.0) remote=(0.680,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:40.036][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:40.039][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:40.470][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1014.0,540.0) remote=(0.469,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:40.972][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1438.0,540.0) remote=(0.666,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:41.012][thread 83016][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=7282 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=1133 loss=0 malformed=0
+[2026-10-10 21:02:41.012][thread 83016][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=6579 tx_packets=14344 rx_packets=20056 tx_lost=2 tx_datagrams=367 rx_datagrams=8789
+[2026-10-10 21:02:41.012][thread 83016][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=52041 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 21:02:41.012][thread 83016][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=240, fps=47.9, max_gap_ms=254.6, gaps_gt_100ms=7, idr=0, rfi=0
+[2026-10-10 21:02:41.013][thread 68032][thunder_sdk.cpp:55][info] : [LAT-decode] frames=240 avg_us=317 max_us=1971
+[2026-10-10 21:02:41.076][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:41.078][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:41.477][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(984.0,540.0) remote=(0.456,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:41.993][thread 75484][client_window.cpp:269][info] : Client input route: mouse move local=(1424.0,540.0) remote=(0.659,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:42.113][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=false remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:42.115][thread 75484][client_window.cpp:281][info] : Client input route: mouse button=1 down=true remote=(0.700,0.372) sent=true state=1 monitor=[game-hook]
+[2026-10-10 21:02:42.442][thread 75484][client_file_transfer_acceptance.cpp:188][info] : File-transfer acceptance completed

@@ -115,7 +115,7 @@ public:
         if (!codec_context_ || !packet_ || !frame_ || !window_ || encoded.empty()) return TRError(-1);
         if (!PrepareDecoderPacket(*packet_, encoded)) return TRError(-1);
         const auto send_result = avcodec_send_packet(codec_context_.get(), packet_.get());
-        if (send_result < 0 && send_result != AVERROR(EAGAIN)) return TRError(send_result);
+        if (send_result < 0) return TRError(send_result);
 
         const auto receive_result = avcodec_receive_frame(codec_context_.get(), frame_.get());
         if (receive_result == AVERROR(EAGAIN) || receive_result == AVERROR_EOF) return TRError(0);

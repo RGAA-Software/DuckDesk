@@ -1,0 +1,11 @@
+EVIDENCE .cache\iroh-native-live-20261010-163848-auto
+RUNNING game_hook instance=6ab3fa53-1512-430f-9f63-f6002b1d62da
+DESCRIPTOR_READY seconds=1.129
+CONNECTED game_hook visit=relay-capacity-regression
+CONNECTED game_hook pid=86632
+PASS game_hook
+RUNNING rdp instance=e7edd088-9705-4d5a-b4d1-6ce4864e869a
+DESCRIPTOR_READY seconds=1.672
+CONNECTED rdp visit=relay-capacity-regression
+CONNECTED rdp pid=81940
+PASS rdp

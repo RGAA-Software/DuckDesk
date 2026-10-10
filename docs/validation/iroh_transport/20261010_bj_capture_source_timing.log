@@ -1,0 +1,229 @@
+[2026-10-10 11:40:33.047][thread 50560][rd_settings.cpp:113][info] : application.mode=game-hook → inner capture + start/inject game (force event-replay-mode=inner)
+[2026-10-10 11:40:33.047][thread 50560][rd_main.cpp:284][info] : capture_audio: true
+[2026-10-10 11:40:33.047][thread 50560][rd_main.cpp:285][info] : capture_audio_type: global
+[2026-10-10 11:40:33.047][thread 50560][rd_main.cpp:286][info] : capture_video: true
+[2026-10-10 11:40:33.047][thread 50560][rd_main.cpp:287][info] : capture_video_type: inner
+[2026-10-10 11:40:33.047][thread 50560][rd_main.cpp:291][info] : capture audio device: <os-default>
+[2026-10-10 11:40:33.320][thread 50560][gdi_capture_source.cpp:48][info] : GdiCaptureSource Start
+[2026-10-10 11:40:33.323][thread 53872][was_audio_capture_source.cpp:115][info] : event=source.start component=was_audio_capture outcome=success
+[2026-10-10 11:40:33.666][thread 50560][render_module_registry.cpp:137][info] : event=module.start component=render_module_registry module=net_iroh delivery=static outcome=success
+[2026-10-10 11:40:33.667][thread 50560][render_module_registry.cpp:1137][info] : Module 7. [iroh transport] vn: [1.0.0], vc: [1], enabled: [true]
+[2026-10-10 11:40:33.761][thread 50560][rd_app.cpp:689][info] : Use inner capture.
+[2026-10-10 11:40:33.762][thread 50560][rd_app.cpp:1374][info] : StartProcessWithHook: game_path=D:\software\2dadventure\2dAdventure.exe, capture_method=1
+[2026-10-10 11:40:33.900][thread 50560][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=51896
+[2026-10-10 11:40:33.900][thread 51144][was_audio_capture_runtime.cpp:212][warning] : [WasAudioCaptureRuntime] stop: capture already null
+[2026-10-10 11:40:33.900][thread 51144][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=51896
+[2026-10-10 11:40:33.900][thread 51144][was_audio_capture_runtime.cpp:121][info] : [WasAudioCaptureRuntime] start, loopback_pid=51896
+[2026-10-10 11:40:33.902][thread 41408][process_loopback_audio_capture.cpp:154][warning] : [ProcessLoopback] GetMixFormat failed 0x80004001; using requested format
+[2026-10-10 11:40:33.902][thread 53092][was_audio_capture_runtime.cpp:151][info] : [WasAudioCaptureRuntime] format ready: 48000Hz 2ch 16bit
+[2026-10-10 11:40:33.902][thread 53092][process_loopback_audio_capture.cpp:413][info] : [ProcessLoopback] capturing pid=51896 48000Hz 2ch 16bit
+[2026-10-10 11:40:33.912][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1 last_bytes=1920
+[2026-10-10 11:40:33.912][thread 50560][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=1 idx=1
+[2026-10-10 11:40:33.951][thread 51144][was_audio_capture_runtime.cpp:201][info] : [WasAudioCaptureRuntime] start OK (PID process-loopback)
+[2026-10-10 11:40:35.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=200 last_bytes=1920
+[2026-10-10 11:40:37.035][thread 53576][media_recorder_sink.cpp:423][info] : event=record.session component=media_recorder action=auto_start outcome=success transport=iroh
+[2026-10-10 11:40:37.036][thread 53576][iroh_server.cpp:261][info] : event=session.admit component=net_iroh outcome=connected
+[2026-10-10 11:40:37.036][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=14952800 rtt_us=27065 path=2 media_backpressure=false receiver_stalled=false received_bps=0
+[2026-10-10 11:40:37.036][thread 52260][encoder_thread.cpp:438][info] : We use d3d device from capture.
+[2026-10-10 11:40:37.036][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:37.083][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=153 gap_ms=0 bytes=5447
+[2026-10-10 11:40:37.160][thread 51732][iroh_session.cpp:355][info] : event=iroh.recovery_requested stream=d6b845b4-1e20-464b-a6bd-ae5ce5824304 monitor=
+[2026-10-10 11:40:37.163][thread 28508][iroh_session.cpp:246][info] : event=iroh.recovery_frame stream=d6b845b4-1e20-464b-a6bd-ae5ce5824304 monitor=game-hook frame=156 kind=2 request_age_us=3426
+[2026-10-10 11:40:37.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=400 last_bytes=1920
+[2026-10-10 11:40:38.431][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=221 arrival_gap_us=168978 generated_gap_us=52728 released=3 pending=11 bytes=70400 oldest=222 age_us=168128
+[2026-10-10 11:40:38.763][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=18.19 video_mbps=0.872 encoded_audio_pps=15.80 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:40:39.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:39.455][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=287 arrival_gap_us=110881 generated_gap_us=52567 released=3 pending=6 bytes=19800 oldest=288 age_us=92264
+[2026-10-10 11:40:39.818][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=306 arrival_gap_us=153816 generated_gap_us=50195 released=3 pending=9 bytes=19800 oldest=307 age_us=137925
+[2026-10-10 11:40:39.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=600 last_bytes=1920
+[2026-10-10 11:40:41.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:41.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=800 last_bytes=1920
+[2026-10-10 11:40:42.097][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=1737427 video_datagram_bps=2076541 opus_bps=30545 audio_datagram_bps=61873 flight_bytes=8800 flight_limited=0
+[2026-10-10 11:40:42.097][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=299 idr=2 busy=0 completed=299 failed=0 max_send_us=94 path=2 rtt_us=29378 tx_packets=2323 tx_lost=0
+[2026-10-10 11:40:43.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:43.766][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.17 video_mbps=1.453 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:40:43.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1000 last_bytes=1920
+[2026-10-10 11:40:45.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:45.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1200 last_bytes=1920
+[2026-10-10 11:40:47.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:47.097][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=1448982 video_datagram_bps=1782836 opus_bps=30132 audio_datagram_bps=61043 flight_bytes=9900 flight_limited=0
+[2026-10-10 11:40:47.097][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=37 path=2 rtt_us=26134 tx_packets=4533 tx_lost=0
+[2026-10-10 11:40:47.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1400 last_bytes=1920
+[2026-10-10 11:40:48.770][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.95 video_mbps=2.168 encoded_audio_pps=50.16 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:40:49.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:49.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1600 last_bytes=1920
+[2026-10-10 11:40:51.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:51.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=1800 last_bytes=1920
+[2026-10-10 11:40:52.113][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=4142671 video_datagram_bps=4583633 opus_bps=30259 audio_datagram_bps=61502 flight_bytes=27500 flight_limited=0
+[2026-10-10 11:40:52.113][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=112 path=2 rtt_us=26371 tx_packets=8491 tx_lost=0
+[2026-10-10 11:40:53.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:53.772][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=4.132 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:40:53.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2000 last_bytes=1920
+[2026-10-10 11:40:55.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=1800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:55.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2200 last_bytes=1920
+[2026-10-10 11:40:57.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:57.130][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3951814 video_datagram_bps=4392464 opus_bps=30337 audio_datagram_bps=61659 flight_bytes=26400 flight_limited=0
+[2026-10-10 11:40:57.130][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=108 path=2 rtt_us=26571 tx_packets=12344 tx_lost=0
+[2026-10-10 11:40:57.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2400 last_bytes=1920
+[2026-10-10 11:40:58.774][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.706 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:40:59.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:40:59.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2600 last_bytes=1920
+[2026-10-10 11:41:01.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:01.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=2800 last_bytes=1920
+[2026-10-10 11:41:02.130][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3594745 video_datagram_bps=4010997 opus_bps=30290 audio_datagram_bps=61292 flight_bytes=37400 flight_limited=0
+[2026-10-10 11:41:02.130][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=108 path=2 rtt_us=25973 tx_packets=15937 tx_lost=0
+[2026-10-10 11:41:03.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:03.776][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.701 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:03.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3000 last_bytes=1920
+[2026-10-10 11:41:05.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=2800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:05.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3200 last_bytes=1920
+[2026-10-10 11:41:07.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:07.147][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3625277 video_datagram_bps=4048686 opus_bps=30074 audio_datagram_bps=61269 flight_bytes=17600 flight_limited=0
+[2026-10-10 11:41:07.147][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=89 path=2 rtt_us=25707 tx_packets=19586 tx_lost=0
+[2026-10-10 11:41:07.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3400 last_bytes=1920
+[2026-10-10 11:41:08.779][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.727 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:09.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:09.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3600 last_bytes=1920
+[2026-10-10 11:41:11.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:11.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=3800 last_bytes=1920
+[2026-10-10 11:41:12.163][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3819557 video_datagram_bps=4260947 opus_bps=30267 audio_datagram_bps=61532 flight_bytes=35200 flight_limited=0
+[2026-10-10 11:41:12.163][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=99 path=2 rtt_us=26367 tx_packets=23359 tx_lost=0
+[2026-10-10 11:41:13.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:13.782][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.16 video_mbps=3.740 encoded_audio_pps=49.97 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:13.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=4000 last_bytes=1920
+[2026-10-10 11:41:15.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=3800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:15.748][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=2464 arrival_gap_us=108863 generated_gap_us=60478 released=4 pending=7 bytes=40700 oldest=2465 age_us=101580
+[2026-10-10 11:41:15.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=4200 last_bytes=1920
+[2026-10-10 11:41:17.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:17.180][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3487770 video_datagram_bps=3899556 opus_bps=30345 audio_datagram_bps=61327 flight_bytes=31900 flight_limited=0
+[2026-10-10 11:41:17.180][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=107 path=2 rtt_us=58360 tx_packets=26868 tx_lost=0
+[2026-10-10 11:41:17.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=4400 last_bytes=1920
+[2026-10-10 11:41:18.783][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.502 encoded_audio_pps=49.99 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:19.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:19.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=4600 last_bytes=1920
+[2026-10-10 11:41:21.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:21.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=4800 last_bytes=1920
+[2026-10-10 11:41:22.180][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3423198 video_datagram_bps=3847314 opus_bps=30199 audio_datagram_bps=61476 flight_bytes=30800 flight_limited=0
+[2026-10-10 11:41:22.180][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=300 idr=0 busy=0 completed=300 failed=0 max_send_us=90 path=2 rtt_us=25596 tx_packets=30366 tx_lost=0
+[2026-10-10 11:41:23.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:23.784][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.99 video_mbps=3.240 encoded_audio_pps=49.99 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:23.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=5000 last_bytes=1920
+[2026-10-10 11:41:24.026][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=2962 arrival_gap_us=113673 generated_gap_us=59682 released=4 pending=5 bytes=22000 oldest=2963 age_us=79615
+[2026-10-10 11:41:25.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=4800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:25.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=5200 last_bytes=1920
+[2026-10-10 11:41:27.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:27.197][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3444950 video_datagram_bps=3864254 opus_bps=30227 audio_datagram_bps=61458 flight_bytes=37400 flight_limited=0
+[2026-10-10 11:41:27.197][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=101 path=2 rtt_us=26160 tx_packets=33882 tx_lost=0
+[2026-10-10 11:41:27.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=5400 last_bytes=1920
+[2026-10-10 11:41:28.786][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.648 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:29.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:29.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=5600 last_bytes=1920
+[2026-10-10 11:41:31.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:31.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=5800 last_bytes=1920
+[2026-10-10 11:41:32.213][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3474838 video_datagram_bps=3934816 opus_bps=30259 audio_datagram_bps=61136 flight_bytes=26400 flight_limited=0
+[2026-10-10 11:41:32.213][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=94 path=2 rtt_us=26717 tx_packets=37451 tx_lost=0
+[2026-10-10 11:41:33.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:33.789][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.434 encoded_audio_pps=50.17 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:33.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=6000 last_bytes=1920
+[2026-10-10 11:41:35.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=5800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:35.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=6200 last_bytes=1920
+[2026-10-10 11:41:36.096][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=11962240 rtt_us=59217 path=2 media_backpressure=true receiver_stalled=false received_bps=3186490
+[2026-10-10 11:41:36.945][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83399 queued=0 pending=8 bytes=60500 oldest=3730 newest=3737 age_us=215217 probe_us=151039 feedback_age_us=39521
+[2026-10-10 11:41:36.945][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=139438 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=39521 budget_bytes=47121 forward_delay_growth_us=166469
+[2026-10-10 11:41:36.957][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=3732 arrival_gap_us=50825 generated_gap_us=50391 released=3 pending=5 bytes=40700 oldest=3733 age_us=176619
+[2026-10-10 11:41:36.962][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=100007 queued=0 pending=5 bytes=40700 oldest=3733 newest=3737 age_us=181923 probe_us=134431 feedback_age_us=5303
+[2026-10-10 11:41:36.962][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=142423 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=5303 budget_bytes=47121 forward_delay_growth_us=167327
+[2026-10-10 11:41:36.963][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=3744 gap_ms=116 bytes=12439
+[2026-10-10 11:41:37.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:37.296][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=84034 queued=0 pending=8 bytes=67100 oldest=3751 newest=3758 age_us=216165 probe_us=150365 feedback_age_us=3904
+[2026-10-10 11:41:37.296][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=78144 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=177413 budget_bytes=59894 forward_delay_growth_us=62674
+[2026-10-10 11:41:37.462][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=250047 queued=0 pending=8 bytes=67100 oldest=3751 newest=3758 age_us=382179 probe_us=-15648 feedback_age_us=57570
+[2026-10-10 11:41:37.462][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=180564 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=343426 budget_bytes=59894 forward_delay_growth_us=62674
+[2026-10-10 11:41:37.463][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=3774 gap_ms=266 bytes=19913
+[2026-10-10 11:41:37.463][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3211863 video_datagram_bps=3610426 opus_bps=30230 audio_datagram_bps=61564 flight_bytes=67100 flight_limited=0
+[2026-10-10 11:41:37.463][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=273 idr=0 busy=0 completed=273 failed=0 max_send_us=88 path=2 rtt_us=180564 tx_packets=40931 tx_lost=0
+[2026-10-10 11:41:37.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=6400 last_bytes=1920
+[2026-10-10 11:41:38.792][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=50.57 video_mbps=3.233 encoded_audio_pps=49.97 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:39.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:39.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=6600 last_bytes=1920
+[2026-10-10 11:41:40.662][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=14952800 rtt_us=26258 path=2 media_backpressure=false receiver_stalled=false received_bps=3839533
+[2026-10-10 11:41:41.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:41.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=6800 last_bytes=1920
+[2026-10-10 11:41:42.481][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3647342 video_datagram_bps=4084837 opus_bps=30316 audio_datagram_bps=61589 flight_bytes=33000 flight_limited=0
+[2026-10-10 11:41:42.481][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=296 idr=0 busy=0 completed=296 failed=0 max_send_us=93 path=2 rtt_us=42604 tx_packets=44604 tx_lost=0
+[2026-10-10 11:41:43.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:43.524][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=4126 arrival_gap_us=124048 generated_gap_us=60144 released=1 pending=11 bytes=50600 oldest=4127 age_us=177205
+[2026-10-10 11:41:43.794][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.339 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:43.838][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=4132 arrival_gap_us=194176 generated_gap_us=58684 released=6 pending=24 bytes=125400 oldest=4133 age_us=391154
+[2026-10-10 11:41:43.906][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=7000 last_bytes=1920
+[2026-10-10 11:41:43.928][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83036 queued=0 pending=24 bytes=125400 oldest=4133 newest=4156 age_us=481892 probe_us=151515 feedback_age_us=26252
+[2026-10-10 11:41:43.928][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=128396 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=90738 budget_bytes=35855 forward_delay_growth_us=139860
+[2026-10-10 11:41:44.095][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=249882 queued=0 pending=24 bytes=125400 oldest=4133 newest=4156 age_us=648738 probe_us=-15330 feedback_age_us=44482
+[2026-10-10 11:41:44.095][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=128396 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=257584 budget_bytes=35855 forward_delay_growth_us=139860
+[2026-10-10 11:41:44.097][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4172 gap_ms=266 bytes=21764
+[2026-10-10 11:41:44.195][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83189 queued=0 pending=25 bytes=148500 oldest=4133 newest=4172 age_us=748755 probe_us=151443 feedback_age_us=21595
+[2026-10-10 11:41:44.195][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=128396 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=357601 budget_bytes=35855 forward_delay_growth_us=139860
+[2026-10-10 11:41:44.229][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1532827 rtt_us=128396 path=2 media_backpressure=true receiver_stalled=true received_bps=1916034
+[2026-10-10 11:41:44.346][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=4148 arrival_gap_us=53054 generated_gap_us=57202 released=16 pending=9 bytes=52800 oldest=4149 age_us=632301
+[2026-10-10 11:41:44.346][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=233597 queued=0 pending=9 bytes=52800 oldest=4149 newest=4172 age_us=632319 probe_us=1036 feedback_age_us=17
+[2026-10-10 11:41:44.346][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=330860 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=17 budget_bytes=92400 forward_delay_growth_us=384869
+[2026-10-10 11:41:44.347][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4187 gap_ms=250 bytes=9156
+[2026-10-10 11:41:44.746][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1226261 rtt_us=77378 path=2 media_backpressure=true receiver_stalled=false received_bps=2649024
+[2026-10-10 11:41:45.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=6800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:45.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=7200 last_bytes=1920
+[2026-10-10 11:41:46.779][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1532826 rtt_us=26207 path=2 media_backpressure=false receiver_stalled=false received_bps=1497615
+[2026-10-10 11:41:47.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7000 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:47.497][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=1849594 video_datagram_bps=2180691 opus_bps=30199 audio_datagram_bps=61090 flight_bytes=8800 flight_limited=0
+[2026-10-10 11:41:47.497][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=268 idr=0 busy=0 completed=268 failed=0 max_send_us=83 path=2 rtt_us=26453 tx_packets=47115 tx_lost=0
+[2026-10-10 11:41:47.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=7400 last_bytes=1920
+[2026-10-10 11:41:48.795][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1916032 rtt_us=26208 path=2 media_backpressure=false receiver_stalled=false received_bps=2163326
+[2026-10-10 11:41:48.796][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=53.38 video_mbps=1.696 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:49.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7200 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:49.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=7600 last_bytes=1920
+[2026-10-10 11:41:50.595][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83129 queued=0 pending=11 bytes=48400 oldest=4546 newest=4556 age_us=265065 probe_us=151598 feedback_age_us=29040
+[2026-10-10 11:41:50.595][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=130657 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=89110 budget_bytes=32768 forward_delay_growth_us=165672
+[2026-10-10 11:41:50.624][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=4548 arrival_gap_us=58344 generated_gap_us=58320 released=3 pending=8 bytes=35200 oldest=4549 age_us=244593
+[2026-10-10 11:41:50.684][thread 49704][media_datagrams.cpp:174][info] : event=iroh.feedback_trace stream=0 frame=4556 arrival_gap_us=59802 generated_gap_us=60908 released=8 pending=0 bytes=0 oldest=0 age_us=0
+[2026-10-10 11:41:50.696][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=183637 queued=0 pending=0 bytes=0 oldest=0 newest=0 age_us=0 probe_us=0 feedback_age_us=11401
+[2026-10-10 11:41:50.696][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=83290 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=0 budget_bytes=0 forward_delay_growth_us=0
+[2026-10-10 11:41:50.697][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4568 gap_ms=200 bytes=5974
+[2026-10-10 11:41:51.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7400 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:51.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=7800 last_bytes=1920
+[2026-10-10 11:41:52.497][thread 28508][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=1764884 video_datagram_bps=2104960 opus_bps=30235 audio_datagram_bps=61545 flight_bytes=11000 flight_limited=0
+[2026-10-10 11:41:52.497][thread 28508][media_datagrams.cpp:46][info] : event=iroh.send_window offered=289 idr=0 busy=0 completed=289 failed=0 max_send_us=58 path=2 rtt_us=26203 tx_packets=49577 tx_lost=0
+[2026-10-10 11:41:53.026][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7600 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:53.798][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=57.17 video_mbps=1.548 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-10 11:41:53.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=8000 last_bytes=1920
+[2026-10-10 11:41:55.027][thread 50560][rd_app.cpp:1249][info] : CaptureAudioFrame→encode: n=7800 48000Hz 2ch 16bit bytes=1920
+[2026-10-10 11:41:55.445][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2395040 rtt_us=25751 path=2 media_backpressure=false receiver_stalled=false received_bps=861482
+[2026-10-10 11:41:55.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=8200 last_bytes=1920
+[2026-10-10 11:41:55.945][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=689185 rtt_us=25751 path=2 media_backpressure=false receiver_stalled=true received_bps=861482
+[2026-10-10 11:41:56.228][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83168 queued=0 pending=64 bytes=181500 oldest=4831 newest=4894 age_us=1148342 probe_us=151651 feedback_age_us=1124744
+[2026-10-10 11:41:56.228][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1124744 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.395][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=249926 queued=0 pending=64 bytes=181500 oldest=4831 newest=4894 age_us=1315101 probe_us=-15107 feedback_age_us=1291503
+[2026-10-10 11:41:56.395][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1291503 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.397][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4910 gap_ms=266 bytes=5592
+[2026-10-10 11:41:56.462][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=344592 rtt_us=25751 path=2 media_backpressure=true receiver_stalled=true received_bps=861482
+[2026-10-10 11:41:56.495][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83309 queued=0 pending=64 bytes=184800 oldest=4832 newest=4910 age_us=1398096 probe_us=151639 feedback_age_us=1391448
+[2026-10-10 11:41:56.495][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1391448 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.662][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=250359 queued=0 pending=64 bytes=184800 oldest=4832 newest=4910 age_us=1565146 probe_us=-15410 feedback_age_us=1558498
+[2026-10-10 11:41:56.662][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1558498 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.664][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4926 gap_ms=266 bytes=5708
+[2026-10-10 11:41:56.762][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=blocked stream=0 blocked_us=83059 queued=0 pending=64 bytes=188100 oldest=4833 newest=4926 age_us=1648778 probe_us=151642 feedback_age_us=1658331
+[2026-10-10 11:41:56.762][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1658331 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.928][thread 52260][media_datagrams.cpp:196][info] : event=iroh.capture_credit phase=resume stream=0 blocked_us=249435 queued=0 pending=64 bytes=188100 oldest=4833 newest=4926 age_us=1815155 probe_us=-14733 feedback_age_us=1824707
+[2026-10-10 11:41:56.928][thread 52260][media_datagrams.cpp:202][info] : event=iroh.capture_transport phase=resume stream=0 rtt_us=25751 cwnd_bytes=280905 datagram_space=65536 congestion_events=0 progress_age_us=1824707 budget_bytes=262144 forward_delay_growth_us=13979
+[2026-10-10 11:41:56.930][thread 28508][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4942 gap_ms=266 bytes=4782
+[2026-10-10 11:41:56.962][thread 52260][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=250000 rtt_us=25751 path=2 media_backpressure=true receiver_stalled=true received_bps=861482
+[2026-10-10 11:41:57.014][thread 43596][thread.cpp:223][info] : Ok, thread exit: iroh-send-1
+[2026-10-10 11:41:57.014][thread 46148][thread.cpp:151][warning] : Thread iroh-receive-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-10 11:41:57.014][thread 37332][thread.cpp:223][info] : Ok, thread exit: iroh-send-2
+[2026-10-10 11:41:57.014][thread 27272][thread.cpp:223][info] : Ok, thread exit: iroh-send-3
+[2026-10-10 11:41:57.014][thread 53836][thread.cpp:223][info] : Ok, thread exit: iroh-send-4
+[2026-10-10 11:41:57.014][thread 51732][thread.cpp:223][info] : Ok, thread exit: iroh-message-dispatch
+[2026-10-10 11:41:57.014][thread 46148][thread.cpp:151][warning] : Thread iroh-receive-1 requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-10 11:41:57.907][thread 53092][process_loopback_audio_capture.cpp:448][info] : [ProcessLoopback] packets=8400 last_bytes=1920
+[2026-10-10 11:41:58.801][thread 53872][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=28.59 video_mbps=0.522 encoded_audio_pps=32.18 captured_video_fps=0.00 captured_video_mbps=0.000 clients=0 outcome=sampled
+[2026-10-10 11:41:58.887][thread 50560][rd_app.cpp:1235][warning] : CaptureAudioFrame: no connected peer, drop n=500 idx=8498
+[2026-10-10 11:41:59.423][thread 50560][was_audio_capture_runtime.cpp:215][info] : [WasAudioCaptureRuntime] stop
+[2026-10-10 11:41:59.426][thread 53092][process_loopback_audio_capture.cpp:478][info] : [ProcessLoopback] stopped pid=51896 packets=8552

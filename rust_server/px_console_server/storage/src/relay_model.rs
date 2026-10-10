@@ -49,8 +49,9 @@ pub struct RelayNodeReport {
     pub draining: bool,
     pub max_connections: u32,
     pub current_connections: u32,
-    pub max_rooms: u32,
-    pub current_rooms: u32,
+    pub max_rooms: Option<u32>,
+    pub current_rooms: Option<u32>,
+    pub iroh_qad_port: Option<u16>,
     pub uploaded_bytes: u64,
     pub forwarded_bytes: u64,
 }
@@ -60,8 +61,8 @@ pub(crate) struct ValidatedRelayNodeReport {
     pub product_version_code: i64,
     pub max_connections: i32,
     pub current_connections: i32,
-    pub max_rooms: i32,
-    pub current_rooms: i32,
+    pub max_rooms: Option<i32>,
+    pub current_rooms: Option<i32>,
     pub uploaded_bytes: i64,
     pub forwarded_bytes: i64,
 }
@@ -72,8 +73,13 @@ impl RelayNodeReport {
             || self.product_version_code == 0
             || !(2..=100_000).contains(&self.max_connections)
             || self.current_connections > self.max_connections
-            || !(1..=50_000).contains(&self.max_rooms)
-            || self.current_rooms > self.max_rooms
+            || !match (self.iroh_qad_port, self.max_rooms, self.current_rooms) {
+                (Some(port), None, None) => port != 0,
+                (None, Some(maximum), Some(current)) => {
+                    (1..=50_000).contains(&maximum) && current <= maximum
+                }
+                _ => false,
+            }
         {
             return Err(StoreError::InvalidInput);
         }
@@ -84,8 +90,15 @@ impl RelayNodeReport {
                 .map_err(|_| StoreError::InvalidInput)?,
             current_connections: i32::try_from(self.current_connections)
                 .map_err(|_| StoreError::InvalidInput)?,
-            max_rooms: i32::try_from(self.max_rooms).map_err(|_| StoreError::InvalidInput)?,
-            current_rooms: i32::try_from(self.current_rooms)
+            max_rooms: self
+                .max_rooms
+                .map(i32::try_from)
+                .transpose()
+                .map_err(|_| StoreError::InvalidInput)?,
+            current_rooms: self
+                .current_rooms
+                .map(i32::try_from)
+                .transpose()
                 .map_err(|_| StoreError::InvalidInput)?,
             uploaded_bytes: i64::try_from(self.uploaded_bytes)
                 .map_err(|_| StoreError::InvalidInput)?,
@@ -145,6 +158,7 @@ pub struct RelayNodeProfile {
     pub current_connections: Option<i32>,
     pub max_rooms: Option<i32>,
     pub current_rooms: Option<i32>,
+    pub iroh_qad_port: Option<i32>,
     pub uploaded_bytes: Option<i64>,
     pub forwarded_bytes: Option<i64>,
     pub fresh: bool,

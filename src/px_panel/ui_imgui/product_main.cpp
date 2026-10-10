@@ -138,6 +138,8 @@ int main(int argc, char* argv[]) {  // NOLINT(pixels-raw-pointer-boundary): proc
                 activeShell->RequestExit();
             }
         });
+        runtime->Launcher()->Shutdown();
+        runtime->Worker()->Stop();
     }
     LOGI("ImGui Panel shell exited, beginning business shutdown");
     runningPipe->StopListening();

@@ -1,0 +1,177 @@
+#include <Windows.h>
+
+#include <array>
+#include <filesystem>
+#include <format>
+#include <iostream>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <string_view>
+
+#include "client_audio_acceptance.h"
+#include "client_file_transfer_acceptance.h"
+#include "client_file_transfer_window.h"
+#include "client_instance_guard.h"
+#include "client_launch_config.h"
+#include "client_session.h"
+#include "client_startup_dialog.h"
+#include "client_text.h"
+#include "client_ui_settings.h"
+#include "client_window.h"
+#include "px_common/folder_util.h"
+#include "px_common/log.h"
+#include "px_desktop_shell/desktop_shell.h"
+#include "px_ui/product_brand.h"
+
+namespace {
+
+void InitializeClientLog() {
+    std::array<wchar_t, 32'768> executablePath{};
+    const DWORD length{GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()))};
+    std::filesystem::path basePath{length > 0U && length < executablePath.size() ? std::filesystem::path{executablePath.data()}.parent_path()
+                                                                                 : std::filesystem::current_path()};
+    const auto logDirectory = basePath / "px_logs";
+    std::error_code error{};
+    std::filesystem::create_directories(logDirectory, error);
+    static_cast<void>(px::Logger::InitLog((logDirectory / "px_client.log").wstring(), true));
+}
+
+struct AcceptanceModes final {
+    bool audio{};
+    bool fileTransfer{};
+    bool rdpIoError{};
+    bool rdpPeerClose{};
+};
+
+AcceptanceModes RequestedAcceptanceModes() {
+    const std::wstring_view commandLine{GetCommandLineW()};  // NOLINT(pixels-raw-pointer-boundary): borrowed Win32 command-line storage.
+    return {.audio = commandLine.find(L"--acceptance-audio") != std::wstring_view::npos,
+            .fileTransfer = commandLine.find(L"--acceptance-file-transfer") != std::wstring_view::npos,
+            .rdpIoError = commandLine.find(L"--acceptance-rdp-io-error") != std::wstring_view::npos,
+            .rdpPeerClose = commandLine.find(L"--acceptance-rdp-peer-close") != std::wstring_view::npos};
+}
+
+}  // namespace
+
+int main() {
+    InitializeClientLog();
+    const std::string applicationName{px::ui::ApplicationName()};
+    const std::string productName{px::ui::WindowsProductName()};
+    LOGI("{} starting, input route diagnostics enabled", productName);
+    std::string envelope{std::istreambuf_iterator<char>{std::cin}, std::istreambuf_iterator<char>{}};
+    const auto acceptanceModes = RequestedAcceptanceModes();
+    const bool acceptanceMode = acceptanceModes.audio || acceptanceModes.fileTransfer || acceptanceModes.rdpIoError || acceptanceModes.rdpPeerClose;
+    const auto config = px::client::imgui::ParseClientLaunchEnvelope(envelope, acceptanceMode);
+    if (!envelope.empty()) SecureZeroMemory(envelope.data(), envelope.size());
+    const unsigned int acceptanceModeCount =
+        static_cast<unsigned int>(acceptanceModes.audio) + static_cast<unsigned int>(acceptanceModes.fileTransfer) +
+        static_cast<unsigned int>(acceptanceModes.rdpIoError) + static_cast<unsigned int>(acceptanceModes.rdpPeerClose);
+    if (!config || acceptanceModes.audio != config->audioAcceptance || acceptanceModes.fileTransfer != config->fileTransferAcceptance.has_value() ||
+        acceptanceModes.rdpIoError != config->rdpIoErrorAcceptance || acceptanceModes.rdpPeerClose != config->rdpPeerCloseAcceptance ||
+        acceptanceModeCount > 1U) {
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            std::format("{} received an invalid or incomplete launch request.\n{} 收到了无效或不完整的启动请求。", productName, productName),
+            "OK / 确定", true));
+        return 2;
+    }
+    const bool english = config->language == "en-US";
+    auto instanceAcquisition = px::client::imgui::ClientInstanceGuard::Acquire(
+        config->remoteDeviceId,
+        config->fileTransferOnly ? px::client::imgui::ClientInstanceMode::FileTransfer : px::client::imgui::ClientInstanceMode::Desktop);
+    if (instanceAcquisition.activatedExisting) {
+        LOGI("Activated existing {} instance for remote device {}", productName, config->remoteDeviceId);
+        return 0;
+    }
+    if (!instanceAcquisition.instance) {
+        LOGE("Client instance coordination failed with Windows error {}", instanceAcquisition.systemError);
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
+        return 5;
+    }
+    auto instanceGuard = std::move(*instanceAcquisition.instance);
+    if (config->waitForDebugger) {
+        if (px::client::imgui::ShowStartupDialog(english ? "Attach the debugger, then continue." : "请附加调试器，然后继续。",
+                                                 english ? "Continue" : "继续", false) == px::client::imgui::StartupDialogAction::Exit) {
+            return 0;
+        }
+    }
+    const std::string windowTitle{config->fileTransferOnly
+                                      ? px::client::imgui::ClientTextValue(px::client::imgui::ClientText::FileTransferWindowTitle, english)
+                                  : config->streamName.empty() ? productName
+                                                               : applicationName + " - " + config->streamName};
+    auto shellResult = px::desktop::DesktopShell::Create(
+        {.title = windowTitle,
+         .titleBarTitle = config->fileTransferOnly ? windowTitle : std::string{},
+         .width = 1440,
+         .height = 900,
+         .initiallyVisible = false,
+         .continuousTextInput = true,
+         .continuousRendering = true,
+         .edgeToEdgeContent = !config->fileTransferOnly,
+         .preferVulkanVideo = !config->fileTransferOnly && !config->rdp && !config->disableVulkan && config->decoder != "Software"});
+    if (!shellResult) {
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            english ? productName + " could not create its window or graphics device. Update the graphics driver, then retry."
+                    : productName + " 无法创建窗口或图形设备。请更新显卡驱动后重试。",
+            english ? "OK" : "确定", true));
+        return 3;
+    }
+    auto shell = std::move(shellResult.value());
+    if (!instanceGuard.StartActivationMonitor(px::desktop::DesktopShell::PostShowAndRaiseRequest)) {
+        LOGE("Client instance activation monitor could not start");
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
+        return 5;
+    }
+    const bool darkTheme{!config->lightTheme};
+    static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
+    auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
+    if (!session) {
+        static_cast<void>(px::client::imgui::ShowStartupDialog(
+            english ? productName + " could not initialize this connection. Check the launch data and installed runtime files, then retry."
+                    : productName + " 无法初始化本次连接。请检查启动数据和已安装的运行库文件后重试。",
+            english ? "OK" : "确定", true));
+        return 4;
+    }
+    session->Start();
+    std::optional<px::client::imgui::ClientAudioAcceptance> audioAcceptance{};
+    if (config->audioAcceptance) {
+        audioAcceptance.emplace(std::ref(shell), session);
+    }
+    std::optional<px::client::imgui::ClientFileTransferAcceptance> fileTransferAcceptance{};
+    if (config->fileTransferAcceptance) {
+        fileTransferAcceptance.emplace(std::ref(shell), session, *config->fileTransferAcceptance);
+    }
+    int result{};
+    if (config->fileTransferOnly) {
+        px::client::imgui::ClientFileTransferWindow window{std::ref(shell), session, *config, english};
+        result = shell.Run(
+            [&window, &audioAcceptance, &fileTransferAcceptance] {
+                window.Draw();
+                if (audioAcceptance) audioAcceptance->Tick();
+                if (fileTransferAcceptance) fileTransferAcceptance->Tick();
+            },
+            [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
+    } else {
+        const auto settingsDirectory = px::FolderUtil::GetProgramDataPath(std::string{px::ui::StorageDirectoryName()});
+        const auto databaseDirectory = settingsDirectory.empty() ? std::filesystem::path{} : std::filesystem::path{settingsDirectory} / "px_data";
+        const auto databaseName =
+            px::client::imgui::ClientUiSettings::DatabaseName(PROJECT_PRODUCT, config->consoleOrigin, config->remoteDeviceId, config->rdpAccount);
+        px::client::imgui::ClientWindow window{std::ref(shell),
+                                               session,
+                                               english,
+                                               darkTheme,
+                                               px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName)};
+        result = shell.Run(
+            [&window, &audioAcceptance, &fileTransferAcceptance] {
+                window.Draw();
+                if (audioAcceptance) audioAcceptance->Tick();
+                if (fileTransferAcceptance) fileTransferAcceptance->Tick();
+            },
+            [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
+    }
+    session->Stop();
+    if (audioAcceptance) return audioAcceptance->ExitCode();
+    return fileTransferAcceptance ? fileTransferAcceptance->ExitCode() : result;
+}

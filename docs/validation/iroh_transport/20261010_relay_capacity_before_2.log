@@ -1,0 +1,9 @@
+CAPACITY_DENIED https://127.0.0.1:18604/
+2026-10-10T08:23:36.325349Z ERROR iroh::socket: Endpoint dropped without calling `Endpoint::close`. Aborting ungracefully.
+2026-10-10T08:23:36.325681Z ERROR iroh::socket: Endpoint dropped without calling `Endpoint::close`. Aborting ungracefully.
+2026-10-10T08:23:36.325707Z ERROR iroh::socket: Endpoint dropped without calling `Endpoint::close`. Aborting ungracefully.
+Error: did not select the alternate Relay after capacity was released
+
+Caused by:
+    0: private relay did not become reachable
+    1: deadline has elapsed

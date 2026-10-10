@@ -1,0 +1,11 @@
+{
+  "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+  "passed": false,
+  "evidence": ".cache\\iroh-native-live-20261010-224627-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "0054108c-6aee-408a-a488-6149c8860f0a",
+  "started_at": "2026-10-10 22:46:29",
+  "error": "<urlopen error timed out>"
+}

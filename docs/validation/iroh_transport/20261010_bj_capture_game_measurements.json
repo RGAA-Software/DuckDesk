@@ -1,0 +1,157 @@
+[
+  {
+    "evidence": ".cache\\iroh-native-live-20261010-114027-relay\\results.json",
+    "instance": "f1223d26-1ea6-4d3c-9f0d-af740ef2446f",
+    "requested": "iroh-relay",
+    "actual_paths": [
+      "iroh-relay"
+    ],
+    "windows_count": 15,
+    "frames": 4430,
+    "fps_range": [
+      51.1,
+      60.1
+    ],
+    "max_gap_ms": 513.0,
+    "gaps_gt_100ms": 6,
+    "idr": 0,
+    "rfi": 0,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 11:40:37.065",
+        "frames": 300,
+        "fps": 59.8,
+        "max_gap_ms": 59.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:40:42.077",
+        "frames": 301,
+        "fps": 60.1,
+        "max_gap_ms": 22.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:40:47.094",
+        "frames": 301,
+        "fps": 60.0,
+        "max_gap_ms": 22.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:40:52.112",
+        "frames": 301,
+        "fps": 60.0,
+        "max_gap_ms": 30.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:40:57.114",
+        "frames": 300,
+        "fps": 60.0,
+        "max_gap_ms": 23.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:02.126",
+        "frames": 301,
+        "fps": 60.1,
+        "max_gap_ms": 27.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:07.129",
+        "frames": 300,
+        "fps": 60.0,
+        "max_gap_ms": 31.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:12.142",
+        "frames": 301,
+        "fps": 60.0,
+        "max_gap_ms": 29.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:17.146",
+        "frames": 300,
+        "fps": 60.0,
+        "max_gap_ms": 34.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:22.158",
+        "frames": 301,
+        "fps": 60.0,
+        "max_gap_ms": 31.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:27.160",
+        "frames": 300,
+        "fps": 60.0,
+        "max_gap_ms": 23.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:32.361",
+        "frames": 266,
+        "fps": 51.1,
+        "max_gap_ms": 331.1,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:37.378",
+        "frames": 300,
+        "fps": 59.8,
+        "max_gap_ms": 55.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:42.394",
+        "frames": 268,
+        "fps": 53.4,
+        "max_gap_ms": 513.0,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 11:41:47.411",
+        "frames": 290,
+        "fps": 57.8,
+        "max_gap_ms": 140.7,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      }
+    ]
+  }
+]

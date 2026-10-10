@@ -1,0 +1,20 @@
+{
+  "restart_operation": "f7b2a2a2-dc65-4786-a281-17dfb7a7bbcc",
+  "events": [
+    {
+      "event": "relay_stopped",
+      "time": "2026-10-09T15:47:38.8567715+08:00",
+      "pid": 8104
+    },
+    {
+      "event": "relay_restarted",
+      "time": "2026-10-09T15:48:10.9010624+08:00",
+      "pid": 41504
+    }
+  ],
+  "preserved_workspace": {
+    "Id": 16496,
+    "SessionId": 2,
+    "StartedUtc": "2026-10-02T01:21:24.8049191Z"
+  }
+}

@@ -1,0 +1,109 @@
+#pragma once
+
+#include "video_stream.h"
+
+namespace px::media {
+
+enum class VideoRecoveryRequestKind { kInvalidateReferences, kKeyFrame };
+
+struct VideoRecoveryRequest final {
+    VideoRecoveryRequestKind kind{VideoRecoveryRequestKind::kKeyFrame};
+    std::uint8_t stream{};
+    std::string monitor{};
+    std::optional<std::uint64_t> invalid_reference_frame{};
+    std::uint64_t recovery_age_us{};
+};
+
+// Confined to the receive executor, including its retry timer. A complete frame cancels speculative loss recovery.
+class VideoRecoveryPolicy final {
+public:
+    static constexpr std::uint64_t kRetryIntervalUs{100000};
+    static constexpr std::uint64_t kKeyFrameDeadlineUs{500000};
+    static constexpr std::uint64_t kKeyFrameRetryUs{1000000};
+    static constexpr std::uint64_t kStalledRetryUs{4000000};
+
+    void ObserveRtt(std::uint64_t rtt_us) {
+        // Allow a request round trip and two 60 FPS capture opportunities before
+        // retrying a lost repair. Keep the established interval when RTT is
+        // unavailable or high; complete-frame progress is still required below.
+        reference_retry_us_ = rtt_us == 0 ? kRetryIntervalUs : std::min(kRetryIntervalUs, 33334 + 2 * std::min(rtt_us, kRetryIntervalUs));
+    }
+
+    [[nodiscard]] std::optional<VideoRecoveryRequest> Observe(std::uint8_t stream_index, const VideoStreamOutput& received, std::uint64_t now_us) {
+        auto& recovery = streams_[stream_index];
+        if (received.completed_frame_index) {
+            recovery.monitor = received.completed_monitor;
+            recovery.progress_since_request = true;
+        }
+        if (received.frame) {
+            recovery.monitor = received.frame->monitor;
+            recovery.started_us.reset();
+            recovery.last_request_us.reset();
+            recovery.last_key_frame_request_us.reset();
+            recovery.invalid_reference_frame.reset();
+            recovery.requires_key_frame = false;
+            recovery.progress_since_request = false;
+            return std::nullopt;
+        }
+        if (received.incomplete_frame && !recovery.started_us) recovery.started_us = now_us;
+        if (received.needs_idr || received.invalid_reference_frame) {
+            if (!recovery.started_us) recovery.started_us = now_us;
+            recovery.requires_key_frame |= received.needs_idr;
+            if (received.invalid_reference_frame &&
+                (!recovery.invalid_reference_frame || *received.invalid_reference_frame < *recovery.invalid_reference_frame)) {
+                recovery.invalid_reference_frame = received.invalid_reference_frame;
+            }
+        }
+        return Poll(stream_index, recovery, now_us);
+    }
+
+    [[nodiscard]] std::vector<VideoRecoveryRequest> PollDue(std::uint64_t now_us) {
+        std::vector<VideoRecoveryRequest> requests{};
+        for (auto& [stream_index, recovery] : streams_) {
+            if (auto request = Poll(stream_index, recovery, now_us)) requests.push_back(std::move(*request));
+        }
+        return requests;
+    }
+
+    void Reset() {
+        streams_.clear();
+        reference_retry_us_ = kRetryIntervalUs;
+    }
+
+private:
+    struct Recovery final {
+        std::string monitor{};
+        std::optional<std::uint64_t> started_us{};
+        std::optional<std::uint64_t> last_request_us{};
+        std::optional<std::uint64_t> last_key_frame_request_us{};
+        std::optional<std::uint64_t> invalid_reference_frame{};
+        bool requires_key_frame{};
+        bool progress_since_request{};
+    };
+
+    [[nodiscard]] std::optional<VideoRecoveryRequest> Poll(std::uint8_t stream_index, Recovery& recovery, std::uint64_t now_us) const {
+        if (!recovery.started_us || now_us < *recovery.started_us) return std::nullopt;
+        const auto recovery_age_us = now_us - *recovery.started_us;
+        if (!recovery.requires_key_frame && !recovery.invalid_reference_frame && recovery_age_us < kStalledRetryUs) return std::nullopt;
+        // With no complete-frame progress, repeated large IDRs only deepen a congested queue.
+        // A sparse watchdog still recovers a lost final frame or a static source.
+        if (recovery.last_request_us && !recovery.progress_since_request && now_us - *recovery.last_request_us < kStalledRetryUs) return std::nullopt;
+        const bool request_key_frame = recovery.requires_key_frame || recovery_age_us >= kKeyFrameDeadlineUs;
+        const auto last_request_us = request_key_frame ? recovery.last_key_frame_request_us : recovery.last_request_us;
+        const auto retry_interval_us = request_key_frame ? kKeyFrameRetryUs : reference_retry_us_;
+        if (last_request_us && (now_us < *last_request_us || now_us - *last_request_us < retry_interval_us)) return std::nullopt;
+        recovery.last_request_us = now_us;
+        recovery.progress_since_request = false;
+        if (request_key_frame) recovery.last_key_frame_request_us = now_us;
+        return VideoRecoveryRequest{.kind = request_key_frame ? VideoRecoveryRequestKind::kKeyFrame : VideoRecoveryRequestKind::kInvalidateReferences,
+                                    .stream = stream_index,
+                                    .monitor = recovery.monitor,
+                                    .invalid_reference_frame = recovery.invalid_reference_frame,
+                                    .recovery_age_us = recovery_age_us};
+    }
+
+    std::map<std::uint8_t, Recovery> streams_{};
+    std::uint64_t reference_retry_us_{kRetryIntervalUs};
+};
+
+}  // namespace px::media

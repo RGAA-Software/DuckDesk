@@ -44,6 +44,7 @@ class ResourceFixture(ThreadingHTTPServer):
         self.socket = context.wrap_socket(self.socket, server_side=True)
         self.scenarios = {}
         self.failures = []
+        self.opens = {}
 
 
 class ResourceHandler(BaseHTTPRequestHandler):
@@ -70,9 +71,10 @@ class ResourceHandler(BaseHTTPRequestHandler):
         if self.headers.get("X-Pixels-Client-Type") != "panel" or self.headers.get("X-Pixels-Subject-Kind") != "guest":
             self.server.failures.append("Request lost its client/subject identity")
         if self.path == "/api/console/resource-sessions" and self.command == "POST":
+            self.server.opens[scenario] = self.server.opens.get(scenario, 0) + 1
             session = {"id": str(uuid.uuid4()), "revision": 1, "state": "pending", "client_type": "panel",
                        "access_role": "controller", "target": payload["target"], "owner": {"kind": "guest"}}
-            self.server.scenarios[scenario] = {"session": session, "closes": 0, "reads": 0}
+            self.server.scenarios[scenario] = {"session": session, "closes": 0, "reads": 0, "descriptors": 0}
             opened = dict(session)
             if scenario == "invalid_open_metadata":
                 opened["client_type"] = "android"
@@ -83,6 +85,13 @@ class ResourceHandler(BaseHTTPRequestHandler):
         if not self.path.startswith("/api/console/resource-sessions/" + session["id"]):
             self.server.failures.append("Cleanup targeted another session")
         if self.path.endswith("/descriptor"):
+            scenario_state["descriptors"] += 1
+            if scenario == "iroh_wait":
+                if payload["revision"] != 1:
+                    self.server.failures.append("Endpoint readiness retry changed the reservation revision")
+                if scenario_state["descriptors"] < 3:
+                    self.respond(503, {"code": "transport_not_ready"})
+                    return
             session["revision"] += 1
             if scenario in ("descriptor_failure", "cleanup_rejected"):
                 self.respond(503, {"code": "unavailable", "message": "descriptor unavailable"})
@@ -92,6 +101,9 @@ class ResourceHandler(BaseHTTPRequestHandler):
                 descriptor = {"session": dict(session), "host": "127.0.0.1", "port": 4613, "transport": "native"}
                 if scenario == "invalid_descriptor":
                     descriptor["port"] = 0
+                if scenario == "iroh_wait":
+                    descriptor["iroh"] = {"endpoint_address": {"id": "a" * 64, "addrs": [{"Ip": "127.0.0.1:4613"}]},
+                                          "endpoint_configuration": {}}
                 self.respond(200, {"descriptor": descriptor, "token": "fixture-token"})
             if scenario in ("stale_close", "concurrent_close", "already_closed"):
                 session["revision"] += 1
@@ -128,7 +140,9 @@ def main():
                 completed = subprocess.run([str(arguments.test_executable.resolve()), "--gtest_filter=ConsoleResourceLifecycle.*"],
                                            env=environment, timeout=90, check=False)
                 assert completed.returncode == 0, "C++ Console API assertions failed"
-                assert len(server.scenarios) == 10, "Some fault scenarios were not exercised"
+                assert len(server.scenarios) == 11, "Some fault scenarios were not exercised"
+                assert server.opens["iroh_wait"] == 1, "Endpoint readiness retry reserved another session"
+                assert server.scenarios["iroh_wait"]["descriptors"] == 3
                 for scenario, observed in server.scenarios.items():
                     expected_closes = 0 if scenario == "already_closed" else 2 if scenario == "concurrent_close" else 1
                     assert observed["closes"] == expected_closes, (scenario, observed)
@@ -136,7 +150,7 @@ def main():
                         "cleanup_rejected", "close_rejected") else "closing"
                     assert observed["session"]["state"] == expected_state, (scenario, observed)
                 assert not server.failures, server.failures
-                print("PASS: 10 HTTPS reservation cleanup/revision scenarios")
+                print("PASS: 11 HTTPS reservation cleanup/revision/readiness scenarios")
             finally:
                 server.shutdown()
                 worker.join(timeout=5)

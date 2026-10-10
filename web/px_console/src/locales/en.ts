@@ -313,6 +313,8 @@ export default {
         validation: { device: "Select a device that is not already bound to a node" },
     },
     relays: {
+        qadPort: "QAD / UDP port",
+        notApplicable: "Not applicable",
         connections: "Connections",
         copyCredential: "Copy Relay token",
         create: "Register Relay",

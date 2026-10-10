@@ -1,0 +1,23 @@
+[
+  {
+    "original_path": "rust_transport/px_transport/src/lib.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? rust_transport/px_transport/src/lib.rs",
+    "sha256": "855ae10a5382d613076373d8afe7f873e81c951c148f784f43a091acdcf2f47b",
+    "reason": "Replace implicit public-default QAD port assumption with explicit private relay QAD/TLS configuration."
+  },
+  {
+    "original_path": "rust_transport/px_transport_probe/src/main.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? rust_transport/px_transport_probe/src/main.rs",
+    "sha256": "f1194061b61407e49158b02985d481e278aeeabbbf9c1534b22a5534b914e3d0",
+    "reason": "Replace implicit public-default QAD port assumption with explicit private relay QAD/TLS configuration."
+  },
+  {
+    "original_path": "rust_transport/px_transport_probe/src/bin/px_relay_probe.rs",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? rust_transport/px_transport_probe/src/bin/px_relay_probe.rs",
+    "sha256": "13cf34e3943fb4d8b821a16108595ef5068f5ca85c3901e0efadd50570f2e877",
+    "reason": "Replace implicit public-default QAD port assumption with explicit private relay QAD/TLS configuration."
+  }
+]

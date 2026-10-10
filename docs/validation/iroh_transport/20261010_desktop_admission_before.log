@@ -1,0 +1,21 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+Note: Google Test filter = IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(188): error: Value of: opened->reply.accepted
+  Actual: false
+Expected: true
+INVALID_ARGUMENT
+
+[  FAILED  ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword (79 ms)
+[----------] 1 test from IrohFrontendTest (79 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (79 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+
+ 1 FAILED TEST

@@ -1,0 +1,28 @@
+[2026-10-10 22:46:32.468][thread 6616][client_session.cpp:223][info] : event=file_transfer.session component=client operation=start outcome=success
+[2026-10-10 22:46:32.835][thread 78860][iroh_dialer.cpp:147][info] : event=iroh.connect outcome=accepted reconnect=false
+[2026-10-10 22:46:32.841][thread 13088][client_session.cpp:337][info] : event=file_transfer.capability component=client operation=configure outcome=enabled host_enabled=true
+[2026-10-10 22:46:32.877][thread 51252][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-10 22:46:32.885][thread 51252][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=207
+[2026-10-10 22:46:32.887][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(513.0,347.0) remote=(0.237,0.222) sent=true state=1 monitor=[Application]
+[2026-10-10 22:46:32.908][thread 69504][thunder_sdk.cpp:55][info] : [LAT-decode] frames=1 avg_us=22688 max_us=22688
+[2026-10-10 22:46:33.001][thread 6616][client_file_transfer_acceptance.cpp:64][info] : event=file_transfer.acceptance component=client operation=start_upload outcome=success job=1
+[2026-10-10 22:46:33.006][thread 80108][message_session.cpp:337][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=262144 receipt_bytes=172 backpressure_count=0 receipt_delay_us=5007
+[2026-10-10 22:46:33.801][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(35.0,337.0) remote=(0.016,0.215) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:34.481][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(576.0,470.0) remote=(0.267,0.318) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:35.648][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(577.0,471.0) remote=(0.267,0.319) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:36.153][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(599.0,433.0) remote=(0.277,0.289) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:36.656][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(843.0,503.0) remote=(0.390,0.343) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:37.160][thread 6616][client_window.cpp:269][info] : Client input route: mouse move local=(1017.0,585.0) remote=(0.471,0.407) sent=true state=1 monitor=[game-hook]
+[2026-10-10 22:46:37.900][thread 51252][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=1533 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=302 loss=0 malformed=0
+[2026-10-10 22:46:37.900][thread 51252][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=24155 tx_packets=10683 rx_packets=7464 tx_lost=0 tx_datagrams=91 rx_datagrams=1913
+[2026-10-10 22:46:37.900][thread 51252][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=366691 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:46:37.900][thread 51252][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=303, fps=60.4, max_gap_ms=57.9, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 22:46:37.915][thread 69504][thunder_sdk.cpp:55][info] : [LAT-decode] frames=299 avg_us=464 max_us=14256
+[2026-10-10 22:46:38.056][thread 80108][message_session.cpp:337][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=131072 receipt_bytes=13529407 backpressure_count=109 receipt_delay_us=51098
+[2026-10-10 22:46:42.910][thread 51252][media_datagrams.cpp:303][info] : event=iroh.reassembly stream=0 data=2081 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=603 loss=0 malformed=0
+[2026-10-10 22:46:42.910][thread 51252][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=23791 tx_packets=23866 rx_packets=15396 tx_lost=0 tx_datagrams=182 rx_datagrams=2835
+[2026-10-10 22:46:42.910][thread 51252][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={"Relay":"https://39.71.45.66:4605/"} cwnd_bytes=427876 datagram_buffer_space=65536 congestion_events=0
+[2026-10-10 22:46:42.910][thread 51252][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=73.4, gaps_gt_100ms=0, idr=0, rfi=0
+[2026-10-10 22:46:42.916][thread 69504][thunder_sdk.cpp:55][info] : [LAT-decode] frames=301 avg_us=348 max_us=2410
+[2026-10-10 22:46:43.072][thread 80108][message_session.cpp:337][info] : event=iroh.file_flow outstanding_bytes=0 window_bytes=131072 receipt_bytes=30994396 backpressure_count=251 receipt_delay_us=34264
+[2026-10-10 22:46:44.281][thread 51252][media_datagrams.cpp:292][info] : event=iroh.frame_transit stream=0 frame=888 source_gap_us=16355 receive_gap_us=73404 excess_us=84042 assembly_call_us=5

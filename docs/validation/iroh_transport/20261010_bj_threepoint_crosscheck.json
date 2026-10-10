@@ -1,0 +1,405 @@
+{
+  "captures": {
+    "relay": {
+      "sha256": "6cc4df62633028a9c0244903205e4cb5d9e814a8fc105ed3f6a0a856f0b986ae",
+      "packets": 200260
+    },
+    "node": {
+      "sha256": "a2bb17b6b49fa40eafb2d34461e11545becfe53ef75c2cb4b5a30de007b5c00c",
+      "packets": 107796
+    },
+    "client": {
+      "sha256": "d96660139df06faac2e419ec8aff7c5671dc429a8503c15d4df1f7766e5b1fd5",
+      "packets": 7642
+    }
+  },
+  "crosscheck": [
+    {
+      "direction": "90_to_BJ",
+      "stall": {
+        "time": 1791604350.61351,
+        "sequence": 2427651458,
+        "duration_ms": 114.21012878417969
+      },
+      "sequence": 2427651458,
+      "relay": [
+        {
+          "time": 1791604350.72772,
+          "source": "39.71.45.66",
+          "destination": "10.2.4.7",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427651458,
+          "ack": 974767120,
+          "bytes": 419,
+          "flags": 24
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604350.571879,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427651458,
+          "ack": 974767120,
+          "bytes": 419,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.621244,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427651458,
+          "ack": 974767120,
+          "bytes": 419,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.669811,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427651458,
+          "ack": 974767120,
+          "bytes": 1424,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.716568,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427651458,
+          "ack": 974767120,
+          "bytes": 419,
+          "flags": 24
+        }
+      ]
+    },
+    {
+      "direction": "90_to_BJ",
+      "stall": {
+        "time": 1791604351.932459,
+        "sequence": 2427738785,
+        "duration_ms": 88.19699287414551
+      },
+      "sequence": 2427738785,
+      "relay": [
+        {
+          "time": 1791604352.020656,
+          "source": "39.71.45.66",
+          "destination": "10.2.4.7",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427738785,
+          "ack": 974770347,
+          "bytes": 1424,
+          "flags": 24
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604351.937478,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427738785,
+          "ack": 974770347,
+          "bytes": 117,
+          "flags": 24
+        },
+        {
+          "time": 1791604352.021075,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427738785,
+          "ack": 974770347,
+          "bytes": 1424,
+          "flags": 24
+        }
+      ]
+    },
+    {
+      "direction": "90_to_BJ",
+      "stall": {
+        "time": 1791604350.529107,
+        "sequence": 2427649736,
+        "duration_ms": 69.18191909790039
+      },
+      "sequence": 2427649736,
+      "relay": [
+        {
+          "time": 1791604350.598289,
+          "source": "39.71.45.66",
+          "destination": "10.2.4.7",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427649736,
+          "ack": 974767120,
+          "bytes": 229,
+          "flags": 24
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604350.495796,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427649736,
+          "ack": 974767120,
+          "bytes": 116,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.551931,
+          "source": "10.0.0.90",
+          "destination": "49.232.233.61",
+          "source_port": 32112,
+          "destination_port": 4605,
+          "seq": 2427649736,
+          "ack": 974767120,
+          "bytes": 1301,
+          "flags": 24
+        }
+      ]
+    },
+    {
+      "direction": "BJ_to_90",
+      "stall": {
+        "time": 1791604350.437833,
+        "ack": 974767120,
+        "duration_ms": 442.33202934265137
+      },
+      "sequence": 974767120,
+      "relay": [
+        {
+          "time": 1791604350.35003,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427639881,
+          "bytes": 92,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.437874,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427641466,
+          "bytes": 696,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.489707,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427643377,
+          "bytes": 696,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.548745,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427649736,
+          "bytes": 696,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.596851,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427649736,
+          "bytes": 696,
+          "flags": 24
+        },
+        {
+          "time": 1791604350.840847,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427660549,
+          "bytes": 696,
+          "flags": 24
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604350.863779,
+          "source": "49.232.233.61",
+          "destination": "10.0.0.90",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 974767120,
+          "ack": 2427660549,
+          "bytes": 696,
+          "flags": 24
+        }
+      ]
+    },
+    {
+      "direction": "BJ_to_90",
+      "stall": {
+        "time": 1791604284.642128,
+        "ack": 971996536,
+        "duration_ms": 266.97802543640137
+      },
+      "sequence": 971996536,
+      "relay": [
+        {
+          "time": 1791604284.601821,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409278804,
+          "bytes": 1080,
+          "flags": 152
+        },
+        {
+          "time": 1791604284.642155,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409306013,
+          "bytes": 1080,
+          "flags": 24
+        },
+        {
+          "time": 1791604284.659858,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409306242,
+          "bytes": 1080,
+          "flags": 24
+        },
+        {
+          "time": 1791604284.675973,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409306663,
+          "bytes": 1080,
+          "flags": 24
+        },
+        {
+          "time": 1791604284.895857,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409315268,
+          "bytes": 1080,
+          "flags": 24
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604284.919181,
+          "source": "49.232.233.61",
+          "destination": "10.0.0.90",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 971996536,
+          "ack": 2409315268,
+          "bytes": 1080,
+          "flags": 24
+        }
+      ]
+    },
+    {
+      "direction": "BJ_to_90",
+      "stall": {
+        "time": 1791604285.275414,
+        "ack": 972010309,
+        "duration_ms": 233.72602462768555
+      },
+      "sequence": 972010309,
+      "relay": [
+        {
+          "time": 1791604285.219128,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 972010309,
+          "ack": 2409350674,
+          "bytes": 1424,
+          "flags": 16
+        },
+        {
+          "time": 1791604285.275428,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 972010309,
+          "ack": 2409369227,
+          "bytes": 1424,
+          "flags": 16
+        },
+        {
+          "time": 1791604285.495855,
+          "source": "10.2.4.7",
+          "destination": "39.71.45.66",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 972010309,
+          "ack": 2409379828,
+          "bytes": 1424,
+          "flags": 16
+        }
+      ],
+      "node": [
+        {
+          "time": 1791604285.519196,
+          "source": "49.232.233.61",
+          "destination": "10.0.0.90",
+          "source_port": 4605,
+          "destination_port": 32112,
+          "seq": 972010309,
+          "ack": 2409379828,
+          "bytes": 1424,
+          "flags": 16
+        }
+      ]
+    }
+  ],
+  "local_capture_limitation": "NIC capture lacks most inbound game traffic; not treated as full downstream evidence."
+}

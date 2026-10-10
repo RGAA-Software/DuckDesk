@@ -22,19 +22,18 @@ void CloudApplicationProgressDialog::Draw(const px::ui::Localizer& localizer) {
     const bool newRequest{observedGeneration_ != progress->generation};
     const bool failed{progress->status == ApplicationLaunchStatus::Failed};
     const bool ready{progress->status == ApplicationLaunchStatus::Ready};
-    const bool closeReady{ready && !newRequest && displayedStatus_ == ApplicationLaunchStatus::Ready};
+    const bool succeeded{progress->status == ApplicationLaunchStatus::Succeeded};
+    const bool launchReady{ready && dispatchedGeneration_ != progress->generation};
     if (newRequest || (failed && displayedStatus_ != ApplicationLaunchStatus::Failed)) {
         observedGeneration_ = progress->generation;
         px::ui::OpenModal({"CloudApplicationProgress"});
     }
     displayedStatus_ = progress->status;
-    bool launchAfterClose{};
     {
         px::ui::ModalScope dialog{{"CloudApplicationProgress"}, 560.0F};
         if (!dialog.Open()) return;
-        if (closeReady) {
+        if (succeeded) {
             ImGui::CloseCurrentPopup();
-            launchAfterClose = true;
         } else {
             static_cast<void>(px::ui::DialogHeader({"application-progress-header"},
                                                    localizer.Text(failed ? px::ui::TextId::OperationFailed : px::ui::TextId::ApplicationLaunchTitle),
@@ -43,10 +42,11 @@ void CloudApplicationProgressDialog::Draw(const px::ui::Localizer& localizer) {
                                                     .tone = failed ? px::ui::BadgeVariant::Destructive : px::ui::BadgeVariant::Default,
                                                     .closeable = false}));
             constexpr std::array labels{px::ui::TextId::ApplicationLaunchStart, px::ui::TextId::ApplicationLaunchWait,
-                                        px::ui::TextId::ApplicationLaunchAuthorize, px::ui::TextId::ApplicationLaunchPrepareClient};
+                                        px::ui::TextId::ApplicationLaunchAuthorize, px::ui::TextId::ApplicationLaunchPrepareClient,
+                                        px::ui::TextId::ConnectionWaitRemote};
             const auto activeStage{static_cast<std::size_t>(progress->stage)};
             for (std::size_t stageIndex{}; stageIndex < labels.size(); ++stageIndex) {
-                const bool complete{ready || stageIndex < activeStage};
+                const bool complete{stageIndex < activeStage || (ready && stageIndex <= activeStage)};
                 const bool current{stageIndex == activeStage};
                 px::ui::StrongText(localizer.Text(labels[stageIndex]));
                 ImGui::SameLine(px::ui::Scale(330.0F));
@@ -80,8 +80,11 @@ void CloudApplicationProgressDialog::Draw(const px::ui::Localizer& localizer) {
             }
         }
     }
-    // EndPopup runs before dispatching any process creation work.
-    if (launchAfterClose) port_->LaunchPrepared(progress->generation);
+    // Keep the modal open while the worker starts Client and awaits its remote acknowledgement.
+    if (launchReady) {
+        dispatchedGeneration_ = progress->generation;
+        port_->LaunchPrepared(progress->generation);
+    }
 }
 
 }  // namespace px::panel::ui

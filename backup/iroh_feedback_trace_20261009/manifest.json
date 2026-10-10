@@ -1,0 +1,34 @@
+[
+  {
+    "path": "src/px_transport/media_datagrams.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.h",
+    "sha256": "89FDF33FBA36DE6ECAFA199E08CA4B8C8E4FF1A3A51B90859D57E578AC727FC6",
+    "reason": "Preserve current media implementation before feedback/flight diagnostics",
+    "archive_batch": "backup/iroh_feedback_trace_20261009"
+  },
+  {
+    "path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/media_datagrams.cpp",
+    "sha256": "AB2CEC78583542F27FE393C2175A2D1F16D7566B72CA914DE68F2586DA808E7F",
+    "reason": "Preserve current media implementation before feedback/flight diagnostics",
+    "archive_batch": "backup/iroh_feedback_trace_20261009"
+  },
+  {
+    "path": "src/px_transport/video_flight_window.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/video_flight_window.h",
+    "sha256": "8FECC7252260C9151115966B488AE42D8F248BB993884E98942076C8F61FEFF3",
+    "reason": "Preserve current media implementation before feedback/flight diagnostics",
+    "archive_batch": "backup/iroh_feedback_trace_20261009"
+  },
+  {
+    "path": "src/px_transport/message_session.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/message_session.cpp",
+    "sha256": "DEB39F03338DB3EC05554226CF82CE3006DACE55DBE8D2F86C2C9ED2480743DB",
+    "reason": "Preserve current media implementation before feedback/flight diagnostics",
+    "archive_batch": "backup/iroh_feedback_trace_20261009"
+  }
+]

@@ -20,6 +20,7 @@
 #include "app/win/win_desktop_manager.h"
 #include "app_global_messages.h"
 #include "application_text_service.h"
+#include "application_clipboard.h"
 #include "architecture/encoders/video_encoder_module.h"
 #include "architecture/observers/frame_debugger_observer.h"
 #include "architecture/pipeline/encoded_media_bus.h"
@@ -300,6 +301,9 @@ NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<RdApplication>& a
 }
 
 void NetworkEventIngress::InitListeners() {
+    if (settings_.IsGameHookMode()) {
+        application_clipboard_ = std::make_shared<ApplicationClipboard>(clipboard::CreatePlatform());
+    }
     auto instance{settings_.app_instance_id_};
     if (instance.empty()) instance = settings_.webview_instance_id_;
     if (instance.empty()) instance = std::to_string(GetCurrentProcessId()) + ":" + std::to_string(CurrentSystemMilliseconds());
@@ -334,6 +338,16 @@ void NetworkEventIngress::InitListeners() {
     msg_listener_->Listen<MsgTimer1000>([weak_self](const MsgTimer1000&) {
         if (const auto self = weak_self.lock()) {
             ExpireVirtualDisplayRequests(self->app_, self->virtual_display_);
+            if (self->application_clipboard_) {
+                if (const auto text = self->application_clipboard_->ReadChangedText()) {
+                    const auto message = std::make_shared<Message>();
+                    message->set_type(kClipboardInfo);
+                    message->mutable_clipboard_info()->set_type(kClipboardText);
+                    message->mutable_clipboard_info()->set_msg(*text);
+                    self->app_->PostNetMessage(ProtoAsData(message));
+                    LOGI("event=clipboard.text mode=game_hook direction=to_client bytes={}", text->size());
+                }
+            }
         }
     });
     msg_listener_->Listen<MsgVirtualDisplayServiceResult>([weak_self](const MsgVirtualDisplayServiceResult& status) {
@@ -344,6 +358,7 @@ void NetworkEventIngress::InitListeners() {
 }
 
 void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id) {
+    if (application_clipboard_) application_clipboard_->Refresh();
     const auto binding_id = ResourceChannelBindingId(source_id, event->stream_id_);
     const auto logical_sessions = app_->GetLogicalSessionRegistry();
     const auto logical_session_id =
@@ -627,11 +642,20 @@ void NetworkEventIngress::ProcessNetEvent(const std::shared_ptr<NetworkClientEve
             return;
         }
         if (joystick_service_) {
-            joystick_service_->HandleMessage(msg, source_id);
+            static_cast<void>(joystick_service_->QueueMessage(msg, source_id));
         }
         const auto weak_self = weak_from_this();
         const auto self = weak_self.lock();
         if (!self) {
+            return;
+        }
+        if (application_clipboard_ && msg->type() == kClipboardInfo) {
+            const auto& clipboard_content = msg->clipboard_info();
+            if (clipboard_content.type() == kClipboardText) {
+                const bool written{application_clipboard_->WriteRemoteText(clipboard_content.msg())};
+                LOGI("event=clipboard.text mode=game_hook direction=from_client outcome={} bytes={}", written ? "applied" : "failed",
+                     clipboard_content.msg().size());
+            }
             return;
         }
         if (settings_.IsWebViewMode() && msg->type() == kClipboardInfo) {

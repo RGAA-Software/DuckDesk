@@ -57,8 +57,12 @@ std::optional<WebSocketFrontendDescriptor> ConsumeWebSocketFrontendDescriptor(st
 }
 
 bool IsAcceptedWebSocketFrontendGrant(const WebSocketFrontendDescriptor& descriptor, const std::string& render_instance_id,
-                                      const ConsoleFrontendGrant& grant) {
-    return grant.target_kind == "cloud_application" && grant.instance_id == render_instance_id &&
+                                      const std::string& render_device_id, const ConsoleFrontendGrant& grant) {
+    const bool target_matches = render_instance_id.empty()
+                                    ? grant.target_kind == "desktop" && !render_device_id.empty() && grant.device_id == render_device_id &&
+                                          grant.instance_id.empty() && grant.application_id.empty()
+                                    : grant.target_kind == "cloud_application" && grant.instance_id == render_instance_id;
+    return target_matches &&
            (grant.access_role == "controller" || grant.access_role == "observer") && grant.session_id == descriptor.session_id &&
            grant.revision == descriptor.revision && grant.valid_for_ms > 0;
 }
@@ -157,6 +161,14 @@ PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::ReleaseDirect(std::w
         LOGW("event=session.direct_stream_release component=net_ws operation=release outcome=failed code={} recoverable=true",
              released.Error().StableCode());
     }
+}
+
+void WebSocketFrontendLeaseRenewalCoordinator::ReleaseDirectQuota(std::string quota_id) {
+    if (quota_id.empty() || !async_scope_) return;
+    const auto owner = shared_from_this();
+    static_cast<void>(async_scope_->Spawn("console-unused-direct-stream-release", [owner, quota_id = std::move(quota_id)] {
+        return ReleaseDirect(owner, quota_id);
+    }));
 }
 
 PxAwaitable<void> WebSocketFrontendLeaseRenewalCoordinator::Run(std::weak_ptr<WebSocketFrontendLeaseRenewalCoordinator> weak_owner,

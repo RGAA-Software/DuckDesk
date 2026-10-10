@@ -1,0 +1,14 @@
+[
+  {
+    "Hash": "DC53728E8B8BCC1911DA28B58CFA98D76A1B73E8B66B68C04ED5CFC5481486B7",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-bounded-bbr-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe"
+  },
+  {
+    "Hash": "CB62FBD00BFEF25C75407AD67BF6854F30C997EB08CA4906F0AC3520CC5A31B9",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\product-manifest.json"
+  },
+  {
+    "Hash": "4C0197FF62C4B798F397FB03FBEE420F84966A87DFDC19D361A23A3A1737A4F5",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\px_render.exe"
+  }
+]

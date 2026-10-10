@@ -437,6 +437,14 @@ impl NodeStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::Rejected)?;
+        crate::iroh_endpoints::replace(
+            &mut tx,
+            node.id,
+            node.generation,
+            connection.epoch.0,
+            &report.render_iroh_endpoints,
+        )
+        .await?;
         let telemetry = validated.telemetry;
         sqlx::query_file!("queries/delete_node_gpus.sql", node.id)
             .execute(&mut *tx)

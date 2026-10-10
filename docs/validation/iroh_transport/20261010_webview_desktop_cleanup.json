@@ -1,0 +1,24 @@
+{
+    "console_configuration_sha256":  "03352CEEAB08C7B89A342505D398629A6847757A617E19478849BBB567DD4438",
+    "qos_count":  0,
+    "renders":  [
+                    {
+                        "Id":  48064,
+                        "ProcessName":  "px_render"
+                    }
+                ],
+    "services":  [
+                     {
+                         "Name":  "Pixels.Console",
+                         "Status":  "Running"
+                     },
+                     {
+                         "Name":  "Pixels.Relay",
+                         "Status":  "Running"
+                     },
+                     {
+                         "Name":  "px_service",
+                         "Status":  "Running"
+                     }
+                 ]
+}

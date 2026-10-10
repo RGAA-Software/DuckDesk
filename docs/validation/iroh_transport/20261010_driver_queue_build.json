@@ -1,0 +1,24 @@
+{
+  "version": "3.3.97",
+  "candidate": "iroh-driver-queue-20261010",
+  "development_build": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "sha256": "0D16BE84BB2A1012093C865C4C9D46F7161A0F0183457D2CF500907BDC9728A2"
+  },
+  "development_dist": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+    "sha256": "0D16BE84BB2A1012093C865C4C9D46F7161A0F0183457D2CF500907BDC9728A2"
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-driver-queue-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "080F2F0B30A1AD113E226471C93131811EC14C57A4E91F823B8AEBA33A4C34DC"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-driver-queue-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "DBAB23372A4F85451F9DDA0FBAC7906E66003F5A4DB5AAFC723097E86E83CA31"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-driver-queue-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "18D1EAA212B4160FA436CC93EBBF8A1EAFAA63D41409A83C7D41BD52EA8F3B3E"
+  }
+}

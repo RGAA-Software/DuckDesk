@@ -1,5 +1,30 @@
 # Workspace delivery rules
 
+- Transport scope correction (2026-10-10): keep this long task focused on media transport, iroh direct/relay, reliable streams/datagrams,
+  multi-Relay allocation/recovery, Windows/Linux delivery and Android last. Validate existing business features only as transport consumers
+  or when affected by a concrete change; independent recording/playback and exhaustive clipboard/UI acceptance are not transport milestones.
+  Reuse passed evidence. Game Hook text clipboard is delivered; do not reopen it without a regression. Track missing NAT, capacity and
+  stability evidence honestly without turning ancillary product work into a prerequisite for core network development.
+
+- Clipboard scope decision (2026-10-10, superseding the earlier exclusion): Game Hook applications also support bidirectional text clipboard. Include their clipboard round trip in transport acceptance. Keep ordinary desktop, WebView text editing and RDP clipboard flows in their existing scopes.
+
+- Transport progress continuity (2026-10-10): before resuming transport work, read the current entry in
+  `docs/validation/iroh_transport/status.md`. Update it after each deployment/validation batch with installed identities,
+  persistent configuration changes, evidence and the next unfinished step; do not repeat completed gates without a new reason.
+
+- Transport delivery order (2026-10-10): implement Android last. Prioritize the formal iroh Relay and Windows flows;
+  Relay must support both Windows and Linux. The user will supply additional Relay hosts for cross-host validation.
+  Do not retire data paths still used by Android before its final migration and acceptance.
+
+- Transport implementation priority (2026-10-08): prioritize the media stutter fix and working iroh direct/relay, reliable-stream and
+  datagram functionality. Reuse existing login and resource-session authorization; do not introduce short-lived transport tokens,
+  extra tickets, a second authentication system, or token-specific acceptance work. Keep focused regression and real connectivity
+  validation, without expanding ancillary requirements ahead of the core functionality.
+
+- Remote development directory decision (2026-10-08): use `D:\112233` as the development workspace on the 90 Windows machine
+  (Pixels device code `428358431`, updated by the user). Stage source checkouts, development/test scripts, temporary artifacts and product installers there;
+  do not copy development files to its Desktop. This does not relocate installed products or their runtime data/log directories.
+
 - Windows release decision (2026-09-23): Windows products are intentionally distributed without Authenticode code signing or RFC 3161
   timestamping. Private-deployment operators accept the Windows unknown-publisher/security warning. Windows packaging, installation and
   upgrade gates rely on immutable product/publisher identity, exact SHA-256 manifests, isolated outputs and installer lifecycle checks;
@@ -190,9 +215,13 @@
 
 # Local upstream source references
 
+- User-approved exception (2026-10-10): maintain the minimal iroh 1.3.0 disconnected-Relay send-queue fix in the isolated
+  `rust_transport/vendor/iroh-1.3.0` copy, with reviewed patches and original/modified hashes under `patches/iroh/`.
+  Cargo registry caches and original reference checkouts remain read-only. This exception does not authorize unrelated dependency changes.
+
 Local reference checkouts (original references confirmed on 2026-09-07; session/RDP references added on 2026-09-08):
 
-- RustDesk: `D:/source/rustdesk` — connection establishment, NAT traversal/relay, session and file-transfer architecture. Path updated and verified on 2026-09-08; use this external checkout for all RustDesk references and do not clone a second copy under this repository.
+- RustDesk: `D:/GoCloud/rustdesk` — connection establishment, NAT traversal/relay, media queues/recovery, session and file-transfer architecture. User updated this path on 2026-10-09; it supersedes `D:/source/rustdesk`. Use this external checkout for all RustDesk references and do not clone a second copy under this repository.
 - Sunshine: `D:/source/Sunshine` — host-side media transport, UDP packetization, FEC and pacing.
 - Moonlight Qt: `D:/source/moonlight-qt` — client-side SDK integration, media reception and platform adaptation; inspect its shared-core
   submodules when populated.
@@ -205,6 +234,14 @@ Local reference checkouts (original references confirmed on 2026-09-07; session/
 Prefer inspecting these local sources for implementation comparisons. Record the checkout revision when making version-sensitive claims;
 do not assume a local checkout matches the latest upstream release. Treat these repositories as read-only references unless the user
 explicitly requests changes to them. Their availability does not expand the current implementation scope.
+
+Transport reference revisions verified on 2026-10-09 (re-read HEAD when making later implementation comparisons):
+- RustDesk: `7aa98d43cf1962a7a29ec16ffef42974377ef11e`.
+- Moonlight Qt: `2e13ed9977bc31c73caf8428f08f58d793313ece`.
+  Its populated media core is `D:/source/moonlight-qt/moonlight-common-c/moonlight-common-c`, revision
+  `e95feaf4951b8dc774671a5d6a1c31d76d78e3ac`; frame assembly/recovery entry points are `src/RtpVideoQueue.c` and `src/VideoDepacketizer.c`.
+- Sunshine: `3cba9baebac882b336be3ebe129ee612cb189853`.
+Prioritize these references for frame assembly, bounded media queues, loss/reference recovery, FEC and pacing investigations.
 
 # Enterprise isolated desktop planning
 

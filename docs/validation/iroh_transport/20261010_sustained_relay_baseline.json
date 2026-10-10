@@ -1,0 +1,135 @@
+{
+  "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+  "name": "2dadventure",
+  "kind": "game_hook",
+  "instance_id": "c908bb7e-b498-4165-8755-f164b7e3757a",
+  "client_pid": 40128,
+  "transport_requested": "iroh-relay",
+  "drag": {
+    "window_found": true,
+    "posted_mouse_messages": 3600,
+    "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+  },
+  "media_windows": [
+    {
+      "frames": 286,
+      "fps": 57.2,
+      "max_gap_ms": 77.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 270,
+      "fps": 53.9,
+      "max_gap_ms": 105.3,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 246,
+      "fps": 49.2,
+      "max_gap_ms": 135.2,
+      "gaps_gt_100ms": 3,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 286,
+      "fps": 57.2,
+      "max_gap_ms": 95.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 233,
+      "fps": 46.5,
+      "max_gap_ms": 181.0,
+      "gaps_gt_100ms": 5,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.1,
+      "max_gap_ms": 40.7,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 246,
+      "fps": 49.0,
+      "max_gap_ms": 134.9,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 59.9,
+      "max_gap_ms": 59.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 244,
+      "fps": 48.8,
+      "max_gap_ms": 197.1,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 59.9,
+      "max_gap_ms": 33.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 296,
+      "fps": 59.1,
+      "max_gap_ms": 60.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 292,
+      "fps": 57.8,
+      "max_gap_ms": 92.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 246,
+      "fps": 49.2,
+      "max_gap_ms": 214.5,
+      "gaps_gt_100ms": 3,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 267,
+      "fps": 52.5,
+      "max_gap_ms": 136.2,
+      "gaps_gt_100ms": 3,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 291,
+      "fps": 58.0,
+      "max_gap_ms": 182.8,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    }
+  ]
+}

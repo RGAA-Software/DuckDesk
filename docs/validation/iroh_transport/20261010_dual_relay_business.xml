@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="1" failures="0" disabled="0" errors="0" time="37.142" timestamp="2026-10-10T14:01:15.593" name="AllTests">
+  <testsuite name="IrohFrontendTest" tests="1" failures="0" disabled="0" skipped="0" errors="0" time="37.142" timestamp="2026-10-10T14:01:15.593">
+    <testcase name="NetClientReadmitsAfterRelayOutageClosesQuic" file="D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp" line="332" status="run" result="completed" time="37.142" timestamp="2026-10-10T14:01:15.593" classname="IrohFrontendTest" />
+  </testsuite>
+</testsuites>

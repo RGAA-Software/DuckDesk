@@ -6,6 +6,7 @@
 #define TC_CLIENT_PC_WS_CLIENT_H
 
 #include "px_message.pb.h"
+#include "encoded_video_delivery.h"
 #include <atomic>
 #include <mutex>
 #include "sdk_connection_params.h"
@@ -22,7 +23,7 @@ class timer;
 namespace px {
 
 using OnRawMessageCallback = std::function<void(std::shared_ptr<px::Message>)>;
-using OnVideoFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
+using OnVideoFrameMsgCallback = std::function<void(EncodedVideoDelivery)>;
 using OnAudioFrameMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
 using OnCursorInfoSyncMsgCallback = std::function<void(std::shared_ptr<px::Message>)>;
 using OnAudioSpectrumCallback = std::function<void(std::shared_ptr<px::Message>)>;
@@ -39,6 +40,7 @@ class MessageNotifier;
 class MessageListener;
 class Connection;
 class UdpDirectConnection;
+class IrohDialer;
 class SdkStatistics;
 
 class NetClient : public std::enable_shared_from_this<NetClient> {
@@ -85,11 +87,14 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
    void OnUdpMediaReady();
    void ReportUdpMediaUnavailable();
    void StartUdpDirectMedia();
+   void StartIrohConnection();
+   void StopIrohConnection();
+   [[nodiscard]] bool PostIrohVoice(const Message& message);
    void StartFileTransferConnection();
    [[nodiscard]] std::string MakeAuthenticatedWebSocketPath(
        std::string path) const;
    std::shared_ptr<Connection> MakeDirectWebSocketMediaConnection() const;
-   void StartManagedUdpMediaConnection(
+   void StartManagedConnection(
        const std::shared_ptr<Connection>& connection, uint64_t generation);
    [[nodiscard]] bool IsCurrentManagedMediaConnection(
        uint64_t generation) const;
@@ -104,6 +109,7 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
     mutable std::mutex media_connection_mutex_;
     std::mutex rdp_callback_mutex_{};
     std::function<void(std::shared_ptr<Data>)> rdp_message_callback_{};
+    std::shared_ptr<IrohDialer> iroh_dialer_{};
     std::shared_ptr<Connection> media_conn_ = nullptr;
     mutable std::mutex udp_direct_connection_mutex_;
     std::shared_ptr<Connection> ft_conn_ = nullptr;

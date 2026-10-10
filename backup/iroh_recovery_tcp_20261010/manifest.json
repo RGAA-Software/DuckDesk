@@ -1,0 +1,13 @@
+{
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Preserve current recovery gating and explicit transport selection before correction",
+  "paths": [
+    "src/px_render/network/iroh/iroh_session.cpp",
+    "src/px_client_sdk/media_transport/video_recovery_policy.h",
+    "src/px_client/ui_imgui/client_launch_config.cpp",
+    "src/px_render/tests/unit/test_iroh_frontend.cpp",
+    "src/px_client_sdk/tests/test_encoded_video_delivery.cpp",
+    "src/px_client/tests/test_imgui_launch_config.cpp"
+  ],
+  "local_status": "All paths modified or untracked at snapshot"
+}

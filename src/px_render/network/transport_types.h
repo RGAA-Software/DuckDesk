@@ -7,6 +7,7 @@
 namespace px {
 
 enum class TransportKind {
+    kIroh,
     kWebSocket,
     kUdpKcp,
     kWebRtcDirect,

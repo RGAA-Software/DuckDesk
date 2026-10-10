@@ -144,6 +144,7 @@ pub async fn start_with_cache_and_relay() -> (ConsoleRuntime, tempfile::TempDir)
         policy(),
         guests(),
         RuntimeResources {
+            iroh: None,
             recording_cache: Some((
                 root,
                 CacheOptions {
@@ -173,6 +174,7 @@ pub async fn start_with_relay() -> ConsoleRuntime {
         policy(),
         guests(),
         RuntimeResources {
+            iroh: None,
             recording_cache: None,
             relay_admission: Some(RelayAdmission {
                 app_key: "isolated-relay-app-key".into(),

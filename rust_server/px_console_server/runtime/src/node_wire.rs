@@ -19,6 +19,7 @@ pub fn rdp_workspace(
 
 pub fn report(value: wire::NodeReport) -> store::NodeReport {
     store::NodeReport {
+        render_iroh_endpoints: value.render_iroh_endpoints,
         sequence: value.sequence,
         product_version_code: value.product_version_code,
         public_host: value.public_host,

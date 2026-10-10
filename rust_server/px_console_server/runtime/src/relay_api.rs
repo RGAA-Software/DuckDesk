@@ -268,6 +268,7 @@ async fn run_authenticated(
                     current_connections: report.current_connections,
                     max_rooms: report.max_rooms,
                     current_rooms: report.current_rooms,
+                    iroh_qad_port: report.iroh_qad_port,
                     uploaded_bytes: report.uploaded_bytes,
                     forwarded_bytes: report.forwarded_bytes,
                 },

@@ -1,0 +1,122 @@
+[
+  {
+    "original_path": "src/px_client_sdk/CMakeLists.txt",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "cf87af545fc9fbf513e993fb7539ada8afdfec4c7f342d9fb2e7cedc797ede3e",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/cmake/sdk_source_sets.cmake",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "eab90be5717fd5587616de10e95290acc1cce8953c0241862253ad3a1bec936c",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/media_transport/video_stream.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "f4eb33a43793c7528922c183fd3d7e94b81d0045666afabf0a49017bf3daae7e",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/media_transport/video_stream.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "5f2f6f9f8aa3ab7fa66e46bdc300bb4ead68ab79f0b5c5a680783fe072d665c2",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/udp_direct_connection.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "5ab796c270fa102b6bf1f362504a76b1a017cb991cd174cf417201bdfd5c109d",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/udp_direct_connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "a20391f7dcf53b7366342bf69b9155dd88353cbd0d9b7211878da8ecb1729930",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_net_client.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "15ba7c8b68c5e68f9fdfe911d79a50d1ae68a6003b984e5183362405cbd31a98",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_net_client.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "6e542ad8d50fd9bb49ea48b99f22c7008adfc6d87961725ff4cb47d4f9a8bb1b",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/thunder_sdk.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "79abb2c84df1e378504e5ed4986b6a149581773229fe6528a0a6148c7121c79a",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/thunder_sdk.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "f8261c4d765e93bbfe77a9febf3e5cf533b8f7ffa4533b11adad35229685dc0b",
+    "reason": "Preserve full pre-change contents before replacing video delivery and discontinuity branches with typed decoder-reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_ffmpeg_decoder.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "75aff1b052d522af2612c3b276c0591fc7ce0aa487b8687b2e17be6818e28e95",
+    "reason": "Distinguish rejected decoder input from accepted input awaiting output before advancing receiver reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_ffmpeg_soft_decoder.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "9b54c725073a52e5eafd178e6c518a6f6922d2ccc232645e12ca165857a8b6f4",
+    "reason": "Distinguish rejected decoder input from accepted input awaiting output before advancing receiver reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_ffmpeg_vulkan_decoder.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "51d03933a9692b5acc0c9ed7b46c79dcdcfcdee7c4be93038f9d8698f80c5549",
+    "reason": "Distinguish rejected decoder input from accepted input awaiting output before advancing receiver reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_android_software_decoder.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "89932a92dbc2b50461e8ee59f256e7ed96b01b7c2acbbbe84a927d70c555f7fe",
+    "reason": "Distinguish rejected decoder input from accepted input awaiting output before advancing receiver reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_mediacodec_video_decoder.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "clean",
+    "sha256": "2e3886f53fa7e722c2541e46be9702b71797b33c0796703cd7b9f09be4dbb563",
+    "reason": "Distinguish rejected decoder input from accepted input awaiting output before advancing receiver reference tracking",
+    "archive_batch": "media_recovery_delivery_20261008"
+  }
+]

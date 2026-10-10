@@ -197,7 +197,7 @@ void ApplicationLaunchWorkflow::Prepare(const std::uint64_t generation) {
             valid = !connection->host.empty() && connection->port > 0 && connection->port <= 65535 && !connection->session_id.empty() &&
                     connection->frontend_token && !connection->frontend_token->Bytes().empty() &&
                     (connection->transport != "rdp" || connection->rdp_configuration) &&
-                    (!request.forceRelay ||
+                    (!request.forceRelay || connection->iroh ||
                      (!connection->relay_host.empty() && connection->relay_port > 0 && !connection->relay_admission_ticket.empty())) &&
                     operations_.clientAvailable();
         } catch (...) {
@@ -231,18 +231,19 @@ void ApplicationLaunchWorkflow::LaunchPrepared(const std::uint64_t generation) {
         const std::scoped_lock lock{mutex_};
         if (!progress_ || progress_->generation != generation || progress_->status != ui::ApplicationLaunchStatus::Ready || !prepared_) return;
         progress_->status = ui::ApplicationLaunchStatus::Launching;
+        progress_->stage = ui::ApplicationLaunchStage::ConnectRemote;
         connection = std::move(prepared_);
         prepared_.reset();
         request = request_;
     }
-    bool launched{};
+    ClientLaunchResult launched{};
     try {
         launched = operations_.launch(request, *connection);
     } catch (...) {
     }
     if (!launched) {
         Close(*connection);
-        Fail(generation, px::ui::TextId::ConnectionClientLaunchFailed);
+        Fail(generation, launched.error);
         return;
     }
     LOGI("Application client launched: application={} request={} session={}", request.applicationId, request.requestId, connection->session_id);

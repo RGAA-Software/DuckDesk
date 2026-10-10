@@ -1,11 +1,6 @@
 #pragma once
 
-#include "panel_config_store.h"
-#include "panel_audit_store.h"
-#include "panel_system_information.h"
-
 #include <asio2/http/http_server.hpp>
-
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -13,6 +8,11 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+
+#include "panel_audit_store.h"
+#include "panel_client_startup.h"
+#include "panel_config_store.h"
+#include "panel_system_information.h"
 
 namespace px::panel::product {
 
@@ -49,12 +49,16 @@ class PanelLocalServer final : public std::enable_shared_from_this<PanelLocalSer
     void SetRestartHandler(std::function<void()> handler);
     void RefreshPanelInfo();
     void Stop();
+    bool RegisterClientStartup(const std::string& launchId, const std::shared_ptr<PanelClientStartup>& startup);
+    void ForgetClientStartup(const std::string& launchId);
+    void CancelClientStartups();
 
-  private:
+private:
     void Start();
     void AddRoute(const std::string& path);
     void SendPanelInfo(const std::shared_ptr<asio2::http_session>& session) const;
 
+    std::unordered_map<std::string, std::weak_ptr<PanelClientStartup>> clientStartups_{};
     std::shared_ptr<PanelConfigStore> config_{};
     std::shared_ptr<PanelAuditStore> auditStore_{};
     std::shared_ptr<asio2::http_server> server_{};

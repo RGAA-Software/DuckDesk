@@ -45,6 +45,7 @@ struct RenderModuleConfiguration final {
     std::string capture_audio_device_id;
     std::int64_t ws_listen_port{0};
     std::int64_t udp_listen_port{0};
+    std::string iroh_endpoint_configuration{};
     std::string device_id;
     std::string public_device_code;
     std::string console_origin;

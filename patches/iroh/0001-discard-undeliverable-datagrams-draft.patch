@@ -1,0 +1,26 @@
+--- a/src/socket/transports/relay/actor.rs
++++ b/src/socket/transports/relay/actor.rs
+@@ -385,6 +385,12 @@
+                     }
+                 }
+                 _ = &mut sleep => return true,
++                queued = self.relay_datagrams_send.recv() => {
++                    if queued.is_none() { return false; }
++                    // No relay connection exists: discard stale packets so another relay can send.
++                    // QUIC retransmits reliable payload after the path becomes reachable.
++                    self.reset_inactive_timeout();
++                }
+             }
+         }
+     }
+@@ -510,6 +516,10 @@
+                             drop(sender);
+                         }
+                     }
++                }
++                queued = self.relay_datagrams_send.recv() => {
++                    if queued.is_none() { break None; }
++                    self.reset_inactive_timeout();
+                 }
+                 _ = send_datagram_flush.tick() => {
+                     self.reset_inactive_timeout();

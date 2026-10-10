@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-09",
+  "development_artifacts": [
+    {
+      "product": "client",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "EFE24E7C364CDF95021990F91BA8D5151CCDE4AE4B0DB624EB8017F40331A74B",
+      "published_manifest_artifacts": 40
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+      "sha256": "0C3470FAA4F6FBC295CF50AA686AA5ED1E32044DC14F72FECAF0E0F787326C86",
+      "published_manifest_artifacts": 277
+    }
+  ],
+  "checks": {
+    "direct": {
+      "iroh_transport": 3,
+      "iroh_media_datagrams": 5,
+      "iroh_frontend": 8,
+      "udp_paced_batch": 3,
+      "iroh_sdk_connection": 3
+    },
+    "forced_private_https_relay": {
+      "iroh_media_datagrams": 5,
+      "iroh_frontend": 8
+    },
+    "rustfmt": "passed",
+    "rust_ffi_release_build": "passed"
+  },
+  "relay_readiness_defect": "FFI previously published EndpointAddr before the home Relay became online; endpoint creation now waits within the supplied deadline when private Relays are configured.",
+  "relay_test": {
+    "url": "https://127.0.0.1:14618",
+    "qad_port": 14618,
+    "relay_only": true,
+    "temporary_test_ca": true,
+    "process_stopped": true
+  },
+  "product_iroh_entrypoints_migrated": false,
+  "remote_installation_this_checkpoint": false,
+  "new_transport_tokens": false
+}

@@ -1,0 +1,21 @@
+{
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Preserve receiver and recovery telemetry before distinguishing complete frames from decoder delivery",
+  "files": [
+    {
+      "sha256": "1AE2C14D9E2744413F7E3133A03F687737BEA530BD3945AD19AB67B63E88F5F4",
+      "path": "src/px_transport/media_datagrams.cpp",
+      "git_status": "?? src/px_transport/media_datagrams.cpp"
+    },
+    {
+      "sha256": "BE93CDAC82E3B69F5429877F9EBFDCCCADDABA7DA4F53AD104A4AE47D25DFD19",
+      "path": "src/px_transport/media_datagrams.h",
+      "git_status": "?? src/px_transport/media_datagrams.h"
+    },
+    {
+      "sha256": "4235A43BB45723AE8FCB865B552BBDECF9EB9C5EB967FFCDEE261BFD5B250EE5",
+      "path": "src/px_client_sdk/connection/iroh_connection.cpp",
+      "git_status": "?? src/px_client_sdk/connection/iroh_connection.cpp"
+    }
+  ]
+}

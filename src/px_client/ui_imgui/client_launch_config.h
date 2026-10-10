@@ -1,5 +1,7 @@
 #pragma once
 
+#include "px_common/iroh_connection_description.h"
+
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -7,6 +9,7 @@
 #include <string_view>
 
 #include "px_common/secret_buffer.h"
+#include "px_client_sdk/sdk_connection_params.h"
 
 namespace px::client::imgui {
 
@@ -19,6 +22,7 @@ struct ClientFileTransferAcceptanceConfig final {
 };
 
 struct ClientLaunchConfig final {
+    std::optional<px::IrohConnectionDescription> iroh{};
     std::string host{};
     std::string localHost{};
     int port{};
@@ -61,9 +65,12 @@ struct ClientLaunchConfig final {
     bool audioAcceptance{};
     bool rdpIoErrorAcceptance{};
     bool rdpPeerCloseAcceptance{};
+    int panelPort{};
+    std::string panelLaunchId{};
 };
 
 [[nodiscard]] std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(std::string_view envelope, bool allowAcceptance = false);
+[[nodiscard]] std::optional<px::IrohDialParameters> BuildClientIrohParameters(const ClientLaunchConfig& config);
 [[nodiscard]] std::string BuildClientMediaPath(const ClientLaunchConfig& config);
 [[nodiscard]] std::string BuildClientFileTransferPath(const ClientLaunchConfig& config);
 

@@ -64,6 +64,7 @@ fn settings(target: DeploymentTarget) -> DeploymentConfiguration {
 }
 fn node_report(sequence: u64) -> NodeReport {
     NodeReport {
+        render_iroh_endpoints: Vec::new(),
         sequence,
         product_version_code: 1,
         public_host: "node.example.test".into(),
@@ -408,7 +409,7 @@ async fn ready_relay(
                 draining: false,
                 max_connections: 100,
                 current_connections: current_load.connections,
-                max_rooms: 50,
+                max_rooms: Some(50),
                 current_rooms: current_load.rooms,
                 uploaded_bytes: 0,
                 forwarded_bytes: 0,

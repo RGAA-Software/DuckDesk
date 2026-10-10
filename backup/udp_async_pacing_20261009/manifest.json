@@ -1,0 +1,8 @@
+{
+  "original_path": "src/px_render/network/udp/udp_transport.cpp",
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "local_status": null,
+  "archive_batch": "udp_async_pacing_20261009",
+  "reason": "Replace socket-thread busy-wait pacing with cancellable asynchronous bursts",
+  "sha256": "15229EC071CD2972C3A02E67F71EBD272F9055D351CAE8B9AE0AA5FE988B50F2"
+}

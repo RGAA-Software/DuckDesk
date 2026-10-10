@@ -1,0 +1,8 @@
+{
+  "operation_id": "5bd1b17a-5587-4391-986d-fce8cba8c85a",
+  "console_configuration_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "console_service": "Running",
+  "owned_relay_running": false,
+  "test_qos_count": 0,
+  "render_count": 1
+}

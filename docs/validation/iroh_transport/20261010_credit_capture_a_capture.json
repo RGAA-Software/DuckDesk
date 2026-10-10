@@ -1,0 +1,7 @@
+{
+  "capture": ".cache\\iroh-credit-capture-20261010-a",
+  "filter_name": "PixelsCreditCaptureA",
+  "acceptance_exit_code": 1,
+  "capture_stop": "Flushing logs...\nMerging metadata...\nLog file: D:\\GoCloud\\GammaRayPremium\\.cache\\iroh-credit-capture-20261010-a\\relay2.etl (No events lost)\n",
+  "filter_cleanup": "Removed all filters.\n"
+}

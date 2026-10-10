@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "sha256": "E99F8284122930406E80C934458C6FA0A72DDD42630E5B04EC72496E50032B56",
+      "path": "src/px_render/app/encoder_thread.cpp",
+      "git_status": " M src/px_render/app/encoder_thread.cpp"
+    },
+    {
+      "sha256": "CA2B32A708CD5E8E5A40C327DF706B1B99261FE0F3BB22C9307E9A39BC146E7F",
+      "path": "src/px_render/app/encoder_thread.h",
+      "git_status": null
+    }
+  ],
+  "reason": "Preserve pre-change encoder input identity before unifying GameHook cached/live frames",
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+}

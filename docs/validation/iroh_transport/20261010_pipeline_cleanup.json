@@ -1,0 +1,13 @@
+{
+  "restored_hash": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "console_status": "Running",
+  "relay_pid": 53380,
+  "relay_stopped": true,
+  "qos_count": 0,
+  "render_pids": [
+    54076
+  ],
+  "completed": "2026-10-10T00:33:01.8545416+08:00",
+  "https_status": 200,
+  "https_verification": "Custom CA, certificate and hostname verification enabled; proxy disabled"
+}

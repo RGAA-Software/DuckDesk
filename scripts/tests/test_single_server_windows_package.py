@@ -17,6 +17,55 @@ from setup.make_single_server import validate_package
 
 
 class SingleServerWindowsPackageTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Relay service access uses Windows PowerShell")
+    def test_iroh_relay_tls_permissions_preserve_shared_console_access(self) -> None:
+        install_script = Path(__file__).resolve().parents[2] / "deploy/single_server/windows/install.ps1"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            config_root = Path(temporary_directory)
+            certificate_path = config_root / "console.crt"
+            key_path = config_root / "console.key"
+            relay_key_path = config_root / "relay.key"
+            for certificate_file in (certificate_path, key_path, relay_key_path):
+                certificate_file.write_text("fixture", encoding="ascii")
+            (config_root / "console.env").write_text(
+                f"PIXELS_CONSOLE_TLS_CERT={certificate_path}\nPIXELS_CONSOLE_TLS_KEY={key_path}\n", encoding="utf-8")
+            relay_config = config_root / "iroh.json"
+            (config_root / "relay.env").write_text(f"PIXELS_RELAY_IROH_CONFIG={relay_config}\n", encoding="utf-8")
+            verification_script = r'''
+$ErrorActionPreference = 'Stop'
+$parseTokens=$null
+$parseErrors=$null
+$installSyntax=[Management.Automation.Language.Parser]::ParseFile('__INSTALL__',[ref]$parseTokens,[ref]$parseErrors)
+if ($parseErrors.Count) { throw 'Installer syntax is invalid' }
+foreach ($functionName in @('Get-EnvironmentValue','Protect-ReferencedServiceFile','Protect-IrohRelayFiles')) {
+    $functionSyntax=$installSyntax.Find({param($syntaxNode)
+        $syntaxNode -is [Management.Automation.Language.FunctionDefinitionAst] -and $syntaxNode.Name -eq $functionName
+    },$true)
+    . ([scriptblock]::Create($functionSyntax.Extent.Text))
+}
+$script:ResolvedConfigPrefix='__ROOT__' + [IO.Path]::DirectorySeparatorChar
+$script:readers=@{}
+function Protect-ServiceReadFile {
+    param([string]$Path,[string[]]$ServiceNames)
+    $script:readers[[IO.Path]::GetFileName($Path)]=@($ServiceNames)
+}
+Protect-IrohRelayFiles -ConfigRoot '__ROOT__' -BackupRootCertificate '__CERT__' -BackupServiceName 'Pixels.Backup'
+$script:readers | ConvertTo-Json -Compress
+'''.replace("__INSTALL__", str(install_script).replace("'", "''")).replace(
+                "__ROOT__", str(config_root).replace("'", "''")).replace("__CERT__", str(certificate_path).replace("'", "''"))
+            for shared_key in (True, False):
+                with self.subTest(shared_key=shared_key):
+                    relay_config.write_text(json.dumps({"certificate_file": "console.crt",
+                        "private_key_file": str(key_path) if shared_key else "relay.key"}), encoding="utf-8")
+                    verification = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", verification_script],
+                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+                    self.assertEqual(verification.returncode, 0, verification.stderr)
+                    readers = json.loads(verification.stdout)
+                    self.assertEqual(readers["iroh.json"], ["Pixels.Relay"])
+                    self.assertCountEqual(readers["console.crt"], ["Pixels.Relay", "Pixels.Console", "Pixels.Backup"])
+                    self.assertCountEqual(readers["console.key" if shared_key else "relay.key"],
+                        ["Pixels.Relay", "Pixels.Console"] if shared_key else ["Pixels.Relay"])
+
     @unittest.skipUnless(os.name == "nt", "Tray upgrade verification uses Windows PowerShell")
     def test_upgrade_stops_only_the_installed_tray_without_wmi(self) -> None:
         repository_root = Path(__file__).resolve().parents[2]

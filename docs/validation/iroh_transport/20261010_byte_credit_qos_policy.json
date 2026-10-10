@@ -1,0 +1,22 @@
+{
+  "valid": {
+    "started": "2026-10-10T00:29:37.0498428+08:00",
+    "finished": "2026-10-10T00:29:57.1720128+08:00",
+    "bits_per_second": 2000000,
+    "remaining": 0
+  },
+  "first_attempt": {
+    "started": "2026-10-10T00:25:01.2426075+08:00",
+    "finished": "2026-10-10T00:25:21.3219689+08:00",
+    "bits_per_second": 2000000,
+    "remaining": 0,
+    "note": "Started after prior game test ended; excluded from weak-network evidence."
+  },
+  "second_attempt": {
+    "started": "2026-10-10T00:26:52.3825839+08:00",
+    "finished": "2026-10-10T00:27:12.4606426+08:00",
+    "bits_per_second": 2000000,
+    "remaining": 0,
+    "note": "Only overlapped tail of second short game test; cannot establish recovery. Retained as partial_qos evidence."
+  }
+}

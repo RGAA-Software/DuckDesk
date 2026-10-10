@@ -1,0 +1,12 @@
+{
+  "revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "recorded_at": "2026-10-08T22:56:19.779956+08:00",
+  "git_status": " M AGENTS.md\n M src/px_client/CMakeLists.txt\n M src/px_client/tests/test_imgui_launch_config.cpp\n M src/px_client/ui_imgui/client_launch_config.cpp\n M src/px_client/ui_imgui/client_launch_config.h\n M src/px_client/ui_imgui/client_main.cpp\n M src/px_panel/ui_imgui/CMakeLists.txt\n M src/px_panel/ui_imgui/cloud_application_progress.h\n M src/px_panel/ui_imgui/cloud_application_progress_dialog.cpp\n M src/px_panel/ui_imgui/cloud_application_progress_dialog.h\n M src/px_panel/ui_imgui/product/application_launch_workflow.cpp\n M src/px_panel/ui_imgui/product/application_launch_workflow.h\n M src/px_panel/ui_imgui/product/panel_client_launcher.cpp\n M src/px_panel/ui_imgui/product/panel_client_launcher.h\n M src/px_panel/ui_imgui/product/panel_local_server.cpp\n M src/px_panel/ui_imgui/product/panel_local_server.h\n M src/px_panel/ui_imgui/product/panel_product_runtime.cpp\n M src/px_panel/ui_imgui/product/product_cloud_applications_port.cpp\n M src/px_panel/ui_imgui/product/product_remote_control_port.cpp\n M src/px_panel/ui_imgui/product/tests/application_launch_workflow_tests.cpp\n M src/px_panel/ui_imgui/product_main.cpp\n M src/px_ui/include/px_ui/localization.h\n M src/px_ui/localization.cpp\n?? backup/client_panel_startup_ack_20261008/\n?? backup/media_recovery_delivery_20261008/\n?? docs/client_panel_startup_ack_20261008.md\n?? docs/iroh_transport_assessment_20261008.md\n?? docs/iroh_transport_execution_plan_20261008.md\n?? docs/unified_native_connectivity_design_20261008.md\n?? src/px_client/ui_imgui/client_panel_reporter.cpp\n?? src/px_client/ui_imgui/client_panel_reporter.h\n?? src/px_panel/ui_imgui/product/client_launch_result.h\n?? src/px_panel/ui_imgui/product/panel_client_startup.h\n?? src/px_panel/ui_imgui/product/tests/client_startup_tests.cpp\n",
+  "development_artifacts": {
+    "build_official/client/dist/px_client.exe": "168c68129cf0394a806fc0260b9d51699ae56178cd5b9be831b6e5de52d81dff",
+    "build_official/client/dist/px_panel.exe": "82be5e61a32a9ac6cf183091a037ed6ca5421a12fe16541aafec89bcde08b685"
+  },
+  "remote_workspace": "D:\\112233",
+  "remote_device": "211399447",
+  "remote_mcp_status": "Transport closed on first connection attempt; use authorized .env fallback as needed"
+}

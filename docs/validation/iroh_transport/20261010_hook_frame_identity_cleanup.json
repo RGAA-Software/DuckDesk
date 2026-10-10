@@ -1,0 +1,24 @@
+{
+  "render_processes": [
+    {
+      "ProcessId": 12556,
+      "CommandLine": "\"C:\\Program Files\\Pixels Cloud Node\\px_render.exe\" --app_mode=desktop --encoder_select_type=auto --encoder_name=nvenc --encoder_format=h264 --encoder_bitrate=10 --encoder_fps=60 --encoder_resolution_type=origin --encoder_width=1280 --encoder_height=720 --capture_audio=true --capture_audio_type=global --capture_video=true --capture_video_type=global --websocket_enabled=true --webrtc_enabled=true --udp_kcp_enabled=true --app_game_path= --app_game_args= --debug_block=false --device_id=b8298e0b-712d-490e-9936-29f6c07333b2 --public_device_code=934886467 --console_origin=https://39.71.45.66:4600 --panel_server_host=127.0.0.1 --service_server_host=127.0.0.1 --can_be_operated=true --incoming_remote_access_enabled=true --language=0 --logfile=true --service_server_port=4603 --panel_server_port=4999 --rtc_advertised_ipv4=39.71.45.66 --network_listen_port=4601 --relay_enabled=false"
+    }
+  ],
+  "render_sha256": "785DDEBB55324033DE8B6227411347F1E78EB8036E2D3F32A1E10A74DB767222",
+  "services": [
+    {
+      "name": "Pixels.Console",
+      "status": "Running"
+    },
+    {
+      "name": "Pixels.Relay",
+      "status": "Running"
+    },
+    {
+      "name": "px_service",
+      "status": "Running"
+    }
+  ],
+  "test_files": []
+}

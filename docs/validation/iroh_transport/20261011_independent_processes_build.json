@@ -1,0 +1,12 @@
+[
+  {
+    "product": "client",
+    "sha256": "FD1070DB9B6FAF3512D29CD6FCB0D5FD42992121E743761E2C5FD633105A609F",
+    "matched": true
+  },
+  {
+    "product": "cloud_node",
+    "sha256": "3F17C8CC626061D3693EC18DB141ADD39E9FBC96F26A9569D2A7BE330E0A13E3",
+    "matched": true
+  }
+]

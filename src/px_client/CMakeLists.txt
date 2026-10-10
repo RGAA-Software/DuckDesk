@@ -20,6 +20,8 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_input_mapper.cpp
     ui_imgui/client_instance_guard.cpp
     ui_imgui/client_launch_config.cpp
+    ui_imgui/client_iroh_reconnect.cpp
+    ui_imgui/client_panel_reporter.cpp
     ui_imgui/client_local_file_system.cpp
     ui_imgui/client_session.cpp
     ui_imgui/client_session_display.cpp
@@ -49,7 +51,7 @@ add_library(px_client_imgui_runtime STATIC
 target_include_directories(px_client_imgui_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
 target_include_directories(px_client_imgui_runtime BEFORE PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
 target_link_libraries(px_client_imgui_runtime PUBLIC
-    px_desktop_shell px_ui px_common px_message px_ft_engine px_voice_call px_rdp_stream pixels::sdk SDL3::SDL3-static yuv
+    px_desktop_shell px_ui px_common px_message px_cp_message px_ft_engine px_voice_call px_rdp_stream pixels::sdk SDL3::SDL3-static yuv
     nlohmann_json::nlohmann_json pixels_rdp_sdk
     ole32 shell32
 )

@@ -1,0 +1,194 @@
+Start testing: Oct 11 00:44 China Standard Time
+----------------------------------------------------------
+61/96 Testing: iroh_media_datagrams
+61/96 Test: iroh_media_datagrams
+Command: "D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_transport/test_iroh_media_datagrams.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_transport
+"iroh_media_datagrams" start time: Oct 11 00:44 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 36 tests from 9 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohVideoTransitTiming
+[ RUN      ] IrohVideoTransitTiming.SourcePausesAndClockOffsetsDoNotBecomeNetworkDelay
+[       OK ] IrohVideoTransitTiming.SourcePausesAndClockOffsetsDoNotBecomeNetworkDelay (0 ms)
+[ RUN      ] IrohVideoTransitTiming.RtpWrapDoesNotCreateAFalseDelay
+[       OK ] IrohVideoTransitTiming.RtpWrapDoesNotCreateAFalseDelay (0 ms)
+[----------] 2 tests from IrohVideoTransitTiming (0 ms total)
+
+[----------] 7 tests from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.SustainedRelayQueueGrowthReducesEncoderRateAndHealthyPathRecoversInSpacedSteps
+[       OK ] IrohVideoRateControl.SustainedRelayQueueGrowthReducesEncoderRateAndHealthyPathRecoversInSpacedSteps (0 ms)
+[ RUN      ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth
+[       OK ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth (0 ms)
+[ RUN      ] IrohVideoRateControl.PersistentRelayCongestionCanReduceBelowOneMegabitWithoutExceedingTheCeiling
+[       OK ] IrohVideoRateControl.PersistentRelayCongestionCanReduceBelowOneMegabitWithoutExceedingTheCeiling (0 ms)
+[ RUN      ] IrohVideoRateControl.LowRttDoesNotHideMediaQueueBackpressure
+[       OK ] IrohVideoRateControl.LowRttDoesNotHideMediaQueueBackpressure (0 ms)
+[ RUN      ] IrohVideoRateControl.IntermittentRttAndCaptureCreditSpikesDoNotDestroyQuality
+[       OK ] IrohVideoRateControl.IntermittentRttAndCaptureCreditSpikesDoNotDestroyQuality (0 ms)
+[ RUN      ] IrohVideoRateControl.PersistentMildPressureReducesGraduallyAndZeroRttDoesNotPoisonTheBaseline
+[       OK ] IrohVideoRateControl.PersistentMildPressureReducesGraduallyAndZeroRttDoesNotPoisonTheBaseline (0 ms)
+[ RUN      ] IrohVideoRateControl.ActualReceptionCapsCongestedEncoderEvenBeforeRttCatchesUp
+[       OK ] IrohVideoRateControl.ActualReceptionCapsCongestedEncoderEvenBeforeRttCatchesUp (0 ms)
+[----------] 7 tests from IrohVideoRateControl (0 ms total)
+
+[----------] 4 tests from IrohVideoFeedback
+[ RUN      ] IrohVideoFeedback.ShortEmptyReportsReleaseCreditWithoutCollapsingTheBitrateEstimate
+[       OK ] IrohVideoFeedback.ShortEmptyReportsReleaseCreditWithoutCollapsingTheBitrateEstimate (0 ms)
+[ RUN      ] IrohVideoFeedback.IncompleteAssemblyReportsStallAndUndecodableCompleteFramesCountAsProgress
+[       OK ] IrohVideoFeedback.IncompleteAssemblyReportsStallAndUndecodableCompleteFramesCountAsProgress (0 ms)
+[ RUN      ] IrohVideoFeedback.MissingFeedbackReducesRateButAcknowledgedStaticVideoDoesNot
+[       OK ] IrohVideoFeedback.MissingFeedbackReducesRateButAcknowledgedStaticVideoDoesNot (0 ms)
+[ RUN      ] IrohVideoFeedback.DroppedFeedbackAndFrameHistoryRemainBoundedWithoutHidingLongStalls
+[       OK ] IrohVideoFeedback.DroppedFeedbackAndFrameHistoryRemainBoundedWithoutHidingLongStalls (0 ms)
+[----------] 4 tests from IrohVideoFeedback (0 ms total)
+
+[----------] 1 test from IrohAudioDatagram
+[ RUN      ] IrohAudioDatagram.RemovesOnlyPaddingAndRestoresEveryDataAndParityByte
+[       OK ] IrohAudioDatagram.RemovesOnlyPaddingAndRestoresEveryDataAndParityByte (0 ms)
+[----------] 1 test from IrohAudioDatagram (0 ms total)
+
+[----------] 10 tests from IrohVideoFlight
+[ RUN      ] IrohVideoFlight.DelayedFeedbackWithSmallFramesDoesNotPauseBeforeCreditBounds
+[       OK ] IrohVideoFlight.DelayedFeedbackWithSmallFramesDoesNotPauseBeforeCreditBounds (0 ms)
+[ RUN      ] IrohVideoFlight.LocalCompletionDoesNotReleaseRemoteCreditAndMissingFramesCanProbe
+[       OK ] IrohVideoFlight.LocalCompletionDoesNotReleaseRemoteCreditAndMissingFramesCanProbe (0 ms)
+[ RUN      ] IrohVideoFlight.ByteBoundsPreserveStaticFramesAndRejectStaleFeedback
+[       OK ] IrohVideoFlight.ByteBoundsPreserveStaticFramesAndRejectStaleFeedback (0 ms)
+[ RUN      ] IrohVideoFlight.FreshCompleteProgressReleasesCaptureBeforeSparseProbeDeadline
+[       OK ] IrohVideoFlight.FreshCompleteProgressReleasesCaptureBeforeSparseProbeDeadline (0 ms)
+[ RUN      ] IrohVideoFlight.ReceiptThroughputBoundsWeakLinkBacklogAndRecoversWithFrameSize
+[       OK ] IrohVideoFlight.ReceiptThroughputBoundsWeakLinkBacklogAndRecoversWithFrameSize (0 ms)
+[ RUN      ] IrohVideoFlight.ReverseFeedbackDelayDoesNotShrinkHealthyForwardCapacity
+[       OK ] IrohVideoFlight.ReverseFeedbackDelayDoesNotShrinkHealthyForwardCapacity (0 ms)
+[ RUN      ] IrohVideoFlight.FeedbackSilenceDoesNotPauseBeforeBoundedCreditIsConsumed
+[       OK ] IrohVideoFlight.FeedbackSilenceDoesNotPauseBeforeBoundedCreditIsConsumed (0 ms)
+[ RUN      ] IrohVideoFlight.ForwardDelayStillShrinksCapacityWithPromptReturnFeedback
+[       OK ] IrohVideoFlight.ForwardDelayStillShrinksCapacityWithPromptReturnFeedback (0 ms)
+[ RUN      ] IrohVideoFlight.HealthyStaticSceneDoesNotShrinkCapacityForFollowingMotion
+[       OK ] IrohVideoFlight.HealthyStaticSceneDoesNotShrinkCapacityForFollowingMotion (0 ms)
+[ RUN      ] IrohVideoFlight.RecoveredForwardProgressReleasesCapacityDespiteDelayedReturnFeedback
+[       OK ] IrohVideoFlight.RecoveredForwardProgressReleasesCapacityDespiteDelayedReturnFeedback (0 ms)
+[----------] 10 tests from IrohVideoFlight (0 ms total)
+
+[----------] 1 test from IrohVideoFeedbackDatagram
+[ RUN      ] IrohVideoFeedbackDatagram.PreservesFrameZeroAndRejectsMalformedPackets
+[       OK ] IrohVideoFeedbackDatagram.PreservesFrameZeroAndRejectsMalformedPackets (0 ms)
+[----------] 1 test from IrohVideoFeedbackDatagram (0 ms total)
+
+[----------] 1 test from IrohVideoFrameRate
+[ RUN      ] IrohVideoFrameRate.QualityReductionPrecedesFrameSheddingAndHealthyPathRestoresConfiguredRate
+[       OK ] IrohVideoFrameRate.QualityReductionPrecedesFrameSheddingAndHealthyPathRestoresConfiguredRate (0 ms)
+[----------] 1 test from IrohVideoFrameRate (0 ms total)
+
+[----------] 9 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.CumulativeDatagramsReleaseCreditDespiteSkippedReorderedReportsAndUnreadControl
+[       OK ] IrohMediaTest.CumulativeDatagramsReleaseCreditDespiteSkippedReorderedReportsAndUnreadControl (78 ms)
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[2026-10-11 00:44:30.937] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=150000
+[2026-10-11 00:44:30.939] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams (106 ms)
+[ RUN      ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+[2026-10-11 00:44:31.045] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind (46 ms)
+[ RUN      ] IrohMediaTest.BoundedFrameQueueExpiresWithoutBlockingReliableTraffic
+[2026-10-11 00:44:31.092] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=9000
+[2026-10-11 00:44:31.096] [info] [media_datagrams.cpp:169] event=iroh.video_send_slow stream=1 frame=7 local_accepted=false queue_us=4230 total_us=4230 max_datagram_write_us=0 application_burst_bytes=0 accepted_packets=0 pending_bytes=48400 path=1 cwnd_bytes=13200 datagram_buffer_space=65536 error=0
+[       OK ] IrohMediaTest.BoundedFrameQueueExpiresWithoutBlockingReliableTraffic (46 ms)
+[ RUN      ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+[2026-10-11 00:44:31.138] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=9000
+[2026-10-11 00:44:31.138] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-11 00:44:31.139] [info] [media_datagrams.cpp:326] event=iroh.reference_wait phase=start stream=1 complete_frame=12 invalid_reference=11 needs_idr=false
+[       OK ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery (46 ms)
+[ RUN      ] IrohMediaTest.EncodedFrameCrossingFlightBudgetPreservesReferenceChainAndPausesNextCapture
+[2026-10-11 00:44:31.184] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=1 gap_ms=0 bytes=180000
+[2026-10-11 00:44:31.185] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.EncodedFrameCrossingFlightBudgetPreservesReferenceChainAndPausesNextCapture (40 ms)
+[ RUN      ] IrohMediaTest.SmallFrameBurstAndDelayedReceiptPreserveTheEncodedReferenceChain
+[2026-10-11 00:44:31.229] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=9000
+[2026-10-11 00:44:31.230] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.SmallFrameBurstAndDelayedReceiptPreserveTheEncodedReferenceChain (52 ms)
+[ RUN      ] IrohMediaTest.StopFromCompletionCancelsQueuedFramesExactlyOnce
+[2026-10-11 00:44:31.276] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=9000
+[2026-10-11 00:44:31.276] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.StopFromCompletionCancelsQueuedFramesExactlyOnce (33 ms)
+[ RUN      ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+[2026-10-11 00:44:31.318] [info] [media_datagrams.cpp:26] event=iroh.encoded_frame phase=first stream=1 frame=7 gap_ms=0 bytes=150000
+[2026-10-11 00:44:31.318] [info] [media_datagrams.cpp:352] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-11 00:44:31.320] [warning] [thread.cpp:151] Thread iroh-media-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 00:44:31.320] [warning] [thread.cpp:151] Thread iroh-media-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[       OK ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection (43 ms)
+[----------] 9 tests from IrohMediaTest (494 ms total)
+
+[----------] 1 test from IrohVoiceDatagram
+[ RUN      ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages
+[       OK ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages (0 ms)
+[----------] 1 test from IrohVoiceDatagram (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 36 tests from 9 test suites ran. (495 ms total)
+[  PASSED  ] 36 tests.
+<end of output>
+Test time =   0.77 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_media_datagrams" end time: Oct 11 00:44 China Standard Time
+"iroh_media_datagrams" time elapsed: 00:00:00
+----------------------------------------------------------
+
+80/96 Testing: iroh_sdk_connection
+80/96 Test: iroh_sdk_connection
+Command: "D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client_sdk/test_iroh_sdk_connection.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client_sdk
+"iroh_sdk_connection" start time: Oct 11 00:44 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (50 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-11 00:44:31.945] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=2 queued_bytes=2 max_queue_us=11 max_write_us=72 slow_writes=0 path=1 rtt_us=267 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:31.945] [info] [message_session.cpp:257] event=iroh.reliable_send kind=4 local_accepted_bytes=921616 queued_bytes=921616 max_queue_us=15 max_write_us=755 slow_writes=0 path=1 rtt_us=267 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:31.996] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 00:44:31.996] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-11 00:44:31.996] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (85 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-11 00:44:32.048] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=16 queued_bytes=16 max_queue_us=58 max_write_us=236 slow_writes=0 path=1 rtt_us=488 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:32.049] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 00:44:32.049] [warning] [thread.cpp:151] Thread iroh-datagram-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 00:44:32.049] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[2026-10-11 00:44:32.049] [warning] [thread.cpp:151] Thread iroh-datagram-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[       OK ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback (52 ms)
+[ RUN      ] IrohSdkConnection.BusinessMessagesUseSeparateStreamsAndReceiveCallbackCanStop
+[2026-10-11 00:44:32.111] [info] [message_session.cpp:257] event=iroh.reliable_send kind=2 local_accepted_bytes=2 queued_bytes=2 max_queue_us=8 max_write_us=11 slow_writes=0 path=1 rtt_us=247 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:32.111] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=2 queued_bytes=2 max_queue_us=12 max_write_us=66 slow_writes=0 path=1 rtt_us=247 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:32.112] [info] [message_session.cpp:257] event=iroh.reliable_send kind=4 local_accepted_bytes=524304 queued_bytes=524304 max_queue_us=11 max_write_us=373 slow_writes=0 path=1 rtt_us=247 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 00:44:32.115] [info] [message_session.cpp:379] event=iroh.file_flow outstanding_bytes=524304 window_bytes=262144 progress_age_ms=3 backpressure_count=0
+[2026-10-11 00:44:32.115] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 00:44:32.115] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-11 00:44:32.115] [info] [thread.cpp:223] Ok, thread exit: iroh-send-3
+[2026-10-11 00:44:32.115] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-11 00:44:32.115] [warning] [thread.cpp:151] Thread iroh-message-dispatch requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 00:44:32.115] [warning] [thread.cpp:151] Thread iroh-message-dispatch requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 00:44:32.115] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.BusinessMessagesUseSeparateStreamsAndReceiveCallbackCanStop (65 ms)
+[----------] 4 tests from IrohSdkConnection (253 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (253 ms total)
+[  PASSED  ] 4 tests.
+<end of output>
+Test time =   0.79 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_sdk_connection" end time: Oct 11 00:44 China Standard Time
+"iroh_sdk_connection" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 11 00:44 China Standard Time

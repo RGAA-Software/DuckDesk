@@ -5,18 +5,16 @@
 #include "px_client_panel_message.pb.h"
 #include "px_common/hardware.h"
 #include "px_common/log.h"
+#include "px_common/url_helper.h"
 #include "px_render_panel_message.pb.h"
 
 namespace px::panel::product {
 namespace {
 
 std::string QueryValue(const std::string_view query, const std::string_view key) {
-    const std::string marker{std::string{key} + "="};
-    const auto begin = query.find(marker);
-    if (begin == std::string_view::npos) return {};
-    const auto valueBegin = begin + marker.size();
-    const auto end = query.find('&', valueBegin);
-    return std::string{query.substr(valueBegin, end - valueBegin)};
+    const auto parameters = px::UrlHelper::ParseQueryString(std::string{query});
+    const auto found = parameters.find(std::string{key});
+    return found == parameters.end() ? std::string{} : found->second;
 }
 
 int DecrementConnectionCount(std::atomic_int& count) {
@@ -116,8 +114,28 @@ bool PanelLocalServer::OpenFileTransfer(const std::string& streamId) {
     return true;
 }
 
+bool PanelLocalServer::RegisterClientStartup(const std::string& launchId, const std::shared_ptr<PanelClientStartup>& startup) {
+    const std::scoped_lock lock{mutex_};
+    if (stopping_.load() || launchId.empty() || !startup) return false;
+    return clientStartups_.emplace(launchId, startup).second;
+}
+
+void PanelLocalServer::ForgetClientStartup(const std::string& launchId) {
+    const std::scoped_lock lock{mutex_};
+    clientStartups_.erase(launchId);
+}
+
+void PanelLocalServer::CancelClientStartups() {
+    const std::scoped_lock lock{mutex_};
+    for (const auto& [launchId, pending] : clientStartups_) {
+        if (const auto startup = pending.lock()) startup->Resolve(px::ui::TextId::ConnectionClientExited);
+    }
+    clientStartups_.clear();
+}
+
 void PanelLocalServer::Stop() {
     stopping_.store(true, std::memory_order_release);
+    CancelClientStartups();
     if (server_) {
         server_->stop_all_timers();
         server_->stop();
@@ -145,25 +163,57 @@ void PanelLocalServer::Start() {
 
 void PanelLocalServer::AddRoute(const std::string& path) {
     const std::weak_ptr<PanelLocalServer> weakSelf{shared_from_this()};
-    server_->bind(
-        path, websocket::listener<asio2::http_session>{}
+    server_->bind(path, websocket::listener<asio2::http_session>{}
                             .on("message",
-                                [weakSelf, path](std::shared_ptr<asio2::http_session>&, const std::string_view bytes) {
+                                [weakSelf, path](std::shared_ptr<asio2::http_session>& session, const std::string_view bytes) {
                                     const auto self = weakSelf.lock();
-                          if (!self) return;
+                                    if (!self) return;
                                     if (path == "/panel") {
                                         pxcp::CpMessage message{};
-                              if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
+                                        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
                                         if (message.type() == pxcp::CpMessageType::kCpHello && !message.stream_id().empty()) {
                                             LOGI("Panel client event channel ready: {}", message.stream_id());
+                                        } else if (message.type() == pxcp::kCpTransportConnected || message.type() == pxcp::kCpTransportRejected) {
+                                            const auto launchId = QueryValue(session->get_request().get_query(), "launch_id");
+                                            std::shared_ptr<PanelClientStartup> startup{};
+                                            {
+                                                const std::scoped_lock lock{self->mutex_};
+                                                const auto found = self->clientStartups_.find(launchId);
+                                                if (found != self->clientStartups_.end()) startup = found->second.lock();
+                                            }
+                                            if (!startup || startup->StreamId() != message.stream_id() ||
+                                                QueryValue(session->get_request().get_query(), "stream_id") != message.stream_id())
+                                                return;
+                                            ClientLaunchResult result{message.type() == pxcp::kCpTransportConnected};
+                                            if (!result) {
+                                                result.error = px::ui::TextId::ConnectionClientConnectFailed;
+                                                switch (message.transport_rejected().reason()) {
+                                                    case pxcp::kCpRejectionAuthorization:
+                                                        result.error = px::ui::TextId::ConnectionPasswordRejected;
+                                                        break;
+                                                    case pxcp::kCpRejectionOccupied:
+                                                        result.error = px::ui::TextId::ConnectionRemoteSessionOccupied;
+                                                        break;
+                                                    case pxcp::kCpRejectionSessionPolicy:
+                                                        result.error = px::ui::TextId::ConnectionRemoteAccessDisabled;
+                                                        break;
+                                                    default:
+                                                        break;
+                                                }
+                                            }
+                                            if (startup->Resolve(result)) {
+                                                LOGI("event=client.startup component=panel launch={} stream={} outcome={} reason={}", launchId,
+                                                     message.stream_id(), result.connected ? "connected" : "rejected",
+                                                     static_cast<int>(message.transport_rejected().reason()));
+                                            }
                                         }
                                     } else if (path == "/panel/renderer") {
                                         pxrp::RpMessage message{};
-                              if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
+                                        if (!message.ParseFromArray(bytes.data(), static_cast<int>(bytes.size()))) return;
                                         self->auditStore_->Consume(message, self->config_->Identity().deviceId);
                                         if (message.type() == pxrp::kRpVoiceCallConsentRequest) {
                                             const auto& request = message.voice_call_consent_request();
-                                  if (request.protocol_version() != 1) return;
+                                            if (request.protocol_version() != 1) return;
                                             const std::scoped_lock lock{self->mutex_};
                                             self->pendingVoiceCall_ = VoiceCallRequest{.visitorDeviceId = request.visitor_device_id(),
                                                                                        .streamId = request.stream_id(),
@@ -185,7 +235,7 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                                 const std::scoped_lock lock{self->mutex_};
                                                 handler = self->restartHandler_;
                                             }
-                                  if (handler) handler();
+                                            if (handler) handler();
                                         }
                                     } else if (path == "/sys/info") {
                                         if (auto systemInformation = ParsePanelSystemInformation(bytes)) {
@@ -197,7 +247,7 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                             .on("open",
                                 [weakSelf, path](std::shared_ptr<asio2::http_session>& session) {
                                     const auto self = weakSelf.lock();
-                          if (!self) return;
+                                    if (!self) return;
                                     session->ws_stream().binary(true);
                                     session->set_no_delay(true);
                                     if (path == "/panel") {
@@ -220,7 +270,7 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                 })
                             .on("close", [weakSelf, path](std::shared_ptr<asio2::http_session>& session) {
                                 const auto self = weakSelf.lock();
-                      if (!self) return;
+                                if (!self) return;
                                 if (path == "/panel") {
                                     const std::string streamId{QueryValue(session->get_request().get_query(), "stream_id")};
                                     const std::scoped_lock lock{self->mutex_};
@@ -228,14 +278,15 @@ void PanelLocalServer::AddRoute(const std::string& path) {
                                         self->clients_.erase(found);
                                     }
                                     const int remaining{DecrementConnectionCount(self->clientConnections_)};
-                          if (remaining == 0 && !self->stopping_.load(std::memory_order_acquire) && self->config_->Settings().disconnectAutoLock) {
+                                    if (remaining == 0 && !self->stopping_.load(std::memory_order_acquire) &&
+                                        self->config_->Settings().disconnectAutoLock) {
                                         LOGI("Last Panel client disconnected; locking the workstation by policy");
                                         Hardware::LockScreen();
                                     }
                                 } else if (path == "/panel/renderer") {
                                     {
                                         const std::scoped_lock lock{self->mutex_};
-                              if (self->rendererSession_ == session) self->rendererSession_.reset();
+                                        if (self->rendererSession_ == session) self->rendererSession_.reset();
                                     }
                                     static_cast<void>(DecrementConnectionCount(self->rendererConnections_));
                                 }

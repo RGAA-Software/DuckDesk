@@ -1,0 +1,27 @@
+{
+  "candidate_id": "iroh-budget-ready-20261009",
+  "setup_sha256": "4F98F1D5AB4C9D6548A856E28C9D40CAC87D9ED12C709914F3E028F7E06EC3B4",
+  "manifest_sha256": "5090A6ABD177347CEAA5A4FBC38410ADBF85176B87A53F6DE7EAC9BF01234155",
+  "service_official_sha256": "597A0159A54A15646EF6D57239B14ED81CABFCBEF890EE418BAE35A7E08D231A",
+  "upload_operation": "2719b8aa-994a-43c2-90f8-09ffdd2cb3ec",
+  "installed": true,
+  "checks": [
+    "frontend 11 passed including media-budget assertion",
+    "Service heartbeat 1, iroh 2, authentication configuration 1 passed"
+  ],
+  "fixes": [
+    "reserve FEC/audio/framing from total video rate selection",
+    "report changed Render endpoint snapshot promptly instead of waiting 15-second telemetry interval"
+  ],
+  "upload_state": "completed",
+  "installation_operation": "23c9e556-628f-40ae-8a43-48fe93341026",
+  "installation_state": "succeeded",
+  "development_artifacts": {
+    "px_render": "E8910E624206F528E217056CD0914354E5150493C9AD1A9CF3021018D9D46888",
+    "px_service": "18E407F010D37589DD40066DF85DB57C81860F1480A8993949BF503750164F2E",
+    "build_dist_sha256_match": true
+  },
+  "verified_installed_artifacts": 314,
+  "installed_render_sha256": "A34D2A780D391EF21C5355C9340D07C1164FCEC171F95D5184B4454C954EBB10",
+  "service_status": "Running"
+}

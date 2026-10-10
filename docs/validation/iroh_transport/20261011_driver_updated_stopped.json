@@ -1,0 +1,19 @@
+{
+  "stopped_at": "2026-10-11T00:32:27.4885585+08:00",
+  "reason": "User requested stop after disconnect",
+  "resets": [
+    {
+      "TimeCreated": "2026-10-11T00:31:05.8303518+08:00",
+      "Id": 10400,
+      "ProviderName": "Microsoft-Windows-NDIS",
+      "Message": "The network interface \"Realtek Gaming GbE Family Controller\" has begun resetting.  There will be a momentary disruption in network connectivity while the hardware resets. Reason: The network driver detected that its hardware has stopped responding to commands. This network interface has reset 1 time(s) since it was last initialized."
+    }
+  ],
+  "driver": [
+    {
+      "DeviceName": "Realtek Gaming GbE Family Controller",
+      "DriverVersion": "10.68.815.2023",
+      "InfName": "oem154.inf"
+    }
+  ]
+}

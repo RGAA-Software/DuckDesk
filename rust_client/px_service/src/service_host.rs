@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::RngCore;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,10 +9,10 @@ use service_core::config::ServiceConfig;
 use service_core::storage::PersistedRenderLaunchSpec;
 use service_core::storage::ServiceStorage;
 use service_core::{
-    AppInstanceRegistry, PersistedServiceState, RenderLaunchSpec, ServiceState, StartAppRequest,
-    FINISHED_RECORD_TTL,
+    AppInstanceRegistry, FINISHED_RECORD_TTL, PersistedServiceState, RenderLaunchSpec,
+    ServiceState, StartAppRequest,
 };
-use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
+use tokio::sync::{Mutex, broadcast, mpsc, oneshot};
 use tracing::{error, info, warn};
 
 use crate::user_proxy;
@@ -37,6 +37,13 @@ pub struct ServiceRuntime {
     /// Console application Render heartbeat independently; a single shared
     /// string would make them overwrite one another nondeterministically.
     pub(crate) render_logical_sessions: std::collections::HashMap<String, String>,
+    pub(crate) render_iroh_descriptions: std::collections::HashMap<
+        String,
+        (
+            std::time::Instant,
+            px_node_protocol::IrohConnectionDescription,
+        ),
+    >,
     /// One-shot Browser/first-frame acknowledgements for WebView starts.
     pub webview_ready_waiters:
         std::collections::HashMap<String, oneshot::Sender<Result<(), String>>>,
@@ -54,6 +61,7 @@ pub struct ServiceRuntime {
     pub(crate) node_public_code: String,
     pub(crate) authenticated_console_origin: String,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
+    pub(crate) node_control_iroh: Option<px_node_protocol::IrohNetworkConfig>,
     pub(crate) file_transfer_outbox:
         Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
     stop_tx: broadcast::Sender<()>,
@@ -151,7 +159,7 @@ fn private_environment_entries(
     private_environment.into_iter().collect()
 }
 
-fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
+pub(crate) fn strip_service_owned_relay_arguments(arguments: &mut Vec<String>) {
     let mut skip_following_value = false;
     arguments.retain(|argument| {
         if skip_following_value {
@@ -253,6 +261,7 @@ impl ServiceRuntime {
             app_exit_observers: std::collections::HashMap::new(),
             render_senders: std::collections::HashMap::new(),
             render_logical_sessions: std::collections::HashMap::new(),
+            render_iroh_descriptions: std::collections::HashMap::new(),
             webview_ready_waiters: std::collections::HashMap::new(),
             rdp_console_trusted: false,
             virtual_display_manager,
@@ -265,6 +274,7 @@ impl ServiceRuntime {
             node_public_code: String::new(),
             authenticated_console_origin: String::new(),
             node_control_relay: None,
+            node_control_iroh: None,
             file_transfer_outbox,
             stop_tx,
         }
@@ -343,6 +353,7 @@ impl ServiceRuntime {
 
     pub fn remove_render_logical_sessions(&mut self, render_name: &str) {
         self.render_logical_sessions.remove(render_name);
+        self.render_iroh_descriptions.remove(render_name);
         if let Err(error) = self.rebuild_logical_sessions_snapshot() {
             warn!(%render_name, %error, "failed to rebuild logical-session snapshot after Render disconnect");
         }
@@ -368,7 +379,9 @@ impl ServiceRuntime {
             }
         }
         if desktop_launch_rebased {
-            warn!("persisted desktop runtime is unavailable; rebased launch to the current Pixels installation");
+            warn!(
+                "persisted desktop runtime is unavailable; rebased launch to the current Pixels installation"
+            );
             self.persist_state()?;
         }
         info!(
@@ -447,6 +460,7 @@ impl ServiceRuntime {
                 index,
                 from,
                 logical_sessions_json,
+                iroh_description_json,
             } => {
                 // Heartbeats use the monitor's snapshot. A full WMI enumeration
                 // for every Render/Panel heartbeat blocks control RPCs under this lock.
@@ -454,6 +468,18 @@ impl ServiceRuntime {
                 // 用于 hang 检测——进程活着但消息循环死掉时心跳会中断。
                 if from.starts_with("render_") {
                     self.state.note_render_heartbeat();
+                    self.render_iroh_descriptions.remove(&from);
+                    if !iroh_description_json.is_empty() {
+                        match serde_json::from_str::<px_node_protocol::IrohConnectionDescription>(
+                            &iroh_description_json,
+                        ) {
+                            Ok(description) if description.is_valid() => {
+                                self.render_iroh_descriptions
+                                    .insert(from.clone(), (std::time::Instant::now(), description));
+                            }
+                            _ => warn!(%from, "ignore invalid Render iroh description"),
+                        }
+                    }
                     if let Err(error) =
                         self.update_render_logical_sessions(from.clone(), logical_sessions_json)
                     {
@@ -474,6 +500,10 @@ impl ServiceRuntime {
                     heartbeat.control_epoch = identity.control_epoch;
                     heartbeat.node_control_ready = true;
                     heartbeat.node_access_host = self.config.node.access_host.clone();
+                    if let Some(configuration) = &self.node_control_iroh {
+                        heartbeat.iroh_relays_json = serde_json::to_string(&configuration.relays)
+                            .map_err(|error| error.to_string())?;
+                    }
                 }
                 Ok(Some(response))
             }
@@ -520,9 +550,12 @@ impl ServiceRuntime {
             self.stop_desktop()?;
         }
         let mut secure_args = spec.args.clone();
-        if let Some(relay_admission_ticket) =
-            apply_node_relay_arguments(&mut secure_args, self.node_control_relay.as_ref())
-        {
+        if let Some(relay_admission_ticket) = apply_node_relay_arguments(
+            &mut secure_args,
+            self.node_control_relay
+                .as_ref()
+                .filter(|_| self.node_control_iroh.is_none()),
+        ) {
             insert_private_render_environment(
                 &mut private_environment,
                 RENDER_RELAY_TICKET_ENVIRONMENT,
@@ -533,6 +566,11 @@ impl ServiceRuntime {
             &mut private_environment,
             RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT,
             self.ipc_token.clone(),
+        )?;
+        crate::iroh_endpoints::apply_render_configuration(
+            &mut secure_args,
+            &mut private_environment,
+            self.node_control_iroh.as_ref(),
         )?;
         self.process_manager
             .start_process_as_active_user_with_private_environment(
@@ -626,7 +664,7 @@ impl ServiceRuntime {
             }
             Some(path)
         };
-        let (record, process_manager, ipc_token, webview_ready_rx, node_config) = {
+        let (record, process_manager, ipc_token, webview_ready_rx, node_config, iroh_config) = {
             let mut guard = runtime.lock().await;
             if is_rdp && !guard.rdp_console_trusted {
                 return Err("RDP requires a verified Console connection".into());
@@ -648,6 +686,7 @@ impl ServiceRuntime {
                 guard.ipc_token.clone(),
                 ready_rx,
                 guard.config.node.clone(),
+                guard.node_control_iroh.clone(),
             )
         };
         let instance_id = record.instance_id.clone();
@@ -673,6 +712,11 @@ impl ServiceRuntime {
             &mut private_environment,
             RENDER_SERVICE_IPC_TOKEN_ENVIRONMENT,
             ipc_token,
+        )?;
+        crate::iroh_endpoints::apply_render_configuration(
+            &mut launch.args,
+            &mut private_environment,
+            iroh_config.as_ref(),
         )?;
         let _rdp_bootstrap = if is_rdp {
             let account =
@@ -1739,8 +1783,8 @@ async fn control_loop(
 mod tests {
     use super::*;
     use std::sync::{
-        atomic::{AtomicBool, Ordering},
         Mutex as StdMutex,
+        atomic::{AtomicBool, Ordering},
     };
 
     use service_core::process::ProcessSnapshot;
@@ -2066,10 +2110,12 @@ mod tests {
         for argument in EXPECTED_RELAY_ARGUMENTS {
             assert!(launches[0].args.iter().any(|actual| actual == argument));
         }
-        assert!(!launches[0]
-            .args
-            .iter()
-            .any(|argument| argument.starts_with("--appkey=")));
+        assert!(
+            !launches[0]
+                .args
+                .iter()
+                .any(|argument| argument.starts_with("--appkey="))
+        );
         let private_environments = manager.private_environments.lock().unwrap();
         assert!(private_environments[0].iter().any(|(name, value)| {
             name == RENDER_RELAY_TICKET_ENVIRONMENT && value == "deployment-relay-key"
@@ -2109,6 +2155,7 @@ mod tests {
                 index: 3,
                 from: "panel".to_string(),
                 logical_sessions_json: String::new(),
+                iroh_description_json: String::new(),
             })
             .unwrap()
             .unwrap();
@@ -2141,6 +2188,7 @@ mod tests {
                     index,
                     from: "render_32014".to_string(),
                     logical_sessions_json: String::new(),
+                    iroh_description_json: String::new(),
                 })
                 .unwrap();
         }
@@ -2185,6 +2233,48 @@ mod tests {
     }
 
     #[test]
+    fn iroh_endpoint_heartbeat_is_removed_on_disconnect_or_invalid_replacement() {
+        let mut runtime = test_runtime(vec![]);
+        let render_name = format!("render_{}", runtime.config.node.network.desktop_port);
+        let (sender, _receiver) = mpsc::unbounded_channel();
+        runtime.render_senders.insert(render_name.clone(), sender);
+        let description = serde_json::json!({
+            "endpoint_address": {"id": "a".repeat(64), "addrs": [{"Ip": "192.168.31.90:4601"}]},
+            "endpoint_configuration": {}
+        })
+        .to_string();
+        let heartbeat = Command::HeartBeat {
+            index: 1,
+            from: render_name.clone(),
+            logical_sessions_json: "[]".into(),
+            iroh_description_json: description,
+        };
+        runtime.handle_command(heartbeat.clone()).unwrap();
+        let endpoints = runtime.iroh_endpoint_snapshot();
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(endpoints[0].instance_id, None);
+        runtime
+            .render_iroh_descriptions
+            .get_mut(&render_name)
+            .unwrap()
+            .0 = std::time::Instant::now() - Duration::from_secs(6);
+        assert!(runtime.iroh_endpoint_snapshot().is_empty());
+        runtime.handle_command(heartbeat.clone()).unwrap();
+        runtime.remove_render_logical_sessions(&render_name);
+        assert!(runtime.iroh_endpoint_snapshot().is_empty());
+        runtime.handle_command(heartbeat).unwrap();
+        runtime
+            .handle_command(Command::HeartBeat {
+                index: 2,
+                from: render_name,
+                logical_sessions_json: "[]".into(),
+                iroh_description_json: "invalid".into(),
+            })
+            .unwrap();
+        assert!(runtime.iroh_endpoint_snapshot().is_empty());
+    }
+
+    #[test]
     fn render_heartbeat_updates_hung_detection_baseline() {
         let mut runtime = test_runtime(vec![ProcessSnapshot::new(
             1,
@@ -2197,6 +2287,7 @@ mod tests {
                 index: 1,
                 from: "render_4601".to_string(),
                 logical_sessions_json: String::new(),
+                iroh_description_json: String::new(),
             })
             .unwrap();
         assert!(runtime.state.last_render_heartbeat.is_some());
@@ -2208,6 +2299,7 @@ mod tests {
                 index: 2,
                 from: "panel".to_string(),
                 logical_sessions_json: String::new(),
+                iroh_description_json: String::new(),
             })
             .unwrap();
         assert!(runtime.state.last_render_heartbeat.is_none());
@@ -2281,9 +2373,11 @@ mod tests {
         assert!(!runtime.state.desktop_alive);
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 3);
-        assert!(processes
-            .iter()
-            .all(|process| !process.is_managed_clipboard_process()));
+        assert!(
+            processes
+                .iter()
+                .all(|process| !process.is_managed_clipboard_process())
+        );
     }
 
     #[test]
@@ -2368,13 +2462,17 @@ mod tests {
         );
         let processes = runtime.process_manager.list_processes().unwrap();
         assert_eq!(processes.len(), 4);
-        assert!(processes
-            .iter()
-            .all(|process| process.pid != 1 && process.pid != 5));
+        assert!(
+            processes
+                .iter()
+                .all(|process| process.pid != 1 && process.pid != 5)
+        );
         assert!(processes.iter().any(|process| process.pid == 8));
-        assert!(processes
-            .iter()
-            .all(|process| process.pid != 6 && process.pid != 7));
+        assert!(
+            processes
+                .iter()
+                .all(|process| process.pid != 6 && process.pid != 7)
+        );
     }
 
     struct StopOrderingProcessManager {
@@ -2544,13 +2642,15 @@ mod tests {
         let runtime = Arc::new(Mutex::new(service));
         ServiceRuntime::refresh_app_processes(&runtime).await;
         assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
-        assert!(runtime
-            .lock()
-            .await
-            .app_registry
-            .list()
-            .iter()
-            .all(|record| record.state == service_core::AppInstanceState::Stopped));
+        assert!(
+            runtime
+                .lock()
+                .await
+                .app_registry
+                .list()
+                .iter()
+                .all(|record| record.state == service_core::AppInstanceState::Stopped)
+        );
     }
 
     fn sample_webview_req(id: &str, port: i32) -> StartAppRequest {
@@ -2644,11 +2744,13 @@ mod tests {
             .expect("game child process");
 
         // desktop still listed
-        assert!(manager
-            .list_processes()
-            .unwrap()
-            .iter()
-            .any(|process| process.pid == 1 && process.cmdline.contains("desktop")));
+        assert!(
+            manager
+                .list_processes()
+                .unwrap()
+                .iter()
+                .any(|process| process.pid == 1 && process.cmdline.contains("desktop"))
+        );
 
         ServiceRuntime::stop_app_instance(&runtime, "inst-1")
             .await
@@ -2658,11 +2760,13 @@ mod tests {
         assert!(kills.contains(&game_pid), "must kill game child");
         // desktop pid not killed
         assert!(!kills.contains(&1));
-        assert!(manager
-            .list_processes()
-            .unwrap()
-            .iter()
-            .any(|process| process.pid == 1));
+        assert!(
+            manager
+                .list_processes()
+                .unwrap()
+                .iter()
+                .any(|process| process.pid == 1)
+        );
     }
 
     #[tokio::test]
@@ -2793,9 +2897,11 @@ mod tests {
             .mark_failed("failed", "launch failure")
             .unwrap();
         let runtime = Arc::new(Mutex::new(service));
-        assert!(ServiceRuntime::stop_app_instance(&runtime, "failed")
-            .await
-            .is_err());
+        assert!(
+            ServiceRuntime::stop_app_instance(&runtime, "failed")
+                .await
+                .is_err()
+        );
         assert_eq!(
             runtime
                 .lock()
@@ -3150,11 +3256,13 @@ mod tests {
             .unwrap_err();
         assert!(err.contains("refusing to kill"), "unexpected: {err}");
         // The innocent process must survive, and nothing may have been killed.
-        assert!(manager
-            .list_processes()
-            .unwrap()
-            .iter()
-            .any(|process| process.pid == pid && process.exe_path.contains("notepad")));
+        assert!(
+            manager
+                .list_processes()
+                .unwrap()
+                .iter()
+                .any(|process| process.pid == pid && process.exe_path.contains("notepad"))
+        );
         assert!(manager.kills.lock().unwrap().is_empty());
         // Record must not be marked stopped.
         assert_eq!(
@@ -3292,9 +3400,11 @@ mod tests {
         assert_eq!(desktop_only.len(), 1);
         assert_eq!(desktop_only[0]["logical_session_id"], "desktop");
 
-        assert!(runtime
-            .update_render_logical_sessions("render_4601".to_string(), "not-json".to_string(),)
-            .is_err());
+        assert!(
+            runtime
+                .update_render_logical_sessions("render_4601".to_string(), "not-json".to_string(),)
+                .is_err()
+        );
         assert_eq!(
             runtime.state.logical_sessions_json,
             serde_json::to_string(&desktop_only).unwrap()

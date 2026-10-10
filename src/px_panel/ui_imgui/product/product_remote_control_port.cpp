@@ -555,6 +555,7 @@ private:
                 parsed->frontendSessionId = connection->session_id;
                 parsed->frontendSessionRevision = connection->session_revision;
                 parsed->frontendToken = connection->frontend_token;
+                parsed->iroh = connection->iroh;
                 parsed->relayHost = connection->relay_host;
                 parsed->relayPort = connection->relay_port;
                 parsed->relayDeviceId = "server_" + connection->device_id;
@@ -619,109 +620,118 @@ private:
         const bool consoleAuthorized = target.frontendToken && !target.frontendToken->Bytes().empty();
         for (const auto& host : target.hosts) {
             const std::string endpoint{host + ":" + std::to_string(target.port)};
-            const auto configuration = RenderApi::GetRenderConfiguration(host, target.port);
-            if (!configuration) {
-                if (!endpointFailures.empty()) endpointFailures += "; ";
-                endpointFailures += endpoint + " returned HTTP/status " + std::to_string(configuration.error());
-                continue;
-            }
-            if (!ConnectionIdentityMatches(target, configuration->device_id_, configuration->public_device_code_,
-                                           configuration->console_origin_)) {
-                if (!endpointFailures.empty()) endpointFailures += "; ";
-                endpointFailures += endpoint + " returned a different device identity or Console device-code binding";
-                continue;
-            }
-            if (target.deviceId.empty()) target.deviceId = configuration->device_id_;
-            if (target.publicDeviceCode.empty() && configuration->public_device_code_.size() == 9 &&
-                std::ranges::all_of(configuration->public_device_code_, [](const char digit) { return digit >= '0' && digit <= '9'; })) {
-                const auto origin = ParseConsoleHttpsOrigin(configuration->console_origin_);
-                const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
-                if (origin && origin->baseUrl == configuration->console_origin_ &&
-                    (!selectedConsole || selectedConsole->baseUrl == origin->baseUrl)) {
-                    target.publicDeviceCode = configuration->public_device_code_;
-                    target.consoleOrigin = origin->baseUrl;
-                }
-            }
-            {
-                const std::scoped_lock lock{mutex_};
-                const auto currentBinding = std::ranges::find_if(devices_, [&target](const ui::RemoteDeviceCard& device) {
-                    return device.streamId.starts_with("console-device-") && device.deviceId == target.deviceId;
-                });
-                if (currentBinding != devices_.end() &&
-                    (target.publicDeviceCode != currentBinding->publicDeviceCode || target.consoleOrigin != currentBinding->consoleOrigin)) {
-                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice, ui::ConnectionFailureReason::DeviceResolutionFailed,
-                                             "The current Console maps this UUID to a different device code.");
-                    return;
-                }
-            }
-            const std::string credentialKey{CredentialKey(target)};
-            renderEndpointReached = true;
-            connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ReachEndpoint, endpoint);
-            connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::CheckPermission);
-            if (!configuration->access_policy_known_ || (!fileTransfer && !configuration->controller_availability_known_)) {
-                connectionProgress_.Fail(
-                    generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemotePreflightUnavailable,
-                    "The remote Render does not expose the required access-policy and controller-seat state. No client process was started.");
-                return;
-            }
-            if (!configuration->incoming_remote_access_enabled_) {
-                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled,
-                                         "The remote device reported that incoming desktop control is disabled. No client process was started.");
-                return;
-            }
-            if (fileTransfer && !configuration->file_transfer_enabled_) {
-                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::FileTransferDisabled,
-                                         "The remote device reported that file transfer is disabled. No file-transfer process was started.");
-                return;
-            }
-            if (!fileTransfer && !configuration->controller_available_) {
-                const std::string diagnostic{configuration->controller_reconnect_grace_
-                                                 ? "The previous controller is within its reconnect grace period. Retry after " +
-                                                       std::to_string(configuration->controller_retry_after_ms_) +
-                                                       " ms. No client process was started."
-                                                 : "Another controller currently owns the remote desktop. No client process was started."};
-                connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission,
-                                         configuration->controller_reconnect_grace_ ? ui::ConnectionFailureReason::RemoteReconnectGrace
-                                                                                    : ui::ConnectionFailureReason::RemoteSessionOccupied,
-                                         diagnostic);
-                return;
-            }
-            connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::CheckPermission);
-            connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::VerifyPassword);
-            if (!consoleAuthorized && target.password.empty()) target.password = credentialVault_->Read(credentialKey).value_or(std::string{});
-            if (!consoleAuthorized && target.password.empty() && !unboundEndpointCredentialKey.empty()) {
-                target.password = credentialVault_->Read(unboundEndpointCredentialKey).value_or(std::string{});
-            }
-            if (!consoleAuthorized && target.password.empty()) {
-                connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRequired,
-                                         "No saved credential is available. Enter the current password shown on the remote device and retry.");
-                return;
-            }
             const std::string passwordHash{consoleAuthorized ? std::string{} : MD5::Hex(target.password)};
-            if (!consoleAuthorized) {
-                const auto verified = RenderApi::VerifySecurityPassword(host, target.port, passwordHash);
-                if (!verified) {
-                    passwordVerificationUnavailable = true;
+            if (!consoleAuthorized || !target.iroh) {
+                const auto configuration = RenderApi::GetRenderConfiguration(host, target.port);
+                if (!configuration) {
                     if (!endpointFailures.empty()) endpointFailures += "; ";
-                    endpointFailures += endpoint + " password verification returned HTTP/status " + std::to_string(verified.error());
+                    endpointFailures += endpoint + " returned HTTP/status " + std::to_string(configuration.error());
                     continue;
                 }
-                if (!verified.value()) {
-                    credentialVault_->Delete(credentialKey);
-                    if (!unboundEndpointCredentialKey.empty()) credentialVault_->Delete(unboundEndpointCredentialKey);
-                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRejected,
-                                             "The remote device rejected the supplied password. Its temporary password may have changed.");
+                if (!ConnectionIdentityMatches(target, configuration->device_id_, configuration->public_device_code_,
+                                               configuration->console_origin_)) {
+                    if (!endpointFailures.empty()) endpointFailures += "; ";
+                    endpointFailures += endpoint + " returned a different device identity or Console device-code binding";
+                    continue;
+                }
+                if (target.deviceId.empty()) target.deviceId = configuration->device_id_;
+                if (target.publicDeviceCode.empty() && configuration->public_device_code_.size() == 9 &&
+                    std::ranges::all_of(configuration->public_device_code_, [](const char digit) { return digit >= '0' && digit <= '9'; })) {
+                    const auto origin = ParseConsoleHttpsOrigin(configuration->console_origin_);
+                    const auto selectedConsole = ParseConsoleHttpsOrigin(runtime_->Config()->ConsoleAddress());
+                    if (origin && origin->baseUrl == configuration->console_origin_ &&
+                        (!selectedConsole || selectedConsole->baseUrl == origin->baseUrl)) {
+                        target.publicDeviceCode = configuration->public_device_code_;
+                        target.consoleOrigin = origin->baseUrl;
+                    }
+                }
+                {
+                    const std::scoped_lock lock{mutex_};
+                    const auto currentBinding = std::ranges::find_if(devices_, [&target](const ui::RemoteDeviceCard& device) {
+                        return device.streamId.starts_with("console-device-") && device.deviceId == target.deviceId;
+                    });
+                    if (currentBinding != devices_.end() &&
+                        (target.publicDeviceCode != currentBinding->publicDeviceCode || target.consoleOrigin != currentBinding->consoleOrigin)) {
+                        connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
+                                                 ui::ConnectionFailureReason::DeviceResolutionFailed,
+                                                 "The current Console maps this UUID to a different device code.");
+                        return;
+                    }
+                }
+                renderEndpointReached = true;
+                connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ReachEndpoint, endpoint);
+                connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::CheckPermission);
+                if (!configuration->access_policy_known_ || (!fileTransfer && !configuration->controller_availability_known_)) {
+                    connectionProgress_.Fail(
+                        generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemotePreflightUnavailable,
+                        "The remote Render does not expose the required access-policy and controller-seat state. No client process was started.");
                     return;
                 }
+                if (!configuration->incoming_remote_access_enabled_) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::RemoteAccessDisabled,
+                                             "The remote device reported that incoming desktop control is disabled. No client process was started.");
+                    return;
+                }
+                if (fileTransfer && !configuration->file_transfer_enabled_) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission, ui::ConnectionFailureReason::FileTransferDisabled,
+                                             "The remote device reported that file transfer is disabled. No file-transfer process was started.");
+                    return;
+                }
+                if (!fileTransfer && !configuration->controller_available_) {
+                    const std::string diagnostic{configuration->controller_reconnect_grace_
+                                                     ? "The previous controller is within its reconnect grace period. Retry after " +
+                                                           std::to_string(configuration->controller_retry_after_ms_) +
+                                                           " ms. No client process was started."
+                                                     : "Another controller currently owns the remote desktop. No client process was started."};
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::CheckPermission,
+                                             configuration->controller_reconnect_grace_ ? ui::ConnectionFailureReason::RemoteReconnectGrace
+                                                                                        : ui::ConnectionFailureReason::RemoteSessionOccupied,
+                                             diagnostic);
+                    return;
+                }
+                connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::CheckPermission);
+                connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::VerifyPassword);
+                if (!consoleAuthorized && target.password.empty())
+                    target.password = credentialVault_->Read(CredentialKey(target)).value_or(std::string{});
+                if (!consoleAuthorized && target.password.empty() && !unboundEndpointCredentialKey.empty()) {
+                    target.password = credentialVault_->Read(unboundEndpointCredentialKey).value_or(std::string{});
+                }
+                if (!consoleAuthorized && target.password.empty()) {
+                    connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRequired,
+                                             "No saved credential is available. Enter the current password shown on the remote device and retry.");
+                    return;
+                }
+                if (!consoleAuthorized) {
+                    const auto verified = RenderApi::VerifySecurityPassword(host, target.port, passwordHash);
+                    if (!verified) {
+                        passwordVerificationUnavailable = true;
+                        if (!endpointFailures.empty()) endpointFailures += "; ";
+                        endpointFailures += endpoint + " password verification returned HTTP/status " + std::to_string(verified.error());
+                        continue;
+                    }
+                    if (!verified.value()) {
+                        credentialVault_->Delete(CredentialKey(target));
+                        if (!unboundEndpointCredentialKey.empty()) credentialVault_->Delete(unboundEndpointCredentialKey);
+                        connectionProgress_.Fail(generation, ui::ConnectionStepKind::VerifyPassword, ui::ConnectionFailureReason::PasswordRejected,
+                                                 "The remote device rejected the supplied password. Its temporary password may have changed.");
+                        return;
+                    }
+                }
+            } else {
+                // The authenticated Console descriptor identifies the QUIC endpoint. Requiring a direct
+                // HTTP preflight here would prevent private Relay connections behind NAT.
+                connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::ReachEndpoint);
+                connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::CheckPermission);
             }
+            const std::string credentialKey{CredentialKey(target)};
             connectionProgress_.SucceedStep(generation, ui::ConnectionStepKind::VerifyPassword);
             connectionProgress_.BeginStep(generation, ui::ConnectionStepKind::LaunchClient);
-            const std::string remoteDeviceId{target.deviceId.empty() ? configuration->device_id_ : target.deviceId};
+            const std::string remoteDeviceId{target.deviceId};
             const std::string displayName{target.displayName.empty() ? host : target.displayName};
             const std::string sessionId{consoleAuthorized ? target.frontendSessionId
                                                          : (fileTransfer ? "file-" : "direct-") + GenerateRandomBase64Id()};
             const auto preference = runtime_->Config()->LoadRemoteDevicePreference(remoteDeviceId).value_or(RemoteDevicePreference{});
-            if (consoleAuthorized && preference.forceRelay &&
+            if (consoleAuthorized && !target.iroh && preference.forceRelay &&
                 (target.relayHost.empty() || target.relayPort <= 0 || target.relayAdmissionTicket.empty())) {
                 connectionProgress_.Fail(generation, ui::ConnectionStepKind::LaunchClient, ui::ConnectionFailureReason::ClientLaunchFailed,
                                          "Console did not issue a Relay route for this resource session.");
@@ -736,7 +746,7 @@ private:
                     return;
                 }
             }
-            const bool launched = runtime_->Launcher()->Launch(
+            const auto launched = runtime_->Launcher()->Launch(
                 {.connectionKind =
                      target.kind == ConnectionInputKind::SharedLink ? NativeConnectionKind::SharedLinkDirect : NativeConnectionKind::IpDirect,
                  .displayName = displayName,
@@ -750,6 +760,7 @@ private:
                  .frontendSessionId = target.frontendSessionId,
                  .frontendSessionRevision = target.frontendSessionRevision,
                  .frontendToken = target.frontendToken,
+                 .iroh = target.iroh,
                  .relayHost = target.relayHost,
                  .relayPort = target.relayPort,
                  .relayRemoteDeviceId = target.relayDeviceId.empty() ? "server_" + remoteDeviceId : target.relayDeviceId,
@@ -767,8 +778,7 @@ private:
                  .disableVulkan = preference.disableVulkan});
             if (!launched) {
                 connectionProgress_.Fail(generation, ui::ConnectionStepKind::LaunchClient, ui::ConnectionFailureReason::ClientLaunchFailed,
-                                         "All preflight checks passed, but px_client could not start. Confirm that px_client.exe is installed beside "
-                                         "px_panel.exe and is not blocked by Windows.");
+                                         std::string{px::ui::Localizer{runtime_->Config()->Settings().language}.Text(launched.error)});
                 return;
             }
             connectionProgress_.Complete(generation,

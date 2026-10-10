@@ -1,0 +1,7 @@
+[2026-10-10 17:19:19.525][thread 45448][client_session.cpp:223][info] : event=file_transfer.session component=client operation=start outcome=success
+[2026-10-10 17:19:20.018][thread 69280][iroh_dialer.cpp:147][info] : event=iroh.connect outcome=accepted reconnect=false
+[2026-10-10 17:19:20.032][thread 73172][client_session.cpp:337][info] : event=file_transfer.capability component=client operation=configure outcome=enabled host_enabled=true
+[2026-10-10 17:19:20.064][thread 84740][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-10 17:19:20.080][thread 84740][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=154
+[2026-10-10 17:19:20.170][thread 45448][client_file_transfer_acceptance.cpp:64][info] : event=file_transfer.acceptance component=client operation=start_upload outcome=success job=1
+[2026-10-10 17:19:22.587][thread 45448][client_file_transfer_acceptance.cpp:188][info] : File-transfer acceptance completed

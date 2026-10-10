@@ -21,6 +21,11 @@ endif()
 # Object libraries keep one final SDK archive (including all its implementations),
 # without introducing static-library cycles between the legacy session and decoders.
 add_library(px_sdk_core OBJECT ${PX_SDK_CORE_SOURCES})
+if(TARGET px_transport_cpp)
+    target_sources(px_sdk_core PRIVATE connection/iroh_connection.cpp connection/iroh_dialer.cpp sdk_iroh_connection.cpp)
+    target_compile_definitions(px_sdk_core PRIVATE PX_HAS_IROH_TRANSPORT=1)
+    target_link_libraries(px_sdk_core PUBLIC px_transport_cpp)
+endif()
 add_library(pixels::transport ALIAS px_sdk_core)
 set(sdk_targets px_sdk_core)
 if(NOT PX_SDK_CORE_ONLY)
@@ -142,6 +147,16 @@ if(BUILD_TESTING AND NOT ANDROID)
         GTest::gtest_main
     )
     add_test(NAME sdk_stream_helper COMMAND test_sdk_stream_helper)
+    add_executable(test_encoded_video_delivery tests/test_encoded_video_delivery.cpp encoded_video_delivery.cpp)
+    target_include_directories(test_encoded_video_delivery PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(test_encoded_video_delivery PRIVATE px_message pixels::media_transport GTest::gtest GTest::gtest_main)
+    add_test(NAME encoded_video_delivery COMMAND test_encoded_video_delivery)
+    if(TARGET px_transport_cpp)
+        add_executable(test_iroh_sdk_connection tests/test_iroh_connection.cpp)
+        target_link_libraries(test_iroh_sdk_connection PRIVATE px_sdk_core GTest::gtest GTest::gtest_main)
+        add_test(NAME iroh_sdk_connection COMMAND test_iroh_sdk_connection)
+        set_tests_properties(iroh_sdk_connection PROPERTIES TIMEOUT 30)
+    endif()
     add_executable(test_sdk_websocket_reconnect
         tests/test_sdk_websocket_reconnect.cpp
     )

@@ -69,23 +69,37 @@ TEST(WebSocketFrontendAdmissionTest, AcceptsOnlyBoundCloudApplicationGrant) {
     ASSERT_TRUE(descriptor);
     const auto valid_grant = ValidGrant();
 
-    EXPECT_TRUE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", valid_grant));
+    EXPECT_TRUE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", valid_grant));
 
     auto wrong_instance = valid_grant;
     wrong_instance.instance_id = "another-instance";
-    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", wrong_instance));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", wrong_instance));
 
     auto wrong_target = valid_grant;
     wrong_target.target_kind = "device";
-    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", wrong_target));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", wrong_target));
 
     auto unsupported_role = valid_grant;
     unsupported_role.access_role = "administrator";
-    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", unsupported_role));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", unsupported_role));
 
     auto expired_grant = valid_grant;
     expired_grant.valid_for_ms = 0;
-    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", expired_grant));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", expired_grant));
+}
+
+TEST(WebSocketFrontendAdmissionTest, DesktopGrantMustMatchThisRenderDevice) {
+    auto query_parameters = ValidDescriptorQuery();
+    const auto descriptor = ConsumeWebSocketFrontendDescriptor(query_parameters);
+    ASSERT_TRUE(descriptor);
+    auto desktop_grant = ValidGrant();
+    desktop_grant.target_kind = "desktop";
+    desktop_grant.application_id.clear();
+    desktop_grant.instance_id.clear();
+    EXPECT_TRUE(IsAcceptedWebSocketFrontendGrant(*descriptor, "", "render-node", desktop_grant));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "", "another-device", desktop_grant));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "instance-9", "render-node", desktop_grant));
+    EXPECT_FALSE(IsAcceptedWebSocketFrontendGrant(*descriptor, "", "render-node", ValidGrant()));
 }
 
 TEST(WebSocketFrontendAdmissionTest, RenewalCannotChangeFrontendIdentity) {

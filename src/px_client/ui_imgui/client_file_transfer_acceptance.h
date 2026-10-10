@@ -21,7 +21,7 @@ struct ClientTransferJob;
 class ClientFileTransferAcceptance final {
 public:
     ClientFileTransferAcceptance(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session,
-                                 ClientFileTransferAcceptanceConfig config);
+                                 ClientFileTransferAcceptanceConfig config, bool waitForVideo);
 
     void Tick();
     [[nodiscard]] bool Finished() const noexcept;
@@ -38,6 +38,7 @@ private:
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
     ClientFileTransferAcceptanceConfig config_{};
+    bool waitForVideo_{};
     std::string remotePath_{};
     std::int32_t uploadJobId_{};
     std::int32_t downloadJobId_{};

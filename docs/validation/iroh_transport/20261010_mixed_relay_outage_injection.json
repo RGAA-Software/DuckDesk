@@ -1,0 +1,9 @@
+﻿{
+    "block_started":  "2026-10-10 20:12:42.051",
+    "block_removed":  "2026-10-10 20:12:45.397",
+    "direction":  "Outbound",
+    "protocol":  "TCP",
+    "remote_port":  4605,
+    "program":  "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+    "scope":  "Only owned Client Relay sockets; Console and MCP remain available"
+}

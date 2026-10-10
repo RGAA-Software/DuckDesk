@@ -429,14 +429,15 @@ void ClientFileTransferWindow::HandleInput(const px::desktop::DesktopInputEvent&
     openCloseConfirmation_ = true;
 }
 
-void ClientFileTransferWindow::Draw() {
+void ClientFileTransferWindow::Draw(bool consumeOperationResults) {
     shell_.get().SetLanguage(english_ ? px::ui::Language::English : px::ui::Language::SimplifiedChinese);
     if (!shown_) {
         shown_ = true;
         shell_.get().RequestShowAndRaise();
     }
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
-    if (const auto operation = session_->TakeRemoteFileOperationResult()) {
+    // Automated acceptance owns the result of its cleanup request; the UI must not consume it first.
+    if (const auto operation = consumeOperationResults ? session_->TakeRemoteFileOperationResult() : std::nullopt) {
         if (operation->success) {
             static_cast<void>(session_->ListRemoteDirectory(remotePath_, showHiddenRemote_));
             remoteSelection_.Clear();

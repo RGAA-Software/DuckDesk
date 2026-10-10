@@ -1,0 +1,30 @@
+--- a/src/socket/transports/relay/actor.rs
++++ b/src/socket/transports/relay/actor.rs
+@@ -385,6 +385,14 @@
+                     }
+                 }
+                 _ = &mut sleep => return true,
++                queued_datagram = self.relay_datagrams_send.recv() => {
++                    if queued_datagram.is_none() {
++                        return false;
++                    }
++                    // Disconnected relay queues must not block packets for healthy relays.
++                    // QUIC retransmits reliable payload when a path becomes reachable.
++                    self.reset_inactive_timeout();
++                }
+             }
+         }
+     }
+@@ -510,6 +518,12 @@
+                             drop(sender);
+                         }
+                     }
++                }
++                queued_datagram = self.relay_datagrams_send.recv() => {
++                    if queued_datagram.is_none() {
++                        break None;
++                    }
++                    self.reset_inactive_timeout();
+                 }
+                 _ = send_datagram_flush.tick() => {
+                     self.reset_inactive_timeout();

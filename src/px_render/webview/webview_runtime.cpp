@@ -255,6 +255,24 @@ public:
     CefRefPtr<CefDialogHandler> GetDialogHandler() override { return this; }
     CefRefPtr<CefPermissionHandler> GetPermissionHandler() override { return this; }
 
+    bool OnConsoleMessage(CefRefPtr<CefBrowser>, cef_log_severity_t level, const CefString& message, const CefString& source,
+                          int line) override {
+        CEF_REQUIRE_UI_THREAD();
+        if (level < LOGSEVERITY_WARNING || console_diagnostics_ >= 20) return false;
+        ++console_diagnostics_;
+        auto diagnostic = message.ToString().substr(0, 1024);
+        std::replace(diagnostic.begin(), diagnostic.end(), '\n', ' ');
+        std::replace(diagnostic.begin(), diagnostic.end(), '\r', ' ');
+        CefURLParts source_parts{};
+        std::string source_location{"inline"};
+        if (CefParseURL(source, source_parts)) {
+            source_location = CefString(&source_parts.host).ToString() + CefString(&source_parts.path).ToString();
+        }
+        LOGW("event=webview.console severity={} source={} line={} message={}", static_cast<int>(level), source_location.substr(0, 256), line,
+             diagnostic);
+        return true;
+    }
+
     bool OnCursorChange(CefRefPtr<CefBrowser>, CefCursorHandle, cef_cursor_type_t type, const CefCursorInfo& custom_cursor_info) override {
         if (!callbacks_.on_cursor) {
             return true;
@@ -480,6 +498,11 @@ public:
     void OnLoadStart(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, TransitionType) override {
         CEF_REQUIRE_UI_THREAD();
         if (frame && frame->IsMain()) {
+            console_diagnostics_ = 0;
+            load_started_ = std::chrono::steady_clock::now();
+            last_paint_.reset();
+            main_load_complete_ = false;
+            LOGI("event=webview.navigation phase=start");
             main_load_failed_ = false;
             paint_seen_for_load_ = false;
             InvalidateTextTargetOnUi();
@@ -495,6 +518,10 @@ public:
     void OnLoadEnd(CefRefPtr<CefBrowser>, CefRefPtr<CefFrame> frame, int http_status_code) override {
         if (frame && frame->IsMain()) {
             LOGI("WebView main frame load completed: http_status={}", http_status_code);
+            main_load_complete_ = http_status_code < 400;
+            const auto elapsed_ms =
+                load_started_ ? std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - *load_started_).count() : 0;
+            LOGI("event=webview.navigation phase=complete elapsed_ms={} status={}", elapsed_ms, http_status_code);
             if (http_status_code >= 400) {
                 main_load_failed_ = true;
                 if (callbacks_.on_failed) {
@@ -571,34 +598,51 @@ public:
     }
 
     void SetActive(bool active) {
-        auto self = CefRefPtr<WebViewClient>(this);
-        PostToCefUi([self, active] {
-            auto target = self;
-            const bool value = active;
-            target->active_ = value;
-            if (!value) {
-                target->ReleaseInputOnUi();
-                target->InvalidateTextTargetOnUi();
-                target->selected_text_.clear();
-                target->clipboard_text_.reset();
+        const auto client = CefRefPtr<WebViewClient>(this);
+        PostToCefUi([client, active] {
+            client->active_ = active;
+            if (!active) {
+                client->ReleaseInputOnUi();
+                client->InvalidateTextTargetOnUi();
+                client->selected_text_.clear();
+                client->clipboard_text_.reset();
             }
-            if (target->browser_) {
-                target->browser_->GetHost()->SetWindowlessFrameRate(value ? target->config_.frame_rate : 1);
-                target->browser_->GetHost()->SetFocus(value);
-                if (value) {
-                    target->browser_->GetHost()->Invalidate(PET_VIEW);
+            if (client->browser_) {
+                client->browser_->GetHost()->SetWindowlessFrameRate(active ? client->config_.frame_rate : 1);
+                client->browser_->GetHost()->SetFocus(active);
+                if (active) {
+                    client->ReplayOwnedView();
+                    client->browser_->GetHost()->Invalidate(PET_VIEW);
                 }
             }
+            LOGI("event=webview.activity active={} frame={}", active, client->frame_index_.load());
         });
     }
 
     void RequestFrame() {
-        auto self = CefRefPtr<WebViewClient>(this);
-        PostToCefUi([self] {
-            if (self->browser_) {
-                self->browser_->GetHost()->Invalidate(PET_VIEW);
+        const auto client = CefRefPtr<WebViewClient>(this);
+        PostToCefUi([client] {
+            if (client->browser_) {
+                client->ReplayOwnedView();
+                client->browser_->GetHost()->Invalidate(PET_VIEW);
             }
         });
+    }
+
+    void ReplayOwnedView() {
+        CEF_REQUIRE_UI_THREAD();
+        // The readiness paint can precede the first viewer. Invalidation does
+        // not guarantee another accelerated paint of an unchanged page. Reuse
+        // our owned surface; never retain or replay CEF's borrowed paint handle.
+        const auto previous_frame = frame_index_.load();
+        if (config_.accelerated_paint) {
+            EmitAcceleratedComposite();
+        } else {
+            EmitSoftwareComposite();
+        }
+        if (frame_index_.load() != previous_frame) {
+            LOGI("event=webview.frame_replay frame={} accelerated={}", frame_index_.load(), config_.accelerated_paint);
+        }
     }
 
     void SendMouse(const MouseEvent& event) {
@@ -847,6 +891,17 @@ private:
     }
 
     void ObservePaintAndMaybeNotifyFirstFrame() {
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed_ms = load_started_ ? std::chrono::duration_cast<std::chrono::milliseconds>(now - *load_started_).count() : 0;
+        if (!last_paint_) {
+            LOGI("event=webview.paint phase=first elapsed_ms={} frame={} loaded={}", elapsed_ms, frame_index_.load(), main_load_complete_);
+        } else {
+            const auto gap_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - *last_paint_).count();
+            if (gap_ms >= 100) {
+                LOGI("event=webview.paint phase=gap gap_ms={} frame={} loaded={}", gap_ms, frame_index_.load(), main_load_complete_);
+            }
+        }
+        last_paint_ = now;
         paint_seen_for_load_ = true;
         TryNotifyFirstFrame();
     }
@@ -1152,6 +1207,10 @@ private:
     std::atomic_bool first_frame_{false};
     std::atomic_bool main_load_failed_{false};
     std::atomic_bool paint_seen_for_load_{false};
+    // CEF UI-thread confined; no page URL or content is included in timing diagnostics.
+    std::optional<std::chrono::steady_clock::time_point> load_started_{};
+    std::optional<std::chrono::steady_clock::time_point> last_paint_{};
+    bool main_load_complete_{};
     std::atomic_int audio_sample_rate_{48000};
     std::atomic_int audio_channels_{2};
     std::atomic_uint64_t frame_index_{0};
@@ -1197,6 +1256,9 @@ private:
     std::mutex close_mutex_;
     std::condition_variable close_cv_;
     bool closed_ = false;
+
+    // CEF UI thread only; bound diagnostic output for arbitrary application scripts.
+    std::uint32_t console_diagnostics_{};
 
     IMPLEMENT_REFCOUNTING(WebViewClient);
 };

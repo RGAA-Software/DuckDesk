@@ -1,0 +1,9 @@
+{
+    "https_bind": "0.0.0.0:4605",
+    "qad_bind": "0.0.0.0:4605",
+    "qad_public_port": 4605,
+    "console_managed": true,
+    "certificate_file": "tls/relay.pem",
+    "private_key_file": "tls/relay-key.pem",
+    "max_connections": 4096
+}

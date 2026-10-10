@@ -1,0 +1,28 @@
+[
+  {
+    "product": "client",
+    "artifacts": [
+      {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "31aaa10d06414d31916ad688199df5b5a5235eb9ce06519c54ac82868e93b084"
+      },
+      {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "31aaa10d06414d31916ad688199df5b5a5235eb9ce06519c54ac82868e93b084"
+      }
+    ]
+  },
+  {
+    "product": "cloud_node",
+    "artifacts": [
+      {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "c6415353fe76e8ec81c61dd594ce410887eb5bc35d55ca60bab53ca8e7579cb3"
+      },
+      {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "c6415353fe76e8ec81c61dd594ce410887eb5bc35d55ca60bab53ca8e7579cb3"
+      }
+    ]
+  }
+]

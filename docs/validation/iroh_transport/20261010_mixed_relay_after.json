@@ -1,0 +1,109 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-183012-auto",
+  "transport_requested": "iroh-relay",
+  "bytes": 134217984,
+  "cancel_retry": false,
+  "instance_id": "e6208a9d-10cb-4aac-8bf3-6c7f46049952",
+  "posted_input_messages": 346,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-183012-auto\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-183012-auto\\mixed-1.png"
+  ],
+  "elapsed_seconds": 7.457,
+  "exit_code": 0,
+  "source_sha256": "913049bd654579cd90ac9f1b33a3623ee8a91696a8410a96b8a0461fd3b23ca4",
+  "download_sha256": "913049bd654579cd90ac9f1b33a3623ee8a91696a8410a96b8a0461fd3b23ca4",
+  "path_evidence": "force_relay=true with iroh configuration and accepted iroh admission; short run may finish before periodic path metric",
+  "media_windows": [
+    {
+      "frames": 303,
+      "fps": 60.5,
+      "max_gap_ms": 26.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_path_relay": true,
+  "functional_transfer_passed": true,
+  "driver_network_isolation_passed": true,
+  "render_dispatch_warning_threshold_us": 50000,
+  "render_dispatch_warnings": 0,
+  "render_max_dispatch_queue_us": null,
+  "render_max_dispatch_callback_us": null,
+  "latency_scope": "No dispatch log at or above 50 ms in this short reproduction; no below-threshold maximum or end-to-end input latency measured.",
+  "cleanup": {
+    "remote_file_exists": false,
+    "services": [
+      {
+        "Name": "Pixels.Console",
+        "Status": "Running"
+      },
+      {
+        "Name": "Pixels.Relay",
+        "Status": "Running"
+      },
+      {
+        "Name": "px_service",
+        "Status": "Running"
+      }
+    ],
+    "renders": [
+      {
+        "Id": 15760,
+        "SessionId": 2
+      }
+    ]
+  },
+  "relays_after_cleanup": [
+    {
+      "control_epoch": 68,
+      "current_connections": 0,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 0,
+      "fresh": true,
+      "generation": 13,
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T10:31:50.345503Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "BJ-200M Relay",
+      "product_version_code": 3002001,
+      "public_host": "49.232.233.61",
+      "public_port": 4605,
+      "report_sequence": 285,
+      "reported_draining": false,
+      "revision": 2,
+      "state": "ready",
+      "uploaded_bytes": 0
+    },
+    {
+      "control_epoch": 68,
+      "current_connections": 1,
+      "current_rooms": null,
+      "desired_draining": false,
+      "disabled": false,
+      "forwarded_bytes": 10742680,
+      "fresh": true,
+      "generation": 87,
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "iroh_qad_port": 4605,
+      "last_seen": "2026-10-10T10:31:53.463821Z",
+      "max_connections": 4096,
+      "max_rooms": null,
+      "name": "Single Server Relay",
+      "product_version_code": 3002001,
+      "public_host": "39.71.45.66",
+      "public_port": 4605,
+      "report_sequence": 286,
+      "reported_draining": false,
+      "revision": 6,
+      "state": "ready",
+      "uploaded_bytes": 10742680
+    }
+  ]
+}

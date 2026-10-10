@@ -1,0 +1,15 @@
+{
+  "installed_version": "3.3.97",
+  "verified_artifacts": 314,
+  "service_status": "Running",
+  "render_sha256": "952F3EFE0794FDCBCB3ECE660C048AE815174CF5525ED94BD065269FE0DDF84A",
+  "manifest_sha256": "B7B681F7DA1D772B4EF7FA35354CFB3F45C9C51362A05A6E86D0E71FEBAC1DC8",
+  "setup_sha256": "E4B0C47449BE3DDD4206C0DFF679D3A32F19842EE6D3A5BC58E92A28F56E14EE",
+  "operation": {
+    "device_code": "428358431",
+    "kind": "command",
+    "operation_id": "314264df-642c-41d2-9e0e-45377f4ea12d",
+    "task_id": "ccec8512-4670-41a3-b20e-8011cf761bd1"
+  },
+  "candidate": "iroh-file-credit-20261010"
+}

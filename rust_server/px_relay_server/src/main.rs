@@ -1,6 +1,7 @@
 use px_relay_server::{
     config::RelayConfig,
     control,
+    iroh::{IrohRelay, IrohRelayConfig},
     server::{router_with_state, RelayServerState},
 };
 use tokio::net::TcpListener;
@@ -57,6 +58,53 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
+    let iroh_configuration =
+        if std::env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new("--iroh-config")) {
+            Some(
+                std::env::args_os()
+                    .nth(2)
+                    .ok_or("Relay iroh configuration path is missing")?,
+            )
+        } else {
+            std::env::var_os("PIXELS_RELAY_IROH_CONFIG")
+        };
+    if let Some(configuration_path) = iroh_configuration {
+        let config = IrohRelayConfig::load(std::path::Path::new(&configuration_path))?;
+        let control_plane = if config.console_managed {
+            Some(
+                px_relay_server::config::ControlPlaneConfig::from_environment()
+                    .map_err(std::io::Error::other)?,
+            )
+        } else {
+            None
+        };
+        let relay = IrohRelay::start(&config).await?;
+        let management = relay.management();
+        if control_plane.is_some() {
+            management.set_draining(true);
+        }
+        let cancellation = CancellationToken::new();
+        let relay_task = async {
+            let runtime_task = async {
+                let result = relay.run(cancellation.clone()).await;
+                cancellation.cancel();
+                result
+            };
+            let control_task = async {
+                if let Some(control_plane) = control_plane {
+                    control::run_iroh(management, control_plane, cancellation.clone()).await;
+                }
+            };
+            let (result, ()) = tokio::join!(runtime_task, control_task);
+            result
+        };
+        tokio::pin!(relay_task);
+        tokio::select! {
+            result = &mut relay_task => result?,
+            _ = shutdown_signal(cancellation.clone(), stop_token) => relay_task.await?,
+        }
+        return Ok(());
+    }
     let config = RelayConfig::from_environment().map_err(std::io::Error::other)?;
     let listener = TcpListener::bind(config.listen).await?;
     tracing::info!(listen = %config.listen, "Pixels Relay started");
@@ -72,8 +120,16 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
 }
 
 async fn shutdown_signal(cancellation: CancellationToken, stop_token: CancellationToken) {
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .expect("install Relay SIGTERM handler");
+    #[cfg(unix)]
+    let terminate_signal = terminate.recv();
+    #[cfg(not(unix))]
+    let terminate_signal = std::future::pending::<()>();
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {}
+        _ = terminate_signal => {}
         _ = stop_token.cancelled() => {}
         _ = cancellation.cancelled() => {}
     }

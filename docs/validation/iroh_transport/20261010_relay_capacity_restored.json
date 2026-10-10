@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "scope": "product Relay capacity and release; loopback TLS, not cross-host load",
+  "relay_sha256": "fb97f97e60e74e617388948d367047d98343fb33a62f555732173a448f10918d",
+  "exit_code": 0,
+  "denied_relay": "https://127.0.0.1:18605/",
+  "recovery": {
+    "both_relays_reusable": true,
+    "capacity_per_relay": 2,
+    "recovery_ms": 4168,
+    "release_denied": true,
+    "released_relay": "https://127.0.0.1:18605/"
+  }
+}

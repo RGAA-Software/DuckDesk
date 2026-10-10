@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 
+#include "client_launch_result.h"
 #include "cloud_application_progress.h"
 #include "px_console_client/console_user_app_api.h"
 
@@ -30,7 +31,7 @@ struct ApplicationLaunchOperations final {
     std::function<InstanceResult(const std::string&)> query{};
     std::function<ConnectionResult(const std::string&, bool, const std::string&)> authorize{};
     std::function<bool()> clientAvailable{};
-    std::function<bool(const ApplicationLaunchRequest&, const px_console::ConsoleNativeApplicationConnection&)> launch{};
+    std::function<ClientLaunchResult(const ApplicationLaunchRequest&, const px_console::ConsoleNativeApplicationConnection&)> launch{};
     std::function<void(const std::string&, std::int64_t)> close{};
     std::function<void()> wait{};
     std::chrono::milliseconds readinessTimeout{45'000};

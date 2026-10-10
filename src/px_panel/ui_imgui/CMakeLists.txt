@@ -175,6 +175,8 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
         product/tests/application_launch_workflow_tests.cpp
         product/application_launch_workflow.cpp
         product/tests/panel_product_tests.cpp
+        product/tests/client_startup_tests.cpp
+        ${CMAKE_SOURCE_DIR}/src/px_client/ui_imgui/client_panel_reporter.cpp
         product/tests/panel_device_presence_tests.cpp
         product/tests/remote_device_actions_tests.cpp
         product/tests/console_request_uuid_tests.cpp

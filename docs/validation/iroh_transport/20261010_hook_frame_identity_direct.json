@@ -1,0 +1,70 @@
+{
+  "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-232328-auto",
+  "transport_requested": "iroh-direct",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "8c72f94c-67d8-449b-9a1a-cf2260e4b26b",
+  "started_at": "2026-10-10 23:23:29",
+  "posted_input_messages": 1397,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-232328-auto\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-232328-auto\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-232328-auto\\mixed-2.png"
+  ],
+  "elapsed_seconds": 27.047,
+  "exit_code": 0,
+  "source_sha256": "a6d675056063cd7fde64aa8b382aa812ad54262294a861351196e581ee3d6b61",
+  "download_sha256": "a6d675056063cd7fde64aa8b382aa812ad54262294a861351196e581ee3d6b61",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 256,
+      "fps": 51.2,
+      "max_gap_ms": 198.9,
+      "gaps_gt_100ms": 3,
+      "idr": 0,
+      "rfi": 3
+    },
+    {
+      "frames": 278,
+      "fps": 55.6,
+      "max_gap_ms": 110.7,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 6
+    },
+    {
+      "frames": 294,
+      "fps": 58.8,
+      "max_gap_ms": 74.0,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 3
+    },
+    {
+      "frames": 294,
+      "fps": 58.7,
+      "max_gap_ms": 81.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 2
+    },
+    {
+      "frames": 291,
+      "fps": 58.1,
+      "max_gap_ms": 84.8,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 2
+    }
+  ],
+  "actual_paths": [
+    "direct"
+  ],
+  "selected_paths": [
+    "{\"Ip\":\"39.71.45.66:4613\"}"
+  ],
+  "read_only_observation_retries": 0
+}

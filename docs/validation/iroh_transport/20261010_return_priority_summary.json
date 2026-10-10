@@ -1,0 +1,113 @@
+{
+  "cases": [
+    {
+      "case": "pinned_priority_90_1536",
+      "report": "20261010_pinned_priority_90_1536.json",
+      "functional_passed": true,
+      "bytes_each_direction": 1610612736,
+      "elapsed_seconds": 61.08,
+      "fps_min": 59.9,
+      "fps_max": 60.6,
+      "max_gap_ms": 95.0,
+      "gaps_gt_100ms": 0,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "pinned_priority_90",
+      "report": "20261010_pinned_priority_90.json",
+      "functional_passed": true,
+      "bytes_each_direction": 536870912,
+      "elapsed_seconds": 21.974,
+      "fps_min": 58.5,
+      "fps_max": 60.0,
+      "max_gap_ms": 173.4,
+      "gaps_gt_100ms": 1,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "pinned_priority_bj",
+      "report": "20261010_pinned_priority_bj.json",
+      "functional_passed": true,
+      "bytes_each_direction": 536870912,
+      "elapsed_seconds": 22.984,
+      "fps_min": 59.4,
+      "fps_max": 60.9,
+      "max_gap_ms": 122.8,
+      "gaps_gt_100ms": 2,
+      "selected_paths": [
+        "{\"Relay\":\"https://49.232.233.61:4605/\"}"
+      ]
+    },
+    {
+      "case": "dual_priority_mixed",
+      "report": "20261010_dual_priority_mixed.json",
+      "functional_passed": true,
+      "bytes_each_direction": 536870912,
+      "elapsed_seconds": 22.204,
+      "fps_min": 47.9,
+      "fps_max": 60.0,
+      "max_gap_ms": 254.6,
+      "gaps_gt_100ms": 8,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "dual_priority_trace",
+      "report": "20261010_dual_priority_trace.json",
+      "functional_passed": true,
+      "bytes_each_direction": 1610612736,
+      "elapsed_seconds": 69.238,
+      "fps_min": 59.4,
+      "fps_max": 60.3,
+      "max_gap_ms": 246.9,
+      "gaps_gt_100ms": 2,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "dual_priority_tcp",
+      "report": "20261010_dual_priority_tcp.json",
+      "functional_passed": true,
+      "bytes_each_direction": 1610612736,
+      "elapsed_seconds": 61.624,
+      "fps_min": 60.0,
+      "fps_max": 60.4,
+      "max_gap_ms": 64.4,
+      "gaps_gt_100ms": 0,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    }
+  ],
+  "relays_after_cleanup": [
+    {
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "public_host": "49.232.233.61",
+      "fresh": true,
+      "state": "ready",
+      "desired_draining": false,
+      "reported_draining": false,
+      "disabled": false
+    },
+    {
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "public_host": "39.71.45.66",
+      "fresh": true,
+      "state": "ready",
+      "desired_draining": false,
+      "reported_draining": false,
+      "disabled": false
+    }
+  ],
+  "capture_sha256": "c624ebc2ce775cf416ca8249dc3105f7da4d20b9247044dfc651d1270af2f7b7",
+  "performance_passed": false,
+  "conclusion": "Return stream priority fixed and installed; intermittent Relay transit delay remains. No route change during traced stutters. Packet capture round did not reproduce stutter and does not establish TCP cause.",
+  "persistent_configuration_changes": [],
+  "cleanup": "Owned clients/instances/guest sessions closed by successful harness finally; remote file absent, three services Running, desktop Render 21528. Pktmon stopped and temporary filter removed."
+}

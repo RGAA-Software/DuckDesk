@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="1" failures="1" disabled="0" errors="0" time="0." timestamp="2026-10-10T09:14:04.713" name="AllTests">
+  <testsuite name="IrohVideoFlight" tests="1" failures="1" disabled="0" skipped="0" errors="0" time="0." timestamp="2026-10-10T09:14:04.713">
+    <testcase name="ReverseFeedbackDelayDoesNotShrinkHealthyForwardCapacity" file="D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp" line="641" status="run" result="completed" time="0." timestamp="2026-10-10T09:14:04.713" classname="IrohVideoFlight">
+      <failure message="D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp:655&#x0A;Expected equality of these values:&#x0A;  flight.Inspect(0, started + std::chrono::milliseconds(501)).budget_bytes&#x0A;    Which is: 32768&#x0A;  262144&#x0A;" type=""><![CDATA[D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp:655
+Expected equality of these values:
+  flight.Inspect(0, started + std::chrono::milliseconds(501)).budget_bytes
+    Which is: 32768
+  262144
+]]></failure>
+      <failure message="D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp:656&#x0A;Value of: flight.CanSend(0, 0, started + std::chrono::milliseconds(501))&#x0A;  Actual: false&#x0A;Expected: true&#x0A;" type=""><![CDATA[D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp:656
+Value of: flight.CanSend(0, 0, started + std::chrono::milliseconds(501))
+  Actual: false
+Expected: true
+]]></failure>
+    </testcase>
+  </testsuite>
+</testsuites>

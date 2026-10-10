@@ -14,6 +14,7 @@
 #include "settings/rd_settings.h"
 #include "px_encoder/encoder_config.h"
 #include "frame_rate_policy.h"
+#include "encoder_frame_sequence.h"
 
 namespace px
 {
@@ -64,6 +65,7 @@ namespace px
         RdSettings& settings_;
         std::atomic_int frame_rate_{60};
         std::map<std::string, render::FrameRateAdmission> frame_admission_{};
+        std::map<std::string, render::EncoderFrameSequence> game_hook_frame_sequences_{};
         std::shared_ptr<RdStatistics> stat_ = nullptr;
         std::shared_ptr<Thread> enc_thread_ = nullptr;
         std::shared_ptr<RdContext> context_ = nullptr;

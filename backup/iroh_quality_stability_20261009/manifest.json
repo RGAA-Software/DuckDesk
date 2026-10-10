@@ -1,0 +1,65 @@
+[
+  {
+    "original_path": "src/px_transport/video_rate_control.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_transport/video_rate_control.h",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_transport/video_receive_feedback.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_transport/video_receive_feedback.h",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_transport/media_datagrams.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_transport/media_datagrams.h",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_transport/media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_transport/media_datagrams.cpp",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/iroh_connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "?? src/px_client_sdk/connection/iroh_connection.cpp",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_render/webview/webview_runtime.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "M src/px_render/webview/webview_runtime.cpp",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_render/architecture/processors/frame_carrier/video_frame_carrier.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  },
+  {
+    "original_path": "src/px_render/architecture/processors/frame_carrier/video_frame_carrier.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_modification_status": "clean",
+    "reason": "Stabilize transient congestion response and distinguish source/transport startup gaps",
+    "archive_batch": "backup\\iroh_quality_stability_20261009"
+  }
+]

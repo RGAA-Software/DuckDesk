@@ -1,0 +1,180 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-152257-auto",
+  "instance_id": "9b508329-8d85-4043-b37e-bacfd0921cb0",
+  "resource_session_id": "483f920d-202f-4c9a-adfe-0b9daeebe082",
+  "client_pid": 71132,
+  "original_address": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4613"
+      },
+      {
+        "Ip": "39.71.45.66:4613"
+      }
+    ],
+    "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+  },
+  "configured_relays": [
+    {
+      "qad_port": 4605,
+      "url": "https://49.232.233.61:4605/"
+    },
+    {
+      "qad_port": 4605,
+      "url": "https://39.71.45.66:4605/"
+    }
+  ],
+  "initial_refresh_http": 200,
+  "address_samples": [
+    {
+      "seconds": 0.01,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+      }
+    },
+    {
+      "seconds": 2.06,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+      }
+    },
+    {
+      "seconds": 4.11,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+      }
+    },
+    {
+      "seconds": 6.16,
+      "address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.233.61:4605/"
+          },
+          {
+            "Ip": "10.0.0.90:4613"
+          },
+          {
+            "Ip": "39.71.45.66:4613"
+          }
+        ],
+        "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+      }
+    }
+  ],
+  "recovery_seconds": 8.028,
+  "session_after": {
+    "id": "483f920d-202f-4c9a-adfe-0b9daeebe082",
+    "target": {
+      "kind": "cloud_application",
+      "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+      "instance_id": "9b508329-8d85-4043-b37e-bacfd0921cb0"
+    },
+    "owner": {
+      "kind": "guest",
+      "guest_id": "dacff102-393f-46d2-a634-ccca4f355b0f"
+    },
+    "client_type": "panel",
+    "access_role": "controller",
+    "state": "connected",
+    "revision": 2,
+    "created_at": "2026-10-10T07:23:04.492501Z",
+    "closed_at": null
+  },
+  "instance_after": "running",
+  "forward_recovery_seconds": 8.028,
+  "reverse_session_after": {
+    "id": "483f920d-202f-4c9a-adfe-0b9daeebe082",
+    "target": {
+      "kind": "cloud_application",
+      "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+      "instance_id": "9b508329-8d85-4043-b37e-bacfd0921cb0"
+    },
+    "owner": {
+      "kind": "guest",
+      "guest_id": "dacff102-393f-46d2-a634-ccca4f355b0f"
+    },
+    "client_type": "panel",
+    "access_role": "controller",
+    "state": "connected",
+    "revision": 2,
+    "created_at": "2026-10-10T07:23:04.492501Z",
+    "closed_at": null
+  },
+  "reverse_instance_after": "running",
+  "reverse_address": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4613"
+      },
+      {
+        "Ip": "39.71.45.66:4613"
+      }
+    ],
+    "id": "5bd962c3b811bd52c29f910c4684285031d034d7e6f200163030a573fa859d56"
+  },
+  "cleanup": "complete",
+  "raw_reverse_marker_elapsed_seconds": 0.008,
+  "reverse_recovery_seconds": null,
+  "reverse_timing_limitation": "Coordinator marker was written after reverse recovery had already completed; 0.008s marker measurement is invalid for outage duration. Both reconnect and fresh decode are proven in client.log.",
+  "post_forward_media_windows": [
+    "iroh media receive window: stream=0, frames=304, fps=60.7, max_gap_ms=26.4, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=23.3, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=22.6, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=22.0, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=21.7, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=24.7, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=53.2, gaps_gt_100ms=0, idr=0, rfi=0",
+    "iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=26.8, gaps_gt_100ms=0, idr=0, rfi=0"
+  ],
+  "post_reverse_media_windows": [
+    "iroh media receive window: stream=0, frames=302, fps=60.1, max_gap_ms=43.9, gaps_gt_100ms=0, idr=0, rfi=0"
+  ],
+  "quic_connect_attempts": [
+    "event=iroh.reconnect stage=quic outcome=connected elapsed_ms=29",
+    "event=iroh.reconnect stage=quic outcome=connected elapsed_ms=7"
+  ],
+  "accepted_reconnects": 2,
+  "client_log_sha256": "b8fe58311f54ffdfff0be61f4bab77608142941c63164fbfd472691077cae09c",
+  "scope": "One real game Client and resource session survive two sequential outages: 90 to BJ then BJ to 90. Forward marker-based duration measured; reverse duration excluded."
+}

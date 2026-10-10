@@ -84,6 +84,8 @@ pub struct ResourceSession {
 /// separately generated secret only to the intended frontend, never in management DTOs.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ResourceDescriptor {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iroh: Option<px_node_protocol::IrohConnectionDescription>,
     pub session: ResourceSession,
     pub node_id: Uuid,
     pub node_generation: i64,

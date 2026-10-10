@@ -1,0 +1,12 @@
+{
+  "candidate": "iroh-capture-credit-20261009",
+  "setup_sha256": "CA7238637D18E451A58DFF924251E28DF43460798566F7F5932FC7280AEF6E1D",
+  "manifest_sha256": "54CAA8EDDF494FBDE1A11F263A27989DE1016335B738D220B1D102F0C1C0BBCF",
+  "upload_operation": "46604b2b-4129-4b3e-ad4c-dc1e487fb6ae",
+  "install_operation": "c975d5e4-43f1-493c-ad27-40881509d47b",
+  "temporary_relay_pid": 53728,
+  "configuration_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA",
+  "original_configuration_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "remote_workspace": "D:\\112233\\iroh-native-validation-20261009",
+  "relay_state_file": "flight-test-state.json"
+}

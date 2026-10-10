@@ -2,26 +2,26 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use px_node_protocol::{
     ApplicationLaunch, BeginFileTransfer, ChannelKind, ChannelProgress, CommandOutcome,
     CommandReceipt, DeploymentAssignment, DeploymentObservation, DeploymentPreparation, GpuBinding,
-    NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse, ObservedRuntime,
-    ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
+    MAX_MESSAGE_BYTES, NodeCommand, NodeCommandAction, NodeReport, NodeRequest, NodeResponse,
+    ObservedRuntime, ObservedRuntimePhase, OpenChannel, PreparationFailure, PreparationState,
     RdpWorkspaceCredential, RecordingCacheUpload, RelayEndpoint, RuntimeInventory,
-    TelemetryBackfillSample, TransferDirection, VideoCodec, MAX_MESSAGE_BYTES,
+    TelemetryBackfillSample, TransferDirection, VideoCodec,
 };
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use service_core::{AppInstanceState, StartAppRequest};
 use tokio::net::TcpStream;
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{Mutex, oneshot};
 use tokio::task::JoinSet;
 use tokio::time::{sleep, timeout};
-use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 use tokio_util::io::ReaderStream;
 use tracing::{info, warn};
@@ -124,6 +124,7 @@ struct NodeControlAuthentication {
     identity: NodeControlIdentity,
     public_device_code: String,
     relay: Option<RelayEndpoint>,
+    iroh: Option<px_node_protocol::IrohNetworkConfig>,
 }
 
 struct PendingFrontendRetirement {
@@ -240,6 +241,7 @@ impl ProtocolSession {
                 generation,
                 control_epoch,
                 relay,
+                iroh,
             } if request_id == expected_request_id
                 && !node_id.is_nil()
                 && !device_id.is_nil()
@@ -249,7 +251,10 @@ impl ProtocolSession {
                     .all(|digit| digit.is_ascii_digit())
                 && generation > 0
                 && control_epoch > 0
-                && relay.as_ref().is_none_or(valid_relay_endpoint) =>
+                && relay.as_ref().is_none_or(valid_relay_endpoint)
+                && iroh
+                    .as_ref()
+                    .is_none_or(px_node_protocol::IrohNetworkConfig::is_valid) =>
             {
                 let identity = NodeControlIdentity {
                     node_id,
@@ -262,6 +267,7 @@ impl ProtocolSession {
                     identity,
                     public_device_code,
                     relay,
+                    iroh,
                 })
             }
             NodeResponse::Error { code, .. } => {
@@ -309,8 +315,12 @@ pub async fn node_control_loop(
         .any(|capability| capability == "rdp_host")
     {
         match crate::rdp_host_setup::initialize().await {
-            Ok(()) => info!("RDP host initialized automatically; persistent TLS identity and workspaces preserved"),
-            Err(error) => warn!(%error, "RDP host initialization failed; other application modes remain available"),
+            Ok(()) => info!(
+                "RDP host initialized automatically; persistent TLS identity and workspaces preserved"
+            ),
+            Err(error) => {
+                warn!(%error, "RDP host initialization failed; other application modes remain available")
+            }
         }
     }
     let (store, file_transfer_outbox, mut stop_rx, mut operations) = {
@@ -455,12 +465,20 @@ async fn run_connection(
     {
         let mut runtime = runtime.lock().await;
         runtime.rdp_console_trusted = true;
-        let relay_changed = runtime.node_control_relay != authentication.relay;
+        let transport_changed = match (&runtime.node_control_iroh, &authentication.iroh) {
+            (Some(previous), Some(current)) => {
+                previous.relay_only != current.relay_only
+                    || previous.ca_certificates_pem != current.ca_certificates_pem
+            }
+            (None, None) => runtime.node_control_relay != authentication.relay,
+            _ => true,
+        };
         runtime.node_control_identity = Some(authentication.identity);
         runtime.node_public_code = authentication.public_device_code;
         runtime.authenticated_console_origin = authenticated_console_origin.to_string();
         runtime.node_control_relay = authentication.relay.clone();
-        if relay_changed && runtime.state.desktop_alive {
+        runtime.node_control_iroh = authentication.iroh.clone();
+        if transport_changed && runtime.state.desktop_alive {
             if let Some(launch) = runtime.state.last_desktop_launch.clone() {
                 runtime.restart_desktop(launch)?;
             }
@@ -472,6 +490,7 @@ async fn run_connection(
         generation = authentication.identity.generation,
         control_epoch = authentication.identity.control_epoch,
         relay_configured = authentication.relay.is_some(),
+        iroh_configured = authentication.iroh.is_some(),
         "node-control authenticated"
     );
 
@@ -519,6 +538,7 @@ async fn run_connection(
     sync_recordings(&mut socket, &mut session, recording_inventory).await?;
 
     let mut report_sequence = 1_u64;
+    let mut observed_iroh_endpoints = Vec::new();
     let mut reported_runtime_exits = HashSet::new();
     let mut reports = tokio::time::interval(REPORT_INTERVAL);
     reports.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -578,6 +598,13 @@ async fn run_connection(
                 sync_recordings(&mut socket, &mut session, recording_inventory).await?;
             }
             _ = command_polls.tick() => {
+                // Endpoint readiness is a launch event, not 15-second telemetry. Report new, replaced or withdrawn
+                // Render addresses on the next loop turn so a ready application does not exhaust descriptor waiting.
+                let current_iroh_endpoints = runtime.lock().await.iroh_endpoint_snapshot();
+                if current_iroh_endpoints != observed_iroh_endpoints {
+                    observed_iroh_endpoints = current_iroh_endpoints;
+                    reports.reset_immediately();
+                }
                 ServiceRuntime::refresh_observed_app_exits(runtime).await;
                 synchronize_runtime_exits(&mut socket, &mut session, runtime, &mut reported_runtime_exits).await?;
                 let request = NodeRequest::PollCommand {
@@ -760,7 +787,7 @@ async fn synchronize_runtime_exits(
                 warn!(%instance_id, %launch_id, "stale application exit receipt rejected");
             }
             NodeResponse::Error { code, .. } => {
-                return Err(format!("application exit report failed: {code}"))
+                return Err(format!("application exit report failed: {code}"));
             }
             _ => return Err("unexpected application exit report response".into()),
         }
@@ -1234,6 +1261,7 @@ async fn report(
     let request = NodeRequest::Report {
         request_id: session.request_id()?,
         report: NodeReport {
+            render_iroh_endpoints: runtime.lock().await.iroh_endpoint_snapshot(),
             sequence,
             product_version_code: product.product_version_code,
             public_host: configuration.public_host.clone(),
@@ -1254,10 +1282,25 @@ async fn report(
             request_id,
             state,
             endpoint_revision,
-        } if request_id == expected && endpoint_revision > 0 => Ok(NodeReportOutcome {
-            endpoint_revision,
-            state,
-        }),
+            iroh_relays,
+        } if request_id == expected && endpoint_revision > 0 => {
+            if let Some(relays) = iroh_relays {
+                let validation = px_node_protocol::IrohNetworkConfig {
+                    relays: relays.clone(),
+                    ..Default::default()
+                };
+                if !validation.is_valid() {
+                    return Err("invalid Console Relay candidates".into());
+                }
+                if let Some(configuration) = &mut runtime.lock().await.node_control_iroh {
+                    configuration.relays = relays;
+                }
+            }
+            Ok(NodeReportOutcome {
+                endpoint_revision,
+                state,
+            })
+        }
         NodeResponse::Error { code, .. } => Err(format!("node report rejected: {code}")),
         _ => Err("unexpected node report response".into()),
     }
@@ -2325,15 +2368,17 @@ mod tests {
         };
         let invalid_certificate = CertificateDer::from(vec![0x00]);
         let server_name = ServerName::try_from("console.example.test").unwrap();
-        assert!(verifier
-            .verify_server_cert(
-                &invalid_certificate,
-                &[],
-                &server_name,
-                &[],
-                UnixTime::now(),
-            )
-            .is_ok());
+        assert!(
+            verifier
+                .verify_server_cert(
+                    &invalid_certificate,
+                    &[],
+                    &server_name,
+                    &[],
+                    UnixTime::now(),
+                )
+                .is_ok()
+        );
     }
 
     #[test]
@@ -2520,12 +2565,14 @@ mod tests {
                     generation: 4,
                     control_epoch: 5,
                     relay: None,
+                    iroh: Some(px_node_protocol::IrohNetworkConfig::default()),
                 },
             )
             .unwrap();
         assert_eq!(identity.identity.node_id, node_id);
         assert_eq!(identity.identity.device_id, device_id);
         assert!(identity.relay.is_none());
+        assert!(identity.iroh.is_some());
         assert_eq!(session.request_id().unwrap(), 2);
     }
 
@@ -2692,18 +2739,20 @@ mod tests {
         );
         assert!(request.gpu_stable_key.is_none());
         assert!(request.relay_server_host.is_empty());
-        assert!(start_request(
-            &command,
-            *port,
-            launch,
-            None,
-            relay.as_ref(),
-            StartSecurityContext {
-                rdp_workspace: None,
-                node_identity: identity,
-            },
-        )
-        .is_err());
+        assert!(
+            start_request(
+                &command,
+                *port,
+                launch,
+                None,
+                relay.as_ref(),
+                StartSecurityContext {
+                    rdp_workspace: None,
+                    node_identity: identity,
+                },
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -2792,6 +2841,7 @@ mod tests {
                         generation: 2,
                         control_epoch: 3,
                         relay: None,
+                        iroh: None,
                     })
                     .unwrap()
                     .into(),
@@ -3409,9 +3459,11 @@ mod tests {
             assert!(headers.starts_with(&format!(
                 "PUT /api/console/node-recording-cache/{attempt_id} HTTP/1.1\r\n"
             )));
-            assert!(headers
-                .to_ascii_lowercase()
-                .contains(&format!("authorization: bearer {server_token}\r\n")));
+            assert!(
+                headers
+                    .to_ascii_lowercase()
+                    .contains(&format!("authorization: bearer {server_token}\r\n"))
+            );
             let content_length = headers
                 .lines()
                 .find_map(|line| {

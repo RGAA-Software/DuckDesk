@@ -1,0 +1,8 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_transport
+    Start 1: iroh_transport
+1/1 Test #1: iroh_transport ...................   Passed    0.26 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.28 sec

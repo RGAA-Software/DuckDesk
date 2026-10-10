@@ -1,0 +1,60 @@
+RECOVERY_READY: paths=PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18551/)], selected: Some(PathId(0)), closed: false }, .. }
+RELAY_STOPPED port=18551
+RELAY_STATUS elapsed_ms=0 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connected }] client=[] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {} }
+RELAY_STATUS elapsed_ms=214 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connected }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=2122 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=5074 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=5288 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=8236 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=8451 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=9942 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=10154 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=11641 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=12284 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=13766 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=14410 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=15886 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=18434 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=19917 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=24931 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=26436 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RECOVERY_FINISHED: paths=PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18551/)], selected: Some(PathId(0)), closed: true }, .. } reliable=Err(connection lost
+
+Caused by:
+    timed out) sent=Err(media send queue remained full
+
+Caused by:
+    deadline has elapsed) received=Err(timed out)
+RELAY_STATUS elapsed_ms=34698 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Connecting }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+RELAY_STATUS elapsed_ms=36172 server=[RelayStatus { url: RelayUrl("https://127.0.0.1:18551/"), state: Disconnected { last_failure: Some(RelayConnectionFailure { error: Failed to connect to relay server
+Caused by:
+    unable to connect
+    deadline has elapsed, auth_denied_reason: None }) } }] client=[RelayStatus { url: RelayUrl("https://127.0.0.1:18552/"), state: Connected }] server_addr=EndpointAddr { id: PublicKey(8b1f1749cdba29eb041cf9bb135902a5f4a1ce8432117bf634e22edde3ee6a29), addrs: {Relay(https://127.0.0.1:18551/)} } client_addr=EndpointAddr { id: PublicKey(86f9aa67d4c78da8f3dc2449711a3803b16e9f4d2ad7d22a991e72bf7108839a), addrs: {Relay(https://127.0.0.1:18552/)} }
+Error: connection lost
+
+Caused by:
+    timed out

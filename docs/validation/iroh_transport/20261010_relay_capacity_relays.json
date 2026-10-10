@@ -1,0 +1,30 @@
+[
+  {
+    "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+    "name": "BJ-200M Relay",
+    "public_host": "49.232.233.61",
+    "state": "ready",
+    "fresh": true,
+    "disabled": false,
+    "desired_draining": false,
+    "reported_draining": false,
+    "current_connections": 0,
+    "max_connections": 4096,
+    "generation": 7,
+    "control_epoch": 66
+  },
+  {
+    "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+    "name": "Single Server Relay",
+    "public_host": "39.71.45.66",
+    "state": "ready",
+    "fresh": true,
+    "disabled": false,
+    "desired_draining": false,
+    "reported_draining": false,
+    "current_connections": 1,
+    "max_connections": 4096,
+    "generation": 81,
+    "control_epoch": 66
+  }
+]

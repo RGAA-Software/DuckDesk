@@ -1,0 +1,7 @@
+{
+  "original": "src/px_render/webview/webview_runtime.cpp",
+  "archive_batch": "webview_first_viewer_20261010",
+  "reason": "Replay owned WebView surface when a viewer activates or requests refresh",
+  "local_modified": true,
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+}

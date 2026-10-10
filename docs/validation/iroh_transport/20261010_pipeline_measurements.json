@@ -1,0 +1,5031 @@
+[
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_pipeline_game_direct.json",
+    "instance": "3a8a8db1-39ee-40e8-99e4-0fd55132fda9",
+    "paths": [
+      "direct"
+    ],
+    "fps_range": [
+      58.0,
+      60.5
+    ],
+    "max_gap_ms": 143.6,
+    "all_windows_max_gap_ms": 143.6,
+    "gaps_gt_100ms": 2,
+    "idr": 0,
+    "rfi": 1,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:02:23.508",
+        "fps": 60.5,
+        "max_gap_ms": 36.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:28.531",
+        "fps": 58.3,
+        "max_gap_ms": 91.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 1
+      },
+      {
+        "timestamp": "2026-10-10 00:02:33.587",
+        "fps": 59.1,
+        "max_gap_ms": 100.4,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:38.590",
+        "fps": 60.0,
+        "max_gap_ms": 33.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:43.595",
+        "fps": 59.9,
+        "max_gap_ms": 31.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:48.605",
+        "fps": 59.3,
+        "max_gap_ms": 89.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:53.611",
+        "fps": 59.9,
+        "max_gap_ms": 45.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:02:58.621",
+        "fps": 60.1,
+        "max_gap_ms": 35.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:03.625",
+        "fps": 58.0,
+        "max_gap_ms": 143.6,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:08.630",
+        "fps": 59.9,
+        "max_gap_ms": 40.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:13.636",
+        "fps": 59.9,
+        "max_gap_ms": 33.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:18.647",
+        "fps": 60.1,
+        "max_gap_ms": 39.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:23.653",
+        "fps": 60.1,
+        "max_gap_ms": 33.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:28.660",
+        "fps": 59.9,
+        "max_gap_ms": 35.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:03:33.680",
+        "fps": 60.0,
+        "max_gap_ms": 47.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [
+      {
+        "frame": 539,
+        "source_gap_us": 15633,
+        "receive_gap_us": 91104,
+        "excess_us": 90444,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1111,
+        "source_gap_us": 101444,
+        "receive_gap_us": 100369,
+        "excess_us": 560,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1835,
+        "source_gap_us": 83322,
+        "receive_gap_us": 89819,
+        "excess_us": 11212,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 2738,
+        "source_gap_us": 150066,
+        "receive_gap_us": 143536,
+        "excess_us": 3238,
+        "assembly_call_us": 15
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_pipeline_webview_relay.json",
+    "instance": "57c45f76-5b11-4e48-a508-41589bef6a73",
+    "paths": [
+      "relay"
+    ],
+    "fps_range": [
+      54.0,
+      60.0
+    ],
+    "max_gap_ms": 216.0,
+    "all_windows_max_gap_ms": 1014.6,
+    "gaps_gt_100ms": 6,
+    "idr": 0,
+    "rfi": 1,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:04:32.878",
+        "fps": 30.6,
+        "max_gap_ms": 1014.6,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:04:37.880",
+        "fps": 60.0,
+        "max_gap_ms": 42.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:04:42.894",
+        "fps": 60.0,
+        "max_gap_ms": 25.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:04:47.910",
+        "fps": 60.0,
+        "max_gap_ms": 23.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:04:52.929",
+        "fps": 60.0,
+        "max_gap_ms": 33.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:04:57.944",
+        "fps": 60.0,
+        "max_gap_ms": 30.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:02.958",
+        "fps": 54.0,
+        "max_gap_ms": 205.2,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:07.959",
+        "fps": 60.0,
+        "max_gap_ms": 25.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:12.969",
+        "fps": 55.5,
+        "max_gap_ms": 216.0,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:17.976",
+        "fps": 59.9,
+        "max_gap_ms": 30.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:22.993",
+        "fps": 60.0,
+        "max_gap_ms": 41.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:27.993",
+        "fps": 59.2,
+        "max_gap_ms": 125.7,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:33.007",
+        "fps": 58.4,
+        "max_gap_ms": 150.2,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 1
+      },
+      {
+        "timestamp": "2026-10-10 00:05:38.025",
+        "fps": 60.0,
+        "max_gap_ms": 32.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:05:43.025",
+        "fps": 60.0,
+        "max_gap_ms": 26.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [
+      {
+        "frame": 8,
+        "source_gap_us": 359311,
+        "receive_gap_us": 359868,
+        "excess_us": 556,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 134,
+        "source_gap_us": 234277,
+        "receive_gap_us": 233933,
+        "excess_us": 1557,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 140,
+        "source_gap_us": 158255,
+        "receive_gap_us": 160145,
+        "excess_us": 2749,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 141,
+        "source_gap_us": 424577,
+        "receive_gap_us": 422960,
+        "excess_us": 1132,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 142,
+        "source_gap_us": 1012744,
+        "receive_gap_us": 1014610,
+        "excess_us": 2997,
+        "assembly_call_us": 38
+      },
+      {
+        "frame": 1856,
+        "source_gap_us": 215677,
+        "receive_gap_us": 205177,
+        "excess_us": 17098,
+        "assembly_call_us": 37
+      },
+      {
+        "frame": 1864,
+        "source_gap_us": 98833,
+        "receive_gap_us": 97508,
+        "excess_us": 31526,
+        "assembly_call_us": 30
+      },
+      {
+        "frame": 1871,
+        "source_gap_us": 118222,
+        "receive_gap_us": 122072,
+        "excess_us": 35376,
+        "assembly_call_us": 27
+      },
+      {
+        "frame": 2430,
+        "source_gap_us": 17000,
+        "receive_gap_us": 215954,
+        "excess_us": 203462,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 2431,
+        "source_gap_us": 17055,
+        "receive_gap_us": 197350,
+        "excess_us": 383756,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 3221,
+        "source_gap_us": 23644,
+        "receive_gap_us": 125694,
+        "excess_us": 107041,
+        "assembly_call_us": 30
+      },
+      {
+        "frame": 3712,
+        "source_gap_us": 16055,
+        "receive_gap_us": 150159,
+        "excess_us": 138336,
+        "assembly_call_us": 45
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_byte_credit_game_direct.json",
+    "instance": "b9998129-c0ab-4122-8cfa-f6ad1f0bf2e2",
+    "paths": [
+      "direct"
+    ],
+    "fps_range": [
+      59.6,
+      60.3
+    ],
+    "max_gap_ms": 60.0,
+    "all_windows_max_gap_ms": 60.0,
+    "gaps_gt_100ms": 0,
+    "idr": 0,
+    "rfi": 0,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:18:48.338",
+        "fps": 60.3,
+        "max_gap_ms": 42.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:18:53.342",
+        "fps": 60.1,
+        "max_gap_ms": 60.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:18:58.348",
+        "fps": 59.9,
+        "max_gap_ms": 56.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:03.366",
+        "fps": 59.6,
+        "max_gap_ms": 56.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:08.381",
+        "fps": 60.0,
+        "max_gap_ms": 48.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:13.395",
+        "fps": 60.0,
+        "max_gap_ms": 46.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:18.407",
+        "fps": 59.9,
+        "max_gap_ms": 34.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:23.417",
+        "fps": 60.1,
+        "max_gap_ms": 33.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:28.425",
+        "fps": 60.1,
+        "max_gap_ms": 33.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:33.426",
+        "fps": 60.0,
+        "max_gap_ms": 33.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:38.429",
+        "fps": 60.0,
+        "max_gap_ms": 39.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:43.442",
+        "fps": 60.0,
+        "max_gap_ms": 39.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:48.443",
+        "fps": 60.0,
+        "max_gap_ms": 38.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:53.457",
+        "fps": 60.0,
+        "max_gap_ms": 32.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:19:58.462",
+        "fps": 59.9,
+        "max_gap_ms": 37.8,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_byte_credit_webview_relay.json",
+    "instance": "c62b971a-58b4-458d-97aa-cdd28d6ca466",
+    "paths": [
+      "relay"
+    ],
+    "fps_range": [
+      24.6,
+      60.1
+    ],
+    "max_gap_ms": 2841.6,
+    "all_windows_max_gap_ms": 2841.6,
+    "gaps_gt_100ms": 27,
+    "idr": 5,
+    "rfi": 22,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:20:54.645",
+        "fps": 49.1,
+        "max_gap_ms": 931.2,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:20:59.651",
+        "fps": 60.1,
+        "max_gap_ms": 32.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:04.665",
+        "fps": 59.8,
+        "max_gap_ms": 33.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:09.678",
+        "fps": 60.0,
+        "max_gap_ms": 32.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:14.688",
+        "fps": 53.5,
+        "max_gap_ms": 379.4,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:19.698",
+        "fps": 54.5,
+        "max_gap_ms": 168.0,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:25.136",
+        "fps": 26.5,
+        "max_gap_ms": 1021.5,
+        "gaps_gt_100ms": 5,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:30.137",
+        "fps": 58.2,
+        "max_gap_ms": 64.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:21:35.669",
+        "fps": 24.6,
+        "max_gap_ms": 2841.6,
+        "gaps_gt_100ms": 3,
+        "idr": 3,
+        "rfi": 5
+      },
+      {
+        "timestamp": "2026-10-10 00:21:41.025",
+        "fps": 55.4,
+        "max_gap_ms": 394.1,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:21:46.027",
+        "fps": 56.2,
+        "max_gap_ms": 319.1,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:21:51.044",
+        "fps": 56.0,
+        "max_gap_ms": 303.0,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:21:56.049",
+        "fps": 56.1,
+        "max_gap_ms": 287.6,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:22:01.052",
+        "fps": 59.4,
+        "max_gap_ms": 47.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:22:06.066",
+        "fps": 36.9,
+        "max_gap_ms": 1538.8,
+        "gaps_gt_100ms": 4,
+        "idr": 2,
+        "rfi": 5
+      }
+    ],
+    "transit": [
+      {
+        "frame": 3,
+        "source_gap_us": 951822,
+        "receive_gap_us": 931229,
+        "excess_us": 0,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1370,
+        "source_gap_us": 88133,
+        "receive_gap_us": 91492,
+        "excess_us": 8096,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1375,
+        "source_gap_us": 388044,
+        "receive_gap_us": 379398,
+        "excess_us": 9729,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1397,
+        "source_gap_us": 17500,
+        "receive_gap_us": 180847,
+        "excess_us": 181186,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1417,
+        "source_gap_us": 17766,
+        "receive_gap_us": 116809,
+        "excess_us": 148990,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1623,
+        "source_gap_us": 164088,
+        "receive_gap_us": 163116,
+        "excess_us": 1509,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1624,
+        "source_gap_us": 168033,
+        "receive_gap_us": 167856,
+        "excess_us": 1332,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1691,
+        "source_gap_us": 167988,
+        "receive_gap_us": 167990,
+        "excess_us": 1678,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1711,
+        "source_gap_us": 661211,
+        "receive_gap_us": 661321,
+        "excess_us": 1309,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1726,
+        "source_gap_us": 326233,
+        "receive_gap_us": 334028,
+        "excess_us": 8914,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 1852,
+        "source_gap_us": 233622,
+        "receive_gap_us": 241221,
+        "excess_us": 16806,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1859,
+        "source_gap_us": 577866,
+        "receive_gap_us": 575810,
+        "excess_us": 6016,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 1860,
+        "source_gap_us": 1008844,
+        "receive_gap_us": 1021523,
+        "excess_us": 18695,
+        "assembly_call_us": 27
+      },
+      {
+        "frame": 2281,
+        "source_gap_us": 17966,
+        "receive_gap_us": 46463,
+        "excess_us": 93188,
+        "assembly_call_us": 32
+      },
+      {
+        "frame": 2282,
+        "source_gap_us": 18688,
+        "receive_gap_us": 120412,
+        "excess_us": 194911,
+        "assembly_call_us": 24
+      },
+      {
+        "frame": 2285,
+        "source_gap_us": 16600,
+        "receive_gap_us": 154813,
+        "excess_us": 393051,
+        "assembly_call_us": 36
+      },
+      {
+        "frame": 2289,
+        "source_gap_us": 16522,
+        "receive_gap_us": 45527,
+        "excess_us": 445361,
+        "assembly_call_us": 31
+      },
+      {
+        "frame": 2296,
+        "source_gap_us": 115788,
+        "receive_gap_us": 105739,
+        "excess_us": 435311,
+        "assembly_call_us": 43
+      },
+      {
+        "frame": 2317,
+        "source_gap_us": 18033,
+        "receive_gap_us": 40698,
+        "excess_us": 197634,
+        "assembly_call_us": 33
+      },
+      {
+        "frame": 2324,
+        "source_gap_us": 66344,
+        "receive_gap_us": 15889,
+        "excess_us": 196564,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2329,
+        "source_gap_us": 16533,
+        "receive_gap_us": 14943,
+        "excess_us": 218729,
+        "assembly_call_us": 24
+      },
+      {
+        "frame": 2334,
+        "source_gap_us": 28822,
+        "receive_gap_us": 44675,
+        "excess_us": 255179,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 2341,
+        "source_gap_us": 62833,
+        "receive_gap_us": 45657,
+        "excess_us": 245135,
+        "assembly_call_us": 38
+      },
+      {
+        "frame": 2348,
+        "source_gap_us": 32977,
+        "receive_gap_us": 45530,
+        "excess_us": 268203,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 2356,
+        "source_gap_us": 17655,
+        "receive_gap_us": 29953,
+        "excess_us": 253958,
+        "assembly_call_us": 24
+      },
+      {
+        "frame": 2362,
+        "source_gap_us": 52200,
+        "receive_gap_us": 75589,
+        "excess_us": 319715,
+        "assembly_call_us": 27
+      },
+      {
+        "frame": 2372,
+        "source_gap_us": 55100,
+        "receive_gap_us": 30140,
+        "excess_us": 269696,
+        "assembly_call_us": 28
+      },
+      {
+        "frame": 2376,
+        "source_gap_us": 32844,
+        "receive_gap_us": 30996,
+        "excess_us": 315974,
+        "assembly_call_us": 30
+      },
+      {
+        "frame": 2386,
+        "source_gap_us": 63211,
+        "receive_gap_us": 29618,
+        "excess_us": 254356,
+        "assembly_call_us": 24
+      },
+      {
+        "frame": 2391,
+        "source_gap_us": 15722,
+        "receive_gap_us": 29686,
+        "excess_us": 276281,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 2397,
+        "source_gap_us": 69266,
+        "receive_gap_us": 29894,
+        "excess_us": 279661,
+        "assembly_call_us": 30
+      },
+      {
+        "frame": 2404,
+        "source_gap_us": 64677,
+        "receive_gap_us": 45300,
+        "excess_us": 271800,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 2411,
+        "source_gap_us": 52900,
+        "receive_gap_us": 45022,
+        "excess_us": 287836,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 2419,
+        "source_gap_us": 16600,
+        "receive_gap_us": 29824,
+        "excess_us": 258256,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 2426,
+        "source_gap_us": 20033,
+        "receive_gap_us": 45055,
+        "excess_us": 277577,
+        "assembly_call_us": 25
+      },
+      {
+        "frame": 2433,
+        "source_gap_us": 12155,
+        "receive_gap_us": 30262,
+        "excess_us": 268312,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 2440,
+        "source_gap_us": 19111,
+        "receive_gap_us": 29798,
+        "excess_us": 252947,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 2446,
+        "source_gap_us": 30466,
+        "receive_gap_us": 30358,
+        "excess_us": 263542,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2452,
+        "source_gap_us": 16644,
+        "receive_gap_us": 29276,
+        "excess_us": 269433,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2458,
+        "source_gap_us": 16000,
+        "receive_gap_us": 31484,
+        "excess_us": 275883,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 2468,
+        "source_gap_us": 14544,
+        "receive_gap_us": 14597,
+        "excess_us": 215060,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2478,
+        "source_gap_us": 15000,
+        "receive_gap_us": 15091,
+        "excess_us": 153199,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2740,
+        "source_gap_us": 15911,
+        "receive_gap_us": 34729,
+        "excess_us": 84123,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2745,
+        "source_gap_us": 15555,
+        "receive_gap_us": 30228,
+        "excess_us": 103188,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2747,
+        "source_gap_us": 15966,
+        "receive_gap_us": 60012,
+        "excess_us": 222375,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2748,
+        "source_gap_us": 17511,
+        "receive_gap_us": 121803,
+        "excess_us": 326666,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2750,
+        "source_gap_us": 15966,
+        "receive_gap_us": 91078,
+        "excess_us": 430615,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2770,
+        "source_gap_us": 19011,
+        "receive_gap_us": 14589,
+        "excess_us": 200769,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2774,
+        "source_gap_us": 49688,
+        "receive_gap_us": 92017,
+        "excess_us": 242530,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2779,
+        "source_gap_us": 17533,
+        "receive_gap_us": 30439,
+        "excess_us": 262344,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2788,
+        "source_gap_us": 15577,
+        "receive_gap_us": 107418,
+        "excess_us": 280447,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2805,
+        "source_gap_us": 15566,
+        "receive_gap_us": 15081,
+        "excess_us": 105250,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2837,
+        "source_gap_us": 15011,
+        "receive_gap_us": 37786,
+        "excess_us": 94712,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2840,
+        "source_gap_us": 18955,
+        "receive_gap_us": 68176,
+        "excess_us": 165029,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2850,
+        "source_gap_us": 16511,
+        "receive_gap_us": 14935,
+        "excess_us": 113234,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 2857,
+        "source_gap_us": 14000,
+        "receive_gap_us": 15131,
+        "excess_us": 102343,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 2863,
+        "source_gap_us": 17988,
+        "receive_gap_us": 14976,
+        "excess_us": 106253,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2869,
+        "source_gap_us": 17011,
+        "receive_gap_us": 20520,
+        "excess_us": 119091,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2910,
+        "source_gap_us": 15877,
+        "receive_gap_us": 19866,
+        "excess_us": 80037,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2913,
+        "source_gap_us": 16577,
+        "receive_gap_us": 73896,
+        "excess_us": 177709,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2915,
+        "source_gap_us": 17044,
+        "receive_gap_us": 90460,
+        "excess_us": 266697,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2925,
+        "source_gap_us": 15355,
+        "receive_gap_us": 319058,
+        "excess_us": 513519,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2940,
+        "source_gap_us": 17677,
+        "receive_gap_us": 15631,
+        "excess_us": 366466,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2947,
+        "source_gap_us": 14011,
+        "receive_gap_us": 30051,
+        "excess_us": 370443,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2965,
+        "source_gap_us": 17111,
+        "receive_gap_us": 15477,
+        "excess_us": 175831,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2972,
+        "source_gap_us": 8622,
+        "receive_gap_us": 29461,
+        "excess_us": 186543,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 2977,
+        "source_gap_us": 17011,
+        "receive_gap_us": 30764,
+        "excess_us": 216973,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 2981,
+        "source_gap_us": 20866,
+        "receive_gap_us": 45355,
+        "excess_us": 270590,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 2984,
+        "source_gap_us": 11555,
+        "receive_gap_us": 15275,
+        "excess_us": 332851,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 2993,
+        "source_gap_us": 14911,
+        "receive_gap_us": 15073,
+        "excess_us": 287176,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 3299,
+        "source_gap_us": 15444,
+        "receive_gap_us": 45857,
+        "excess_us": 100188,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 3301,
+        "source_gap_us": 20611,
+        "receive_gap_us": 60390,
+        "excess_us": 213110,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3304,
+        "source_gap_us": 16344,
+        "receive_gap_us": 18535,
+        "excess_us": 278535,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 3310,
+        "source_gap_us": 18255,
+        "receive_gap_us": 90124,
+        "excess_us": 342572,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 3332,
+        "source_gap_us": 14055,
+        "receive_gap_us": 142351,
+        "excess_us": 211009,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 3335,
+        "source_gap_us": 16900,
+        "receive_gap_us": 88309,
+        "excess_us": 343857,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 3347,
+        "source_gap_us": 15988,
+        "receive_gap_us": 30447,
+        "excess_us": 263493,
+        "assembly_call_us": 17
+      },
+      {
+        "frame": 3355,
+        "source_gap_us": 17500,
+        "receive_gap_us": 15049,
+        "excess_us": 239160,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 3362,
+        "source_gap_us": 12644,
+        "receive_gap_us": 30560,
+        "excess_us": 242597,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3366,
+        "source_gap_us": 18133,
+        "receive_gap_us": 30171,
+        "excess_us": 281687,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3374,
+        "source_gap_us": 15600,
+        "receive_gap_us": 15072,
+        "excess_us": 255973,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 3511,
+        "source_gap_us": 18122,
+        "receive_gap_us": 45192,
+        "excess_us": 106296,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 3512,
+        "source_gap_us": 16200,
+        "receive_gap_us": 111431,
+        "excess_us": 201527,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 3514,
+        "source_gap_us": 16122,
+        "receive_gap_us": 120352,
+        "excess_us": 319029,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 3516,
+        "source_gap_us": 16244,
+        "receive_gap_us": 89321,
+        "excess_us": 417921,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3526,
+        "source_gap_us": 16100,
+        "receive_gap_us": 91100,
+        "excess_us": 418595,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3545,
+        "source_gap_us": 17277,
+        "receive_gap_us": 14986,
+        "excess_us": 207093,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 3549,
+        "source_gap_us": 31022,
+        "receive_gap_us": 59969,
+        "excess_us": 261396,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3557,
+        "source_gap_us": 14933,
+        "receive_gap_us": 15480,
+        "excess_us": 234646,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 3565,
+        "source_gap_us": 15466,
+        "receive_gap_us": 59989,
+        "excess_us": 206430,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 3571,
+        "source_gap_us": 18188,
+        "receive_gap_us": 15025,
+        "excess_us": 211072,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 4059,
+        "source_gap_us": 16888,
+        "receive_gap_us": 30611,
+        "excess_us": 87109,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 4062,
+        "source_gap_us": 16677,
+        "receive_gap_us": 104933,
+        "excess_us": 202903,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 4065,
+        "source_gap_us": 22866,
+        "receive_gap_us": 30221,
+        "excess_us": 253227,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 4097,
+        "source_gap_us": 18755,
+        "receive_gap_us": 31188,
+        "excess_us": 86001,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 4101,
+        "source_gap_us": 14477,
+        "receive_gap_us": 75197,
+        "excess_us": 164545,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4104,
+        "source_gap_us": 15522,
+        "receive_gap_us": 29716,
+        "excess_us": 219905,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 4105,
+        "source_gap_us": 21911,
+        "receive_gap_us": 104791,
+        "excess_us": 302785,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 4112,
+        "source_gap_us": 16000,
+        "receive_gap_us": 60136,
+        "excess_us": 314697,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 4115,
+        "source_gap_us": 19033,
+        "receive_gap_us": 75577,
+        "excess_us": 382334,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4124,
+        "source_gap_us": 15066,
+        "receive_gap_us": 31199,
+        "excess_us": 342856,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 4130,
+        "source_gap_us": 19566,
+        "receive_gap_us": 24015,
+        "excess_us": 347040,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4137,
+        "source_gap_us": 16788,
+        "receive_gap_us": 105882,
+        "excess_us": 412599,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4159,
+        "source_gap_us": 11122,
+        "receive_gap_us": 15494,
+        "excess_us": 152049,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 4169,
+        "source_gap_us": 16733,
+        "receive_gap_us": 60697,
+        "excess_us": 138429,
+        "assembly_call_us": 5
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_byte_credit_game_relay.json",
+    "instance": "62f3b2b6-4581-4aa9-89e6-4407c193d13d",
+    "paths": [
+      "relay"
+    ],
+    "fps_range": [
+      55.8,
+      63.5
+    ],
+    "max_gap_ms": 311.4,
+    "all_windows_max_gap_ms": 311.4,
+    "gaps_gt_100ms": 23,
+    "idr": 0,
+    "rfi": 8,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:23:16.504",
+        "fps": 58.6,
+        "max_gap_ms": 138.4,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:23:21.507",
+        "fps": 60.2,
+        "max_gap_ms": 37.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:23:26.523",
+        "fps": 57.2,
+        "max_gap_ms": 195.5,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 1
+      },
+      {
+        "timestamp": "2026-10-10 00:23:31.541",
+        "fps": 60.2,
+        "max_gap_ms": 41.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:23:36.541",
+        "fps": 56.2,
+        "max_gap_ms": 304.3,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 2
+      },
+      {
+        "timestamp": "2026-10-10 00:23:41.559",
+        "fps": 60.0,
+        "max_gap_ms": 29.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:23:46.573",
+        "fps": 55.8,
+        "max_gap_ms": 311.4,
+        "gaps_gt_100ms": 4,
+        "idr": 0,
+        "rfi": 2
+      },
+      {
+        "timestamp": "2026-10-10 00:23:51.647",
+        "fps": 56.6,
+        "max_gap_ms": 213.4,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:23:56.657",
+        "fps": 63.5,
+        "max_gap_ms": 120.3,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:24:01.667",
+        "fps": 59.7,
+        "max_gap_ms": 206.7,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:24:06.677",
+        "fps": 60.3,
+        "max_gap_ms": 45.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:24:11.696",
+        "fps": 59.0,
+        "max_gap_ms": 151.7,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:24:16.705",
+        "fps": 61.1,
+        "max_gap_ms": 153.5,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:24:21.719",
+        "fps": 57.4,
+        "max_gap_ms": 290.9,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:24:26.722",
+        "fps": 60.6,
+        "max_gap_ms": 45.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [
+      {
+        "frame": 153,
+        "source_gap_us": 131822,
+        "receive_gap_us": 138346,
+        "excess_us": 9385,
+        "assembly_call_us": 34
+      },
+      {
+        "frame": 256,
+        "source_gap_us": 16411,
+        "receive_gap_us": 30447,
+        "excess_us": 86344,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 261,
+        "source_gap_us": 15800,
+        "receive_gap_us": 91132,
+        "excess_us": 184813,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 273,
+        "source_gap_us": 17044,
+        "receive_gap_us": 8913,
+        "excess_us": 92958,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 278,
+        "source_gap_us": 16744,
+        "receive_gap_us": 75053,
+        "excess_us": 162135,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 289,
+        "source_gap_us": 16800,
+        "receive_gap_us": 14899,
+        "excess_us": 85719,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 294,
+        "source_gap_us": 15855,
+        "receive_gap_us": 107727,
+        "excess_us": 201275,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 351,
+        "source_gap_us": 16366,
+        "receive_gap_us": 29907,
+        "excess_us": 83274,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 353,
+        "source_gap_us": 16555,
+        "receive_gap_us": 75541,
+        "excess_us": 156266,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 364,
+        "source_gap_us": 17411,
+        "receive_gap_us": 31589,
+        "excess_us": 100695,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 368,
+        "source_gap_us": 16044,
+        "receive_gap_us": 90559,
+        "excess_us": 186621,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 383,
+        "source_gap_us": 16722,
+        "receive_gap_us": 30116,
+        "excess_us": 84162,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 388,
+        "source_gap_us": 16622,
+        "receive_gap_us": 29956,
+        "excess_us": 106247,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 392,
+        "source_gap_us": 16677,
+        "receive_gap_us": 60569,
+        "excess_us": 175722,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 463,
+        "source_gap_us": 15900,
+        "receive_gap_us": 37007,
+        "excess_us": 88039,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 468,
+        "source_gap_us": 18544,
+        "receive_gap_us": 35560,
+        "excess_us": 123476,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 789,
+        "source_gap_us": 16188,
+        "receive_gap_us": 29584,
+        "excess_us": 87823,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 793,
+        "source_gap_us": 15155,
+        "receive_gap_us": 14984,
+        "excess_us": 127101,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 795,
+        "source_gap_us": 13444,
+        "receive_gap_us": 77093,
+        "excess_us": 215419,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 798,
+        "source_gap_us": 16600,
+        "receive_gap_us": 44468,
+        "excess_us": 283296,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 800,
+        "source_gap_us": 18977,
+        "receive_gap_us": 45129,
+        "excess_us": 369282,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 807,
+        "source_gap_us": 15822,
+        "receive_gap_us": 121308,
+        "excess_us": 466320,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 820,
+        "source_gap_us": 19277,
+        "receive_gap_us": 15140,
+        "excess_us": 353979,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 887,
+        "source_gap_us": 16166,
+        "receive_gap_us": 30168,
+        "excess_us": 83876,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 890,
+        "source_gap_us": 16688,
+        "receive_gap_us": 195456,
+        "excess_us": 290800,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 900,
+        "source_gap_us": 16544,
+        "receive_gap_us": 30398,
+        "excess_us": 228816,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 906,
+        "source_gap_us": 16622,
+        "receive_gap_us": 85907,
+        "excess_us": 244698,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 912,
+        "source_gap_us": 33400,
+        "receive_gap_us": 35171,
+        "excess_us": 274142,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 928,
+        "source_gap_us": 16255,
+        "receive_gap_us": 10351,
+        "excess_us": 108100,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 989,
+        "source_gap_us": 16477,
+        "receive_gap_us": 29926,
+        "excess_us": 86377,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1471,
+        "source_gap_us": 18355,
+        "receive_gap_us": 29501,
+        "excess_us": 82956,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1475,
+        "source_gap_us": 16611,
+        "receive_gap_us": 30672,
+        "excess_us": 139551,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 1477,
+        "source_gap_us": 17944,
+        "receive_gap_us": 304220,
+        "excess_us": 439053,
+        "assembly_call_us": 32
+      },
+      {
+        "frame": 1490,
+        "source_gap_us": 15922,
+        "receive_gap_us": 40068,
+        "excess_us": 324144,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1493,
+        "source_gap_us": 14211,
+        "receive_gap_us": 121348,
+        "excess_us": 401372,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1515,
+        "source_gap_us": 17011,
+        "receive_gap_us": 12769,
+        "excess_us": 137023,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1533,
+        "source_gap_us": 14888,
+        "receive_gap_us": 30018,
+        "excess_us": 82780,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 1967,
+        "source_gap_us": 15477,
+        "receive_gap_us": 26340,
+        "excess_us": 81450,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1970,
+        "source_gap_us": 16388,
+        "receive_gap_us": 188974,
+        "excess_us": 296306,
+        "assembly_call_us": 33
+      },
+      {
+        "frame": 1980,
+        "source_gap_us": 16822,
+        "receive_gap_us": 29775,
+        "excess_us": 232644,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 1984,
+        "source_gap_us": 18266,
+        "receive_gap_us": 120294,
+        "excess_us": 345923,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 1998,
+        "source_gap_us": 17277,
+        "receive_gap_us": 36917,
+        "excess_us": 241493,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2002,
+        "source_gap_us": 19988,
+        "receive_gap_us": 311402,
+        "excess_us": 500429,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2015,
+        "source_gap_us": 15544,
+        "receive_gap_us": 15035,
+        "excess_us": 391514,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2023,
+        "source_gap_us": 14966,
+        "receive_gap_us": 13445,
+        "excess_us": 365947,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2037,
+        "source_gap_us": 14255,
+        "receive_gap_us": 15004,
+        "excess_us": 235915,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2051,
+        "source_gap_us": 16100,
+        "receive_gap_us": 29838,
+        "excess_us": 123434,
+        "assembly_call_us": 34
+      },
+      {
+        "frame": 2059,
+        "source_gap_us": 13877,
+        "receive_gap_us": 14979,
+        "excess_us": 96338,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2061,
+        "source_gap_us": 15044,
+        "receive_gap_us": 92354,
+        "excess_us": 184762,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2073,
+        "source_gap_us": 16011,
+        "receive_gap_us": 15030,
+        "excess_us": 88334,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2082,
+        "source_gap_us": 19366,
+        "receive_gap_us": 30235,
+        "excess_us": 87149,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2085,
+        "source_gap_us": 15144,
+        "receive_gap_us": 52234,
+        "excess_us": 146546,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2095,
+        "source_gap_us": 17555,
+        "receive_gap_us": 14701,
+        "excess_us": 83611,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2106,
+        "source_gap_us": 19033,
+        "receive_gap_us": 29815,
+        "excess_us": 80330,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2111,
+        "source_gap_us": 14888,
+        "receive_gap_us": 30549,
+        "excess_us": 121089,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2481,
+        "source_gap_us": 17600,
+        "receive_gap_us": 29884,
+        "excess_us": 83636,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2484,
+        "source_gap_us": 15922,
+        "receive_gap_us": 115516,
+        "excess_us": 195000,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2487,
+        "source_gap_us": 17911,
+        "receive_gap_us": 90520,
+        "excess_us": 297154,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2495,
+        "source_gap_us": 17500,
+        "receive_gap_us": 36743,
+        "excess_us": 300531,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 2502,
+        "source_gap_us": 16688,
+        "receive_gap_us": 70129,
+        "excess_us": 315340,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2522,
+        "source_gap_us": 16700,
+        "receive_gap_us": 14938,
+        "excess_us": 86223,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 2526,
+        "source_gap_us": 16822,
+        "receive_gap_us": 213389,
+        "excess_us": 292614,
+        "assembly_call_us": 33
+      },
+      {
+        "frame": 2538,
+        "source_gap_us": 15922,
+        "receive_gap_us": 120272,
+        "excess_us": 274957,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 2558,
+        "source_gap_us": 15211,
+        "receive_gap_us": 30461,
+        "excess_us": 92018,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2562,
+        "source_gap_us": 15344,
+        "receive_gap_us": 15201,
+        "excess_us": 133303,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2565,
+        "source_gap_us": 17966,
+        "receive_gap_us": 90778,
+        "excess_us": 232595,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2577,
+        "source_gap_us": 17233,
+        "receive_gap_us": 14730,
+        "excess_us": 138068,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2586,
+        "source_gap_us": 13611,
+        "receive_gap_us": 14815,
+        "excess_us": 95068,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2591,
+        "source_gap_us": 17077,
+        "receive_gap_us": 15605,
+        "excess_us": 116382,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2604,
+        "source_gap_us": 14300,
+        "receive_gap_us": 34066,
+        "excess_us": 85244,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 2608,
+        "source_gap_us": 15833,
+        "receive_gap_us": 14992,
+        "excess_us": 120336,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2627,
+        "source_gap_us": 16844,
+        "receive_gap_us": 29032,
+        "excess_us": 89443,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2645,
+        "source_gap_us": 16622,
+        "receive_gap_us": 31602,
+        "excess_us": 94589,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2651,
+        "source_gap_us": 17611,
+        "receive_gap_us": 14950,
+        "excess_us": 99781,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2665,
+        "source_gap_us": 18011,
+        "receive_gap_us": 44832,
+        "excess_us": 105205,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 3020,
+        "source_gap_us": 15866,
+        "receive_gap_us": 59779,
+        "excess_us": 84973,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 3023,
+        "source_gap_us": 18155,
+        "receive_gap_us": 108369,
+        "excess_us": 199979,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3025,
+        "source_gap_us": 17088,
+        "receive_gap_us": 90817,
+        "excess_us": 303135,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3033,
+        "source_gap_us": 17533,
+        "receive_gap_us": 49239,
+        "excess_us": 277213,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3048,
+        "source_gap_us": 18800,
+        "receive_gap_us": 14433,
+        "excess_us": 128700,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3054,
+        "source_gap_us": 17066,
+        "receive_gap_us": 206636,
+        "excess_us": 313664,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3071,
+        "source_gap_us": 15677,
+        "receive_gap_us": 19588,
+        "excess_us": 135891,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 3078,
+        "source_gap_us": 18144,
+        "receive_gap_us": 45143,
+        "excess_us": 119741,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 3080,
+        "source_gap_us": 16155,
+        "receive_gap_us": 15019,
+        "excess_us": 193850,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 3596,
+        "source_gap_us": 16744,
+        "receive_gap_us": 39335,
+        "excess_us": 82681,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3601,
+        "source_gap_us": 17555,
+        "receive_gap_us": 90604,
+        "excess_us": 185837,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3603,
+        "source_gap_us": 18444,
+        "receive_gap_us": 76093,
+        "excess_us": 274456,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3611,
+        "source_gap_us": 16933,
+        "receive_gap_us": 61289,
+        "excess_us": 293050,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 3622,
+        "source_gap_us": 16933,
+        "receive_gap_us": 30273,
+        "excess_us": 229520,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 3627,
+        "source_gap_us": 18833,
+        "receive_gap_us": 151626,
+        "excess_us": 311544,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3641,
+        "source_gap_us": 16344,
+        "receive_gap_us": 15714,
+        "excess_us": 183909,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3650,
+        "source_gap_us": 15611,
+        "receive_gap_us": 75508,
+        "excess_us": 201412,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 3661,
+        "source_gap_us": 15466,
+        "receive_gap_us": 15696,
+        "excess_us": 125143,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3669,
+        "source_gap_us": 16888,
+        "receive_gap_us": 30500,
+        "excess_us": 98805,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 3673,
+        "source_gap_us": 18033,
+        "receive_gap_us": 105494,
+        "excess_us": 197085,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3684,
+        "source_gap_us": 14600,
+        "receive_gap_us": 15611,
+        "excess_us": 120262,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 3692,
+        "source_gap_us": 15600,
+        "receive_gap_us": 14989,
+        "excess_us": 93928,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 3698,
+        "source_gap_us": 14600,
+        "receive_gap_us": 45279,
+        "excess_us": 98900,
+        "assembly_call_us": 25
+      },
+      {
+        "frame": 3718,
+        "source_gap_us": 15444,
+        "receive_gap_us": 24003,
+        "excess_us": 86553,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3720,
+        "source_gap_us": 17866,
+        "receive_gap_us": 89760,
+        "excess_us": 185857,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3730,
+        "source_gap_us": 15477,
+        "receive_gap_us": 14732,
+        "excess_us": 125370,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 3739,
+        "source_gap_us": 16677,
+        "receive_gap_us": 14904,
+        "excess_us": 80190,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 3744,
+        "source_gap_us": 16888,
+        "receive_gap_us": 33115,
+        "excess_us": 124949,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3829,
+        "source_gap_us": 17355,
+        "receive_gap_us": 30337,
+        "excess_us": 84541,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3832,
+        "source_gap_us": 15133,
+        "receive_gap_us": 105113,
+        "excess_us": 186598,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3835,
+        "source_gap_us": 17255,
+        "receive_gap_us": 153477,
+        "excess_us": 349695,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4172,
+        "source_gap_us": 15766,
+        "receive_gap_us": 34641,
+        "excess_us": 85723,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 4176,
+        "source_gap_us": 16666,
+        "receive_gap_us": 106678,
+        "excess_us": 199867,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4178,
+        "source_gap_us": 15966,
+        "receive_gap_us": 180035,
+        "excess_us": 391327,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 4188,
+        "source_gap_us": 16044,
+        "receive_gap_us": 91018,
+        "excess_us": 383650,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4212,
+        "source_gap_us": 15833,
+        "receive_gap_us": 14923,
+        "excess_us": 87643,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4216,
+        "source_gap_us": 17233,
+        "receive_gap_us": 123648,
+        "excess_us": 219894,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4218,
+        "source_gap_us": 15877,
+        "receive_gap_us": 75621,
+        "excess_us": 308986,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 4236,
+        "source_gap_us": 16622,
+        "receive_gap_us": 14865,
+        "excess_us": 115100,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4240,
+        "source_gap_us": 15955,
+        "receive_gap_us": 60762,
+        "excess_us": 154327,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 4256,
+        "source_gap_us": 16011,
+        "receive_gap_us": 30090,
+        "excess_us": 82757,
+        "assembly_call_us": 27
+      },
+      {
+        "frame": 4266,
+        "source_gap_us": 17155,
+        "receive_gap_us": 30458,
+        "excess_us": 82601,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4270,
+        "source_gap_us": 15166,
+        "receive_gap_us": 24082,
+        "excess_us": 131630,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4287,
+        "source_gap_us": 16011,
+        "receive_gap_us": 29517,
+        "excess_us": 80442,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4314,
+        "source_gap_us": 16622,
+        "receive_gap_us": 31950,
+        "excess_us": 86085,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4316,
+        "source_gap_us": 15355,
+        "receive_gap_us": 60129,
+        "excess_us": 154923,
+        "assembly_call_us": 64
+      },
+      {
+        "frame": 4326,
+        "source_gap_us": 14844,
+        "receive_gap_us": 14712,
+        "excess_us": 92911,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4351,
+        "source_gap_us": 19100,
+        "receive_gap_us": 45589,
+        "excess_us": 96598,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4358,
+        "source_gap_us": 15788,
+        "receive_gap_us": 13286,
+        "excess_us": 88615,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4366,
+        "source_gap_us": 14333,
+        "receive_gap_us": 21132,
+        "excess_us": 85040,
+        "assembly_call_us": 12
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_byte_credit_game_partial_qos.json",
+    "instance": "b9f79f34-e6d6-427b-b444-0fb5076f83b4",
+    "paths": [
+      "relay"
+    ],
+    "fps_range": [
+      42.9,
+      63.3
+    ],
+    "max_gap_ms": 331.5,
+    "all_windows_max_gap_ms": 331.5,
+    "gaps_gt_100ms": 26,
+    "idr": 0,
+    "rfi": 6,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:25:43.784",
+        "fps": 59.9,
+        "max_gap_ms": 40.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:25:48.792",
+        "fps": 57.7,
+        "max_gap_ms": 112.0,
+        "gaps_gt_100ms": 3,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:25:53.823",
+        "fps": 62.2,
+        "max_gap_ms": 64.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:25:58.837",
+        "fps": 60.2,
+        "max_gap_ms": 123.9,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:03.849",
+        "fps": 59.9,
+        "max_gap_ms": 41.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:08.854",
+        "fps": 60.2,
+        "max_gap_ms": 120.1,
+        "gaps_gt_100ms": 2,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:13.881",
+        "fps": 54.3,
+        "max_gap_ms": 243.8,
+        "gaps_gt_100ms": 4,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:26:18.888",
+        "fps": 62.5,
+        "max_gap_ms": 38.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:23.916",
+        "fps": 58.9,
+        "max_gap_ms": 105.7,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:29.038",
+        "fps": 50.6,
+        "max_gap_ms": 331.5,
+        "gaps_gt_100ms": 7,
+        "idr": 0,
+        "rfi": 3
+      },
+      {
+        "timestamp": "2026-10-10 00:26:34.049",
+        "fps": 63.3,
+        "max_gap_ms": 153.0,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:39.057",
+        "fps": 60.1,
+        "max_gap_ms": 35.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:44.058",
+        "fps": 60.0,
+        "max_gap_ms": 45.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:49.076",
+        "fps": 55.2,
+        "max_gap_ms": 180.8,
+        "gaps_gt_100ms": 6,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:26:54.091",
+        "fps": 42.9,
+        "max_gap_ms": 76.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [
+      {
+        "frame": 475,
+        "source_gap_us": 17588,
+        "receive_gap_us": 29883,
+        "excess_us": 85927,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 478,
+        "source_gap_us": 17288,
+        "receive_gap_us": 105651,
+        "excess_us": 187912,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 490,
+        "source_gap_us": 16466,
+        "receive_gap_us": 30216,
+        "excess_us": 109997,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 498,
+        "source_gap_us": 18288,
+        "receive_gap_us": 15144,
+        "excess_us": 80581,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 501,
+        "source_gap_us": 17566,
+        "receive_gap_us": 107884,
+        "excess_us": 207427,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 510,
+        "source_gap_us": 15477,
+        "receive_gap_us": 72023,
+        "excess_us": 176059,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 610,
+        "source_gap_us": 15422,
+        "receive_gap_us": 30112,
+        "excess_us": 82539,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 617,
+        "source_gap_us": 16711,
+        "receive_gap_us": 30574,
+        "excess_us": 86000,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 622,
+        "source_gap_us": 16422,
+        "receive_gap_us": 28752,
+        "excess_us": 110093,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 626,
+        "source_gap_us": 15977,
+        "receive_gap_us": 90849,
+        "excess_us": 179600,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 638,
+        "source_gap_us": 15522,
+        "receive_gap_us": 30014,
+        "excess_us": 86512,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 644,
+        "source_gap_us": 14844,
+        "receive_gap_us": 15038,
+        "excess_us": 92824,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 650,
+        "source_gap_us": 13222,
+        "receive_gap_us": 35530,
+        "excess_us": 118763,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 652,
+        "source_gap_us": 15500,
+        "receive_gap_us": 111911,
+        "excess_us": 218722,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 661,
+        "source_gap_us": 17788,
+        "receive_gap_us": 30038,
+        "excess_us": 173546,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 671,
+        "source_gap_us": 17866,
+        "receive_gap_us": 91357,
+        "excess_us": 189448,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 682,
+        "source_gap_us": 16366,
+        "receive_gap_us": 91107,
+        "excess_us": 172735,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 692,
+        "source_gap_us": 15500,
+        "receive_gap_us": 62986,
+        "excess_us": 130366,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 727,
+        "source_gap_us": 18444,
+        "receive_gap_us": 41601,
+        "excess_us": 83949,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 734,
+        "source_gap_us": 12044,
+        "receive_gap_us": 15113,
+        "excess_us": 81184,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 739,
+        "source_gap_us": 17655,
+        "receive_gap_us": 29757,
+        "excess_us": 102029,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 741,
+        "source_gap_us": 17144,
+        "receive_gap_us": 90069,
+        "excess_us": 174178,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 758,
+        "source_gap_us": 13644,
+        "receive_gap_us": 64822,
+        "excess_us": 94536,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 765,
+        "source_gap_us": 17666,
+        "receive_gap_us": 15726,
+        "excess_us": 82940,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 790,
+        "source_gap_us": 16800,
+        "receive_gap_us": 30278,
+        "excess_us": 89938,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 1099,
+        "source_gap_us": 17855,
+        "receive_gap_us": 29803,
+        "excess_us": 80419,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1103,
+        "source_gap_us": 17066,
+        "receive_gap_us": 123910,
+        "excess_us": 212910,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1106,
+        "source_gap_us": 16811,
+        "receive_gap_us": 45184,
+        "excess_us": 283238,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 1114,
+        "source_gap_us": 14411,
+        "receive_gap_us": 15138,
+        "excess_us": 257046,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 1127,
+        "source_gap_us": 18277,
+        "receive_gap_us": 31662,
+        "excess_us": 167406,
+        "assembly_call_us": 28
+      },
+      {
+        "frame": 1128,
+        "source_gap_us": 13822,
+        "receive_gap_us": 120222,
+        "excess_us": 273806,
+        "assembly_call_us": 27
+      },
+      {
+        "frame": 1134,
+        "source_gap_us": 15433,
+        "receive_gap_us": 14980,
+        "excess_us": 278885,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1142,
+        "source_gap_us": 16644,
+        "receive_gap_us": 62457,
+        "excess_us": 267023,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 1160,
+        "source_gap_us": 15288,
+        "receive_gap_us": 60311,
+        "excess_us": 118401,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 1162,
+        "source_gap_us": 17900,
+        "receive_gap_us": 16854,
+        "excess_us": 190750,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 1171,
+        "source_gap_us": 15444,
+        "receive_gap_us": 15094,
+        "excess_us": 146159,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 1178,
+        "source_gap_us": 18400,
+        "receive_gap_us": 14976,
+        "excess_us": 134183,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1186,
+        "source_gap_us": 17344,
+        "receive_gap_us": 15406,
+        "excess_us": 108634,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1193,
+        "source_gap_us": 15977,
+        "receive_gap_us": 15036,
+        "excess_us": 98490,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 1202,
+        "source_gap_us": 16433,
+        "receive_gap_us": 30430,
+        "excess_us": 84745,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1695,
+        "source_gap_us": 15600,
+        "receive_gap_us": 30765,
+        "excess_us": 93082,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 1699,
+        "source_gap_us": 14622,
+        "receive_gap_us": 30286,
+        "excess_us": 147834,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1701,
+        "source_gap_us": 14377,
+        "receive_gap_us": 91033,
+        "excess_us": 250330,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1702,
+        "source_gap_us": 17700,
+        "receive_gap_us": 120074,
+        "excess_us": 352704,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1713,
+        "source_gap_us": 16922,
+        "receive_gap_us": 104473,
+        "excess_us": 364007,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2167,
+        "source_gap_us": 17944,
+        "receive_gap_us": 30089,
+        "excess_us": 80638,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 2169,
+        "source_gap_us": 17600,
+        "receive_gap_us": 106269,
+        "excess_us": 184458,
+        "assembly_call_us": 23
+      },
+      {
+        "frame": 2172,
+        "source_gap_us": 15622,
+        "receive_gap_us": 90789,
+        "excess_us": 289433,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2177,
+        "source_gap_us": 17622,
+        "receive_gap_us": 194702,
+        "excess_us": 398862,
+        "assembly_call_us": 39
+      },
+      {
+        "frame": 2195,
+        "source_gap_us": 16822,
+        "receive_gap_us": 15106,
+        "excess_us": 206575,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 2200,
+        "source_gap_us": 16777,
+        "receive_gap_us": 63621,
+        "excess_us": 244426,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 2209,
+        "source_gap_us": 17377,
+        "receive_gap_us": 30948,
+        "excess_us": 215541,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2215,
+        "source_gap_us": 16077,
+        "receive_gap_us": 15302,
+        "excess_us": 222183,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2225,
+        "source_gap_us": 16933,
+        "receive_gap_us": 15580,
+        "excess_us": 169466,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 2242,
+        "source_gap_us": 15444,
+        "receive_gap_us": 29721,
+        "excess_us": 82067,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2244,
+        "source_gap_us": 14622,
+        "receive_gap_us": 120324,
+        "excess_us": 213356,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2693,
+        "source_gap_us": 15588,
+        "receive_gap_us": 30841,
+        "excess_us": 85029,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 2714,
+        "source_gap_us": 18888,
+        "receive_gap_us": 30070,
+        "excess_us": 88089,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2776,
+        "source_gap_us": 16377,
+        "receive_gap_us": 45974,
+        "excess_us": 108203,
+        "assembly_call_us": 17
+      },
+      {
+        "frame": 2778,
+        "source_gap_us": 19533,
+        "receive_gap_us": 90066,
+        "excess_us": 177166,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 2780,
+        "source_gap_us": 16611,
+        "receive_gap_us": 90638,
+        "excess_us": 298471,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 2786,
+        "source_gap_us": 16655,
+        "receive_gap_us": 105636,
+        "excess_us": 319371,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2796,
+        "source_gap_us": 16544,
+        "receive_gap_us": 75391,
+        "excess_us": 288295,
+        "assembly_call_us": 35
+      },
+      {
+        "frame": 2798,
+        "source_gap_us": 15822,
+        "receive_gap_us": 30416,
+        "excess_us": 376230,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 2855,
+        "source_gap_us": 16833,
+        "receive_gap_us": 29980,
+        "excess_us": 82505,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 3059,
+        "source_gap_us": 19655,
+        "receive_gap_us": 30098,
+        "excess_us": 83176,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 3062,
+        "source_gap_us": 16388,
+        "receive_gap_us": 155230,
+        "excess_us": 264782,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3070,
+        "source_gap_us": 16600,
+        "receive_gap_us": 14706,
+        "excess_us": 236533,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3071,
+        "source_gap_us": 16744,
+        "receive_gap_us": 105359,
+        "excess_us": 325148,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3073,
+        "source_gap_us": 18544,
+        "receive_gap_us": 144178,
+        "excess_us": 450719,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 3080,
+        "source_gap_us": 17466,
+        "receive_gap_us": 120647,
+        "excess_us": 469136,
+        "assembly_call_us": 20
+      },
+      {
+        "frame": 3088,
+        "source_gap_us": 16055,
+        "receive_gap_us": 195766,
+        "excess_us": 611029,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3097,
+        "source_gap_us": 17077,
+        "receive_gap_us": 91109,
+        "excess_us": 642050,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 3108,
+        "source_gap_us": 14633,
+        "receive_gap_us": 122695,
+        "excess_us": 627262,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 3117,
+        "source_gap_us": 17933,
+        "receive_gap_us": 45237,
+        "excess_us": 611901,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 3128,
+        "source_gap_us": 15166,
+        "receive_gap_us": 30149,
+        "excess_us": 549772,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 3144,
+        "source_gap_us": 14000,
+        "receive_gap_us": 15007,
+        "excess_us": 388505,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3164,
+        "source_gap_us": 15711,
+        "receive_gap_us": 152981,
+        "excess_us": 268192,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3184,
+        "source_gap_us": 16822,
+        "receive_gap_us": 29849,
+        "excess_us": 84249,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 3186,
+        "source_gap_us": 15655,
+        "receive_gap_us": 76636,
+        "excess_us": 173764,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 3202,
+        "source_gap_us": 15266,
+        "receive_gap_us": 30002,
+        "excess_us": 88997,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 3208,
+        "source_gap_us": 15544,
+        "receive_gap_us": 15226,
+        "excess_us": 95186,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 3213,
+        "source_gap_us": 19300,
+        "receive_gap_us": 29936,
+        "excess_us": 129796,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 3216,
+        "source_gap_us": 15622,
+        "receive_gap_us": 82353,
+        "excess_us": 195429,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4109,
+        "source_gap_us": 18500,
+        "receive_gap_us": 30099,
+        "excess_us": 90797,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4115,
+        "source_gap_us": 19255,
+        "receive_gap_us": 107104,
+        "excess_us": 190534,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4128,
+        "source_gap_us": 14011,
+        "receive_gap_us": 15139,
+        "excess_us": 81912,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4133,
+        "source_gap_us": 19377,
+        "receive_gap_us": 15056,
+        "excess_us": 104082,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 4139,
+        "source_gap_us": 17366,
+        "receive_gap_us": 30485,
+        "excess_us": 126216,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4140,
+        "source_gap_us": 17222,
+        "receive_gap_us": 105181,
+        "excess_us": 214174,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 4148,
+        "source_gap_us": 15366,
+        "receive_gap_us": 93804,
+        "excess_us": 192058,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4162,
+        "source_gap_us": 15577,
+        "receive_gap_us": 30031,
+        "excess_us": 93520,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4167,
+        "source_gap_us": 18555,
+        "receive_gap_us": 121562,
+        "excess_us": 190292,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4177,
+        "source_gap_us": 19188,
+        "receive_gap_us": 100723,
+        "excess_us": 183853,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4189,
+        "source_gap_us": 17366,
+        "receive_gap_us": 30511,
+        "excess_us": 100595,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4194,
+        "source_gap_us": 16877,
+        "receive_gap_us": 14972,
+        "excess_us": 121897,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 4197,
+        "source_gap_us": 17488,
+        "receive_gap_us": 180719,
+        "excess_us": 283657,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 4214,
+        "source_gap_us": 13744,
+        "receive_gap_us": 15113,
+        "excess_us": 107076,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 4216,
+        "source_gap_us": 15700,
+        "receive_gap_us": 15141,
+        "excess_us": 178859,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 4227,
+        "source_gap_us": 18144,
+        "receive_gap_us": 17024,
+        "excess_us": 103203,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 4231,
+        "source_gap_us": 19422,
+        "receive_gap_us": 31030,
+        "excess_us": 156389,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4243,
+        "source_gap_us": 17077,
+        "receive_gap_us": 35228,
+        "excess_us": 85480,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4249,
+        "source_gap_us": 16033,
+        "receive_gap_us": 15042,
+        "excess_us": 85345,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4251,
+        "source_gap_us": 18988,
+        "receive_gap_us": 90564,
+        "excess_us": 171872,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4263,
+        "source_gap_us": 16633,
+        "receive_gap_us": 30585,
+        "excess_us": 96193,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4266,
+        "source_gap_us": 16622,
+        "receive_gap_us": 103596,
+        "excess_us": 182496,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4290,
+        "source_gap_us": 16644,
+        "receive_gap_us": 31937,
+        "excess_us": 85641,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4310,
+        "source_gap_us": 15877,
+        "receive_gap_us": 32215,
+        "excess_us": 81127,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4314,
+        "source_gap_us": 16566,
+        "receive_gap_us": 26845,
+        "excess_us": 116939,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4319,
+        "source_gap_us": 17300,
+        "receive_gap_us": 41556,
+        "excess_us": 169351,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4324,
+        "source_gap_us": 17066,
+        "receive_gap_us": 30148,
+        "excess_us": 206681,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4329,
+        "source_gap_us": 16700,
+        "receive_gap_us": 31919,
+        "excess_us": 244276,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4334,
+        "source_gap_us": 16400,
+        "receive_gap_us": 30863,
+        "excess_us": 286818,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4339,
+        "source_gap_us": 17733,
+        "receive_gap_us": 29622,
+        "excess_us": 322240,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4343,
+        "source_gap_us": 17088,
+        "receive_gap_us": 28431,
+        "excess_us": 364286,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4347,
+        "source_gap_us": 17588,
+        "receive_gap_us": 42446,
+        "excess_us": 407859,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4350,
+        "source_gap_us": 16288,
+        "receive_gap_us": 30481,
+        "excess_us": 470289,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4354,
+        "source_gap_us": 15255,
+        "receive_gap_us": 70493,
+        "excess_us": 546707,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4357,
+        "source_gap_us": 18633,
+        "receive_gap_us": 33144,
+        "excess_us": 605842,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 4361,
+        "source_gap_us": 20500,
+        "receive_gap_us": 28522,
+        "excess_us": 646175,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 4365,
+        "source_gap_us": 18933,
+        "receive_gap_us": 31025,
+        "excess_us": 691255,
+        "assembly_call_us": 15
+      },
+      {
+        "frame": 4372,
+        "source_gap_us": 16477,
+        "receive_gap_us": 14260,
+        "excess_us": 685002,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 4378,
+        "source_gap_us": 16200,
+        "receive_gap_us": 21240,
+        "excess_us": 694401,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4385,
+        "source_gap_us": 15533,
+        "receive_gap_us": 14979,
+        "excess_us": 684044,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4392,
+        "source_gap_us": 17344,
+        "receive_gap_us": 15638,
+        "excess_us": 672130,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4402,
+        "source_gap_us": 16600,
+        "receive_gap_us": 14894,
+        "excess_us": 611574,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4410,
+        "source_gap_us": 16433,
+        "receive_gap_us": 40406,
+        "excess_us": 580121,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4415,
+        "source_gap_us": 17822,
+        "receive_gap_us": 60906,
+        "excess_us": 616406,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 4422,
+        "source_gap_us": 17166,
+        "receive_gap_us": 15159,
+        "excess_us": 604218,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 4429,
+        "source_gap_us": 19888,
+        "receive_gap_us": 45264,
+        "excess_us": 608350,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4438,
+        "source_gap_us": 15100,
+        "receive_gap_us": 23900,
+        "excess_us": 583592,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4448,
+        "source_gap_us": 17822,
+        "receive_gap_us": 20971,
+        "excess_us": 527558,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 4460,
+        "source_gap_us": 33555,
+        "receive_gap_us": 16885,
+        "excess_us": 439304,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4474,
+        "source_gap_us": 33400,
+        "receive_gap_us": 15677,
+        "excess_us": 319545,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 4480,
+        "source_gap_us": 33300,
+        "receive_gap_us": 49342,
+        "excess_us": 329324,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4490,
+        "source_gap_us": 32600,
+        "receive_gap_us": 16872,
+        "excess_us": 270418,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 4498,
+        "source_gap_us": 32077,
+        "receive_gap_us": 25867,
+        "excess_us": 238372,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 4506,
+        "source_gap_us": 35133,
+        "receive_gap_us": 44948,
+        "excess_us": 224296,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 4512,
+        "source_gap_us": 32566,
+        "receive_gap_us": 42063,
+        "excess_us": 228401,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4528,
+        "source_gap_us": 32555,
+        "receive_gap_us": 61070,
+        "excess_us": 119004,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4830,
+        "source_gap_us": 14966,
+        "receive_gap_us": 34789,
+        "excess_us": 91469,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 4835,
+        "source_gap_us": 19533,
+        "receive_gap_us": 56062,
+        "excess_us": 107362,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 4841,
+        "source_gap_us": 19011,
+        "receive_gap_us": 30154,
+        "excess_us": 125616,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4847,
+        "source_gap_us": 17600,
+        "receive_gap_us": 15621,
+        "excess_us": 134175,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4853,
+        "source_gap_us": 17477,
+        "receive_gap_us": 28600,
+        "excess_us": 138843,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 4860,
+        "source_gap_us": 15566,
+        "receive_gap_us": 14980,
+        "excess_us": 136718,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4865,
+        "source_gap_us": 19311,
+        "receive_gap_us": 30711,
+        "excess_us": 175597,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4872,
+        "source_gap_us": 16755,
+        "receive_gap_us": 13897,
+        "excess_us": 172365,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 4875,
+        "source_gap_us": 19111,
+        "receive_gap_us": 38168,
+        "excess_us": 222482,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 4881,
+        "source_gap_us": 17777,
+        "receive_gap_us": 29085,
+        "excess_us": 230342,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4886,
+        "source_gap_us": 14300,
+        "receive_gap_us": 15535,
+        "excess_us": 254253,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 4891,
+        "source_gap_us": 17644,
+        "receive_gap_us": 30062,
+        "excess_us": 291697,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 4895,
+        "source_gap_us": 19422,
+        "receive_gap_us": 38536,
+        "excess_us": 339247,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 4899,
+        "source_gap_us": 16988,
+        "receive_gap_us": 48524,
+        "excess_us": 393802,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 4904,
+        "source_gap_us": 17300,
+        "receive_gap_us": 30311,
+        "excess_us": 427399,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 4908,
+        "source_gap_us": 15511,
+        "receive_gap_us": 30117,
+        "excess_us": 468314,
+        "assembly_call_us": 18
+      },
+      {
+        "frame": 4912,
+        "source_gap_us": 16811,
+        "receive_gap_us": 30493,
+        "excess_us": 506328,
+        "assembly_call_us": 13
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  },
+  {
+    "evidence": "docs\\validation\\iroh_transport\\20261010_byte_credit_game_qos.json",
+    "instance": "a178af73-1d4d-41bc-aa97-991eaabe3b1e",
+    "paths": [
+      "relay"
+    ],
+    "fps_range": [
+      21.9,
+      61.5
+    ],
+    "max_gap_ms": 1328.9,
+    "all_windows_max_gap_ms": 1328.9,
+    "gaps_gt_100ms": 11,
+    "idr": 1,
+    "rfi": 4,
+    "windows": [
+      {
+        "timestamp": "2026-10-10 00:29:16.654",
+        "fps": 58.5,
+        "max_gap_ms": 182.2,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:21.669",
+        "fps": 60.0,
+        "max_gap_ms": 23.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:26.671",
+        "fps": 60.0,
+        "max_gap_ms": 23.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:31.688",
+        "fps": 60.0,
+        "max_gap_ms": 28.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:36.707",
+        "fps": 28.7,
+        "max_gap_ms": 1328.9,
+        "gaps_gt_100ms": 4,
+        "idr": 1,
+        "rfi": 4
+      },
+      {
+        "timestamp": "2026-10-10 00:29:41.708",
+        "fps": 36.2,
+        "max_gap_ms": 48.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:46.751",
+        "fps": 54.9,
+        "max_gap_ms": 64.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:51.817",
+        "fps": 21.9,
+        "max_gap_ms": 124.2,
+        "gaps_gt_100ms": 4,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:29:56.819",
+        "fps": 25.0,
+        "max_gap_ms": 83.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:01.820",
+        "fps": 56.0,
+        "max_gap_ms": 36.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:06.820",
+        "fps": 60.0,
+        "max_gap_ms": 23.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:11.836",
+        "fps": 60.0,
+        "max_gap_ms": 26.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:16.855",
+        "fps": 60.0,
+        "max_gap_ms": 23.4,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:21.871",
+        "fps": 60.0,
+        "max_gap_ms": 23.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:26.889",
+        "fps": 60.0,
+        "max_gap_ms": 23.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:31.904",
+        "fps": 60.0,
+        "max_gap_ms": 24.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:36.920",
+        "fps": 60.0,
+        "max_gap_ms": 26.9,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:41.921",
+        "fps": 60.0,
+        "max_gap_ms": 38.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:46.936",
+        "fps": 60.0,
+        "max_gap_ms": 66.7,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:51.941",
+        "fps": 59.9,
+        "max_gap_ms": 45.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:30:56.954",
+        "fps": 60.0,
+        "max_gap_ms": 50.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:01.954",
+        "fps": 60.0,
+        "max_gap_ms": 46.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:07.012",
+        "fps": 58.5,
+        "max_gap_ms": 90.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:12.020",
+        "fps": 61.5,
+        "max_gap_ms": 115.5,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:17.056",
+        "fps": 59.8,
+        "max_gap_ms": 46.5,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:22.084",
+        "fps": 58.9,
+        "max_gap_ms": 126.2,
+        "gaps_gt_100ms": 1,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:27.096",
+        "fps": 61.1,
+        "max_gap_ms": 81.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:32.105",
+        "fps": 60.3,
+        "max_gap_ms": 72.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:37.118",
+        "fps": 60.0,
+        "max_gap_ms": 25.0,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:42.119",
+        "fps": 60.0,
+        "max_gap_ms": 30.6,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:47.132",
+        "fps": 60.0,
+        "max_gap_ms": 23.2,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:52.136",
+        "fps": 60.0,
+        "max_gap_ms": 23.3,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      },
+      {
+        "timestamp": "2026-10-10 00:31:57.149",
+        "fps": 60.0,
+        "max_gap_ms": 23.1,
+        "gaps_gt_100ms": 0,
+        "idr": 0,
+        "rfi": 0
+      }
+    ],
+    "transit": [
+      {
+        "frame": 152,
+        "source_gap_us": 174322,
+        "receive_gap_us": 182167,
+        "excess_us": 7844,
+        "assembly_call_us": 29
+      },
+      {
+        "frame": 1406,
+        "source_gap_us": 16622,
+        "receive_gap_us": 29988,
+        "excess_us": 80225,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1410,
+        "source_gap_us": 17511,
+        "receive_gap_us": 18989,
+        "excess_us": 126179,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1413,
+        "source_gap_us": 17166,
+        "receive_gap_us": 17797,
+        "excess_us": 184997,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1416,
+        "source_gap_us": 17877,
+        "receive_gap_us": 48028,
+        "excess_us": 258219,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 1419,
+        "source_gap_us": 16766,
+        "receive_gap_us": 61081,
+        "excess_us": 333482,
+        "assembly_call_us": 21
+      },
+      {
+        "frame": 1424,
+        "source_gap_us": 17577,
+        "receive_gap_us": 17882,
+        "excess_us": 361898,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 1426,
+        "source_gap_us": 16711,
+        "receive_gap_us": 123218,
+        "excess_us": 499515,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 1431,
+        "source_gap_us": 16366,
+        "receive_gap_us": 63823,
+        "excess_us": 544360,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1434,
+        "source_gap_us": 18511,
+        "receive_gap_us": 156417,
+        "excess_us": 725121,
+        "assembly_call_us": 26
+      },
+      {
+        "frame": 1437,
+        "source_gap_us": 17522,
+        "receive_gap_us": 32854,
+        "excess_us": 787194,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1440,
+        "source_gap_us": 16633,
+        "receive_gap_us": 28239,
+        "excess_us": 844295,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 1444,
+        "source_gap_us": 16600,
+        "receive_gap_us": 173081,
+        "excess_us": 1030409,
+        "assembly_call_us": 30
+      },
+      {
+        "frame": 1457,
+        "source_gap_us": 166211,
+        "receive_gap_us": 46365,
+        "excess_us": 950890,
+        "assembly_call_us": 19
+      },
+      {
+        "frame": 1467,
+        "source_gap_us": 16655,
+        "receive_gap_us": 14784,
+        "excess_us": 895188,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 1475,
+        "source_gap_us": 15900,
+        "receive_gap_us": 13271,
+        "excess_us": 870959,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1480,
+        "source_gap_us": 17122,
+        "receive_gap_us": 32815,
+        "excess_us": 899804,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 1489,
+        "source_gap_us": 16711,
+        "receive_gap_us": 15376,
+        "excess_us": 858744,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 1500,
+        "source_gap_us": 15955,
+        "receive_gap_us": 17047,
+        "excess_us": 786116,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 1508,
+        "source_gap_us": 17433,
+        "receive_gap_us": 27308,
+        "excess_us": 759092,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 1518,
+        "source_gap_us": 84922,
+        "receive_gap_us": 63938,
+        "excess_us": 732478,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1530,
+        "source_gap_us": 67011,
+        "receive_gap_us": 44950,
+        "excess_us": 657959,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1551,
+        "source_gap_us": 183544,
+        "receive_gap_us": 79149,
+        "excess_us": 465106,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1560,
+        "source_gap_us": 149411,
+        "receive_gap_us": 109861,
+        "excess_us": 425556,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 1567,
+        "source_gap_us": 16600,
+        "receive_gap_us": 14637,
+        "excess_us": 417006,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1575,
+        "source_gap_us": 17200,
+        "receive_gap_us": 14892,
+        "excess_us": 394906,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1582,
+        "source_gap_us": 33355,
+        "receive_gap_us": 60016,
+        "excess_us": 399136,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 1594,
+        "source_gap_us": 31211,
+        "receive_gap_us": 31180,
+        "excess_us": 326606,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 1604,
+        "source_gap_us": 35133,
+        "receive_gap_us": 30148,
+        "excess_us": 282810,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1612,
+        "source_gap_us": 35611,
+        "receive_gap_us": 32097,
+        "excess_us": 260473,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1622,
+        "source_gap_us": 34066,
+        "receive_gap_us": 33022,
+        "excess_us": 221234,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1630,
+        "source_gap_us": 32933,
+        "receive_gap_us": 30849,
+        "excess_us": 194900,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1638,
+        "source_gap_us": 33066,
+        "receive_gap_us": 29117,
+        "excess_us": 171191,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1646,
+        "source_gap_us": 33655,
+        "receive_gap_us": 30119,
+        "excess_us": 163583,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1656,
+        "source_gap_us": 33877,
+        "receive_gap_us": 32128,
+        "excess_us": 123586,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1664,
+        "source_gap_us": 31611,
+        "receive_gap_us": 34116,
+        "excess_us": 100814,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1682,
+        "source_gap_us": 34800,
+        "receive_gap_us": 46130,
+        "excess_us": 80871,
+        "assembly_call_us": 39
+      },
+      {
+        "frame": 1880,
+        "source_gap_us": 18344,
+        "receive_gap_us": 45819,
+        "excess_us": 104355,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 1887,
+        "source_gap_us": 13277,
+        "receive_gap_us": 16122,
+        "excess_us": 100148,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 1894,
+        "source_gap_us": 17844,
+        "receive_gap_us": 15029,
+        "excess_us": 94149,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1900,
+        "source_gap_us": 18088,
+        "receive_gap_us": 17950,
+        "excess_us": 104876,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1906,
+        "source_gap_us": 17188,
+        "receive_gap_us": 16136,
+        "excess_us": 112873,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1912,
+        "source_gap_us": 18133,
+        "receive_gap_us": 31053,
+        "excess_us": 121789,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1921,
+        "source_gap_us": 34222,
+        "receive_gap_us": 45940,
+        "excess_us": 112631,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1927,
+        "source_gap_us": 15644,
+        "receive_gap_us": 15969,
+        "excess_us": 125495,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 1933,
+        "source_gap_us": 34100,
+        "receive_gap_us": 31782,
+        "excess_us": 133768,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1940,
+        "source_gap_us": 18133,
+        "receive_gap_us": 18138,
+        "excess_us": 127363,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1945,
+        "source_gap_us": 13488,
+        "receive_gap_us": 15930,
+        "excess_us": 154285,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 1953,
+        "source_gap_us": 15655,
+        "receive_gap_us": 17997,
+        "excess_us": 134267,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 1959,
+        "source_gap_us": 15544,
+        "receive_gap_us": 16884,
+        "excess_us": 140745,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 1965,
+        "source_gap_us": 14700,
+        "receive_gap_us": 14084,
+        "excess_us": 149430,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1972,
+        "source_gap_us": 16955,
+        "receive_gap_us": 14826,
+        "excess_us": 142621,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1978,
+        "source_gap_us": 18900,
+        "receive_gap_us": 32066,
+        "excess_us": 152473,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1985,
+        "source_gap_us": 15766,
+        "receive_gap_us": 16021,
+        "excess_us": 144845,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1992,
+        "source_gap_us": 18577,
+        "receive_gap_us": 15988,
+        "excess_us": 139447,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 1997,
+        "source_gap_us": 15166,
+        "receive_gap_us": 15958,
+        "excess_us": 165145,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2002,
+        "source_gap_us": 18655,
+        "receive_gap_us": 30750,
+        "excess_us": 190677,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2010,
+        "source_gap_us": 18122,
+        "receive_gap_us": 17860,
+        "excess_us": 169848,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2016,
+        "source_gap_us": 17866,
+        "receive_gap_us": 14997,
+        "excess_us": 173466,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2023,
+        "source_gap_us": 15311,
+        "receive_gap_us": 12835,
+        "excess_us": 169913,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2030,
+        "source_gap_us": 18000,
+        "receive_gap_us": 30151,
+        "excess_us": 177014,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2037,
+        "source_gap_us": 15655,
+        "receive_gap_us": 13873,
+        "excess_us": 171201,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2044,
+        "source_gap_us": 19022,
+        "receive_gap_us": 15002,
+        "excess_us": 164209,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2050,
+        "source_gap_us": 17366,
+        "receive_gap_us": 32897,
+        "excess_us": 191278,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2057,
+        "source_gap_us": 17900,
+        "receive_gap_us": 30049,
+        "excess_us": 199753,
+        "assembly_call_us": 12
+      },
+      {
+        "frame": 2063,
+        "source_gap_us": 16177,
+        "receive_gap_us": 16988,
+        "excess_us": 210305,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2070,
+        "source_gap_us": 18522,
+        "receive_gap_us": 14114,
+        "excess_us": 200679,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2076,
+        "source_gap_us": 16422,
+        "receive_gap_us": 19009,
+        "excess_us": 210688,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2083,
+        "source_gap_us": 14433,
+        "receive_gap_us": 16777,
+        "excess_us": 205594,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2089,
+        "source_gap_us": 16900,
+        "receive_gap_us": 30931,
+        "excess_us": 212472,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 2096,
+        "source_gap_us": 16888,
+        "receive_gap_us": 14017,
+        "excess_us": 204916,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2102,
+        "source_gap_us": 19133,
+        "receive_gap_us": 30004,
+        "excess_us": 228513,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2109,
+        "source_gap_us": 15711,
+        "receive_gap_us": 12825,
+        "excess_us": 223286,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2116,
+        "source_gap_us": 17944,
+        "receive_gap_us": 15380,
+        "excess_us": 213904,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2121,
+        "source_gap_us": 14511,
+        "receive_gap_us": 64125,
+        "excess_us": 263447,
+        "assembly_call_us": 17
+      },
+      {
+        "frame": 2128,
+        "source_gap_us": 18488,
+        "receive_gap_us": 28203,
+        "excess_us": 263992,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2135,
+        "source_gap_us": 15622,
+        "receive_gap_us": 14986,
+        "excess_us": 263084,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2142,
+        "source_gap_us": 19977,
+        "receive_gap_us": 30940,
+        "excess_us": 267095,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2147,
+        "source_gap_us": 14344,
+        "receive_gap_us": 30906,
+        "excess_us": 310957,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2154,
+        "source_gap_us": 17611,
+        "receive_gap_us": 16041,
+        "excess_us": 305530,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2160,
+        "source_gap_us": 16344,
+        "receive_gap_us": 28961,
+        "excess_us": 310512,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 2166,
+        "source_gap_us": 17011,
+        "receive_gap_us": 31026,
+        "excess_us": 336849,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2174,
+        "source_gap_us": 16611,
+        "receive_gap_us": 16656,
+        "excess_us": 316849,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2180,
+        "source_gap_us": 17000,
+        "receive_gap_us": 14716,
+        "excess_us": 322923,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2186,
+        "source_gap_us": 21288,
+        "receive_gap_us": 30997,
+        "excess_us": 344318,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2192,
+        "source_gap_us": 18977,
+        "receive_gap_us": 15963,
+        "excess_us": 358072,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2198,
+        "source_gap_us": 18900,
+        "receive_gap_us": 31164,
+        "excess_us": 367780,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2202,
+        "source_gap_us": 17955,
+        "receive_gap_us": 31025,
+        "excess_us": 410028,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2208,
+        "source_gap_us": 18077,
+        "receive_gap_us": 46140,
+        "excess_us": 434970,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2213,
+        "source_gap_us": 15433,
+        "receive_gap_us": 15939,
+        "excess_us": 465500,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2221,
+        "source_gap_us": 33400,
+        "receive_gap_us": 61035,
+        "excess_us": 469625,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2229,
+        "source_gap_us": 33766,
+        "receive_gap_us": 29913,
+        "excess_us": 459902,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 2237,
+        "source_gap_us": 33833,
+        "receive_gap_us": 60380,
+        "excess_us": 469516,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2245,
+        "source_gap_us": 32588,
+        "receive_gap_us": 32090,
+        "excess_us": 463134,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2251,
+        "source_gap_us": 32611,
+        "receive_gap_us": 30050,
+        "excess_us": 486705,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2259,
+        "source_gap_us": 35988,
+        "receive_gap_us": 47180,
+        "excess_us": 475073,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2265,
+        "source_gap_us": 31444,
+        "receive_gap_us": 46161,
+        "excess_us": 505334,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2273,
+        "source_gap_us": 35122,
+        "receive_gap_us": 43215,
+        "excess_us": 495273,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 2279,
+        "source_gap_us": 33100,
+        "receive_gap_us": 30015,
+        "excess_us": 520321,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2287,
+        "source_gap_us": 33377,
+        "receive_gap_us": 32807,
+        "excess_us": 497519,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 2293,
+        "source_gap_us": 33888,
+        "receive_gap_us": 63128,
+        "excess_us": 508166,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 2301,
+        "source_gap_us": 32133,
+        "receive_gap_us": 30195,
+        "excess_us": 501387,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2305,
+        "source_gap_us": 32466,
+        "receive_gap_us": 77845,
+        "excess_us": 542715,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 2313,
+        "source_gap_us": 33722,
+        "receive_gap_us": 29993,
+        "excess_us": 514348,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2321,
+        "source_gap_us": 33377,
+        "receive_gap_us": 31997,
+        "excess_us": 495857,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2325,
+        "source_gap_us": 32700,
+        "receive_gap_us": 62154,
+        "excess_us": 553249,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 2333,
+        "source_gap_us": 33344,
+        "receive_gap_us": 45955,
+        "excess_us": 559319,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2341,
+        "source_gap_us": 65700,
+        "receive_gap_us": 31988,
+        "excess_us": 552653,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2353,
+        "source_gap_us": 82255,
+        "receive_gap_us": 48979,
+        "excess_us": 494024,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2357,
+        "source_gap_us": 66100,
+        "receive_gap_us": 123888,
+        "excess_us": 551812,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2365,
+        "source_gap_us": 66622,
+        "receive_gap_us": 63557,
+        "excess_us": 529063,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2373,
+        "source_gap_us": 67477,
+        "receive_gap_us": 79055,
+        "excess_us": 565576,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2381,
+        "source_gap_us": 66855,
+        "receive_gap_us": 58809,
+        "excess_us": 539009,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2393,
+        "source_gap_us": 66788,
+        "receive_gap_us": 45789,
+        "excess_us": 467825,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2404,
+        "source_gap_us": 65100,
+        "receive_gap_us": 108007,
+        "excess_us": 484746,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2412,
+        "source_gap_us": 64422,
+        "receive_gap_us": 47112,
+        "excess_us": 463633,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2420,
+        "source_gap_us": 51522,
+        "receive_gap_us": 44944,
+        "excess_us": 451776,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2429,
+        "source_gap_us": 81933,
+        "receive_gap_us": 124213,
+        "excess_us": 476525,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2436,
+        "source_gap_us": 51677,
+        "receive_gap_us": 65097,
+        "excess_us": 469697,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2441,
+        "source_gap_us": 82900,
+        "receive_gap_us": 107619,
+        "excess_us": 494416,
+        "assembly_call_us": 17
+      },
+      {
+        "frame": 2452,
+        "source_gap_us": 67422,
+        "receive_gap_us": 93247,
+        "excess_us": 499741,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2465,
+        "source_gap_us": 65466,
+        "receive_gap_us": 32014,
+        "excess_us": 393853,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2476,
+        "source_gap_us": 65755,
+        "receive_gap_us": 34018,
+        "excess_us": 319289,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 2488,
+        "source_gap_us": 66488,
+        "receive_gap_us": 43893,
+        "excess_us": 243223,
+        "assembly_call_us": 3
+      },
+      {
+        "frame": 2501,
+        "source_gap_us": 83466,
+        "receive_gap_us": 46148,
+        "excess_us": 168635,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 2509,
+        "source_gap_us": 66633,
+        "receive_gap_us": 47350,
+        "excess_us": 147946,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 2517,
+        "source_gap_us": 66722,
+        "receive_gap_us": 48102,
+        "excess_us": 122205,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 2528,
+        "source_gap_us": 67422,
+        "receive_gap_us": 65037,
+        "excess_us": 80088,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 2621,
+        "source_gap_us": 82300,
+        "receive_gap_us": 83016,
+        "excess_us": 2026,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2645,
+        "source_gap_us": 82511,
+        "receive_gap_us": 82854,
+        "excess_us": 2201,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 2657,
+        "source_gap_us": 82522,
+        "receive_gap_us": 81012,
+        "excess_us": 3301,
+        "assembly_call_us": 55
+      },
+      {
+        "frame": 6142,
+        "source_gap_us": 16722,
+        "receive_gap_us": 21148,
+        "excess_us": 84229,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 6148,
+        "source_gap_us": 16033,
+        "receive_gap_us": 6152,
+        "excess_us": 84478,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 7002,
+        "source_gap_us": 17677,
+        "receive_gap_us": 86588,
+        "excess_us": 78461,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 7011,
+        "source_gap_us": 15322,
+        "receive_gap_us": 90602,
+        "excess_us": 78794,
+        "assembly_call_us": 14
+      },
+      {
+        "frame": 7014,
+        "source_gap_us": 17488,
+        "receive_gap_us": 29131,
+        "excess_us": 154383,
+        "assembly_call_us": 6
+      },
+      {
+        "frame": 7056,
+        "source_gap_us": 17311,
+        "receive_gap_us": 59125,
+        "excess_us": 82754,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 7068,
+        "source_gap_us": 15200,
+        "receive_gap_us": 43178,
+        "excess_us": 83281,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 7073,
+        "source_gap_us": 16866,
+        "receive_gap_us": 17380,
+        "excess_us": 109587,
+        "assembly_call_us": 4
+      },
+      {
+        "frame": 7132,
+        "source_gap_us": 17566,
+        "receive_gap_us": 55535,
+        "excess_us": 89909,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 7137,
+        "source_gap_us": 16833,
+        "receive_gap_us": 14562,
+        "excess_us": 120675,
+        "assembly_call_us": 7
+      },
+      {
+        "frame": 7226,
+        "source_gap_us": 16822,
+        "receive_gap_us": 87958,
+        "excess_us": 94699,
+        "assembly_call_us": 9
+      },
+      {
+        "frame": 7234,
+        "source_gap_us": 20177,
+        "receive_gap_us": 115439,
+        "excess_us": 103186,
+        "assembly_call_us": 22
+      },
+      {
+        "frame": 7238,
+        "source_gap_us": 19022,
+        "receive_gap_us": 19394,
+        "excess_us": 151066,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 7851,
+        "source_gap_us": 16022,
+        "receive_gap_us": 126171,
+        "excess_us": 113584,
+        "assembly_call_us": 11
+      },
+      {
+        "frame": 7942,
+        "source_gap_us": 16566,
+        "receive_gap_us": 84694,
+        "excess_us": 101026,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 7961,
+        "source_gap_us": 15822,
+        "receive_gap_us": 79491,
+        "excess_us": 99572,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 7965,
+        "source_gap_us": 16744,
+        "receive_gap_us": 20575,
+        "excess_us": 133543,
+        "assembly_call_us": 13
+      },
+      {
+        "frame": 7974,
+        "source_gap_us": 16544,
+        "receive_gap_us": 22039,
+        "excess_us": 84773,
+        "assembly_call_us": 10
+      },
+      {
+        "frame": 7986,
+        "source_gap_us": 17222,
+        "receive_gap_us": 81240,
+        "excess_us": 118854,
+        "assembly_call_us": 8
+      },
+      {
+        "frame": 8291,
+        "source_gap_us": 17855,
+        "receive_gap_us": 62463,
+        "excess_us": 113988,
+        "assembly_call_us": 5
+      },
+      {
+        "frame": 8300,
+        "source_gap_us": 15300,
+        "receive_gap_us": 72106,
+        "excess_us": 92402,
+        "assembly_call_us": 16
+      },
+      {
+        "frame": 8303,
+        "source_gap_us": 18111,
+        "receive_gap_us": 19035,
+        "excess_us": 151707,
+        "assembly_call_us": 3
+      }
+    ],
+    "slow_workers": [],
+    "fps_metric": "Encoded frames delivered after reference validation, before decoding; not all complete assembled frames or presentation FPS."
+  }
+]

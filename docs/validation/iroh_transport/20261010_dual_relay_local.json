@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "same_quic_connection": false,
+  "scope": "home Relay reselection and fresh-address reconnect; not Console/Panel address refresh",
+  "initial_path": "RECOVERY_READY: paths=PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18552/)], selected: Some(PathId(0)), closed: false }, .. }",
+  "stopped_relay_port": 18552,
+  "failover": "RELAY_FAILOVER: reselection_ms=6627 disconnected_reselection_ms=4589 same_endpoint_ids=true paths=PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18551/)], selected: Some(PathId(0)), closed: false }, .. }",
+  "transfer": {
+    "datagrams_echoed": 120,
+    "datagrams_sent": 120,
+    "elapsed_ms": 1984,
+    "maximum_datagram_round_trip_us": 13103,
+    "maximum_datagram_size": 1288,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:18551/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "date": "2026-10-09",
+  "development_artifacts": [
+    {
+      "product": "client",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "DB647C662DD03E7A978CC94F6E9FBF5127FCDF34176AE24B9A9FE275F93217A3"
+    },
+    {
+      "product": "client",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe",
+      "sha256": "A4F3921B1128A18302F850BD7DC12D71FA6547A111632ECC61146CEEFC1726FA"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "3522441DC43D1435276F1566203E02A1A9CAC5FCF58EB761E76DDE1949B22047"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_panel.exe",
+      "sha256": "D5D6E674AB088AA69C988B42DB28963FABF4FB18CD934AEAD63E90C8E3C7B9C5"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+      "sha256": "EEAB006E47FC9550CCBC0AE1EE388B41A8B00971D803F677C0237054CDEF3BE7"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\px_service.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_service.exe",
+      "sha256": "BB3F8F89405D948E68F9E4433A1044ACF0F1B6053BC4F5891C0A3E3CBA1543E2"
+    }
+  ],
+  "checks": {
+    "direct": {
+      "media": 5,
+      "sdk": 4,
+      "frontend": 11,
+      "client_launch": 22,
+      "statistics": 5,
+      "panel": 75
+    },
+    "forced_private_https_relay": {
+      "media": 5,
+      "frontend": 11
+    },
+    "postgres_sessions": 20,
+    "postgres_report": "test-results/server_validation/pg-20261009-120136-d8410064/report.json"
+  },
+  "remote_installation_this_checkpoint": false,
+  "production_default_switched": false
+}

@@ -21,6 +21,14 @@ struct KeySource {
     path: PathBuf,
 }
 
+#[derive(Deserialize)]
+#[serde(default, deny_unknown_fields)]
+#[derive(Default)]
+struct ManagedIrohSettings {
+    relay_only: bool,
+    ca_certificates_pem: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct RelayAdmission {
     pub app_key: String,
@@ -39,6 +47,7 @@ pub struct ConsoleLaunchConfig {
     recording_cache_directory: PathBuf,
     recording_cache_options: CacheOptions,
     relay_admission: Option<RelayAdmission>,
+    iroh: Option<px_node_protocol::IrohNetworkConfig>,
     release: ReleaseIdentity,
     license: LicenseLaunchConfig,
 }
@@ -55,6 +64,7 @@ pub struct ConsoleLaunch {
     pub recording_cache_root: Arc<CacheRoot>,
     pub recording_cache_options: CacheOptions,
     pub relay_admission: Option<RelayAdmission>,
+    pub iroh: Option<px_node_protocol::IrohNetworkConfig>,
     pub release: ReleaseIdentity,
     pub license: Option<LicenseEntitlement>,
     pub license_config: LicenseLaunchConfig,
@@ -145,6 +155,23 @@ impl ConsoleLaunchConfig {
         {
             return Err(ConfigurationError);
         }
+        let iroh = get("PIXELS_CONSOLE_IROH_CONFIGURATION")
+            .filter(|configuration| !configuration.is_empty())
+            .map(|configuration| {
+                let settings = serde_json::from_str::<ManagedIrohSettings>(&configuration)
+                    .map_err(|_| ConfigurationError)?;
+                let mut network = px_node_protocol::IrohNetworkConfig {
+                    relays: Vec::new(),
+                    relay_only: false,
+                    ca_certificates_pem: settings.ca_certificates_pem,
+                };
+                if !network.is_valid() {
+                    return Err(ConfigurationError);
+                }
+                network.relay_only = settings.relay_only;
+                Ok(network)
+            })
+            .transpose()?;
         let relay_admission = match get("PIXELS_RELAY_APP_KEY").filter(|value| !value.is_empty()) {
             None => None,
             Some(app_key) if (16..=512).contains(&app_key.len()) => {
@@ -175,6 +202,7 @@ impl ConsoleLaunchConfig {
             recording_cache_directory,
             recording_cache_options,
             relay_admission,
+            iroh,
             release,
             license,
         })
@@ -232,6 +260,7 @@ impl ConsoleLaunchConfig {
             recording_cache_root,
             recording_cache_options: self.recording_cache_options,
             relay_admission: self.relay_admission,
+            iroh: self.iroh,
             release: self.release,
             license,
             license_config: self.license,
@@ -328,6 +357,24 @@ mod tests {
 
     fn parse(values: &HashMap<String, String>) -> Result<ConsoleLaunchConfig, ConfigurationError> {
         ConsoleLaunchConfig::parse(|key| values.get(key).cloned())
+    }
+
+    #[test]
+    fn iroh_configuration_is_explicit_and_rejects_unusable_relay_settings() {
+        let mut environment = valid();
+        assert!(parse(&environment).unwrap().iroh.is_none());
+        environment.insert("PIXELS_CONSOLE_IROH_CONFIGURATION".into(), "{}".into());
+        assert!(parse(&environment).unwrap().iroh.is_some());
+        environment.insert(
+            "PIXELS_CONSOLE_IROH_CONFIGURATION".into(),
+            r#"{"relay_only":true}"#.into(),
+        );
+        assert!(parse(&environment).unwrap().iroh.unwrap().relay_only);
+        environment.insert(
+            "PIXELS_CONSOLE_IROH_CONFIGURATION".into(),
+            r#"{"relays":[{"url":"https://relay.example.test:4605","qad_port":4605}]}"#.into(),
+        );
+        assert!(parse(&environment).is_err());
     }
 
     #[test]

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="1"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="0"
+	timestamp="2026-10-09T17:30:28"
+	>
+	<testcase name="encoded_video_delivery" classname="encoded_video_delivery" time="0.0208685" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 12 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from VideoRecoveryPolicy
+[ RUN      ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline
+[       OK ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline (0 ms)
+[ RUN      ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference
+[       OK ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference (0 ms)
+[ RUN      ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle
+[       OK ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle (0 ms)
+[ RUN      ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog
+[       OK ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgre...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

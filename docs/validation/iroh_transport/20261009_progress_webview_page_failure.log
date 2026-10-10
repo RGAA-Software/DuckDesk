@@ -1,0 +1,318 @@
+[2026-10-09 22:31:47.666][thread 51840][ws_panel_client.cpp:471][info] : event=panel.settings component=render_panel operation=ignore product_kind=2 outcome=success reason=console_managed_instance
+[2026-10-09 22:31:48.132][thread 45336][webview_runtime.cpp:505][info] : event=webview.navigation phase=start
+[2026-10-09 22:31:48.482][thread 45336][webview_runtime.cpp:880][info] : event=webview.paint phase=first elapsed_ms=349 frame=1 loaded=false
+[2026-10-09 22:31:50.463][thread 45336][webview_runtime.cpp:524][info] : event=webview.navigation phase=complete elapsed_ms=2330 status=200
+[2026-10-09 22:31:50.904][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=2421 frame=2 loaded=true
+[2026-10-09 22:31:50.904][thread 54024][iroh_session.cpp:188][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=14952800 rtt_us=5482 path=2 media_backpressure=false receiver_stalled=false received_bps=0
+[2026-10-09 22:31:50.906][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=first stream=0 frame=2 gap_ms=0 bytes=14345
+[2026-10-09 22:31:51.517][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=613 frame=3 loaded=true
+[2026-10-09 22:31:51.519][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=3 gap_ms=613 bytes=495
+[2026-10-09 22:31:51.745][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=227 frame=4 loaded=true
+[2026-10-09 22:31:51.748][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=4 gap_ms=228 bytes=716
+[2026-10-09 22:31:54.081][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=223 frame=129 loaded=true
+[2026-10-09 22:31:54.089][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=129 gap_ms=225 bytes=71
+[2026-10-09 22:31:54.694][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=3 source=www.threejswaterpro.com/ line=0 message=A valid external Instance reference no longer exists.
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.829][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.830][thread 45336][webview_runtime.cpp:272][warning] : event=webview.console severity=4 source=www.threejswaterpro.com/ line=0 message=Uncaught (in promise) OperationError: Instance dropped in popErrorScope
+[2026-10-09 22:31:54.968][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=794 frame=136 loaded=true
+[2026-10-09 22:31:54.970][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=136 gap_ms=791 bytes=19648
+[2026-10-09 22:31:56.207][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=347 frame=192 loaded=true
+[2026-10-09 22:31:56.209][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=192 gap_ms=347 bytes=200
+[2026-10-09 22:31:56.209][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=270254 video_datagram_bps=501164 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:31:56.209][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=177 idr=1 busy=0 completed=177 failed=0 max_send_us=100 path=2 rtt_us=6471 tx_packets=861 tx_lost=0
+[2026-10-09 22:31:56.469][thread 39564][media_datagrams.cpp:175][info] : event=iroh.feedback_trace stream=0 frame=192 arrival_gap_us=108999 generated_gap_us=55144 released=0 pending=0 bytes=0 oldest=0 age_us=0
+[2026-10-09 22:31:56.674][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=193 loaded=true
+[2026-10-09 22:31:56.676][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=193 gap_ms=466 bytes=203
+[2026-10-09 22:31:57.124][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=194 loaded=true
+[2026-10-09 22:31:57.126][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=194 gap_ms=449 bytes=200
+[2026-10-09 22:31:57.591][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=195 loaded=true
+[2026-10-09 22:31:57.593][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=195 gap_ms=467 bytes=203
+[2026-10-09 22:31:58.057][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=196 loaded=true
+[2026-10-09 22:31:58.061][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=196 gap_ms=467 bytes=200
+[2026-10-09 22:31:58.508][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=197 loaded=true
+[2026-10-09 22:31:58.511][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=197 gap_ms=450 bytes=203
+[2026-10-09 22:31:58.975][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=198 loaded=true
+[2026-10-09 22:31:58.980][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=198 gap_ms=468 bytes=200
+[2026-10-09 22:31:59.425][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=199 loaded=true
+[2026-10-09 22:31:59.431][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=199 gap_ms=450 bytes=203
+[2026-10-09 22:31:59.874][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=448 frame=200 loaded=true
+[2026-10-09 22:31:59.881][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=200 gap_ms=450 bytes=200
+[2026-10-09 22:32:00.325][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=201 loaded=true
+[2026-10-09 22:32:00.332][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=201 gap_ms=451 bytes=203
+[2026-10-09 22:32:00.774][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=202 loaded=true
+[2026-10-09 22:32:00.780][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=202 gap_ms=447 bytes=200
+[2026-10-09 22:32:01.241][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=203 loaded=true
+[2026-10-09 22:32:01.249][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=203 gap_ms=469 bytes=203
+[2026-10-09 22:32:01.249][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3515 video_datagram_bps=19206 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:01.249][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=83 path=2 rtt_us=6050 tx_packets=1383 tx_lost=0
+[2026-10-09 22:32:01.691][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=204 loaded=true
+[2026-10-09 22:32:01.697][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=204 gap_ms=447 bytes=200
+[2026-10-09 22:32:02.157][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=205 loaded=true
+[2026-10-09 22:32:02.165][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=205 gap_ms=468 bytes=203
+[2026-10-09 22:32:02.607][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=206 loaded=true
+[2026-10-09 22:32:02.613][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=206 gap_ms=448 bytes=200
+[2026-10-09 22:32:03.058][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=207 loaded=true
+[2026-10-09 22:32:03.063][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=207 gap_ms=450 bytes=203
+[2026-10-09 22:32:03.507][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=208 loaded=true
+[2026-10-09 22:32:03.515][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=208 gap_ms=451 bytes=200
+[2026-10-09 22:32:03.975][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=209 loaded=true
+[2026-10-09 22:32:03.981][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=209 gap_ms=465 bytes=203
+[2026-10-09 22:32:04.424][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=210 loaded=true
+[2026-10-09 22:32:04.433][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=210 gap_ms=451 bytes=200
+[2026-10-09 22:32:04.874][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=211 loaded=true
+[2026-10-09 22:32:04.880][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=211 gap_ms=446 bytes=203
+[2026-10-09 22:32:05.341][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=212 loaded=true
+[2026-10-09 22:32:05.348][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=212 gap_ms=468 bytes=200
+[2026-10-09 22:32:05.790][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=213 loaded=true
+[2026-10-09 22:32:05.799][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=213 gap_ms=450 bytes=203
+[2026-10-09 22:32:06.240][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=214 loaded=true
+[2026-10-09 22:32:06.248][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=214 gap_ms=448 bytes=200
+[2026-10-09 22:32:06.707][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=215 loaded=true
+[2026-10-09 22:32:06.713][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=215 gap_ms=464 bytes=203
+[2026-10-09 22:32:06.713][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3540 video_datagram_bps=19328 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:06.713][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=12 idr=0 busy=0 completed=12 failed=0 max_send_us=38 path=2 rtt_us=7743 tx_packets=2107 tx_lost=0
+[2026-10-09 22:32:07.158][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=216 loaded=true
+[2026-10-09 22:32:07.165][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=216 gap_ms=451 bytes=200
+[2026-10-09 22:32:07.607][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=448 frame=217 loaded=true
+[2026-10-09 22:32:07.615][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=217 gap_ms=450 bytes=203
+[2026-10-09 22:32:08.057][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=218 loaded=true
+[2026-10-09 22:32:08.063][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=218 gap_ms=447 bytes=200
+[2026-10-09 22:32:08.507][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=219 loaded=true
+[2026-10-09 22:32:08.515][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=219 gap_ms=452 bytes=203
+[2026-10-09 22:32:08.975][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=220 loaded=true
+[2026-10-09 22:32:08.982][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=220 gap_ms=467 bytes=200
+[2026-10-09 22:32:09.425][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=221 loaded=true
+[2026-10-09 22:32:09.431][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=221 gap_ms=448 bytes=203
+[2026-10-09 22:32:09.890][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=222 loaded=true
+[2026-10-09 22:32:09.895][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=222 gap_ms=464 bytes=200
+[2026-10-09 22:32:10.340][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=223 loaded=true
+[2026-10-09 22:32:10.348][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=223 gap_ms=452 bytes=203
+[2026-10-09 22:32:10.790][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=224 loaded=true
+[2026-10-09 22:32:10.796][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=224 gap_ms=447 bytes=200
+[2026-10-09 22:32:11.257][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=225 loaded=true
+[2026-10-09 22:32:11.263][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=225 gap_ms=467 bytes=203
+[2026-10-09 22:32:11.724][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=226 loaded=true
+[2026-10-09 22:32:11.730][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=226 gap_ms=467 bytes=200
+[2026-10-09 22:32:11.730][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3536 video_datagram_bps=19293 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:11.730][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=40 path=2 rtt_us=4302 tx_packets=2763 tx_lost=0
+[2026-10-09 22:32:12.190][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=227 loaded=true
+[2026-10-09 22:32:12.196][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=227 gap_ms=466 bytes=203
+[2026-10-09 22:32:12.640][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=228 loaded=true
+[2026-10-09 22:32:12.646][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=228 gap_ms=449 bytes=200
+[2026-10-09 22:32:13.108][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=229 loaded=true
+[2026-10-09 22:32:13.114][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=229 gap_ms=467 bytes=203
+[2026-10-09 22:32:13.574][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=230 loaded=true
+[2026-10-09 22:32:13.580][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=230 gap_ms=466 bytes=200
+[2026-10-09 22:32:14.024][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=231 loaded=true
+[2026-10-09 22:32:14.029][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=231 gap_ms=449 bytes=203
+[2026-10-09 22:32:14.474][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=232 loaded=true
+[2026-10-09 22:32:14.483][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=232 gap_ms=453 bytes=200
+[2026-10-09 22:32:14.923][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=233 loaded=true
+[2026-10-09 22:32:14.929][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=233 gap_ms=446 bytes=203
+[2026-10-09 22:32:15.391][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=234 loaded=true
+[2026-10-09 22:32:15.397][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=234 gap_ms=467 bytes=200
+[2026-10-09 22:32:15.840][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=448 frame=235 loaded=true
+[2026-10-09 22:32:15.845][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=235 gap_ms=448 bytes=203
+[2026-10-09 22:32:16.307][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=236 loaded=true
+[2026-10-09 22:32:16.315][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=236 gap_ms=469 bytes=200
+[2026-10-09 22:32:16.760][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=452 frame=237 loaded=true
+[2026-10-09 22:32:16.766][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=237 gap_ms=451 bytes=203
+[2026-10-09 22:32:16.766][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3518 video_datagram_bps=19222 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:16.766][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=35 path=2 rtt_us=11377 tx_packets=3431 tx_lost=0
+[2026-10-09 22:32:17.224][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=463 frame=238 loaded=true
+[2026-10-09 22:32:17.229][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=238 gap_ms=463 bytes=200
+[2026-10-09 22:32:17.690][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=239 loaded=true
+[2026-10-09 22:32:17.696][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=239 gap_ms=466 bytes=203
+[2026-10-09 22:32:18.140][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=240 loaded=true
+[2026-10-09 22:32:18.146][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=240 gap_ms=449 bytes=200
+[2026-10-09 22:32:18.590][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=241 loaded=true
+[2026-10-09 22:32:18.596][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=241 gap_ms=450 bytes=203
+[2026-10-09 22:32:19.057][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=242 loaded=true
+[2026-10-09 22:32:19.063][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=242 gap_ms=466 bytes=200
+[2026-10-09 22:32:19.523][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=243 loaded=true
+[2026-10-09 22:32:19.529][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=243 gap_ms=465 bytes=203
+[2026-10-09 22:32:19.974][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=244 loaded=true
+[2026-10-09 22:32:19.979][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=244 gap_ms=450 bytes=200
+[2026-10-09 22:32:20.424][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=245 loaded=true
+[2026-10-09 22:32:20.429][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=245 gap_ms=449 bytes=203
+[2026-10-09 22:32:20.890][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=246 loaded=true
+[2026-10-09 22:32:20.896][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=246 gap_ms=466 bytes=200
+[2026-10-09 22:32:21.341][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=247 loaded=true
+[2026-10-09 22:32:21.350][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=247 gap_ms=454 bytes=203
+[2026-10-09 22:32:21.807][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=248 loaded=true
+[2026-10-09 22:32:21.813][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=248 gap_ms=463 bytes=200
+[2026-10-09 22:32:21.813][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3515 video_datagram_bps=19179 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:21.813][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=40 path=2 rtt_us=4037 tx_packets=4093 tx_lost=0
+[2026-10-09 22:32:22.257][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=249 loaded=true
+[2026-10-09 22:32:22.263][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=249 gap_ms=449 bytes=203
+[2026-10-09 22:32:22.727][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=469 frame=250 loaded=true
+[2026-10-09 22:32:22.732][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=250 gap_ms=469 bytes=200
+[2026-10-09 22:32:23.173][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=446 frame=251 loaded=true
+[2026-10-09 22:32:23.179][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=251 gap_ms=446 bytes=203
+[2026-10-09 22:32:23.640][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=252 loaded=true
+[2026-10-09 22:32:23.648][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=252 gap_ms=468 bytes=200
+[2026-10-09 22:32:24.108][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=253 loaded=true
+[2026-10-09 22:32:24.113][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=253 gap_ms=465 bytes=203
+[2026-10-09 22:32:24.557][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=254 loaded=true
+[2026-10-09 22:32:24.567][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=254 gap_ms=453 bytes=200
+[2026-10-09 22:32:25.006][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=255 loaded=true
+[2026-10-09 22:32:25.012][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=255 gap_ms=445 bytes=203
+[2026-10-09 22:32:25.457][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=256 loaded=true
+[2026-10-09 22:32:25.463][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=256 gap_ms=450 bytes=200
+[2026-10-09 22:32:25.906][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=257 loaded=true
+[2026-10-09 22:32:25.912][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=257 gap_ms=448 bytes=203
+[2026-10-09 22:32:26.356][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=258 loaded=true
+[2026-10-09 22:32:26.362][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=258 gap_ms=450 bytes=200
+[2026-10-09 22:32:26.824][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=259 loaded=true
+[2026-10-09 22:32:26.830][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=259 gap_ms=467 bytes=203
+[2026-10-09 22:32:26.830][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3532 video_datagram_bps=19294 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:26.830][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=40 path=2 rtt_us=6625 tx_packets=4754 tx_lost=0
+[2026-10-09 22:32:27.290][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=260 loaded=true
+[2026-10-09 22:32:27.295][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=260 gap_ms=465 bytes=200
+[2026-10-09 22:32:27.757][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=261 loaded=true
+[2026-10-09 22:32:27.763][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=261 gap_ms=468 bytes=203
+[2026-10-09 22:32:28.223][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=262 loaded=true
+[2026-10-09 22:32:28.230][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=262 gap_ms=467 bytes=200
+[2026-10-09 22:32:28.673][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=263 loaded=true
+[2026-10-09 22:32:28.679][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=263 gap_ms=448 bytes=203
+[2026-10-09 22:32:29.124][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=264 loaded=true
+[2026-10-09 22:32:29.132][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=264 gap_ms=453 bytes=200
+[2026-10-09 22:32:29.590][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=265 loaded=true
+[2026-10-09 22:32:29.596][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=265 gap_ms=463 bytes=203
+[2026-10-09 22:32:30.041][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=266 loaded=true
+[2026-10-09 22:32:30.046][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=266 gap_ms=450 bytes=200
+[2026-10-09 22:32:30.490][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=267 loaded=true
+[2026-10-09 22:32:30.495][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=267 gap_ms=449 bytes=203
+[2026-10-09 22:32:30.939][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=268 loaded=true
+[2026-10-09 22:32:30.945][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=268 gap_ms=449 bytes=200
+[2026-10-09 22:32:31.390][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=269 loaded=true
+[2026-10-09 22:32:31.396][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=269 gap_ms=450 bytes=203
+[2026-10-09 22:32:31.857][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=270 loaded=true
+[2026-10-09 22:32:31.863][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=270 gap_ms=467 bytes=200
+[2026-10-09 22:32:31.863][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3525 video_datagram_bps=19233 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:31.863][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=86 path=2 rtt_us=3718 tx_packets=5417 tx_lost=0
+[2026-10-09 22:32:32.307][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=271 loaded=true
+[2026-10-09 22:32:32.314][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=271 gap_ms=451 bytes=203
+[2026-10-09 22:32:32.773][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=272 loaded=true
+[2026-10-09 22:32:32.779][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=272 gap_ms=464 bytes=200
+[2026-10-09 22:32:33.239][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=273 loaded=true
+[2026-10-09 22:32:33.249][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=273 gap_ms=470 bytes=203
+[2026-10-09 22:32:33.690][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=274 loaded=true
+[2026-10-09 22:32:33.696][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=274 gap_ms=446 bytes=200
+[2026-10-09 22:32:34.156][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=275 loaded=true
+[2026-10-09 22:32:34.163][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=275 gap_ms=466 bytes=203
+[2026-10-09 22:32:34.606][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=276 loaded=true
+[2026-10-09 22:32:34.613][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=276 gap_ms=449 bytes=200
+[2026-10-09 22:32:35.073][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=277 loaded=true
+[2026-10-09 22:32:35.079][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=277 gap_ms=466 bytes=203
+[2026-10-09 22:32:35.523][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=278 loaded=true
+[2026-10-09 22:32:35.529][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=278 gap_ms=450 bytes=200
+[2026-10-09 22:32:35.973][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=279 loaded=true
+[2026-10-09 22:32:35.979][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=279 gap_ms=449 bytes=203
+[2026-10-09 22:32:36.423][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=280 loaded=true
+[2026-10-09 22:32:36.429][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=280 gap_ms=450 bytes=200
+[2026-10-09 22:32:36.873][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=281 loaded=true
+[2026-10-09 22:32:36.879][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=281 gap_ms=450 bytes=203
+[2026-10-09 22:32:36.879][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3532 video_datagram_bps=19298 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:36.879][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=38 path=2 rtt_us=10336 tx_packets=6077 tx_lost=0
+[2026-10-09 22:32:37.323][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=282 loaded=true
+[2026-10-09 22:32:37.329][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=282 gap_ms=450 bytes=200
+[2026-10-09 22:32:37.773][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=283 loaded=true
+[2026-10-09 22:32:37.779][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=283 gap_ms=450 bytes=203
+[2026-10-09 22:32:38.238][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=284 loaded=true
+[2026-10-09 22:32:38.245][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=284 gap_ms=465 bytes=200
+[2026-10-09 22:32:38.690][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=285 loaded=true
+[2026-10-09 22:32:38.696][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=285 gap_ms=451 bytes=203
+[2026-10-09 22:32:39.140][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=286 loaded=true
+[2026-10-09 22:32:39.148][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=286 gap_ms=451 bytes=200
+[2026-10-09 22:32:39.606][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=287 loaded=true
+[2026-10-09 22:32:39.611][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=287 gap_ms=463 bytes=203
+[2026-10-09 22:32:40.056][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=288 loaded=true
+[2026-10-09 22:32:40.062][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=288 gap_ms=450 bytes=200
+[2026-10-09 22:32:40.506][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=289 loaded=true
+[2026-10-09 22:32:40.512][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=289 gap_ms=450 bytes=203
+[2026-10-09 22:32:40.972][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=290 loaded=true
+[2026-10-09 22:32:40.979][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=290 gap_ms=466 bytes=200
+[2026-10-09 22:32:41.424][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=451 frame=291 loaded=true
+[2026-10-09 22:32:41.430][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=291 gap_ms=450 bytes=203
+[2026-10-09 22:32:41.873][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=292 loaded=true
+[2026-10-09 22:32:41.881][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=292 gap_ms=451 bytes=200
+[2026-10-09 22:32:41.881][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3547 video_datagram_bps=19351 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:41.881][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=39 path=2 rtt_us=4392 tx_packets=6723 tx_lost=0
+[2026-10-09 22:32:42.323][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=293 loaded=true
+[2026-10-09 22:32:42.330][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=293 gap_ms=448 bytes=203
+[2026-10-09 22:32:42.772][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=294 loaded=true
+[2026-10-09 22:32:42.779][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=294 gap_ms=449 bytes=200
+[2026-10-09 22:32:43.239][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=295 loaded=true
+[2026-10-09 22:32:43.245][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=295 gap_ms=465 bytes=203
+[2026-10-09 22:32:43.689][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=296 loaded=true
+[2026-10-09 22:32:43.695][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=296 gap_ms=450 bytes=200
+[2026-10-09 22:32:44.140][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=297 loaded=true
+[2026-10-09 22:32:44.146][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=297 gap_ms=450 bytes=203
+[2026-10-09 22:32:44.606][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=298 loaded=true
+[2026-10-09 22:32:44.612][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=298 gap_ms=466 bytes=200
+[2026-10-09 22:32:45.056][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=299 loaded=true
+[2026-10-09 22:32:45.062][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=299 gap_ms=449 bytes=203
+[2026-10-09 22:32:45.523][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=300 loaded=true
+[2026-10-09 22:32:45.530][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=300 gap_ms=468 bytes=200
+[2026-10-09 22:32:45.990][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=301 loaded=true
+[2026-10-09 22:32:45.996][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=301 gap_ms=466 bytes=203
+[2026-10-09 22:32:46.438][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=448 frame=302 loaded=true
+[2026-10-09 22:32:46.444][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=302 gap_ms=448 bytes=200
+[2026-10-09 22:32:46.907][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=468 frame=303 loaded=true
+[2026-10-09 22:32:46.913][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=303 gap_ms=468 bytes=203
+[2026-10-09 22:32:46.913][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3521 video_datagram_bps=19237 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:46.913][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=38 path=2 rtt_us=8432 tx_packets=7378 tx_lost=0
+[2026-10-09 22:32:47.356][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=448 frame=304 loaded=true
+[2026-10-09 22:32:47.363][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=304 gap_ms=450 bytes=200
+[2026-10-09 22:32:47.806][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=305 loaded=true
+[2026-10-09 22:32:47.813][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=305 gap_ms=449 bytes=203
+[2026-10-09 22:32:48.256][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=306 loaded=true
+[2026-10-09 22:32:48.262][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=306 gap_ms=449 bytes=200
+[2026-10-09 22:32:48.722][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=307 loaded=true
+[2026-10-09 22:32:48.728][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=307 gap_ms=465 bytes=203
+[2026-10-09 22:32:49.173][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=308 loaded=true
+[2026-10-09 22:32:49.179][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=308 gap_ms=450 bytes=200
+[2026-10-09 22:32:49.622][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=309 loaded=true
+[2026-10-09 22:32:49.628][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=309 gap_ms=449 bytes=203
+[2026-10-09 22:32:50.089][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=310 loaded=true
+[2026-10-09 22:32:50.095][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=310 gap_ms=467 bytes=200
+[2026-10-09 22:32:50.539][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=311 loaded=true
+[2026-10-09 22:32:50.546][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=311 gap_ms=451 bytes=203
+[2026-10-09 22:32:51.006][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=312 loaded=true
+[2026-10-09 22:32:51.014][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=312 gap_ms=467 bytes=200
+[2026-10-09 22:32:51.472][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=465 frame=313 loaded=true
+[2026-10-09 22:32:51.478][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=313 gap_ms=464 bytes=203
+[2026-10-09 22:32:51.922][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=450 frame=314 loaded=true
+[2026-10-09 22:32:51.928][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=314 gap_ms=449 bytes=200
+[2026-10-09 22:32:51.928][thread 34660][media_datagrams.cpp:42][info] : event=iroh.media_budget encoded_bps=3538 video_datagram_bps=19301 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0
+[2026-10-09 22:32:51.928][thread 34660][media_datagrams.cpp:46][info] : event=iroh.send_window offered=11 idr=0 busy=0 completed=11 failed=0 max_send_us=45 path=2 rtt_us=4635 tx_packets=8042 tx_lost=0
+[2026-10-09 22:32:52.372][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=315 loaded=true
+[2026-10-09 22:32:52.378][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=315 gap_ms=449 bytes=203
+[2026-10-09 22:32:52.840][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=467 frame=316 loaded=true
+[2026-10-09 22:32:52.846][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=316 gap_ms=467 bytes=200
+[2026-10-09 22:32:53.290][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=317 loaded=true
+[2026-10-09 22:32:53.297][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=317 gap_ms=451 bytes=203
+[2026-10-09 22:32:53.739][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=318 loaded=true
+[2026-10-09 22:32:53.746][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=318 gap_ms=448 bytes=200
+[2026-10-09 22:32:54.206][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=466 frame=319 loaded=true
+[2026-10-09 22:32:54.211][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=319 gap_ms=465 bytes=203
+[2026-10-09 22:32:54.655][thread 45336][webview_runtime.cpp:884][info] : event=webview.paint phase=gap gap_ms=449 frame=320 loaded=true
+[2026-10-09 22:32:54.662][thread 34660][media_datagrams.cpp:26][info] : event=iroh.encoded_frame phase=gap stream=0 frame=320 gap_ms=450 bytes=200

@@ -22,6 +22,7 @@
 #include "px_common/virtual_display_timeouts.h"
 #include "px_common/websocket_reconnect_adapter.h"
 #include "px_service_message.pb.h"
+#include "modules/render_module_registry.h"
 #include "rd_app.h"
 #include "rd_context.h"
 #include "rd_statistics.h"
@@ -42,6 +43,8 @@ const PxReconnectBackoffOptions kRenderServiceReconnectOptions{
 
 std::string LogicalTransportName(const LogicalSessionTransport transport) {
     switch (transport) {
+        case LogicalSessionTransport::kIroh:
+            return "iroh";
         case LogicalSessionTransport::kWs:
             return "ws";
         case LogicalSessionTransport::kRtcLocal:
@@ -356,10 +359,13 @@ void RenderServiceClient::ParseMessage(const std::string& msg) {
     }
 
     if (sm.type() == ServiceMessageType::kSrvHeartBeatResp) {
-        auto sub = sm.heart_beat_resp();
-        auto hb_idx = sub.index();
-        auto is_render_alive = sub.render_status() == RenderStatus::kWorking;
-        // LOGI("hb_idx: {}, is render alive: {}", hb_idx, is_render_alive);
+        const auto& heartbeat = sm.heart_beat_resp();
+        if (!heartbeat.iroh_relays_json().empty()) {
+            const auto modules = app_ ? app_->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{};
+            if (modules && !modules->UpdateIrohRelays(heartbeat.iroh_relays_json())) {
+                LOGW("event=iroh.relay_candidates outcome=update_failed");
+            }
+        }
     } else if (sm.type() == ServiceMessageType::kSrvStopServer) {
         // Console stopped this instance: notify clients then exit gracefully
         LOGW("kSrvStopServer received from service, stopping render...");
@@ -655,6 +661,17 @@ void RenderServiceClient::HeartBeat() {
     sub.set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
     sub.set_from(std::format("render_{}", RdSettings::Instance()->transmission_.listening_port_));
     sub.set_logical_sessions_json(BuildLogicalSessionsJson(app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}));
+    if (const auto modules = app_ ? app_->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{}) {
+        if (const auto address = modules->IrohEndpointAddress(); !address.empty()) {
+            auto configuration = nlohmann::json::parse(modules->IrohEndpointConfiguration(), nullptr, false);
+            const auto endpoint_address = nlohmann::json::parse(address, nullptr, false);
+            if (configuration.is_object() && endpoint_address.is_object()) {
+                configuration.erase("bind_address");
+                sub.set_iroh_description_json(
+                    nlohmann::json{{"endpoint_address", endpoint_address}, {"endpoint_configuration", configuration}}.dump());
+            }
+        }
+    }
     PostNetMessage(msg.SerializeAsString());
 }
 

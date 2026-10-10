@@ -22,6 +22,7 @@ enum class LogicalSessionTransport {
     kUdp,
     kRelay,
     kFileTransfer,
+    kIroh,
 };
 
 enum class LogicalSessionAdmissionCode {

@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.88"
 
 [features]
-pg-integration = ["dep:tokio", "dep:serde_json"]
+pg-integration = ["dep:tokio"]
 
 [dependencies]
 px_node_protocol = { path = "../../px_node_protocol" }
@@ -23,7 +23,7 @@ url = "2.5"
 sha2 = "0.10"
 ring = "=0.17.14"
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"], optional = true }
-serde_json = { version = "1", optional = true }
+serde_json = "1"
 
 [[bin]]
 name = "px_instance_contender"

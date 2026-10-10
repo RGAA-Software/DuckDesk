@@ -307,6 +307,10 @@ enum class TextId : std::uint16_t {
     ApplicationConnectionRetirementTimedOut,
     ApplicationGpuMemoryExhausted,
     ApplicationSchedulerUnavailable,
+    ConnectionWaitRemote,
+    ConnectionClientConnectTimeout,
+    ConnectionClientExited,
+    ConnectionClientConnectFailed,
     Count,
 };
 

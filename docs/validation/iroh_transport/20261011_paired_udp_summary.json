@@ -1,0 +1,430 @@
+{
+  "20261011_paired_udp_mixed_direct": {
+    "path": "docs\\validation\\iroh_transport\\20261011_paired_udp_mixed_direct.log",
+    "windows": 4,
+    "fps_min": 55.1,
+    "fps_max": 59.3,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-11T00:03:54.634000",
+        "frame": 244,
+        "gap_ms": 135.5,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 31865,
+          "withheld_complete_frames": 2
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:03:55.520000",
+        "frame": 297,
+        "gap_ms": 169.9,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 137452,
+          "withheld_complete_frames": 7
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:04:10.916000",
+        "frame": 1221,
+        "gap_ms": 146.5,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 129054,
+          "withheld_complete_frames": 6
+        },
+        "transit": null
+      }
+    ],
+    "classification_counts": {
+      "reference_recovery": 3
+    },
+    "max_logged_gap_ms": 169.9,
+    "max_window_gap_ms": 169.9,
+    "reference_waits": 15,
+    "recovery_requests": 17,
+    "local_request_send_max_us": 163,
+    "acceptance": {
+      "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+      "passed": true,
+      "evidence": ".cache\\iroh-native-live-20261011-000349-auto",
+      "transport_requested": "iroh-direct",
+      "bytes": 67108864,
+      "cancel_retry": false,
+      "instance_id": "0fefc6ba-f23c-4a57-8856-4106f5fd649c",
+      "started_at": "2026-10-11 00:03:50",
+      "posted_input_messages": 1267,
+      "screenshots": [
+        ".cache\\iroh-native-live-20261011-000349-auto\\mixed-0.png",
+        ".cache\\iroh-native-live-20261011-000349-auto\\mixed-1.png"
+      ],
+      "elapsed_seconds": 24.137,
+      "exit_code": 0,
+      "source_sha256": "9102434613a6dacd839613b22a698b3760f4f88e559eebda982a345b01d82a96",
+      "download_sha256": "9102434613a6dacd839613b22a698b3760f4f88e559eebda982a345b01d82a96",
+      "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+      "media_windows": [
+        {
+          "frames": 277,
+          "fps": 55.1,
+          "max_gap_ms": 169.9,
+          "gaps_gt_100ms": 2,
+          "idr": 0,
+          "rfi": 4
+        },
+        {
+          "frames": 297,
+          "fps": 59.3,
+          "max_gap_ms": 67.6,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 1
+        },
+        {
+          "frames": 293,
+          "fps": 58.3,
+          "max_gap_ms": 68.5,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 4
+        },
+        {
+          "frames": 283,
+          "fps": 56.4,
+          "max_gap_ms": 146.5,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 6
+        }
+      ],
+      "actual_paths": [
+        "direct"
+      ],
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "read_only_observation_retries": 0
+    }
+  },
+  "20261011_rtt_recovery_mixed_direct": {
+    "path": "docs\\validation\\iroh_transport\\20261011_rtt_recovery_mixed_direct.log",
+    "windows": 4,
+    "fps_min": 56.5,
+    "fps_max": 58.6,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-11T00:10:50.658000",
+        "frame": 366,
+        "gap_ms": 205.2,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 197347,
+          "withheld_complete_frames": 9
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:11:03.705000",
+        "frame": 1150,
+        "gap_ms": 109.2,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 80484,
+          "withheld_complete_frames": 3
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:11:09.546000",
+        "frame": 1495,
+        "gap_ms": 107.6,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16644",
+          "receive_gap_us": "107567",
+          "assembly_call_us": "14",
+          "reference_ready": "true"
+        }
+      }
+    ],
+    "classification_counts": {
+      "reference_recovery": 2,
+      "transit_or_unclassified": 1
+    },
+    "max_logged_gap_ms": 205.2,
+    "max_window_gap_ms": 205.2,
+    "reference_waits": 15,
+    "recovery_requests": 18,
+    "local_request_send_max_us": 251,
+    "acceptance": {
+      "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+      "passed": true,
+      "evidence": ".cache\\iroh-native-live-20261011-001042-auto",
+      "transport_requested": "iroh-direct",
+      "bytes": 67108864,
+      "cancel_retry": false,
+      "instance_id": "af09c1df-c9ba-4b80-a040-0fb01362f5cf",
+      "started_at": "2026-10-11 00:10:44",
+      "posted_input_messages": 1354,
+      "screenshots": [
+        ".cache\\iroh-native-live-20261011-001042-auto\\mixed-0.png",
+        ".cache\\iroh-native-live-20261011-001042-auto\\mixed-1.png"
+      ],
+      "elapsed_seconds": 25.905,
+      "exit_code": 0,
+      "source_sha256": "396c42401d7e26ff112e1e77ea574e945f410ad9901f1ed671eb483ddb586079",
+      "download_sha256": "396c42401d7e26ff112e1e77ea574e945f410ad9901f1ed671eb483ddb586079",
+      "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+      "media_windows": [
+        {
+          "frames": 287,
+          "fps": 57.4,
+          "max_gap_ms": 205.2,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 4
+        },
+        {
+          "frames": 289,
+          "fps": 57.7,
+          "max_gap_ms": 78.4,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 2
+        },
+        {
+          "frames": 293,
+          "fps": 58.6,
+          "max_gap_ms": 66.3,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 3
+        },
+        {
+          "frames": 283,
+          "fps": 56.5,
+          "max_gap_ms": 109.2,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 7
+        }
+      ],
+      "actual_paths": [
+        "direct"
+      ],
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "read_only_observation_retries": 0
+    }
+  },
+  "20261011_rtt_recovery_repeat_direct": {
+    "path": "docs\\validation\\iroh_transport\\20261011_rtt_recovery_repeat_direct.log",
+    "windows": 4,
+    "fps_min": 53.4,
+    "fps_max": 57.3,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-11T00:11:57.161000",
+        "frame": 155,
+        "gap_ms": 195.2,
+        "classification": "sender_pause",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "161788",
+          "receive_gap_us": "195082",
+          "assembly_call_us": "44",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-11T00:12:02.728000",
+        "frame": 493,
+        "gap_ms": 135.2,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 29976,
+          "withheld_complete_frames": 6
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:12:04.041000",
+        "frame": 569,
+        "gap_ms": 166.0,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 152911,
+          "withheld_complete_frames": 6
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:12:04.170000",
+        "frame": 580,
+        "gap_ms": 129.0,
+        "classification": "reference_recovery",
+        "reference_wait": {
+          "wait_us": 114827,
+          "withheld_complete_frames": 5
+        },
+        "transit": null
+      },
+      {
+        "timestamp": "2026-10-11T00:12:09.314000",
+        "frame": 882,
+        "gap_ms": 111.7,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16733",
+          "receive_gap_us": "111707",
+          "assembly_call_us": "15",
+          "reference_ready": "true"
+        }
+      },
+      {
+        "timestamp": "2026-10-11T00:12:12.301000",
+        "frame": 1062,
+        "gap_ms": 109.2,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16822",
+          "receive_gap_us": "109191",
+          "assembly_call_us": "14",
+          "reference_ready": "true"
+        }
+      }
+    ],
+    "classification_counts": {
+      "sender_pause": 1,
+      "reference_recovery": 3,
+      "transit_or_unclassified": 2
+    },
+    "max_logged_gap_ms": 195.2,
+    "max_window_gap_ms": 195.2,
+    "reference_waits": 22,
+    "recovery_requests": 26,
+    "local_request_send_max_us": 103,
+    "acceptance": {
+      "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+      "passed": true,
+      "evidence": ".cache\\iroh-native-live-20261011-001152-auto",
+      "transport_requested": "iroh-direct",
+      "bytes": 67108864,
+      "cancel_retry": false,
+      "instance_id": "30a8a959-0ca8-4bff-8a2c-06c9aaecc9e8",
+      "started_at": "2026-10-11 00:11:54",
+      "posted_input_messages": 1365,
+      "screenshots": [
+        ".cache\\iroh-native-live-20261011-001152-auto\\mixed-0.png",
+        ".cache\\iroh-native-live-20261011-001152-auto\\mixed-1.png"
+      ],
+      "elapsed_seconds": 25.515,
+      "exit_code": 0,
+      "source_sha256": "6351d8d1d21c58f94bf8dc3f89216258515de0dbb89316e3b58c513bd88d7d1c",
+      "download_sha256": "6351d8d1d21c58f94bf8dc3f89216258515de0dbb89316e3b58c513bd88d7d1c",
+      "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+      "media_windows": [
+        {
+          "frames": 279,
+          "fps": 55.6,
+          "max_gap_ms": 195.2,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 4
+        },
+        {
+          "frames": 267,
+          "fps": 53.4,
+          "max_gap_ms": 166.0,
+          "gaps_gt_100ms": 3,
+          "idr": 0,
+          "rfi": 7
+        },
+        {
+          "frames": 280,
+          "fps": 56.0,
+          "max_gap_ms": 111.7,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 5
+        },
+        {
+          "frames": 287,
+          "fps": 57.3,
+          "max_gap_ms": 109.2,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 6
+        }
+      ],
+      "actual_paths": [
+        "direct"
+      ],
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "read_only_observation_retries": 0
+    }
+  },
+  "20261011_rtt_recovery_mixed_relay": {
+    "path": "docs\\validation\\iroh_transport\\20261011_rtt_recovery_mixed_relay.log",
+    "windows": 1,
+    "fps_min": 59.6,
+    "fps_max": 59.6,
+    "all_logged_gaps": [
+      {
+        "timestamp": "2026-10-11T00:12:48.617000",
+        "frame": 360,
+        "gap_ms": 127.6,
+        "classification": "transit_or_unclassified",
+        "reference_wait": null,
+        "transit": {
+          "source_gap_us": "16800",
+          "receive_gap_us": "127590",
+          "assembly_call_us": "17",
+          "reference_ready": "true"
+        }
+      }
+    ],
+    "classification_counts": {
+      "transit_or_unclassified": 1
+    },
+    "max_logged_gap_ms": 127.6,
+    "max_window_gap_ms": 127.6,
+    "reference_waits": 0,
+    "recovery_requests": 0,
+    "local_request_send_max_us": 0,
+    "acceptance": {
+      "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+      "passed": false,
+      "evidence": ".cache\\iroh-native-live-20261011-001241-relay",
+      "transport_requested": "iroh-relay",
+      "bytes": 67108864,
+      "cancel_retry": false,
+      "instance_id": "80563831-62f2-4f0d-97d9-74c3d2666596",
+      "started_at": "2026-10-11 00:12:42",
+      "posted_input_messages": 4865,
+      "screenshots": [
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-0.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-1.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-2.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-3.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-4.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-5.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-6.png",
+        ".cache\\iroh-native-live-20261011-001241-relay\\mixed-7.png"
+      ],
+      "elapsed_seconds": 89.685,
+      "exit_code": 6,
+      "error": "PIXELS_FILE_TRANSFER_ACCEPTANCE=FAIL:FILE_TRANSFER_TIMEOUT\n",
+      "read_only_observation_retries": 0
+    }
+  }
+}

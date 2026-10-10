@@ -1,0 +1,81 @@
+{
+  "cases": {
+    "relay": {
+      "elapsed_seconds": 61.081,
+      "file_bytes_each_direction": 1610612736,
+      "actual_paths": [
+        "relay"
+      ],
+      "windows": 12,
+      "fps_min": 27.9,
+      "fps_max": 57.3,
+      "max_gap_ms": 628.3,
+      "gaps_gt_100ms": 45,
+      "idr": 0,
+      "rfi": 0,
+      "dispatch_warnings": 0
+    },
+    "direct": {
+      "elapsed_seconds": 60.667,
+      "file_bytes_each_direction": 1610612736,
+      "actual_paths": [
+        "direct"
+      ],
+      "windows": 12,
+      "fps_min": 58.3,
+      "fps_max": 60.1,
+      "max_gap_ms": 149.6,
+      "gaps_gt_100ms": 2,
+      "idr": 0,
+      "rfi": 1,
+      "dispatch_warnings": 0
+    },
+    "relay_no_file": {
+      "elapsed_seconds": null,
+      "file_bytes_each_direction": 0,
+      "actual_paths": [
+        "relay"
+      ],
+      "windows": 15,
+      "fps_min": 46.5,
+      "fps_max": 60.1,
+      "max_gap_ms": 214.5,
+      "gaps_gt_100ms": 27,
+      "idr": 0,
+      "rfi": 0,
+      "dispatch_warnings": 0
+    },
+    "relay_unverified_injection": {
+      "elapsed_seconds": 60.021,
+      "file_bytes_each_direction": 1610612736,
+      "actual_paths": [
+        "relay"
+      ],
+      "windows": 11,
+      "fps_min": 60.0,
+      "fps_max": 60.3,
+      "max_gap_ms": 53.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0,
+      "dispatch_warnings": null
+    },
+    "relay_service_outage": {
+      "elapsed_seconds": 62.391,
+      "file_bytes_each_direction": 1610612736,
+      "actual_paths": [
+        "relay"
+      ],
+      "windows": 11,
+      "fps_min": 10.8,
+      "fps_max": 61.9,
+      "max_gap_ms": 5486.1,
+      "gaps_gt_100ms": 28,
+      "idr": 0,
+      "rfi": 3,
+      "dispatch_warnings": 0
+    }
+  },
+  "production_changed": false,
+  "scope": "One-minute mixed-load comparison and controlled short Relay outage; not long-term or NAT acceptance"
+}

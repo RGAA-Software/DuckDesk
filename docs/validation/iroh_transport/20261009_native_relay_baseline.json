@@ -1,0 +1,71 @@
+[
+  {
+    "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "instance_id": "4fe47ef5-186a-4e74-9e62-23328fd2618e",
+    "client_pid": 87144,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 13:05:48.632][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=116, fps=23.0, max_gap_ms=915.2, gaps_gt_100ms=4, idr=1, rfi=5",
+      "[2026-10-09 13:05:53.635][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=334, fps=66.8, max_gap_ms=167.3, gaps_gt_100ms=2, idr=0, rfi=2",
+      "[2026-10-09 13:05:58.658][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=174, fps=34.6, max_gap_ms=464.9, gaps_gt_100ms=3, idr=0, rfi=0",
+      "[2026-10-09 13:06:03.664][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=227, fps=45.3, max_gap_ms=1141.5, gaps_gt_100ms=4, idr=1, rfi=9",
+      "[2026-10-09 13:06:08.682][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=130, fps=25.9, max_gap_ms=395.8, gaps_gt_100ms=8, idr=0, rfi=0",
+      "[2026-10-09 13:06:13.701][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=289, fps=57.6, max_gap_ms=716.7, gaps_gt_100ms=1, idr=1, rfi=5",
+      "[2026-10-09 13:06:18.755][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=119, fps=23.5, max_gap_ms=185.9, gaps_gt_100ms=6, idr=0, rfi=0",
+      "[2026-10-09 13:06:23.768][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=332, fps=66.2, max_gap_ms=557.7, gaps_gt_100ms=1, idr=1, rfi=6",
+      "[2026-10-09 13:06:29.055][thread 78936][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=200, fps=37.8, max_gap_ms=509.2, gaps_gt_100ms=4, idr=1, rfi=5"
+    ]
+  },
+  {
+    "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "name": "心脏医学动态展示",
+    "kind": "game_hook",
+    "instance_id": "5e8dc650-25d9-4998-acc2-cbf17ec2786e",
+    "client_pid": 49724,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 13:06:48.686][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=37.2, gaps_gt_100ms=0, idr=0, rfi=2",
+      "[2026-10-09 13:06:53.700][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=153.5, gaps_gt_100ms=1, idr=0, rfi=0",
+      "[2026-10-09 13:06:58.702][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=23.4, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:03.717][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=29.8, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:08.719][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=23.9, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:13.733][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=19.8, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:18.734][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=24.1, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:23.750][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=27.2, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:07:28.764][thread 42580][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=25.5, gaps_gt_100ms=0, idr=0, rfi=0"
+    ]
+  },
+  {
+    "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+    "name": "2dadventure",
+    "kind": "game_hook",
+    "instance_id": "817f5d8b-adae-4e8c-b95d-55df395c8657",
+    "client_pid": 32188,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "samples": [
+      "[2026-10-09 13:07:48.542][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=302, fps=60.2, max_gap_ms=93.5, gaps_gt_100ms=0, idr=0, rfi=1",
+      "[2026-10-09 13:07:53.565][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=304, fps=60.5, max_gap_ms=120.1, gaps_gt_100ms=1, idr=0, rfi=0",
+      "[2026-10-09 13:07:58.582][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=90.3, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:03.597][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=34.2, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:08.602][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=90.9, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:13.619][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=290, fps=57.8, max_gap_ms=91.2, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:18.630][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=309, fps=61.7, max_gap_ms=96.0, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:23.636][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=303, fps=60.5, max_gap_ms=46.1, gaps_gt_100ms=0, idr=0, rfi=0",
+      "[2026-10-09 13:08:28.647][thread 79272][iroh_connection.cpp:33][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=91.5, gaps_gt_100ms=0, idr=0, rfi=0"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "local_modified": true,
+  "archive_batch": "iroh_forward_recovery_20261010",
+  "original": "src/px_transport/video_flight_window.h",
+  "reason": "Replace fixed post-congestion cooldown with confirmed forward recovery",
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5"
+}

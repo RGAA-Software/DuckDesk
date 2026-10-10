@@ -158,6 +158,11 @@ async fn handle_connection(
                     continue;
                 }
                 if let Some(hb) = sm.heart_beat.as_ref() {
+                    if hb.from.starts_with("render_")
+                        && !render_authenticated.load(Ordering::Acquire)
+                    {
+                        continue;
+                    }
                     if hb.from == "panel"
                         && !hb.console_address.is_empty()
                         && hb.console_address != selected_console_address
@@ -382,8 +387,14 @@ async fn handle_connection(
     if !registered_renders.is_empty() {
         let mut guard = runtime.lock().await;
         for name in &registered_renders {
-            guard.render_senders.remove(name);
-            guard.remove_render_logical_sessions(name);
+            if guard
+                .render_senders
+                .get(name)
+                .is_some_and(|current| current.same_channel(&tx))
+            {
+                guard.render_senders.remove(name);
+                guard.remove_render_logical_sessions(name);
+            }
         }
     }
     drop(tx);

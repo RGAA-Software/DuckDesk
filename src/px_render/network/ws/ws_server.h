@@ -37,7 +37,7 @@ class PxLogicalSessionCapabilityUpdate;
 class PxAsyncRuntime;
 class PxAsyncScope;
 class WebSocketFrontendLeaseRenewalCoordinator;
-struct WsPasswordAdmission;
+struct FrontendAdmission;
 struct LogicalSessionAdmission;
 
 // Lifetime:
@@ -114,7 +114,7 @@ class WsServer : public std::enable_shared_from_this<WsServer> {
         const std::shared_ptr<asio2::http_session>& session,
         const std::string& path,
         const std::unordered_map<std::string, std::string>& query_parameters,
-        const WsPasswordAdmission& authentication,
+        const FrontendAdmission& authentication,
         const LogicalSessionAdmission& admission, const std::string& binding_id,
         std::uint64_t socket_fd);
 

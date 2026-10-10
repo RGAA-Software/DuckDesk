@@ -219,7 +219,8 @@ px::Result<ConsoleNativeApplicationConnection, ConsoleApiError> ConsoleUserAppAp
                                               .frontend_token = resource->frontend_token,
                                               .transport = resource->transport,
                                               .rdp_configuration = resource->rdp_configuration,
-                                              .relay_host = resource->relay_host,
+                                              .iroh = resource->iroh,
+                                         .relay_host = resource->relay_host,
                                               .relay_port = resource->relay_port,
                                               .relay_admission_ticket = resource->relay_admission_ticket};
 }

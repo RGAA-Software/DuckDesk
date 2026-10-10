@@ -1,0 +1,6 @@
+[2026-10-11 00:13:00.551][thread 63656][iroh_dialer.cpp:160][warning] : event=iroh.connect outcome=network_lost action=readmit
+[2026-10-11 00:13:02.558][thread 63656][client_iroh_reconnect.cpp:32][warning] : event=iroh.endpoint_refresh outcome=unavailable http=0
+[2026-10-11 00:13:04.567][thread 63656][client_iroh_reconnect.cpp:32][warning] : event=iroh.endpoint_refresh outcome=unavailable http=0
+[2026-10-11 00:13:06.573][thread 63656][client_iroh_reconnect.cpp:32][warning] : event=iroh.endpoint_refresh outcome=unavailable http=0
+[2026-10-11 00:13:08.580][thread 63656][client_iroh_reconnect.cpp:32][warning] : event=iroh.endpoint_refresh outcome=unavailable http=0
+[2026-10-11 00:13:09.083][thread 63656][sdk_iroh_connection.cpp:34][warning] : event=iroh.connect outcome=failed code=IROH_RECONNECT_EXPIRED

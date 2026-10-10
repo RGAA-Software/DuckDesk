@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -12,26 +13,22 @@
 namespace px {
 class Data;
 class Message;
-}
+class PxBlockingExecutor;
+}  // namespace px
 
 namespace px::render {
 
-inline constexpr std::string_view kJoystickModuleId =
-    "102a229e-295d-444e-9ca0-b6644f3198f6";
+inline constexpr std::string_view kJoystickModuleId = "102a229e-295d-444e-9ca0-b6644f3198f6";
 
 class JoystickBackend {
 public:
-    using RumbleCallback = std::function<void(
-        const std::string&, std::uint8_t, std::uint8_t)>;
+    using RumbleCallback = std::function<void(const std::string&, std::uint8_t, std::uint8_t)>;
 
     virtual ~JoystickBackend() = default;
     virtual void SetRumbleCallback(RumbleCallback callback) = 0;
     [[nodiscard]] virtual bool PrepareConnection() = 0;
-    [[nodiscard]] virtual bool AllocateController(
-        const std::string& stream_id) = 0;
-    virtual void ReplayJoystickEvent(
-        const std::string& stream_id,
-        const std::shared_ptr<Message>& message) = 0;
+    [[nodiscard]] virtual bool AllocateController(const std::string& stream_id) = 0;
+    virtual void ReplayJoystickEvent(const std::string& stream_id, const std::shared_ptr<Message>& message) = 0;
     virtual void RemoveController(const std::string& stream_id) = 0;
     virtual void Shutdown() = 0;
 };
@@ -47,17 +44,13 @@ struct JoystickServiceSnapshot final {
     std::uint64_t rumble_send_failures{0};
 };
 
-class JoystickService final
-    : public std::enable_shared_from_this<JoystickService> {
+class JoystickService final : public std::enable_shared_from_this<JoystickService> {
 public:
     using BackendFactory = std::function<std::shared_ptr<JoystickBackend>()>;
-    using SendCallback = std::function<bool(
-        const std::string&, const std::string&, const std::shared_ptr<Data>&)>;
+    using SendCallback = std::function<bool(const std::string&, const std::string&, const std::shared_ptr<Data>&)>;
 
-    [[nodiscard]] static std::shared_ptr<JoystickService> Create(
-        BackendFactory backend_factory = {}, SendCallback send_callback = {});
-    JoystickService(
-        BackendFactory backend_factory, SendCallback send_callback);
+    [[nodiscard]] static std::shared_ptr<JoystickService> Create(BackendFactory backend_factory = {}, SendCallback send_callback = {});
+    JoystickService(BackendFactory backend_factory, SendCallback send_callback);
     ~JoystickService();
 
     JoystickService(const JoystickService&) = delete;
@@ -68,21 +61,20 @@ public:
     [[nodiscard]] ModuleLifecycleResult Stop();
     [[nodiscard]] ModuleLifecycleResult SetEnabled(bool enabled);
 
-    void HandleMessage(
-        const std::shared_ptr<Message>& message,
-        const std::string& transport_id = {});
+    void HandleMessage(const std::shared_ptr<Message>& message, const std::string& transport_id = {});
+    [[nodiscard]] bool QueueMessage(const std::shared_ptr<Message>& message, const std::string& transport_id);
     void HandleClientDisconnected(const std::string& stream_id);
     [[nodiscard]] JoystickServiceSnapshot Snapshot() const;
 
 private:
     [[nodiscard]] std::shared_ptr<JoystickBackend> EnsureBackend();
-    void HandleRumble(
-        const std::string& stream_id,
-        std::uint8_t strong_motor,
-        std::uint8_t weak_motor);
+    void HandleRumble(const std::string& stream_id, std::uint8_t strong_motor, std::uint8_t weak_motor);
 
     mutable std::mutex mutex_;
-    mutable std::mutex backend_operation_mutex_;
+    std::mutex dispatch_operation_mutex_{};
+    std::shared_ptr<std::mutex> backend_operation_mutex_{std::make_shared<std::mutex>()};
+    std::shared_ptr<PxBlockingExecutor> message_executor_{};
+    std::unordered_map<std::string, std::shared_ptr<std::atomic_bool>> queued_streams_{};
     BackendFactory backend_factory_;
     SendCallback send_callback_;
     std::shared_ptr<JoystickBackend> backend_;

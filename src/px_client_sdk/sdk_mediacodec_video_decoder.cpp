@@ -131,6 +131,8 @@ Result<std::shared_ptr<RawImage>, int> MediacodecVideoDecoder::Decode(std::span<
     if (!media_codec_ || encoded.empty()) return TRError(-1);
     const auto started_at = TimeUtil::GetCurrentTimestamp();
     const auto input_index = AMediaCodec_dequeueInputBuffer(media_codec_.get(), 2000);
+    // A busy input queue did not consume this encoded frame, even if older output is available.
+    if (input_index < 0) return TRError(-1);
     if (input_index >= 0) {
         std::size_t capacity{};
         // The first boundary check avoids constructing a nonempty span from null.

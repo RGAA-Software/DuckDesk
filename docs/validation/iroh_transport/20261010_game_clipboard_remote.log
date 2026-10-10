@@ -1,0 +1,29 @@
+{"ready":true}
+{"received_local":true,"reply_set":true}
+{"restored":true}
+
+{
+    "Name":  "px_service",
+    "Status":  "Running"
+}
+[
+    {
+        "ProcessName":  "px_console",
+        "Id":  20720,
+        "SessionId":  0
+    },
+    {
+        "ProcessName":  "px_relay",
+        "Id":  6188,
+        "SessionId":  0
+    },
+    {
+        "ProcessName":  "px_render",
+        "Id":  14612,
+        "SessionId":  2
+    }
+]
+[2026-10-10 17:50:17.810][thread 12596][network_event_ingress.cpp:348][info] : event=clipboard.text mode=game_hook direction=to_client bytes=74
+[2026-10-10 17:50:21.811][thread 12596][network_event_ingress.cpp:348][info] : event=clipboard.text mode=game_hook direction=to_client bytes=74
+[2026-10-10 17:50:47.477][thread 4128][network_event_ingress.cpp:657][info] : event=clipboard.text mode=game_hook direction=from_client outcome=applied bytes=37
+[2026-10-10 17:50:47.825][thread 12596][network_event_ingress.cpp:348][info] : event=clipboard.text mode=game_hook direction=to_client bytes=38

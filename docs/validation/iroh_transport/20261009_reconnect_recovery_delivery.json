@@ -1,0 +1,13 @@
+{
+  "candidate": "iroh-reconnect-recovery-final-20261009",
+  "upload_operation": "3d6f9723-0e3e-479a-b854-ad84a2c354c2",
+  "install_operation": "2c5dc801-9286-4496-ab57-b25776cfe8a2",
+  "verification": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "77E8E5BF6174937DD43990989D8845D843E04E728FA0C2C66E1A24B7A61AFF2F",
+    "manifest_sha256": "D0EA3F654ABA671B63CE6404439B9C74B9E2D0346244155DDD94A33DAFAE1572",
+    "setup_sha256": "4506062C62485A78CBA674E2791936F590A6543A7A57D1A8FD9477606B86EF9F"
+  }
+}

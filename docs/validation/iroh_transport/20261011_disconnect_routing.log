@@ -1,0 +1,49 @@
+2026-10-10T16:12:45.175395Z  INFO relay-actor: iroh::socket::transports::relay::actor: home is now relay https://49.232.233.61:4605/, was None
+2026-10-10T16:12:45.175524Z DEBUG relay-actor: iroh::socket::transports::relay::actor: Adding relay connection url=RelayUrl("https://49.232.233.61:4605/")
+2026-10-10T16:12:45.175629Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 0 active relay conns
+2026-10-10T16:12:45.175643Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 1 active relay conns: relay-https://49.232.233.61:4605/
+2026-10-10T16:12:45.218624Z DEBUG relay-actor: iroh::socket::transports::relay::actor: Adding relay connection url=RelayUrl("https://39.71.45.66:4605/")
+2026-10-10T16:12:45.218685Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 1 active relay conns: relay-https://49.232.233.61:4605/
+2026-10-10T16:12:45.218880Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 2 active relay conns: relay-https://39.71.45.66:4605/ relay-https://49.232.233.61:4605/
+2026-10-10T16:13:00.736136Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Lost connection to relay server: Ping timeout
+2026-10-10T16:13:02.237263Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:02.237305Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 15.13904ms
+2026-10-10T16:13:03.754339Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:03.754368Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 26.13137ms
+2026-10-10T16:13:05.282931Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:05.282965Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 46.478484ms
+2026-10-10T16:13:06.832516Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:06.832548Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 94.223719ms
+2026-10-10T16:13:07.553647Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Lost connection to relay server: Send timeout
+2026-10-10T16:13:08.429214Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:08.429248Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 212.464939ms
+2026-10-10T16:13:09.055049Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:09.055081Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 19.451854ms
+2026-10-10T16:13:10.143951Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:10.143982Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 611.017615ms
+2026-10-10T16:13:10.576834Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:10.576917Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 38.435689ms
+2026-10-10T16:13:12.117821Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:12.117851Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 68.483194ms
+2026-10-10T16:13:12.259010Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:12.259037Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 878.087744ms
+2026-10-10T16:13:13.688857Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:13.688886Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 97.321486ms
+2026-10-10T16:13:14.641044Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:14.641077Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 1.280807698s
+2026-10-10T16:13:15.289184Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:15.289213Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 263.218827ms
+2026-10-10T16:13:17.054837Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:17.054873Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 604.432762ms
+2026-10-10T16:13:17.425075Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:17.425109Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: retry in 4.95020175s
+2026-10-10T16:13:19.163198Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:19.163232Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 1.258941055s
+2026-10-10T16:13:21.924134Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: Failed to connect to relay server: unable to connect: deadline has elapsed
+2026-10-10T16:13:21.924167Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}: iroh::socket::transports::relay::actor: retry in 2.162760555s
+2026-10-10T16:13:23.666656Z  INFO relay-actor: iroh::socket::transports::relay::actor: home is now relay https://39.71.45.66:4605/, was Some(RelayUrl("https://49.232.233.61:4605/"))
+2026-10-10T16:13:45.176699Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}:connected: iroh::socket::transports::relay::actor: Inactive for 60s, exiting (running).
+2026-10-10T16:13:45.196947Z DEBUG relay-actor:active-relay{url=https://49.232.233.61:4605/}: iroh::socket::transports::relay::actor: exiting
+2026-10-10T16:13:45.197015Z DEBUG relay-actor: iroh::socket::transports::relay::actor: 1 active relay conns: relay-https://39.71.45.66:4605/
+2026-10-10T16:14:14.837399Z DEBUG relay-actor:active-relay{url=https://39.71.45.66:4605/}:connected: iroh::socket::transports::relay::actor: Shutdown.
+2026-10-10T16:14:14.837533Z DEBUG relay-actor: iroh::socket::transports::relay::actor: shutting down

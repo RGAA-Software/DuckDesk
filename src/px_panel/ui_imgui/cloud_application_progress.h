@@ -7,7 +7,7 @@
 
 namespace px::panel::ui {
 
-enum class ApplicationLaunchStage { StartApplication, WaitForApplication, AuthorizeConnection, PrepareClient };
+enum class ApplicationLaunchStage { StartApplication, WaitForApplication, AuthorizeConnection, PrepareClient, ConnectRemote };
 enum class ApplicationLaunchStatus { Preparing, Ready, Launching, Succeeded, Failed };
 
 struct ApplicationLaunchProgress final {

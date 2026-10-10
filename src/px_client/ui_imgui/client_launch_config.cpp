@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "px_common/url_helper.h"
+#include "px_common/uuid.h"
 
 namespace px::client::imgui {
 namespace {
@@ -85,6 +86,10 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
                                   .lightTheme = Value<std::string>(values, "theme", "dark") == "light",
                                   .decoder = Value<std::string>(values, "decoder", "Auto"),
                                   .recordingPath = Value<std::string>(values, "recording_path")};
+        if (const auto iroh = values.find("iroh"); iroh != values.end() && !iroh->is_null()) {
+            result.iroh = px::ParseIrohConnectionDescription(*iroh);
+            if (!result.iroh) return std::nullopt;
+        }
         auto frontendToken = Value<std::string>(values, "frontend_token");
         if (!frontendToken.empty()) {
             result.frontendToken = px::SecretBuffer::Take(std::move(frontendToken));
@@ -136,6 +141,11 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
         if (acceptanceModeCount > 1U || ((result.rdpIoErrorAcceptance || result.rdpPeerCloseAcceptance) && !result.rdp)) {
             return std::nullopt;
         }
+        result.panelPort = Value<int>(values, "panel_port");
+        result.panelLaunchId = Value<std::string>(values, "panel_launch_id");
+        if ((result.panelPort != 0 || !result.panelLaunchId.empty()) &&
+            (result.panelPort <= 0 || result.panelPort > 65535 || !px::IsCanonicalUUID(result.panelLaunchId)))
+            return std::nullopt;
         const bool hasConsoleFrontendFields = result.frontendToken || !result.frontendSessionId.empty() || result.frontendSessionRevision != 0;
         const bool consoleFrontend = result.frontendToken && !result.frontendToken->Bytes().empty();
         const bool validConsoleFrontend =
@@ -153,6 +163,27 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
     } catch (const nlohmann::json::exception&) {
         return std::nullopt;
     }
+}
+
+std::optional<px::IrohDialParameters> BuildClientIrohParameters(const ClientLaunchConfig& config) {
+    if (!config.iroh || (config.forceTcp && !config.forceRelay)) return std::nullopt;
+    auto endpointConfiguration = nlohmann::json::parse(config.iroh->endpoint_configuration);
+    if (config.forceRelay) endpointConfiguration["relay_only"] = true;
+    px::IrohDialParameters parameters{.endpoint_address = config.iroh->endpoint_address,
+                                      .endpoint_configuration = endpointConfiguration.dump(),
+                                      .frontend = {{"stream_id", config.streamId},
+                                                   {"visitor_device_id", config.localDeviceId},
+                                                   {"remote_device_id", config.remoteDeviceId},
+                                                   {"client_nonce", config.nonce},
+                                                   {"rdp", config.rdp ? "1" : "0"}}};
+    if (config.frontendToken) {
+        parameters.frontend.emplace("session_id", config.frontendSessionId);
+        parameters.frontend.emplace("session_revision", std::to_string(config.frontendSessionRevision));
+        parameters.frontend.emplace("frontend_token", config.frontendToken->View());
+    } else {
+        parameters.frontend.emplace("safety_pwd_md5", config.remotePasswordHash);
+    }
+    return parameters;
 }
 
 std::string BuildClientMediaPath(const ClientLaunchConfig& config) {

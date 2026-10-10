@@ -1,0 +1,27 @@
+{
+  "candidate": "iroh-adaptive-spaced-20261009",
+  "version": "3.3.97",
+  "package": [
+    {
+      "Hash": "A65A8BBD505EADDFBA8862DB2AC7D6AACE24876832958603191E68EA1B43A636",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-adaptive-spaced-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe"
+    },
+    {
+      "Hash": "17E545B6898F0405C90B709F4EF048C39E2298C8F09D85BB27EF9D3886619231",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\product-manifest.json"
+    },
+    {
+      "Hash": "C4FF404B907B34BDB1042EA931B5ABC567645EA8FACAE9BD5CFBBF50EEC5FBB9",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\px_render.exe"
+    }
+  ],
+  "development_render_sha256": "873DA25C7CF198227780330C8FE83BD49DC6E63F460F90A198B718C8CF6ACF7A",
+  "development_render_build_matches_dist": true,
+  "upload_operation": "d893a7ed-c9ec-4864-9ae6-a0a5334496ee",
+  "remote_installation": {"installed_version":"3.3.97","verified_artifacts":314,"service_status":"Running","render_sha256":"C4FF404B907B34BDB1042EA931B5ABC567645EA8FACAE9BD5CFBBF50EEC5FBB9","manifest_sha256":"17E545B6898F0405C90B709F4EF048C39E2298C8F09D85BB27EF9D3886619231","setup_sha256":"A65A8BBD505EADDFBA8862DB2AC7D6AACE24876832958603191E68EA1B43A636"},
+  "install_operation": "3924a6be-ea4d-4489-a619-a859bddced80",
+  "temporary_relay_operation": "772584bf-e80b-46c2-87b1-3a5e3990d312",
+  "temporary_relay_pid": 41532,
+  "configured_console_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA",
+  "original_console_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8"
+}

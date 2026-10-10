@@ -1,0 +1,70 @@
+{
+  "started_at": "2026-10-11T01:02:58.473631",
+  "case": "relay",
+  "evidence": ".cache\\iroh-native-live-20261011-010258-relay",
+  "passed": true,
+  "phases": [
+    {
+      "name": "warmup",
+      "started_at": "2026-10-11T01:03:03.009467",
+      "ended_at": "2026-10-11T01:03:08.251089"
+    },
+    {
+      "name": "video_only_before",
+      "started_at": "2026-10-11T01:03:08.251089",
+      "ended_at": "2026-10-11T01:03:29.050801"
+    },
+    {
+      "name": "separate_file_process",
+      "started_at": "2026-10-11T01:03:29.050801",
+      "ended_at": "2026-10-11T01:04:07.235918"
+    },
+    {
+      "name": "video_only_after",
+      "started_at": "2026-10-11T01:04:07.235918",
+      "ended_at": "2026-10-11T01:04:28.073457"
+    }
+  ],
+  "processes": {
+    "video": {
+      "pid": 86740,
+      "mode": "desktop",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "fd1070db9b6faf3512d29cd6fcb0d5fd42992121e743761e2c5fd633105a609f",
+      "resource_session_id": "d2027945-5bb2-4dd2-a30f-d937e9697359",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4613,
+      "launched_at": "2026-10-11T01:03:01.683763"
+    },
+    "file": {
+      "pid": 46244,
+      "mode": "file-transfer",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "3f17c8cc626061d3693ec18db141add39e9fbc96f26a9569d2a7be330e0a13e3",
+      "resource_session_id": "d080184a-01fa-44fb-9692-75bdd3410fa4",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4601,
+      "launched_at": "2026-10-11T01:03:29.123218"
+    }
+  },
+  "cleanup_errors": [],
+  "remote_test_file": "D:\\112233\\pixels-independent-cbdae6ebb76842d6b849aa9dced0b50b.bin",
+  "source_bytes": 67108864,
+  "access_before": {
+    "groups": [],
+    "users": []
+  },
+  "instance_id": "ee2cc1fd-e7aa-4023-8b73-e51f5c026c84",
+  "posted_input_messages": 4800,
+  "udp_endpoints": [],
+  "transfer_seconds": 38.1,
+  "file_exit_code": 0,
+  "source_sha256": "76c81c6beaeb30ca1f4044fd7f53ceb8bbdbe683646ee46058e72b5bd4346230",
+  "download_sha256": "76c81c6beaeb30ca1f4044fd7f53ceb8bbdbe683646ee46058e72b5bd4346230",
+  "access_after": {
+    "groups": [],
+    "users": []
+  },
+  "access_restored": true,
+  "ended_at": "2026-10-11T01:04:29.642264"
+}

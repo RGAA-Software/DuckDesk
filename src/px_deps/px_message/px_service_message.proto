@@ -66,6 +66,8 @@ message MsgHeartBeat {
   string logical_sessions_json = 4;
   // Panel's selected Console origin. Empty for Render heartbeats.
   string console_address = 5;
+  // Public iroh address and client endpoint configuration; empty when no endpoint is active.
+  string iroh_description_json = 6;
 }
 
 message MsgHeartBeatResp {
@@ -82,6 +84,8 @@ message MsgHeartBeatResp {
     string public_device_code = 9;
     // Console origin that authenticated this Service identity.
     string authenticated_console_origin = 10;
+    // Latest candidate array; empty JSON array withdraws all new Relay selection.
+    string iroh_relays_json = 11;
 }
 
 message MsgReqCtrlAltDelete {

@@ -1,0 +1,80 @@
+{
+  "cases": [
+    {
+      "case": "credit_capture_b_relay",
+      "passed": true,
+      "seconds": 46.321,
+      "fps_min": 51.9,
+      "fps_max": 60.4,
+      "gaps_gt_100ms": 18,
+      "max_gap_ms": 149.2,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "read_retries": 0
+    },
+    {
+      "case": "adaptive_credit_relay",
+      "passed": true,
+      "seconds": 63.236,
+      "fps_min": 50.9,
+      "fps_max": 62.9,
+      "gaps_gt_100ms": 78,
+      "max_gap_ms": 519.0,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "read_retries": 0
+    },
+    {
+      "case": "adaptive_credit_repeat_relay",
+      "passed": true,
+      "seconds": 56.257,
+      "fps_min": 58.7,
+      "fps_max": 60.6,
+      "gaps_gt_100ms": 22,
+      "max_gap_ms": 178.3,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "read_retries": 0
+    },
+    {
+      "case": "credit_baseline_relay",
+      "passed": true,
+      "seconds": 37.607,
+      "fps_min": 48.8,
+      "fps_max": 60.3,
+      "gaps_gt_100ms": 8,
+      "max_gap_ms": 277.1,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "read_retries": 0
+    },
+    {
+      "case": "credit_baseline_direct",
+      "passed": true,
+      "seconds": 25.525,
+      "fps_min": 56.9,
+      "fps_max": 60.2,
+      "gaps_gt_100ms": 1,
+      "max_gap_ms": 169.5,
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "read_retries": 0
+    }
+  ],
+  "installed_candidate": "iroh-credit-baseline-20261010",
+  "adaptive_policy": "rejected and archived; active file window restored byte-for-byte",
+  "performance_passed": false,
+  "persistent_configuration_changes": [],
+  "findings": [
+    "A long outage coincides with confirmed local NDIS hardware non-response/reset.",
+    "Five B media events correlate with TCP sequence retransmission/duplicate ACK holes.",
+    "Sender packetization gaps include capture admission/backpressure and are not an isolated game-render measurement.",
+    "Adaptive bulk credit did not establish improvement and was withdrawn."
+  ],
+  "cleanup": "No owned Clients, resource sessions, application instances, temporary remote files or Pktmon filters; three services Running; only desktop Render 19200; both relays ready/fresh/undrained."
+}

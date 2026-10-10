@@ -1,0 +1,152 @@
+{
+  "39.71.45.66:33993>10.2.4.7:4605": {
+    "payload_bytes": 496,
+    "packets": 11,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.71.45.66:33993": {
+    "payload_bytes": 772,
+    "packets": 9,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.71.45.66:33995>10.2.4.7:4605": {
+    "payload_bytes": 0,
+    "packets": 2,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.71.45.66:33995": {
+    "payload_bytes": 0,
+    "packets": 1,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.71.45.66:33996>10.2.4.7:4605": {
+    "payload_bytes": 27598057,
+    "packets": 54790,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.71.45.66:33996": {
+    "payload_bytes": 3445592,
+    "packets": 60663,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.71.45.66:33929>10.2.4.7:4605": {
+    "payload_bytes": 296,
+    "packets": 16,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.71.45.66:33929": {
+    "payload_bytes": 440,
+    "packets": 16,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.82.198.244:35991>10.2.4.7:4605": {
+    "payload_bytes": 405,
+    "packets": 11,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.82.198.244:35991": {
+    "payload_bytes": 1223,
+    "packets": 9,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.82.198.244:35993>10.2.4.7:4605": {
+    "payload_bytes": 309,
+    "packets": 7,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.82.198.244:35993": {
+    "payload_bytes": 219,
+    "packets": 4,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.82.198.244:35995>10.2.4.7:4605": {
+    "payload_bytes": 3041494,
+    "packets": 41489,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.82.198.244:35995": {
+    "payload_bytes": 28031778,
+    "packets": 58747,
+    "holes": [],
+    "overlap_packets": 46,
+    "sack_stalls": [
+      {
+        "time": 1791605260.614729,
+        "ack": 3844172308,
+        "duration_ms": 28.126001358032227
+      }
+    ],
+    "zero_window": 0
+  },
+  "39.82.198.244:36213>10.2.4.7:4605": {
+    "payload_bytes": 496,
+    "packets": 12,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.82.198.244:36213": {
+    "payload_bytes": 772,
+    "packets": 10,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "39.82.198.244:36214>10.2.4.7:4605": {
+    "payload_bytes": 0,
+    "packets": 2,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  },
+  "10.2.4.7:4605>39.82.198.244:36214": {
+    "payload_bytes": 0,
+    "packets": 1,
+    "holes": [],
+    "overlap_packets": 0,
+    "sack_stalls": [],
+    "zero_window": 0
+  }
+}

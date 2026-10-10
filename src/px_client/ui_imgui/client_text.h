@@ -148,6 +148,8 @@ enum class ClientText : std::uint8_t {
     StatisticsDirectWebSocket,
     StatisticsRelayWebSocket,
     StatisticsRdp,
+    StatisticsIroh,
+    StatisticsRdpIroh,
     ScreenshotSaved,
     ScreenshotOpenFolder,
     ScreenshotNoFrame,

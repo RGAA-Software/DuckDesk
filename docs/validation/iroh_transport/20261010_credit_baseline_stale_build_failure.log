@@ -1,0 +1,29 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start  59: iroh_file_flow
+1/3 Test  #59: iroh_file_flow ...................Exit code 0xc0000374
+***Exception:   0.68 sec
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from FileSendWindow
+[ RUN      ] FileSendWindow.CreditRequiresMonotonicPeerReceiptAndBoundsOversizedMessages
+[       OK ] FileSendWindow.CreditRequiresMonotonicPeerReceiptAndBoundsOversizedMessages (0 ms)
+[----------] 1 test from FileSendWindow (0 ms total)
+
+[----------] 4 tests from FileReceiptTest
+[ RUN      ] FileReceiptTest.CompletedLocalWritesDoNotReleaseFileCreditButInputAndMediaContinue
+
+    Start  60: iroh_transport
+2/3 Test  #60: iroh_transport ...................   Passed    0.76 sec
+    Start 102: iroh_frontend
+3/3 Test #102: iroh_frontend ....................   Passed    3.06 sec
+
+67% tests passed, 1 tests failed out of 3
+
+Total Test time (real) =   4.53 sec
+
+The following tests FAILED:
+	 59 - iroh_file_flow (Exit code 0xc0000374
+)
+Errors while running CTest

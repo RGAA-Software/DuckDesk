@@ -1,0 +1,23 @@
+{
+  "started_at": "2026-10-11T00:54:19.2214755+08:00",
+  "driver": [
+    {
+      "DeviceName": "Realtek Gaming GbE Family Controller",
+      "DriverVersion": "10.68.815.2023",
+      "InfName": "oem154.inf"
+    }
+  ],
+  "clients": [],
+  "resets": [
+    {
+      "TimeCreated": "2026-10-11T00:31:05.8303518+08:00",
+      "RecordId": 167286,
+      "Message": "The network interface \"Realtek Gaming GbE Family Controller\" has begun resetting.  There will be a momentary disruption in network connectivity while the hardware resets. Reason: The network driver detected that its hardware has stopped responding to commands. This network interface has reset 1 time(s) since it was last initialized."
+    },
+    {
+      "TimeCreated": "2026-10-11T00:13:13.6088293+08:00",
+      "RecordId": 167259,
+      "Message": "The network interface \"Realtek Gaming GbE Family Controller\" has begun resetting.  There will be a momentary disruption in network connectivity while the hardware resets. Reason: The network driver detected that its hardware has stopped responding to commands. This network interface has reset 17 time(s) since it was last initialized."
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+[
+  {
+    "path": "build_official/cloud_node/cmake/src/px_render/px_render.exe",
+    "sha256": "e61f921031befd0ebcd779382a6ce5535e0ebd8f2dbaab32256b7db92bf82d3c"
+  },
+  {
+    "path": "build_official/cloud_node/dist/px_render.exe",
+    "sha256": "e61f921031befd0ebcd779382a6ce5535e0ebd8f2dbaab32256b7db92bf82d3c"
+  }
+]

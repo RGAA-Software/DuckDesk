@@ -1,0 +1,26 @@
+[
+  {
+    "Hash": "1752A7E5E6972323B2A0579F4C8A542558713D1EBBC9FC8A6009320CEA2D10E0",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe"
+  },
+  {
+    "Hash": "1752A7E5E6972323B2A0579F4C8A542558713D1EBBC9FC8A6009320CEA2D10E0",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe"
+  },
+  {
+    "Hash": "191AF6873F2A3E41AC942B9FCB64E694E8D5A90C380E8579EEB91BC0DB71F5D8",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe"
+  },
+  {
+    "Hash": "191AF6873F2A3E41AC942B9FCB64E694E8D5A90C380E8579EEB91BC0DB71F5D8",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe"
+  },
+  {
+    "Hash": "79B993062CA1F90E448E01E4DAEFFE15A4A0DD9998F2C9454546999A622D3563",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe"
+  },
+  {
+    "Hash": "79B993062CA1F90E448E01E4DAEFFE15A4A0DD9998F2C9454546999A622D3563",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe"
+  }
+]

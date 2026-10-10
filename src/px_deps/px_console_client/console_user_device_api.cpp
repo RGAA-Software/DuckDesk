@@ -114,6 +114,7 @@ px::Result<ConsoleNativeDeviceConnection, ConsoleApiError> ConsoleUserDeviceApi:
                                          .session_id = resource->session_id,
                                          .session_revision = resource->session_revision,
                                          .frontend_token = resource->frontend_token,
+                                         .iroh = resource->iroh,
                                          .relay_host = resource->relay_host,
                                          .relay_port = resource->relay_port,
                                          .relay_admission_ticket = resource->relay_admission_ticket};

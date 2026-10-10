@@ -1,0 +1,16 @@
+{
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Preserve full pre-change contents before factoring Relay control and replacing room-only reporting/static Relay address distribution",
+  "paths": [
+    "rust_server/px_relay_server/src/config.rs",
+    "rust_server/px_relay_server/src/control.rs",
+    "rust_server/px_relay_server/src/main.rs",
+    "rust_server/px_relay_server/src/iroh/runtime.rs",
+    "rust_server/px_relay_control_protocol/src/lib.rs",
+    "rust_server/px_console_server/storage/src/relay_model.rs",
+    "rust_server/px_console_server/storage/src/relay_nodes.rs",
+    "rust_server/px_console_server/runtime/src/node_api.rs",
+    "web/px_console/src/views/RelayManagement.vue"
+  ],
+  "local_status": " M rust_server/px_console_server/runtime/src/node_api.rs\n M rust_server/px_relay_server/src/main.rs\n?? rust_server/px_relay_server/src/iroh/runtime.rs\n"
+}

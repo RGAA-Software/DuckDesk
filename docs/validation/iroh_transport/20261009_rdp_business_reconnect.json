@@ -1,0 +1,33 @@
+[
+  {
+    "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "name": "RDP 桌面",
+    "kind": "rdp",
+    "instance_id": "17cc1974-92c7-47d4-a5a7-b79b2d97c6fe",
+    "client_pid": 85312,
+    "drag": {
+      "method": "observe RDP reconnect without modifying workspace"
+    },
+    "samples": [
+      "[2026-10-09 15:47:13.651][thread 83804][iroh_dialer.cpp:100][info] : event=iroh.connect outcome=accepted reconnect=false",
+      "[2026-10-09 15:47:13.782][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:47:13.814][thread 31800][rdp_session.cpp:508][info] : event=rdp.desktop.resize width=1440 height=900",
+      "[2026-10-09 15:47:23.866][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=40 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:47:33.904][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=62 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:47:43.980][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=62 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:47:53.988][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=62 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:48:03.990][thread 31800][rdp_session.cpp:524][info] : event=rdp.frame.progress published=62 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:48:04.844][thread 83804][iroh_dialer.cpp:106][warning] : event=iroh.connect outcome=network_lost action=readmit",
+      "[2026-10-09 15:48:07.827][thread 83804][iroh_dialer.cpp:100][info] : event=iroh.connect outcome=accepted reconnect=true",
+      "[2026-10-09 15:48:07.902][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:48:07.959][thread 80552][rdp_session.cpp:508][info] : event=rdp.desktop.resize width=1440 height=900",
+      "[2026-10-09 15:48:17.956][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=30 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:48:28.023][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=48 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:48:38.028][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=48 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:48:48.050][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=51 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:48:58.094][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=53 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:49:08.193][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=53 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:49:18.294][thread 80552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=53 in_flight=0 dirty=false display_channel=true"
+    ]
+  }
+]

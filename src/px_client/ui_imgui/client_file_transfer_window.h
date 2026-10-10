@@ -17,7 +17,7 @@ class ClientFileTransferWindow final {
   public:
     ClientFileTransferWindow(std::reference_wrapper<px::desktop::DesktopShell> shell, std::shared_ptr<ClientSession> session,
                              const ClientLaunchConfig& config, bool english);
-    void Draw();
+    void Draw(bool consumeOperationResults = true);
     void HandleInput(const px::desktop::DesktopInputEvent& event);
 
   private:

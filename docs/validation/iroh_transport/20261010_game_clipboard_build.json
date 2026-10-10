@@ -1,0 +1,26 @@
+{
+  "version": "3.3.97",
+  "candidate": "game-clipboard-vdd-20261010",
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\game-clipboard-vdd-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "7A803592F9B1B8387ABC6D8C835F900D7FA2AB70E06E1F02F1A697AFF3C4D49E"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\game-clipboard-vdd-20261010\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "988F837E1524325E43CCEF2272383BC3D8ED00A12A135E33A9ECC4C4E464002B"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\game-clipboard-vdd-20261010\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "467D054BCA1D5FE97B355D693781D9B828CC631910F94F20C7E74694FC205DB2"
+  },
+  "development": {
+    "build": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+      "sha256": "2B6A543BAF2180CC6EC5411361C94915B588684D2B615968D019855C8889C7E5"
+    },
+    "dist": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+      "sha256": "2B6A543BAF2180CC6EC5411361C94915B588684D2B615968D019855C8889C7E5"
+    }
+  }
+}

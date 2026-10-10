@@ -1,0 +1,188 @@
+[
+  {
+    "kind": "webview",
+    "instance_id": "3bc03c08-5d65-4642-8e85-2c24ab2458b8",
+    "client_pid": 82596,
+    "input_method": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "windows": [
+      {
+        "fps": 25.4,
+        "max_gap_ms": 1019.8,
+        "gaps_gt_100ms": 5.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:44:17.869"
+      },
+      {
+        "fps": 44.9,
+        "max_gap_ms": 174.2,
+        "gaps_gt_100ms": 2.0,
+        "loss_events": 38.0,
+        "idr": 0.0,
+        "rfi": 19.0,
+        "timestamp": "2026-10-09 09:44:22.882"
+      },
+      {
+        "fps": 47.3,
+        "max_gap_ms": 266.3,
+        "gaps_gt_100ms": 3.0,
+        "loss_events": 34.0,
+        "idr": 0.0,
+        "rfi": 17.0,
+        "timestamp": "2026-10-09 09:44:27.890"
+      },
+      {
+        "fps": 59.6,
+        "max_gap_ms": 54.6,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 2.0,
+        "idr": 0.0,
+        "rfi": 1.0,
+        "timestamp": "2026-10-09 09:44:32.906"
+      },
+      {
+        "fps": 58.7,
+        "max_gap_ms": 63.1,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 3.0,
+        "idr": 0.0,
+        "rfi": 2.0,
+        "timestamp": "2026-10-09 09:44:37.914"
+      },
+      {
+        "fps": 58.3,
+        "max_gap_ms": 57.0,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 4.0,
+        "idr": 0.0,
+        "rfi": 3.0,
+        "timestamp": "2026-10-09 09:44:42.924"
+      },
+      {
+        "fps": 57.7,
+        "max_gap_ms": 74.4,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 2.0,
+        "idr": 0.0,
+        "rfi": 1.0,
+        "timestamp": "2026-10-09 09:44:47.932"
+      },
+      {
+        "fps": 59.6,
+        "max_gap_ms": 45.5,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:44:52.935"
+      },
+      {
+        "fps": 59.6,
+        "max_gap_ms": 66.0,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:44:57.952"
+      }
+    ]
+  },
+  {
+    "kind": "game_hook",
+    "instance_id": "8a853e66-8548-4e73-b742-2443728665ca",
+    "client_pid": 80572,
+    "input_method": {
+      "window_found": true,
+      "posted_mouse_messages": 1800,
+      "method": "WM mouse messages to owned Client window; remote input effect requires visual confirmation"
+    },
+    "windows": [
+      {
+        "fps": 55.8,
+        "max_gap_ms": 206.7,
+        "gaps_gt_100ms": 2.0,
+        "loss_events": 1.0,
+        "idr": 0.0,
+        "rfi": 1.0,
+        "timestamp": "2026-10-09 09:45:13.102"
+      },
+      {
+        "fps": 59.8,
+        "max_gap_ms": 59.0,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:45:18.116"
+      },
+      {
+        "fps": 56.7,
+        "max_gap_ms": 62.7,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 8.0,
+        "idr": 0.0,
+        "rfi": 5.0,
+        "timestamp": "2026-10-09 09:45:23.126"
+      },
+      {
+        "fps": 59.6,
+        "max_gap_ms": 75.5,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 2.0,
+        "idr": 0.0,
+        "rfi": 1.0,
+        "timestamp": "2026-10-09 09:45:28.126"
+      },
+      {
+        "fps": 58.6,
+        "max_gap_ms": 64.1,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 2.0,
+        "idr": 0.0,
+        "rfi": 2.0,
+        "timestamp": "2026-10-09 09:45:33.126"
+      },
+      {
+        "fps": 59.9,
+        "max_gap_ms": 40.7,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:45:38.133"
+      },
+      {
+        "fps": 60.1,
+        "max_gap_ms": 52.1,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:45:43.142"
+      },
+      {
+        "fps": 60.0,
+        "max_gap_ms": 36.7,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:45:48.142"
+      },
+      {
+        "fps": 60.0,
+        "max_gap_ms": 46.0,
+        "gaps_gt_100ms": 0.0,
+        "loss_events": 0.0,
+        "idr": 0.0,
+        "rfi": 0.0,
+        "timestamp": "2026-10-09 09:45:53.143"
+      }
+    ]
+  }
+]

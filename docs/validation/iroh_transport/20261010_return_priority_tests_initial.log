@@ -1,0 +1,42 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start  59: iroh_transport
+1/2 Test  #59: iroh_transport ...................***Failed   13.88 sec
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from IrohTransport
+[ RUN      ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays
+[       OK ] IrohTransport.CandidateAdditionAfterStartingWithoutRelays (565 ms)
+[ RUN      ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_transport.cpp(112): error: Value of: home_changed
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers (12752 ms)
+[ RUN      ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection
+[       OK ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection (45 ms)
+[ RUN      ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes
+[       OK ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes (104 ms)
+[ RUN      ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries
+[       OK ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries (102 ms)
+[----------] 5 tests from IrohTransport (13569 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (13569 ms total)
+[  PASSED  ] 4 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohTransport.CandidateReplacementRetainsHeldStreamsAndServesNewPeers
+
+ 1 FAILED TEST
+
+    Start 101: iroh_frontend
+2/2 Test #101: iroh_frontend ....................   Passed   26.32 sec
+
+50% tests passed, 1 tests failed out of 2
+
+Total Test time (real) =  40.55 sec
+
+The following tests FAILED:
+	 59 - iroh_transport (Failed)
+Errors while running CTest

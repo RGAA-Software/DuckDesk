@@ -268,6 +268,7 @@ impl ResourceSessionStore {
             expected_revision,
             token,
             RuntimeEntitlement::unrestricted_for_integration(),
+            false,
         )
         .await
     }
@@ -280,6 +281,7 @@ impl ResourceSessionStore {
         expected_revision: i64,
         token: &TokenDigest,
         entitlement: RuntimeEntitlement,
+        require_iroh: bool,
     ) -> Result<ResourceDescriptor, StoreError> {
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
@@ -297,6 +299,22 @@ impl ResourceSessionStore {
             sqlx::query_file_as!(RelayBinding, "queries/resource_session_relay.sql", row.id)
                 .fetch_optional(&mut *tx)
                 .await?;
+        let iroh = if client == ClientType::Panel {
+            crate::iroh_endpoints::resolve(
+                &mut tx,
+                endpoint.node_id,
+                endpoint.generation,
+                endpoint.control_epoch,
+                endpoint.port,
+                row.instance_id,
+            )
+            .await?
+        } else {
+            None
+        };
+        if require_iroh && iroh.is_none() {
+            return Err(StoreError::TransportNotReady);
+        }
         let issued = sqlx::query_file!(
             "queries/issue_resource_descriptor.sql",
             id,
@@ -307,6 +325,7 @@ impl ResourceSessionStore {
         row.revision = issued.revision;
         Self::event(&mut tx, &row, "descriptor").await?;
         let result = ResourceDescriptor {
+            iroh,
             session: row.view()?,
             node_id: endpoint.node_id,
             node_generation: endpoint.generation,
@@ -322,6 +341,41 @@ impl ResourceSessionStore {
         };
         tx.commit().await?;
         Ok(result)
+    }
+
+    /// Refresh reachability for an existing frontend without issuing credentials,
+    /// extending its lease, changing its revision or reserving another stream.
+    pub async fn frontend_iroh_endpoint(
+        &self,
+        id: Uuid,
+        revision: i64,
+        token: &TokenDigest,
+        entitlement: RuntimeEntitlement,
+    ) -> Result<px_node_protocol::IrohConnectionDescription, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        control::write_gate(&mut tx).await?;
+        let row = Self::lock(&mut tx, id).await?;
+        let authorized: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM pixels.resource_sessions WHERE id=$1 AND revision=$2 \
+             AND descriptor_hash=$3 AND state IN ('pending','connected') AND descriptor_expires_at>clock_timestamp())",
+        ).bind(id).bind(revision).bind(token.0.as_slice()).fetch_one(&mut *tx).await?;
+        if !authorized || row.client_type != "panel" {
+            return Err(StoreError::Rejected);
+        }
+        Self::enforce_target_entitlement(&mut tx, row.view()?.target, entitlement).await?;
+        let endpoint = Self::live_endpoint(&mut tx, &row).await?;
+        let description = crate::iroh_endpoints::resolve(
+            &mut tx,
+            endpoint.node_id,
+            endpoint.generation,
+            endpoint.control_epoch,
+            endpoint.port,
+            row.instance_id,
+        )
+        .await?
+        .ok_or(StoreError::TransportNotReady)?;
+        tx.commit().await?;
+        Ok(description)
     }
 
     async fn enforce_target_entitlement(

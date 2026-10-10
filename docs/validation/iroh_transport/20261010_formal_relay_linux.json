@@ -1,0 +1,22 @@
+{
+  "relay_sha256": "b6f14494c56024b9f5d41d8460cc725ece12b3fa061d9cbb585c8d346427681c",
+  "platform": "posix",
+  "https_port": 49453,
+  "qad_port": 38022,
+  "installation_test": false,
+  "probe_stdout": "{\"datagrams_echoed\":117,\"datagrams_sent\":120,\"elapsed_ms\":5000,\"maximum_datagram_round_trip_us\":106161,\"maximum_datagram_size\":1162,\"paths\":\"PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:49453/)], selected: Some(PathId(0)), closed: false }, .. }\",\"reliable_bytes_verified\":6291520}\n",
+  "probe_stderr": "",
+  "probe_exit_code": 0,
+  "measurements": {
+    "datagrams_echoed": 117,
+    "datagrams_sent": 120,
+    "elapsed_ms": 5000,
+    "maximum_datagram_round_trip_us": 106161,
+    "maximum_datagram_size": 1162,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:49453/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "datagrams_missing": 3,
+  "relay_exit_code": 0,
+  "shutdown_method": "SIGTERM"
+}

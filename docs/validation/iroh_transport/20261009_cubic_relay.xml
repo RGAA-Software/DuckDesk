@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="22"
+	timestamp="2026-10-09T16:53:34"
+	>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="4.51384" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 11 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly
+[       OK ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly (0 ms)
+[ RUN      ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth
+[       OK ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth (0 ms)
+[ RUN      ] IrohVideoRateControl.PersistentRelayCongestionCanReduceBelowOneMegabitWithoutExceedingTheCeiling
+[       OK ] IrohVideoRateControl.PersistentRelayCongestionCanReduceBelowOneMegabitWithoutExceedingTheCeiling (0 ms)
+[ RUN      ] IrohVideoRateControl.LowRttDoesNotHideMediaQueueBackpressure
+[       OK ] IrohVideoRateControl.LowRttDoesNotHideMediaQueueBackpressure (0 ms)
+[----------...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="17.9892" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 15 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 15 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery (1052 ms)
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (1279 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsRe...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

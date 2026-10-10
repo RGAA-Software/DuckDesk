@@ -75,6 +75,8 @@ TEST(ClientStatistics, TransportLabelsFollowActualSnapshotAndLanguage) {
     for (const auto [transport, label] : std::array{std::pair{ClientStatisticsTransport::DirectUdp, ClientText::StatisticsDirectUdp},
                                                     std::pair{ClientStatisticsTransport::DirectWebSocket, ClientText::StatisticsDirectWebSocket},
                                                     std::pair{ClientStatisticsTransport::RelayWebSocket, ClientText::StatisticsRelayWebSocket},
+                                                    std::pair{ClientStatisticsTransport::Iroh, ClientText::StatisticsIroh},
+                                                    std::pair{ClientStatisticsTransport::RdpIroh, ClientText::StatisticsRdpIroh},
                                                     std::pair{ClientStatisticsTransport::Rdp, ClientText::StatisticsRdp}}) {
         for (const bool english : {false, true}) {
             const auto rows = BuildClientStatisticsRows({.transport = transport}, english);

@@ -18,7 +18,9 @@ std::string ByteMeasurement(const std::optional<std::uint64_t> bytes) {
 }  // namespace
 
 std::vector<ClientStatisticsRow> BuildClientStatisticsRows(const ClientStatisticsSnapshot& statistics, const bool english) {
-    const ClientText transportLabel{statistics.transport == ClientStatisticsTransport::Rdp               ? ClientText::StatisticsRdp
+    const ClientText transportLabel{statistics.transport == ClientStatisticsTransport::Iroh ? ClientText::StatisticsIroh
+                                    : statistics.transport == ClientStatisticsTransport::RdpIroh ? ClientText::StatisticsRdpIroh
+                                    : statistics.transport == ClientStatisticsTransport::Rdp               ? ClientText::StatisticsRdp
                                     : statistics.transport == ClientStatisticsTransport::RelayWebSocket  ? ClientText::StatisticsRelayWebSocket
                                     : statistics.transport == ClientStatisticsTransport::DirectWebSocket ? ClientText::StatisticsDirectWebSocket
                                                                                                          : ClientText::StatisticsDirectUdp};

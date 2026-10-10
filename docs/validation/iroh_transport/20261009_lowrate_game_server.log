@@ -1,0 +1,40 @@
+[2026-10-09 15:56:28.363][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=8819518 rtt_us=87896 path=2
+[2026-10-09 15:56:28.878][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=7055614 rtt_us=136517 path=2
+[2026-10-09 15:56:29.395][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=5644491 rtt_us=128423 path=2
+[2026-10-09 15:56:29.895][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=4515592 rtt_us=121409 path=2
+[2026-10-09 15:56:30.395][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=3612473 rtt_us=126287 path=2
+[2026-10-09 15:56:30.479][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=73 completed=184 failed=43 max_send_us=72532 path=2 rtt_us=112253 tx_packets=12775 tx_lost=0
+[2026-10-09 15:56:30.911][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2889978 rtt_us=49480 path=2
+[2026-10-09 15:56:31.428][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2311982 rtt_us=126085 path=2
+[2026-10-09 15:56:31.944][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1849585 rtt_us=128107 path=2
+[2026-10-09 15:56:32.445][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1479668 rtt_us=132955 path=2
+[2026-10-09 15:56:32.496][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=3.162 encoded_audio_pps=49.78 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:32.961][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1183734 rtt_us=121427 path=2
+[2026-10-09 15:56:33.478][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=946987 rtt_us=113254 path=2
+[2026-10-09 15:56:33.978][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=757589 rtt_us=62613 path=2
+[2026-10-09 15:56:35.479][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=201 completed=25 failed=75 max_send_us=172814 path=2 rtt_us=7550 tx_packets=13413 tx_lost=0
+[2026-10-09 15:56:37.497][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.18 video_mbps=3.197 encoded_audio_pps=47.79 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:40.495][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=249 completed=19 failed=32 max_send_us=174025 path=2 rtt_us=6917 tx_packets=14025 tx_lost=0
+[2026-10-09 15:56:42.498][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.171 encoded_audio_pps=49.39 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:43.610][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=909106 rtt_us=6989 path=2
+[2026-10-09 15:56:45.511][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=246 completed=14 failed=41 max_send_us=161243 path=2 rtt_us=6700 tx_packets=14589 tx_lost=0
+[2026-10-09 15:56:47.500][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.287 encoded_audio_pps=47.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:49.193][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=727284 rtt_us=95408 path=2
+[2026-10-09 15:56:50.511][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=239 completed=13 failed=48 max_send_us=179973 path=2 rtt_us=5596 tx_packets=15121 tx_lost=0
+[2026-10-09 15:56:52.501][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=3.048 encoded_audio_pps=54.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:54.276][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=872740 rtt_us=8651 path=2
+[2026-10-09 15:56:55.527][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=79 completed=218 failed=5 max_send_us=127195 path=2 rtt_us=6452 tx_packets=17058 tx_lost=0
+[2026-10-09 15:56:57.503][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=0.932 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:56:59.327][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1047288 rtt_us=8755 path=2
+[2026-10-09 15:57:00.528][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=0 completed=300 failed=0 max_send_us=43 path=2 rtt_us=5215 tx_packets=19300 tx_lost=0
+[2026-10-09 15:57:02.505][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=0.810 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:57:04.443][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1256745 rtt_us=5928 path=2
+[2026-10-09 15:57:05.544][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=0 completed=301 failed=0 max_send_us=2285 path=2 rtt_us=5315 tx_packets=21716 tx_lost=0
+[2026-10-09 15:57:07.509][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.96 video_mbps=0.806 encoded_audio_pps=50.17 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:57:08.510][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1005396 rtt_us=52303 path=2
+[2026-10-09 15:57:10.544][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=300 busy=0 completed=300 failed=0 max_send_us=2285 path=2 rtt_us=4819 tx_packets=24154 tx_lost=0
+[2026-10-09 15:57:12.511][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.18 video_mbps=1.324 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:57:13.593][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1206475 rtt_us=6120 path=2
+[2026-10-09 15:57:15.561][thread 20540][media_datagrams.cpp:26][info] : event=iroh.send_window offered=301 busy=0 completed=301 failed=0 max_send_us=2344 path=2 rtt_us=6155 tx_packets=26703 tx_lost=0
+[2026-10-09 15:57:17.513][thread 28416][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=1.411 encoded_audio_pps=49.98 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 15:57:18.693][thread 20032][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1447770 rtt_us=9931 path=2

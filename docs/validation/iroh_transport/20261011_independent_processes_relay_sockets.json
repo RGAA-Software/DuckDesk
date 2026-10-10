@@ -1,0 +1,18 @@
+[
+  {
+    "OwningProcess": 46244,
+    "LocalAddress": "192.168.31.6",
+    "LocalPort": 46945,
+    "RemoteAddress": "39.71.45.66",
+    "RemotePort": 4605,
+    "State": 5
+  },
+  {
+    "OwningProcess": 86740,
+    "LocalAddress": "192.168.31.6",
+    "LocalPort": 46821,
+    "RemoteAddress": "39.71.45.66",
+    "RemotePort": 4605,
+    "State": 5
+  }
+]

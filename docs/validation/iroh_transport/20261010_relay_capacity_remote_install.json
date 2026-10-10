@@ -1,0 +1,39 @@
+{
+  "before": {
+    "services": [
+      {
+        "Name": "Pixels.Console",
+        "status": "Running"
+      },
+      {
+        "Name": "Pixels.Relay",
+        "status": "Running"
+      },
+      {
+        "Name": "px_service",
+        "status": "Running"
+      }
+    ],
+    "renders": [
+      {
+        "Id": 54096,
+        "SessionId": 1
+      }
+    ],
+    "workspace_apps": [
+      {
+        "Id": 16496,
+        "SessionId": 2,
+        "started_utc": "2026-10-02T01:21:24.8049191Z"
+      }
+    ]
+  },
+  "installed": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "BBCDD73987E8D1B4615BCCFEE20C94B3AA9D152E501E223BAE11DE238AD1947F",
+    "manifest_sha256": "72B4B2B208E16F586091C670B2DA9188DF39E86113E37D352BA9F84D261631BE",
+    "setup_sha256": "E5497A340DB2F9A3DF37593ED66DDFD9149A743E28C67E56A74BE7948D2BE9D8"
+  }
+}

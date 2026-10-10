@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="10"
+	timestamp="2026-10-09T11:18:54"
+	>
+	<testcase name="iroh_sdk_connection" classname="iroh_sdk_connection" time="2.7944" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (654 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-09 11:18:56.321] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 11:18:56.322] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-09 11:18:56.322] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (554 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-09 11:18:56.574] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 11:18:56.604]...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="7.29866" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (251 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (5404 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (130 ms)
+[ RUN      ] IrohFrontendTest.Re...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

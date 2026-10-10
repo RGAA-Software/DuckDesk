@@ -1,0 +1,20 @@
+{
+  "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+  "session_id": "1706bd23-81b4-4146-bb8f-dd17622ee595",
+  "samples": [
+    "[2026-10-10 13:18:26.985][thread 61376][iroh_dialer.cpp:100][info] : event=iroh.connect outcome=accepted reconnect=false",
+    "[2026-10-10 13:18:27.204][thread 78084][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0",
+    "[2026-10-10 13:18:27.311][thread 78084][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=4",
+    "[2026-10-10 13:18:27.335][thread 33340][thunder_sdk.cpp:55][info] : [LAT-decode] frames=1 avg_us=18152 max_us=18152",
+    "[2026-10-10 13:18:27.608][thread 78084][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=5 source_gap_us=397366 receive_gap_us=297076 excess_us=0 assembly_call_us=11",
+    "[2026-10-10 13:18:27.608][thread 78084][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=5 gap_ms=297.1",
+    "[2026-10-10 13:18:28.119][thread 78084][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=6 source_gap_us=516888 receive_gap_us=510909 excess_us=0 assembly_call_us=5",
+    "[2026-10-10 13:18:28.119][thread 78084][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=6 gap_ms=510.9",
+    "[2026-10-10 13:18:55.372][thread 78084][media_datagrams.cpp:300][info] : event=iroh.reassembly stream=0 data=80 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=10 loss=0 malformed=0",
+    "[2026-10-10 13:18:55.372][thread 78084][media_datagrams.cpp:289][info] : event=iroh.frame_transit stream=0 frame=14 source_gap_us=27050088 receive_gap_us=27045280 excess_us=2730 assembly_call_us=11",
+    "[2026-10-10 13:18:55.372][thread 78084][iroh_connection.cpp:28][info] : event=iroh.received_frame phase=gap stream=0 frame=14 gap_ms=27045.3",
+    "[2026-10-10 13:18:55.372][thread 78084][iroh_connection.cpp:43][info] : event=iroh.path path=relay open_paths=1 rtt_us=29080 tx_packets=5124 rx_packets=5243 tx_lost=0 tx_datagrams=498 rx_datagrams=83",
+    "[2026-10-10 13:18:55.372][thread 78084][iroh_connection.cpp:46][info] : iroh media receive window: stream=0, frames=11, fps=0.4, max_gap_ms=27045.3, gaps_gt_100ms=3, idr=0, rfi=0",
+    "[2026-10-10 13:18:55.373][thread 33340][thunder_sdk.cpp:55][info] : [LAT-decode] frames=10 avg_us=1341 max_us=2248"
+  ]
+}

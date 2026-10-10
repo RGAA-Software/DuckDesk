@@ -1,0 +1,15 @@
+[2026-10-09 14:38:04.121][thread 36892][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.96 video_mbps=6.813 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 14:38:06.675][thread 27276][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2691504 rtt_us=9619 path=2
+[2026-10-09 14:38:06.676][thread 27276][nvenc_video_encoder.cpp:200][info] : NvEnc Reconfigure success, to: fps: 60, size: 1920x1080 bps: 2691504
+[2026-10-09 14:38:09.123][thread 36892][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=6.902 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 14:38:10.759][thread 27276][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2153203 rtt_us=103255 path=2
+[2026-10-09 14:38:10.759][thread 27276][nvenc_video_encoder.cpp:200][info] : NvEnc Reconfigure success, to: fps: 60, size: 1920x1080 bps: 2153203
+[2026-10-09 14:38:11.261][thread 27276][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=1722562 rtt_us=171709 path=2
+[2026-10-09 14:38:12.760][thread 27276][nvenc_video_encoder.cpp:200][info] : NvEnc Reconfigure success, to: fps: 60, size: 1920x1080 bps: 1722562
+[2026-10-09 14:38:14.126][thread 36892][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.96 video_mbps=7.227 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 14:38:16.360][thread 27276][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2067074 rtt_us=6428 path=2
+[2026-10-09 14:38:16.360][thread 27276][nvenc_video_encoder.cpp:200][info] : NvEnc Reconfigure success, to: fps: 60, size: 1920x1080 bps: 2067074
+[2026-10-09 14:38:19.129][thread 36892][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=60.17 video_mbps=6.861 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled
+[2026-10-09 14:38:21.443][thread 27276][iroh_session.cpp:166][info] : event=iroh.encoder_budget ceiling_bps=14952800 video_bps=2480488 rtt_us=6268 path=2
+[2026-10-09 14:38:21.443][thread 27276][nvenc_video_encoder.cpp:200][info] : NvEnc Reconfigure success, to: fps: 60, size: 1920x1080 bps: 2480488
+[2026-10-09 14:38:24.132][thread 36892][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.76 video_mbps=6.969 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled

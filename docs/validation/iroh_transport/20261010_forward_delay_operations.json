@@ -1,0 +1,25 @@
+{
+  "device": "428358431",
+  "enable": "c352ea6b-b7a0-4963-9335-5e01fae39c7e",
+  "enable_result": "exit 0 with output_drain_timeout; not replayed; verified by separate read",
+  "verify": "8b209858-031c-4a08-ae44-9b116c00316b",
+  "state": {
+    "relay_pid": 54032,
+    "relay_path": "D:\\112233\\iroh-native-validation-20261009\\px_relay_probe.exe",
+    "relay_started": "2026-10-10T01:16:45.7784114Z",
+    "original_hash": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "configured_hash": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA"
+  },
+  "console": "Running",
+  "render_count": 1,
+  "cleanup_pending": false,
+  "upload": "ab271f52-f8d2-4148-bf4e-00b621de92fb",
+  "install": "f3f5e17b-78c4-4463-a0d0-cd594685c21b",
+  "first_direct_log": "c48e8afc-10c1-4b30-a04a-d6264d0d904c",
+  "repeat_direct_log": "2f4583a4-e908-47d1-b3d2-8311bcce8718",
+  "feedback_age_upload": "7f25c348-8930-49a7-adce-5a02b3d1e683",
+  "feedback_age_install": "a4c4712e-3aaf-47b3-afd1-0154ef63e29b",
+  "feedback_age_direct_log": "999bb9d5-225b-41ce-a887-a497685c7a2f",
+  "cleanup": "188e2f25-f9d6-4738-9441-32fcf16c75d6",
+  "https_after_cleanup": {"status": 200, "certificate_required": true, "hostname_verified": true}
+}

@@ -1,0 +1,15 @@
+{
+  "candidate": "iroh-backpressure-recovery-20261009",
+  "upload_operation": "484e6bde-242c-4809-a8b0-0d4a91a83faf",
+  "install_operation": "9de097c4-9d37-4b5d-a945-63c9e41fb5f3",
+  "verification": {
+    "installed_version": "3.3.97",
+    "verified_artifacts": 314,
+    "service_status": "Running",
+    "render_sha256": "FE7186BB8B865643CF62D3565FA01F7FCF1DD74104B367A8DD05645405CD8CC6",
+    "manifest_sha256": "E728B7FFAB7AB1BCDC5D1021041D95F11F03438BDDD0473E4D013F53CB137531",
+    "setup_sha256": "222E438A37A50BCE9B9DF788E5E867C1A66238B29FA527BBD57A0C54A1E873DD"
+  },
+  "development_render_sha256": "A276B98E74E1EAF17C5D1CD25DA0A31C7D6BA21A3C11086FD176F0E1529A1561",
+  "development_render_build_dist_match": true
+}

@@ -73,6 +73,7 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
         recording_cache_root,
         recording_cache_options,
         relay_admission,
+        iroh,
         release,
         license,
         license_config,
@@ -89,6 +90,7 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
         RuntimeResources {
             recording_cache: Some((recording_cache_root, recording_cache_options)),
             relay_admission,
+            iroh,
             release,
             backup_control_token: std::env::var("PIXELS_CONSOLE_BACKUP_CONTROL_TOKEN")
                 .ok()

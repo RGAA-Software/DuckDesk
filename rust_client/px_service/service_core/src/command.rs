@@ -12,6 +12,7 @@ pub enum Command {
         /// Render-owned logical session snapshot, serialized JSON. It is not
         /// interpreted by the privileged Service process.
         logical_sessions_json: String,
+        iroh_description_json: String,
     },
     CtrlAltDelete {
         req_device_id: String,
@@ -103,6 +104,7 @@ pub fn dispatch_message(bytes: &[u8]) -> Result<DispatchResult, String> {
                 index: heart_beat.index,
                 from: heart_beat.from,
                 logical_sessions_json: heart_beat.logical_sessions_json,
+                iroh_description_json: heart_beat.iroh_description_json,
             }
         }
         ServiceMessageType::ReqCtrlAltDelete => {
@@ -313,6 +315,7 @@ mod tests {
                 index: 42,
                 from: "panel".to_string(),
                 logical_sessions_json: String::new(),
+                iroh_description_json: String::new(),
             }
         );
     }

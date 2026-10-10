@@ -1,0 +1,127 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-205821-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 1610612736,
+  "cancel_retry": false,
+  "instance_id": "41654e55-982c-405b-bda6-2ca343dfb8c2",
+  "started_at": "2026-10-10 20:58:23",
+  "posted_input_messages": 3264,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261010-205821-relay\\mixed-5.png"
+  ],
+  "elapsed_seconds": 61.08,
+  "exit_code": 0,
+  "source_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "download_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 303,
+      "fps": 60.6,
+      "max_gap_ms": 27.8,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 50.1,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 30.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 27.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 67.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 45.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 23.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 59.9,
+      "max_gap_ms": 34.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 40.1,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 95.0,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 40.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 32.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "selected_paths": [
+    "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+  ]
+}

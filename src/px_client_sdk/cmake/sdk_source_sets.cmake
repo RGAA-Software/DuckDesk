@@ -2,6 +2,7 @@
 # The session layer still contains legacy platform-aware public parameter/frame
 # types. Concrete decoder construction belongs only to the selected adapter.
 set(PX_SDK_CORE_SOURCES
+    encoded_video_delivery.cpp
     sdk_voice_protocol.cpp
     sdk_net_client.cpp
     sdk_stream_helper.cpp

@@ -76,7 +76,7 @@ namespace px
         static bool IsEncoderFriendlyFormat(DXGI_FORMAT format);
         bool EnsureConvertShaders();
         bool BlitConvertToBgra(const ComPtr<ID3D11Texture2D>& src);
-        ComPtr<ID3D11Texture2D> OpenSharedTexture(HANDLE handle);
+        ComPtr<ID3D11Texture2D> OpenSharedTexture(std::uint64_t handle_value);
         // 缓存按 handle 打开的共享纹理:对 11on12(D3D12 游戏)共享资源每帧
         // open/close 会导致 GPU device removed (TDR),必须与 OBS 一样长期持有。
         ComPtr<ID3D11Texture2D> opened_shared_texture_ = nullptr;

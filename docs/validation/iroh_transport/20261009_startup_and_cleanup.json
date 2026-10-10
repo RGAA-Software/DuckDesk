@@ -1,0 +1,16 @@
+{
+  "installed_candidate": "iroh-budget-ready-20261009",
+  "repeated_webview_descriptor_ready_seconds": [1.720, 1.370, 0.753],
+  "all_three_business_connections_succeeded": true,
+  "owned_instances_sessions_and_guests_cleaned": true,
+  "console_restore_operation": "20b81b70-f797-43d9-ad46-5de26158388f",
+  "restored_console_config_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "test_relay_cleanup_operation": "3217d507-f9e9-40b6-a9bc-6bd4e5a90339",
+  "remote_test_relay_pid": 28420,
+  "remote_test_relay_stopped_after_exact_path_check": true,
+  "console_service": "Running",
+  "node_service": "Running",
+  "remaining_remote_renders": 1,
+  "voice_runtime_installed_on_90": false,
+  "voice_runtime_development_dist_published": true
+}

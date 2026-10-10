@@ -1,0 +1,13 @@
+{
+  "downloaded_at": "2026-10-11T00:22:48.8653929+08:00",
+  "hardware_id": "PCI\\VEN_10EC&DEV_8168&SUBSYS_E0001458&REV_16",
+  "os": "Windows 10 x64 19045",
+  "installed_version": "10.43.723.2020",
+  "downloaded_version": "10.68.815.2023",
+  "source": "https://download.gigabyte.com/FileList/Driver/mb_driver_542_w10_10.068.0815.2023.zip",
+  "zip_sha256": "8E645887623EFA2CCCC35FFFDA63BB9D43F23F030F5CC9D1BB40A0418350401E",
+  "setup": "D:\\Downloads\\Realtek-LAN-20261011\\DriverFiles\\setup.exe",
+  "setup_signature": "Valid",
+  "catalog_signature": "Valid",
+  "installed": false
+}

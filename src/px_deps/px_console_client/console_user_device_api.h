@@ -7,6 +7,7 @@
 
 #include <map>
 #include <memory>
+#include "px_common/iroh_connection_description.h"
 #include <string>
 #include <tuple>
 #include <vector>
@@ -26,6 +27,7 @@ struct ConsoleNativeDeviceConnection final {
     std::string session_id{};
     std::int64_t session_revision{};
     std::shared_ptr<const px::SecretBuffer> frontend_token{};
+    std::optional<px::IrohConnectionDescription> iroh{};
     std::string relay_host{};
     int relay_port{};
     std::string relay_admission_ticket{};

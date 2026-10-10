@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-10-11T01:05:28.0947700+08:00",
+  "processes": [
+    {
+      "Id": 12556,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "services": [
+    {
+      "Name": "Pixels.Console",
+      "Status": 4
+    },
+    {
+      "Name": "Pixels.Relay",
+      "Status": 4
+    },
+    {
+      "Name": "px_service",
+      "Status": 4
+    }
+  ],
+  "auto_file_exists": false,
+  "relay_file_exists": false,
+  "resets": []
+}

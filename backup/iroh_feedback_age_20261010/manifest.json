@@ -1,0 +1,18 @@
+[
+  {
+    "path": "src/px_transport/video_flight_window.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/video_flight_window.h",
+    "sha256": "5336446CDDA95E313C426DCE033A2F0B0FA3D8791A416E4C5936517A39D12A3D",
+    "reason": "Remove redundant receipt-age capture gate with byte/frame capacity still free",
+    "batch": "iroh_feedback_age_20261010"
+  },
+  {
+    "path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "sha256": "E24B00DB845790C3B61050E469E2C8F53F709BF017A5962297736B1568864939",
+    "reason": "Remove redundant receipt-age capture gate with byte/frame capacity still free",
+    "batch": "iroh_feedback_age_20261010"
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "time": "2026-10-11T00:17:12.1659930+08:00",
+  "render_sha256": "785DDEBB55324033DE8B6227411347F1E78EB8036E2D3F32A1E10A74DB767222",
+  "render_processes": [
+    {
+      "Id": 12556
+    }
+  ],
+  "services": [
+    {
+      "name": "Pixels.Console",
+      "status": "Running"
+    },
+    {
+      "name": "Pixels.Relay",
+      "status": "Running"
+    },
+    {
+      "name": "px_service",
+      "status": "Running"
+    }
+  ],
+  "owned_files": [],
+  "ndis_resets": []
+}

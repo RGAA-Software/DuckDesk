@@ -1,0 +1,76 @@
+{
+  "cloud_node": {
+    "version": "3.3.97",
+    "installed_verified_artifacts": 314,
+    "installer": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-dynamic-relays-20261010\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+      "sha256": "1D6E823B90A292028F61D047C13E290B2E41866B40F1EC21E5FC3809F9679D33"
+    },
+    "manifest": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-dynamic-relays-20261010\\installer\\3.3.97\\app\\sha256sums.json",
+      "sha256": "613D3CADB0059EB697D001B764610D9ADA8EE7A2724F831C7FDDDFFD566AA491"
+    },
+    "render": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-dynamic-relays-20261010\\installer\\3.3.97\\app\\px_render.exe",
+      "sha256": "B1B613903E98329D10222A4EF97DC2F248F0A93DB41704AED40303C4331BF1B4"
+    },
+    "service": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-dynamic-relays-20261010\\installer\\3.3.97\\app\\px_service.exe",
+      "sha256": "406D50144FBB808A23B191F1852BC50D4EC955848C748A648FD58C98F7CAA9AC"
+    }
+  },
+  "server": {
+    "version": "1.0.55",
+    "installed_verified_artifacts": 35,
+    "installer": {
+      "path": "C:\\Users\\chess\\AppData\\Local\\PixelsRelayBuild\\console-dynamic-relays-20261010\\PixelsServer_1.0.55_Setup.exe",
+      "sha256": "620806E4CE183075AD7A6758D5C5F841AC2381875807593D2AE48E2412BC9891"
+    },
+    "manifest": {
+      "path": "C:\\Users\\chess\\AppData\\Local\\PixelsRelayBuild\\console-dynamic-relays-20261010\\package\\sha256.json",
+      "sha256": "4C0BDB5E3E4E40D14E1220CCF24190BBC8469C6F5521BB03AEE4780C5D396B13"
+    }
+  },
+  "development": {
+    "client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "40B4E12FEB1ECCD530F7CBAF252E8214FEF8DDEF6F1D2A95FA518086A2AA3D99"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "40B4E12FEB1ECCD530F7CBAF252E8214FEF8DDEF6F1D2A95FA518086A2AA3D99"
+      }
+    },
+    "cloud_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "418B363FCBBDC394562B40C9D8DD2699039AC67761D4F8433D5DFAC98620D47A"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "418B363FCBBDC394562B40C9D8DD2699039AC67761D4F8433D5DFAC98620D47A"
+      }
+    },
+    "render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "059505AA6D7090E0E4E755CB6B2649EC0C0ADD9B2D6E8619FB1FB1750AADBEE2"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "059505AA6D7090E0E4E755CB6B2649EC0C0ADD9B2D6E8619FB1FB1750AADBEE2"
+      }
+    },
+    "service": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\px_service.exe",
+        "sha256": "97C53D876F7C96366D437DC7652617668669013E54C726CCF11038C68479F586"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_service.exe",
+        "sha256": "97C53D876F7C96366D437DC7652617668669013E54C726CCF11038C68479F586"
+      }
+    }
+  }
+}

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="4"
+	failures="1"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="11"
+	timestamp="2026-10-09T15:27:12"
+	>
+	<testcase name="iroh_transport" classname="iroh_transport" time="5.04552" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from IrohTransport
+[ RUN      ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection
+[       OK ] IrohTransport.ReliableStreamAndDatagramShareAnAuthenticatedConnection (4082 ms)
+[ RUN      ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes
+[       OK ] IrohTransport.CloseInterruptsPendingReceiveAndRepeatedEndpointLifetimes (315 ms)
+[ RUN      ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries
+[       OK ] IrohTransport.IndependentBusinessChannelsPreserveMessageBoundaries (149 ms)
+[----------] 3 tests from IrohTransport (4548 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (4548 ms total)
+[  PASSED  ] 3 tests.
+</system-out>
+	</testcase>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="0.837263" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 8 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly
+[       OK ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly (0 ms)
+[ RUN      ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth
+[       OK ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth (0 ms)
+[----------] 2 tests from IrohVideoRateControl (0 ms total)
+
+[----------] 5 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[2026-10-09 15:27:18.051] [info] [media_datagrams.cpp:159] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams (122 ms)
+[ RUN      ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+[2026-10-09 15:27:18.137] [info] [media_datagrams.cpp:159] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind (55 ms)
+[ RUN      ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+[2026-10-09 15:27:18.187] [info] [media_datagrams.cpp:159] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(214): error: Expected equality of these values:
+  probe_-&gt;sends_failed
+    Which is: 0
+  1
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(215): error: Value of: probe_-&gt;video.empty()
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic (89 ms)
+[ RUN      ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+[2026-10-09 15:27:18.273] [info] [media_datagrams.cpp:159] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[       OK ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery (48 ms)
+[ RUN      ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+[2026-10-09 15:27:18.345] [info] [media_datagrams.cpp:159] event=iroh.reassembly stream=1 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0
+[2026-10-09 15:27:18.371] [warning] [thread.cpp:151] Thread iroh-media-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-09 15:27:18.371] [warning] [thread.cpp:151] Thread iroh-media-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[       OK ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection (94 ms)
+[----------] 5 tests from IrohMediaTest (410 ms total)
+
+[----------] 1 test from IrohVoiceDatagram
+[ RUN      ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages
+[       OK ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages (0 ms)
+[----------] 1 test from IrohVoiceDatagram (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 3 test suites ran. (410 ms total)
+[  PASSED  ] 7 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+
+ 1 FAILED TEST
+</system-out>
+	</testcase>
+	<testcase name="iroh_sdk_connection" classname="iroh_sdk_connection" time="2.9703" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (861 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-09 15:27:20.510] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 15:27:20.528] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-09 15:27:20.528] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (371 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-09 15:27:20.802] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 15:27:20.802]...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="2.62259" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 14 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 14 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (116 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (71 ms)
+[ RUN      ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(272): Skipped
+Requires the owned-Relay outage harness
+
+[  SKIPPED ] ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

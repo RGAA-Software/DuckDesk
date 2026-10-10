@@ -1,0 +1,27 @@
+{
+  "product": "cloud_node",
+  "version": "3.3.97",
+  "candidate": "iroh-relay-queue-20261010",
+  "setup_sha256": "D994ED3D634FFF9018022BBA749153A52226674182BB8C41EB22697D9A43DBF3",
+  "manifest_sha256": "FAD8AC72D7A5F35BD6D09D25EA0D2B2BB8F62C026DBEA199E644118BAC97DD99",
+  "installed_render_sha256": "62B59B1BF6794501BF5F5D017929484A479EC1D5106F63BCBDA2873165FB3841",
+  "installed_artifacts_verified": 314,
+  "service_status": "Running",
+  "client_development_build_dist_sha256": "AED508F11BD35FE76C7B2DFD4F45D017CFC126C312423EA9CF5A24914F4E2072",
+  "render_development_build_dist_sha256": "7915D06C2F4D9A77FB6165E744EFFE0EEC860EAFC290A7BB51BC211A439CEC8F",
+  "device_code": "428358431",
+  "installer_path": "D:/112233/PixelsCloudNode-relay-queue-20261010.exe",
+  "cloud_node_client_development_build_dist_sha256": "3FD075BB04F83F0C091C6FAFED4C44B7E896AB517C67BEB94611D84EFDB7F6FB",
+  "cleanup": {
+    "services": "Pixels.Console, Pixels.Relay, px_service Running",
+    "relays": "90 and BJ ready/fresh",
+    "relay_generations": [
+      79,
+      5
+    ],
+    "remaining_render": "desktop only, PID 53288",
+    "owned_instance_and_client": "stopped",
+    "trace_environment": "removed",
+    "persistent_configuration_hashes_unchanged": true
+  }
+}

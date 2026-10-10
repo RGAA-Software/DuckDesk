@@ -171,6 +171,14 @@ namespace px
     }
 
     void EncoderThread::EncodeOnWorker(CaptureVideoFrame cap_video_msg) {
+        if (settings_.IsGameHookMode()) {
+            const auto encoded_index = game_hook_frame_sequences_[cap_video_msg.display_name_].Assign(cap_video_msg.frame_index_);
+            if (!encoded_index) {
+                LOGE("Game-hook encoder frame sequence exhausted: monitor={}", cap_video_msg.display_name_);
+                return;
+            }
+            cap_video_msg.frame_index_ = *encoded_index;
+        }
         const auto target_fps = FrameRate();
         const auto task_started_at_ms = TimeUtil::GetCurrentTimestamp();
         struct TaskDiagnosticsGuard {
@@ -220,8 +228,12 @@ namespace px
         auto frame_index = cap_video_msg.frame_index_;
         // auto adapter_uid = cap_video_msg.adapter_uid_;
         auto monitor_name = std::string(cap_video_msg.display_name_);
+        // Update congestion control even while capture admission is paused.
+        const auto effective_bitrate = module_registry_->EffectiveVideoBitrate(
+            static_cast<std::uint64_t>(std::max(1, settings->encoder_.bitrate_)) * 1'000'000);
         const bool admit_frame = frame_admission_[monitor_name].Admit(
-            render::FrameRateAdmission::Clock::now(), target_fps);
+            render::FrameRateAdmission::Clock::now(), module_registry_->EffectiveVideoFrameRate(target_fps)) &&
+                                 module_registry_->CanEncodeVideo(monitor_name);
         if (!admit_frame && cap_video_msg.handle_ == 0) return;
         bool frame_meta_info_changed =
             [&]() {
@@ -282,10 +294,6 @@ namespace px
             pending_frame_size_.erase(monitor_name);
             pending_frame_size_since_ms_.erase(monitor_name);
         }
-        const auto effective_bitrate = module_registry_->EffectiveVideoBitrate(
-            static_cast<std::uint64_t>(
-                std::max(1, settings->encoder_.bitrate_)) *
-            1'000'000);
         bool bitrate_changed{};
         if (target_encoder) {
             auto encoder_config_res =
@@ -318,6 +326,12 @@ namespace px
         const bool switched_to_hevc =
             (effective_format == Encoder::EncoderFormat::kHEVC &&
              encoder_format_ != Encoder::EncoderFormat::kHEVC);
+
+        if (target_encoder && bitrate_changed && !frame_rate_changed && !full_color_mode_changed && !frame_meta_info_changed &&
+            encoder_format_ == effective_format && target_encoder->IsEnabled() &&
+            target_encoder->TryUpdateBitrate(monitor_name, static_cast<std::uint32_t>(effective_bitrate))) {
+            bitrate_changed = false;
+        }
 
         if (bitrate_changed || frame_rate_changed || full_color_mode_changed ||
             frame_meta_info_changed || encoder_format_ != effective_format ||
@@ -379,6 +393,9 @@ namespace px
                 px::ENvdiaEncMultiPass::kMultiPassDisabled;
             encoder_config.rate_control_mode =
                 px::ERateControlMode::kRateControlModeCbr;
+            // The generic QP-36 quality floor can exceed a reduced network budget on
+            // complex scenes. Let CBR use the full quantizer range to meet that budget.
+            encoder_config.max_qp = 51;
             encoder_config.sample_desc_count = 1;
             encoder_config.supports_intra_refresh = true;
             // frame carrier 会把非 8bit 捕获格式(如 UE5 D3D12 的 R10G10B10A2)

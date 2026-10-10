@@ -1,0 +1,127 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-200626-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 1610612736,
+  "cancel_retry": false,
+  "instance_id": "fc673c4d-8599-4e5f-92d3-0b91a7a47c9e",
+  "started_at": "2026-10-10 20:06:30",
+  "posted_input_messages": 3300,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-3.png",
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-4.png",
+    ".cache\\iroh-native-live-20261010-200626-relay\\mixed-5.png"
+  ],
+  "elapsed_seconds": 61.081,
+  "exit_code": 0,
+  "source_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "download_sha256": "ad2e739e4081bb1a800bfa3dbee055a23663815fadd36f639a6bc4d491ee67da",
+  "actual_paths": [
+    "relay"
+  ],
+  "media_windows": [
+    {
+      "frames": 258,
+      "fps": 51.4,
+      "max_gap_ms": 520.6,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 152,
+      "fps": 30.3,
+      "max_gap_ms": 466.1,
+      "gaps_gt_100ms": 8,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 232,
+      "fps": 46.2,
+      "max_gap_ms": 246.2,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 222,
+      "fps": 44.2,
+      "max_gap_ms": 243.9,
+      "gaps_gt_100ms": 3,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 156,
+      "fps": 31.0,
+      "max_gap_ms": 586.3,
+      "gaps_gt_100ms": 5,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 140,
+      "fps": 27.9,
+      "max_gap_ms": 212.1,
+      "gaps_gt_100ms": 7,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 216,
+      "fps": 43.1,
+      "max_gap_ms": 289.5,
+      "gaps_gt_100ms": 6,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 287,
+      "fps": 57.3,
+      "max_gap_ms": 51.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 243,
+      "fps": 48.2,
+      "max_gap_ms": 496.2,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 188,
+      "fps": 37.4,
+      "max_gap_ms": 89.9,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 188,
+      "fps": 37.6,
+      "max_gap_ms": 628.3,
+      "gaps_gt_100ms": 4,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 248,
+      "fps": 49.4,
+      "max_gap_ms": 58.3,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "report_recovery": "Initial JSON fields retained in prior tool output; media reconstructed from retained Client log 20:06:30\u201320:07:34; hashes and acceptance PASS rechecked from original files after outage report path collision.",
+  "functional_transfer_passed": true,
+  "performance_acceptance_passed": false,
+  "acceptance_scope": "File success is not latency acceptance; direct retains two >100 ms gaps, Relay has reproducible mixed-load stutter, and injected outage gaps are reported separately."
+}

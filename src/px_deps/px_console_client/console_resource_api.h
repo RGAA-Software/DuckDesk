@@ -1,5 +1,7 @@
 #pragma once
 
+#include "px_common/iroh_connection_description.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -31,6 +33,7 @@ struct ConsoleResourceConnection final {
     std::shared_ptr<const px::SecretBuffer> frontend_token{};
     std::string transport{};
     std::shared_ptr<const px::SecretBuffer> rdp_configuration{};
+    std::optional<px::IrohConnectionDescription> iroh{};
     std::string relay_host{};
     int relay_port{};
     std::string relay_admission_ticket{};

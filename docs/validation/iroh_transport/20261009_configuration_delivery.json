@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-09",
+  "development_artifacts": [
+    {
+      "product": "client",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "8419207B39893C51A32062D38168A98DC188DE01354A7179700A029134035230"
+    },
+    {
+      "product": "client",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe",
+      "sha256": "F84C5808395A7952EF98009691A7DBFE9D183565EDB219DC75F30EB62870A629"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "1D5F95355EA8A70BE766DE6D9A5C6D7F2BABACC8514F5E69D2E2E2A45F105138"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_panel.exe",
+      "sha256": "38BD72556B5C966243A042092CD4BE42C8B63B52F850A1A5C7A5DF5A016FA8F2"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+      "sha256": "AE7613B17890448837DC196AB63CDC61FE979206662EC112C712BC5A8F0E2CC2"
+    },
+    {
+      "product": "cloud_node",
+      "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\px_service.exe",
+      "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_service.exe",
+      "sha256": "A798B2104CA8DFAF36194E02BEC4D7B2C44F9A9F00EE6C0703D38F99E8B67C17"
+    }
+  ],
+  "checks": {
+    "node_protocol": 6,
+    "console_iroh_configuration": 1,
+    "service_iroh": 2,
+    "node_authentication_configuration": 1,
+    "postgres_sessions": 20,
+    "postgres_report": "test-results/server_validation/pg-20261009-123016-926d8c94/report.json",
+    "panel_product": "passed",
+    "https_resource_lifecycle_scenarios": 11,
+    "client_dist_artifacts_verified": 40,
+    "cloud_node_published_manifest_artifacts": 277
+  },
+  "remote_installation_this_checkpoint": false,
+  "production_default_switched": false,
+  "checkpoint": "Console private Relay configuration and endpoint readiness",
+  "development_dist_limitation": "Cloud Node development dist is a focused tree: strict full-product verification reports existing absent RDP host DLLs. The 277 published artifact hashes were checked by the publisher; full installation validation will use the complete official candidate package with RDP artifacts.",
+  "media_receive_diagnostics": "Per-stream five-second delivered encoded-frame rate, maximum inter-frame gap, gaps over 100ms, IDR and reference recovery requests. These are receive metrics, not displayed FPS."
+}

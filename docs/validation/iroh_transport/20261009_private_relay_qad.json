@@ -1,0 +1,62 @@
+{
+  "local_relay": {
+    "datagrams_echoed": 120,
+    "datagrams_sent": 120,
+    "elapsed_ms": 1989,
+    "maximum_datagram_round_trip_us": 19115,
+    "maximum_datagram_size": 1288,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://127.0.0.1:14618/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "local_direct": {
+    "datagrams_echoed": 120,
+    "datagrams_sent": 120,
+    "elapsed_ms": 1994,
+    "maximum_datagram_round_trip_us": 12698,
+    "maximum_datagram_size": 1162,
+    "paths": "PathList { snapshot: State { list: [PathData(0, ip:172.23.48.1:51471), PathData(9, relay:https://127.0.0.1:14618/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "cross_machine_direct": {
+    "datagrams_echoed": 116,
+    "datagrams_sent": 120,
+    "elapsed_ms": 5007,
+    "maximum_datagram_round_trip_us": 163652,
+    "maximum_datagram_size": 1162,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4618/), PathData(1, ip:39.71.45.66:60485)], selected: Some(PathId(1)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "cross_machine_relay": {
+    "datagrams_echoed": 113,
+    "datagrams_sent": 120,
+    "elapsed_ms": 5004,
+    "maximum_datagram_round_trip_us": 418559,
+    "maximum_datagram_size": 1162,
+    "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4618/)], selected: Some(PathId(0)), closed: false }, .. }",
+    "reliable_bytes_verified": 6291520
+  },
+  "configuration": {
+    "relay": "https://39.71.45.66:4618",
+    "qad_udp_port": 4618,
+    "temporary_test_certificate": true,
+    "relay_token_added": false,
+    "remote_workspace": "D:\\112233",
+    "remote_advertised_ips": [
+      "10.0.0.90:60485",
+      "39.71.45.66:60485"
+    ]
+  },
+  "cleanup": {
+    "remote_relay_operation": "ca481a2c-4d58-48cf-b6d3-7e4ff0c90618",
+    "remote_relay_state": "cancelled",
+    "remote_echo_operations": [
+      "dabd148c-1115-409f-8b5f-ac3201a34d6e",
+      "cdac2965-688d-482d-ae6d-a06829150ea9"
+    ],
+    "remote_echo_states": [
+      "succeeded",
+      "succeeded"
+    ],
+    "local_relay_stopped": true
+  }
+}

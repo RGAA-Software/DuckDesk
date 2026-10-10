@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-171916-auto",
+  "transport_requested": "iroh-relay",
+  "bytes": 8388864,
+  "cancel_retry": true,
+  "instance_id": "8b8874c3-d8e6-4109-a8aa-0719985746a3",
+  "exit_code": 0,
+  "source_sha256": "3b5013c594c83f64be0f38fb5a63c21f4e59141933c56b26d4dd2e480be6fddb",
+  "download_sha256": "3b5013c594c83f64be0f38fb5a63c21f4e59141933c56b26d4dd2e480be6fddb",
+  "path_evidence": "force_relay=true with iroh configuration and accepted iroh admission; short run may finish before periodic path metric"
+}

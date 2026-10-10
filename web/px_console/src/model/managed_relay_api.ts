@@ -19,6 +19,7 @@ export interface ManagedRelay {
     current_connections: number | null;
     max_rooms: number | null;
     current_rooms: number | null;
+    iroh_qad_port: number | null;
     uploaded_bytes: number | null;
     forwarded_bytes: number | null;
     fresh: boolean;

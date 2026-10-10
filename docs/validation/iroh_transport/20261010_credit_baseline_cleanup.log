@@ -1,0 +1,5 @@
+{"services":[{"name":"Pixels.Console","status":"Running"},{"name":"Pixels.Relay","status":"Running"},{"name":"px_service","status":"Running"}],"renders":[{"desktop":true,"pid":19200}],"owned_files":[],"render_sha256":"83EE1980EDEA6620DA8C0155E5A99598DCC321F6E476D785A378CBAB1FC491FF"}
+
+数据包监视器没有运行。
+数据包筛选器:
+    无

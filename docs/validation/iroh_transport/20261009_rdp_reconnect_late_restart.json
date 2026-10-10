@@ -1,0 +1,24 @@
+[
+  {
+    "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "name": "RDP 桌面",
+    "kind": "rdp",
+    "instance_id": "61c4a927-458e-4b93-a45c-8aa0e66b434b",
+    "client_pid": 83324,
+    "drag": {
+      "method": "observe RDP reconnect without modifying workspace"
+    },
+    "samples": [
+      "[2026-10-09 15:45:08.094][thread 53184][iroh_dialer.cpp:100][info] : event=iroh.connect outcome=accepted reconnect=false",
+      "[2026-10-09 15:45:08.342][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:45:08.375][thread 24236][rdp_session.cpp:508][info] : event=rdp.desktop.resize width=1440 height=900",
+      "[2026-10-09 15:45:18.361][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=9 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:45:28.448][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=32 in_flight=0 dirty=false display_channel=false",
+      "[2026-10-09 15:45:38.454][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=32 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:45:48.463][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=32 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:45:58.468][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=32 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:46:08.565][thread 24236][rdp_session.cpp:524][info] : event=rdp.frame.progress published=32 in_flight=0 dirty=false display_channel=true",
+      "[2026-10-09 15:46:13.765][thread 53184][iroh_dialer.cpp:106][warning] : event=iroh.connect outcome=network_lost action=readmit"
+    ]
+  }
+]

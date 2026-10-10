@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "client_audio_output.h"
+#include "client_iroh_reconnect.h"
 #include "client_session.h"
 #include "ct_virtual_display_protocol.h"
 #include "px_client_sdk/platform/voice_audio_endpoint_port.h"
@@ -48,7 +49,9 @@ bool ClientSession::InitializeRdp() {
     if (!listener_) return false;
     px::SdkConnectionParams params{};
     params.session_mode_ = px::SdkSessionMode::kRdp;
-    params.media_transport_ = px::SdkMediaTransport::kWebSocket;
+    params.iroh_ = BuildClientIrohParameters(config_);
+    BindClientIrohRefresh(params.iroh_, config_);
+    params.media_transport_ = params.iroh_ ? px::SdkMediaTransport::kIroh : px::SdkMediaTransport::kWebSocket;
     params.ip_ = config_.host;
     params.port_ = config_.port;
     params.stream_id_ = config_.streamId;
@@ -59,11 +62,14 @@ bool ClientSession::InitializeRdp() {
     rdpNetwork_ = std::make_shared<px::NetClient>(std::move(params), notifier_);
     rdpTimer_ = std::make_shared<px::SdkTimer>(notifier_);
     const std::weak_ptr<ClientSession> weakSelf{shared_from_this()};
+    const auto opened = std::make_shared<std::atomic_bool>(false);
     rdpNetwork_->SetOnConnectCallback([weakSelf] {
         if (const auto self = weakSelf.lock()) self->SetState(ClientConnectionState::Connecting, "RDP transport connected");
     });
-    rdpNetwork_->SetOnDisconnectedCallback([weakSelf] {
+    rdpNetwork_->SetOnDisconnectedCallback([weakSelf, opened] {
         if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
+            opened->store(false);
+            self->ResetRdpTransport();
             self->SetState(ClientConnectionState::Disconnected, "RDP transport disconnected");
         }
     });
@@ -93,11 +99,11 @@ bool ClientSession::InitializeRdp() {
                 break;
         }
     });
-    const auto opened = std::make_shared<std::atomic_bool>(false);
     rdpNetwork_->SetOnRdpMessageCallback([weakSelf, opened](std::shared_ptr<px::Data> wire) {
         const auto self = weakSelf.lock();
         if (!self || !wire || self->stopped_.load()) return;
         if (!opened->exchange(true)) {
+            const auto generation = self->rdpGeneration_.load();
             const auto binding = px::rdp::DecodeOpen(wire->Bytes());
             if (!binding) {
                 self->SetState(ClientConnectionState::Rejected, "The RDP channel returned invalid session data", ClientConnectionFailure::Transport);
@@ -112,11 +118,12 @@ bool ClientSession::InitializeRdp() {
                     else
                         completion(false);
                 },
-                [weakSelf](const std::uint16_t port) {
-                    if (const auto owner = weakSelf.lock()) owner->StartRdpProtocol(port);
+                [weakSelf, generation](const std::uint16_t port) {
+                    if (const auto owner = weakSelf.lock(); owner && !owner->stopped_ && owner->rdpGeneration_ == generation)
+                        owner->StartRdpProtocol(port, generation);
                 },
-                [weakSelf](px::rdp::BridgeCloseReason) {
-                    if (const auto owner = weakSelf.lock(); owner && !owner->stopped_.load()) {
+                [weakSelf, generation](px::rdp::BridgeCloseReason) {
+                    if (const auto owner = weakSelf.lock(); owner && !owner->stopped_.load() && owner->rdpGeneration_ == generation) {
                         owner->SetState(ClientConnectionState::Disconnected, "RDP channel closed");
                     }
                 });
@@ -125,6 +132,7 @@ bool ClientSession::InitializeRdp() {
                 return;
             }
             const std::scoped_lock lock{self->mutex_};
+            if (self->stopped_ || self->rdpGeneration_ != generation) return;
             self->rdpEndpoint_ = std::move(endpoint);
             return;
         }
@@ -138,7 +146,21 @@ bool ClientSession::InitializeRdp() {
     return true;
 }
 
-void ClientSession::StartRdpProtocol(const std::uint16_t loopbackPort) {
+void ClientSession::ResetRdpTransport() {
+    std::shared_ptr<px::rdp::RdpSession> session{};
+    std::shared_ptr<px::rdp::RdpClientEndpoint> endpoint{};
+    {
+        const std::scoped_lock lock{mutex_};
+        ++rdpGeneration_;
+        session = std::move(rdpSession_);
+        endpoint = std::move(rdpEndpoint_);
+    }
+    // These are local protocol objects. The remote Windows workspace stays logged in.
+    if (session) session->Stop();
+    if (endpoint) endpoint->Stop();
+}
+
+void ClientSession::StartRdpProtocol(const std::uint16_t loopbackPort, const std::uint64_t generation) {
     px::rdp::SessionConfiguration configuration{.loopbackPort = loopbackPort,
                                                 .account = config_.rdpAccount,
                                                 .domain = config_.rdpDomain,
@@ -150,12 +172,13 @@ void ClientSession::StartRdpProtocol(const std::uint16_t loopbackPort) {
     const std::weak_ptr<ClientSession> weakSelf{shared_from_this()};
     auto session = px::rdp::RdpSession::Create(
         std::move(configuration), {.frame =
-                                       [weakSelf](std::shared_ptr<const px::rdp::DesktopFrame> frame) {
-                                           if (const auto self = weakSelf.lock()) self->ApplyRdpFrame(frame);
+                                       [weakSelf, generation](std::shared_ptr<const px::rdp::DesktopFrame> frame) {
+                                           if (const auto self = weakSelf.lock(); self && !self->stopped_ && self->rdpGeneration_ == generation)
+                                               self->ApplyRdpFrame(frame);
                                        },
                                    .phase =
-                                       [weakSelf](const px::rdp::SessionPhase phase, std::string reason) {
-                                           if (const auto self = weakSelf.lock()) {
+                                       [weakSelf, generation](const px::rdp::SessionPhase phase, std::string reason) {
+                                           if (const auto self = weakSelf.lock(); self && !self->stopped_ && self->rdpGeneration_ == generation) {
                                                switch (phase) {
                                                    case px::rdp::SessionPhase::Connecting:
                                                        self->SetState(ClientConnectionState::Connecting, "Connecting RDP workspace");
@@ -174,9 +197,10 @@ void ClientSession::StartRdpProtocol(const std::uint16_t loopbackPort) {
                                            }
                                        },
                                    .clipboard =
-                                       [weakSelf](px::rdp::ClipboardContent content) {
-                                           if (const auto self = weakSelf.lock()) {
+                                       [weakSelf, generation](px::rdp::ClipboardContent content) {
+                                           if (const auto self = weakSelf.lock(); self && !self->stopped_ && self->rdpGeneration_ == generation) {
                                                const std::scoped_lock lock{self->mutex_};
+                                               if (self->rdpGeneration_ != generation) return;
                                                self->remoteRdpClipboard_ = std::move(content);
                                            }
                                        }});
@@ -186,6 +210,7 @@ void ClientSession::StartRdpProtocol(const std::uint16_t loopbackPort) {
     }
     session->SetAudioEnabled(audioEnabled_);
     const std::scoped_lock lock{mutex_};
+    if (stopped_ || rdpGeneration_ != generation) return;
     rdpSession_ = std::move(session);
 }
 

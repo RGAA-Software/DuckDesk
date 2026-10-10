@@ -1,0 +1,481 @@
+{
+  "cases": [
+    {
+      "case": "paired_tcp_a",
+      "workload": "compressible 1.5 GiB; file round trip passed",
+      "functional_passed": true,
+      "elapsed_seconds": 60.644,
+      "windows": [
+        {
+          "frames": 298,
+          "fps": 59.5,
+          "max_gap_ms": 79.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 59.9,
+          "max_gap_ms": 30.2,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 99.7,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 24.5,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 35.0,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 36.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 25.1,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 22.0,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 20.8,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 29.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 27.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        }
+      ],
+      "fps_min": 59.5,
+      "fps_max": 60.0,
+      "max_gap_ms": 99.7,
+      "gaps_gt_100ms": 0,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "paired_tcp_b",
+      "workload": "incompressible 256 MiB; uploaded, download exceeded acceptance 90-second deadline",
+      "functional_passed": false,
+      "elapsed_seconds": 91.301,
+      "windows": [
+        {
+          "frames": 295,
+          "fps": 58.7,
+          "max_gap_ms": 79.8,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 303,
+          "fps": 60.5,
+          "max_gap_ms": 35.4,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.1,
+          "max_gap_ms": 41.8,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 59.9,
+          "max_gap_ms": 37.6,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 299,
+          "fps": 59.6,
+          "max_gap_ms": 129.4,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.1,
+          "max_gap_ms": 36.8,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 59.9,
+          "max_gap_ms": 46.2,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 49.3,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.1,
+          "max_gap_ms": 90.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 36.2,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 245,
+          "fps": 48.8,
+          "max_gap_ms": 60.2,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 236,
+          "fps": 47.1,
+          "max_gap_ms": 92.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 59.9,
+          "max_gap_ms": 60.5,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 260,
+          "fps": 51.7,
+          "max_gap_ms": 119.9,
+          "gaps_gt_100ms": 2,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 172,
+          "fps": 34.3,
+          "max_gap_ms": 133.7,
+          "gaps_gt_100ms": 3,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 211,
+          "fps": 42.1,
+          "max_gap_ms": 159.3,
+          "gaps_gt_100ms": 5,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 232,
+          "fps": 46.2,
+          "max_gap_ms": 109.6,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        }
+      ],
+      "fps_min": 34.3,
+      "fps_max": 60.5,
+      "max_gap_ms": 159.3,
+      "gaps_gt_100ms": 12,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    },
+    {
+      "case": "paired_tcp_c",
+      "workload": "no bulk file traffic; upload blocked by prior owned-file overwrite confirmation",
+      "functional_passed": false,
+      "elapsed_seconds": 90.018,
+      "windows": [
+        {
+          "frames": 283,
+          "fps": 56.5,
+          "max_gap_ms": 105.4,
+          "gaps_gt_100ms": 2,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 249,
+          "fps": 49.7,
+          "max_gap_ms": 122.0,
+          "gaps_gt_100ms": 5,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 303,
+          "fps": 60.5,
+          "max_gap_ms": 61.4,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 283,
+          "fps": 56.5,
+          "max_gap_ms": 137.1,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 306,
+          "fps": 61.1,
+          "max_gap_ms": 74.6,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 298,
+          "fps": 59.4,
+          "max_gap_ms": 82.3,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 37.2,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 60.5,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 31.3,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 291,
+          "fps": 58.0,
+          "max_gap_ms": 110.9,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 294,
+          "fps": 58.6,
+          "max_gap_ms": 90.4,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 302,
+          "fps": 60.4,
+          "max_gap_ms": 42.5,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 295,
+          "fps": 59.0,
+          "max_gap_ms": 60.7,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 297,
+          "fps": 59.2,
+          "max_gap_ms": 104.9,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 293,
+          "fps": 58.6,
+          "max_gap_ms": 121.4,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 301,
+          "fps": 60.0,
+          "max_gap_ms": 77.9,
+          "gaps_gt_100ms": 0,
+          "idr": 0,
+          "rfi": 0
+        },
+        {
+          "frames": 291,
+          "fps": 58.2,
+          "max_gap_ms": 122.1,
+          "gaps_gt_100ms": 1,
+          "idr": 0,
+          "rfi": 0
+        }
+      ],
+      "fps_min": 49.7,
+      "fps_max": 61.1,
+      "max_gap_ms": 137.1,
+      "gaps_gt_100ms": 12,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "path": ".cache/iroh-paired-tcp-20261010-c/relay1.etl.pcapng",
+      "bytes": 15161448,
+      "sha256": "4db37d2cdae3ad5f5493e7c1d6b4d6dc3cb160e44631ed437db68e5047c962e5"
+    },
+    {
+      "path": ".cache/iroh-paired-tcp-20261010-c/remote-tcpip.pcapng",
+      "bytes": 46196748,
+      "sha256": "8667a96fc14bd94ba812a209059cf354e404fc2c309de4e60ef5db2aa7ed4a54"
+    }
+  ],
+  "conclusion": "Paired TCP sequence/ACK evidence confirms relay carrier retransmission and head-of-line blocking for correlated media gaps. Bulk transfer additionally increases QUIC RTT/window. Does not prove all historic gaps share one cause.",
+  "capture_limitations": "A/B circular traces lost earlier portions on individual directions despite no ETW events-lost indication. C uses multi-file mode and covers SYN to close; use C for full-duration paired conclusions.",
+  "installation_changed": false,
+  "persistent_configuration_changes": [],
+  "incompressible_controls": [
+    {
+      "mode": "direct",
+      "report": "20261010_incompressible_direct.json",
+      "functional_passed": true,
+      "elapsed_seconds": 29.239,
+      "bytes_each_direction": 67108864,
+      "fps_min": 46.8,
+      "fps_max": 60.3,
+      "max_gap_ms": 289.8,
+      "gaps_gt_100ms": 5,
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ]
+    },
+    {
+      "mode": "relay",
+      "report": "20261010_incompressible_relay.json",
+      "functional_passed": true,
+      "elapsed_seconds": 44.951,
+      "bytes_each_direction": 67108864,
+      "fps_min": 20.2,
+      "fps_max": 59.6,
+      "max_gap_ms": 429.0,
+      "gaps_gt_100ms": 43,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ]
+    }
+  ],
+  "relays_after_cleanup": [
+    {
+      "public_host": "49.232.233.61",
+      "fresh": true,
+      "state": "ready",
+      "desired_draining": false,
+      "reported_draining": false,
+      "disabled": false
+    },
+    {
+      "public_host": "39.71.45.66",
+      "fresh": true,
+      "state": "ready",
+      "desired_draining": false,
+      "reported_draining": false,
+      "disabled": false
+    }
+  ],
+  "cleanup": {
+    "owned_instances_and_clients": "closed",
+    "remote_test_files": "absent",
+    "node_services": "all three Running",
+    "desktop_render_pid": 21528,
+    "packet_capture": "stopped; filters empty",
+    "installed_render_sha256": "1B3F87B5A146EF42A48A1BEC18E721E1C88AD176BD8912E198902427F9CFF869"
+  }
+}

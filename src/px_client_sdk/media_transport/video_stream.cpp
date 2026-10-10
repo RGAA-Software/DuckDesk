@@ -63,11 +63,10 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     // Do not invalidate encoder timestamps before this decoder has established its first reference point.
     if (stream.last_delivered) {
         output.losses = std::move(queued.losses);
-        if (!output.losses.empty() && stream.last_encoder_frame)
-            output.invalid_reference_frame = *stream.last_encoder_frame + 1;
     }
     output.recovered = queued.recovered_data;
     output.rejected = queued.malformed;
+    output.incomplete_frame = (!queued.rejected && queued.data_packets.empty()) || !output.losses.empty();
     if (queued.data_packets.empty())
         return output;
     Packet payload{};
@@ -105,7 +104,11 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
         output.rejected = output.needs_idr = true;
         return output;
     }
-    // A speculative loss does not poison a frame that was subsequently recovered. Only complete delivery advances the reference chain.
+    output.completed_frame_index = frame_index;
+    output.completed_bytes = encoded_size;
+    output.completed_timestamp_90khz = static_cast<std::uint32_t>(wire::Get(first_packet, 4, 4));
+    output.completed_monitor.assign(descriptor.begin() + kDescriptorSize, descriptor.begin() + kDescriptorSize + name_size);
+    // Wait for an entire subsequent frame before requesting repair. Partial loss may still recover through FEC or reordering.
     if (kind != VideoFrameKind::kIdr &&
         (!stream.last_delivered || (kind != VideoFrameKind::kReferenceRecovery && *stream.last_delivered + 1 != wire_index))) {
         // A known decoder reference can be repaired by RFI. Do not replace this with a throttled IDR on every dependent frame.
@@ -123,6 +126,7 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     frame.width = static_cast<std::uint16_t>(wire::Get(descriptor, 6, 2));
     frame.height = static_cast<std::uint16_t>(wire::Get(descriptor, 8, 2));
     frame.frame_index = frame_index;
+    if (kind != VideoFrameKind::kIdr) frame.preceding_frame_index = stream.last_encoder_frame;
     frame.monitor.assign(descriptor.begin() + kDescriptorSize, descriptor.begin() + kDescriptorSize + name_size);
     frame.encoded.assign(descriptor.begin() + kDescriptorSize + name_size, descriptor.end());
     stream.last_delivered = wire_index;

@@ -18,7 +18,9 @@ Function InstallParsecVddDriver
         Goto parsec_vdd_install_failed
 
 parsec_vdd_package_verified:
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
+    ${EnableX64FSRedirection}
     Pop $R3
     Pop $R4
     StrCmp $R3 "0" parsec_vdd_install_already_present
@@ -34,7 +36,9 @@ parsec_vdd_package_verified:
 
     StrCpy $R2 0
 parsec_vdd_install_verify:
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' -and $$_.Status -eq 'OK' }); if ($$device.Count -gt 0) { exit 0 }; exit 1"`
+    ${EnableX64FSRedirection}
     Pop $R3
     Pop $R4
     StrCmp $R3 "0" parsec_vdd_install_verified
@@ -101,7 +105,9 @@ parsec_vdd_uninstall_owned:
 
     StrCpy $R3 0
 parsec_vdd_uninstall_verify:
-    nsExec::ExecToStack `powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' }); if ($$device.Count -eq 0) { exit 0 }; exit 1"`
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack `"$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$device = @(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $$_.FriendlyName -eq 'Parsec Virtual Display Adapter' }); if ($$device.Count -eq 0) { exit 0 }; exit 1"`
+    ${EnableX64FSRedirection}
     Pop $R1
     Pop $R2
     StrCmp $R1 "0" parsec_vdd_uninstall_verified

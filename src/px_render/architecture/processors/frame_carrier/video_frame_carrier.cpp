@@ -276,33 +276,30 @@ float4 PSMain(float4 pos : SV_Position) : SV_Target {
         return true;
     }
 
-    ComPtr<ID3D11Texture2D> VideoFrameCarrier::OpenSharedTexture(HANDLE handle) {
-        ComPtr<ID3D11Texture2D> sharedTexture;
-        HRESULT res;
-        res = d3d11_device_->OpenSharedResource(handle, IID_PPV_ARGS(sharedTexture.GetAddressOf()));
-        if (FAILED(res)) {
-            HRESULT res1 = res;
-            // D3D12(11on12)路径的共享纹理是 NT handle,必须走 OpenSharedResource1。
-            ComPtr<ID3D11Device1> device1;
-            if (SUCCEEDED(d3d11_device_.As(&device1)) && device1) {
-                res1 = device1->OpenSharedResource1(handle, IID_PPV_ARGS(sharedTexture.GetAddressOf()));
+    ComPtr<ID3D11Texture2D> VideoFrameCarrier::OpenSharedTexture(std::uint64_t handle_value) {
+        ComPtr<ID3D11Texture2D> shared_texture{};
+        auto open_result = d3d11_device_->OpenSharedResource(reinterpret_cast<HANDLE>(handle_value), IID_PPV_ARGS(shared_texture.GetAddressOf()));
+        if (FAILED(open_result)) {
+            // WebView and D3D12 use NT handles. Success through this API is normal,
+            // not a warning to write synchronously for every alternating surface.
+            ComPtr<ID3D11Device1> extended_device{};
+            if (SUCCEEDED(d3d11_device_.As(&extended_device)) && extended_device) {
+                open_result =
+                    extended_device->OpenSharedResource1(reinterpret_cast<HANDLE>(handle_value), IID_PPV_ARGS(shared_texture.GetAddressOf()));
             }
-            LOGW("OpenSharedTexture: handle={:#x} km_hr={:x} nt_hr={:x}",
-                 (uint64_t)handle, (uint32_t)res, (uint32_t)res1);
-            res = res1;
         }
-        if (FAILED(res)) {
-            LOGE("OpenSharedResource failed: {:x}", (uint32_t)res);
-            return nullptr;
+        if (FAILED(open_result)) {
+            LOGE("OpenSharedResource failed: {:x}", static_cast<std::uint32_t>(open_result));
+            return {};
         }
-        return sharedTexture;
+        return shared_texture;
     }
 
     ComPtr<ID3D11Texture2D> VideoFrameCarrier::CopyTexture(const std::string& mon_name, uint64_t handle, uint64_t frame_index) {
         // 同一 handle 只打开一次并长期持有;反复 OpenSharedResource/Close 会让
         // 11on12 共享资源的底层 D3D12 资源状态紊乱,最终 device removed。
         if (handle != opened_shared_handle_ || !opened_shared_texture_) {
-            opened_shared_texture_ = OpenSharedTexture(reinterpret_cast<HANDLE>(handle));
+            opened_shared_texture_ = OpenSharedTexture(handle);
             opened_shared_handle_ = opened_shared_texture_ ? handle : 0;
         }
         ComPtr<ID3D11Texture2D> shared_texture = opened_shared_texture_;

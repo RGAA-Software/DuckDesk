@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-181041-auto",
+  "transport_requested": "iroh-relay",
+  "bytes": 134217984,
+  "cancel_retry": false,
+  "instance_id": "b378eea8-661d-4b9f-bd8f-355b875f8794",
+  "posted_input_messages": 483,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-181041-auto\\mixed-0.png"
+  ],
+  "elapsed_seconds": 10.222,
+  "exit_code": 0,
+  "source_sha256": "913049bd654579cd90ac9f1b33a3623ee8a91696a8410a96b8a0461fd3b23ca4",
+  "download_sha256": "913049bd654579cd90ac9f1b33a3623ee8a91696a8410a96b8a0461fd3b23ca4",
+  "path_evidence": "force_relay=true with iroh configuration and accepted iroh admission; short run may finish before periodic path metric",
+  "media_windows": [
+    {
+      "frames": 294,
+      "fps": 58.8,
+      "max_gap_ms": 148.8,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_path_relay": true,
+  "functional_transfer_passed": true,
+  "network_responsiveness_passed": false,
+  "render_max_dispatch_queue_us": 1366221,
+  "render_max_dispatch_callback_us": 1000660,
+  "diagnostic": "Synchronous ViGEm target allocation blocks the serial network callback"
+}

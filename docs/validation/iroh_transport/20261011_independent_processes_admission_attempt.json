@@ -1,0 +1,42 @@
+{
+  "started_at": "2026-10-11T00:54:33.700979",
+  "case": "auto",
+  "evidence": ".cache\\iroh-native-live-20261011-005433-auto",
+  "passed": false,
+  "phases": [
+    {
+      "name": "warmup",
+      "started_at": "2026-10-11T00:54:38.633645",
+      "ended_at": "2026-10-11T00:54:43.831986"
+    },
+    {
+      "name": "video_only_before",
+      "started_at": "2026-10-11T00:54:43.831986",
+      "ended_at": "2026-10-11T00:55:04.735800"
+    },
+    {
+      "name": "separate_file_process",
+      "started_at": "2026-10-11T00:55:04.735800",
+      "ended_at": "2026-10-11T00:55:04.754039"
+    }
+  ],
+  "processes": {
+    "video": {
+      "pid": 56948,
+      "mode": "desktop",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "f6ae8214b2277f1557f95bb1d36f6f105792fac418a4670b6ba2e365e0e086da",
+      "resource_session_id": "0d02fb82-7e48-4ab8-a99b-aa1bd242aa27",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4613,
+      "launched_at": "2026-10-11T00:54:37.552419"
+    }
+  },
+  "cleanup_errors": [],
+  "remote_test_file": "D:\\112233\\pixels-independent-ca6c5488f7fb4c14859f56f5586ba441.bin",
+  "source_bytes": 67108864,
+  "instance_id": "44f02fc8-3c36-4393-84f2-3748e47a1fc7",
+  "posted_input_messages": 1500,
+  "error": "POST /api/console/resource-sessions: HTTP 409 code=connection_busy",
+  "ended_at": "2026-10-11T00:55:06.748793"
+}

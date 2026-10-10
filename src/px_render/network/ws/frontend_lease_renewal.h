@@ -41,7 +41,7 @@ struct WebSocketFrontendDescriptor final {
 [[nodiscard]] std::optional<WebSocketFrontendDescriptor> ConsumeWebSocketFrontendDescriptor(
     std::unordered_map<std::string, std::string>& query_parameters);
 [[nodiscard]] bool IsAcceptedWebSocketFrontendGrant(const WebSocketFrontendDescriptor& descriptor, const std::string& render_instance_id,
-                                                    const ConsoleFrontendGrant& grant);
+                                                    const std::string& render_device_id, const ConsoleFrontendGrant& grant);
 [[nodiscard]] bool HasSameConsoleFrontendIdentity(const ConsoleFrontendGrant& expected, const ConsoleFrontendGrant& renewed);
 
 struct WebSocketFrontendLeaseIdentity final {
@@ -73,6 +73,7 @@ public:
     void Start(WebSocketFrontendLeaseIdentity identity, std::shared_ptr<WebSocketFrontendToken> token, std::uint32_t initial_valid_for_ms);
     void StartDirect(WebSocketDirectLeaseIdentity identity, std::uint32_t initial_valid_for_ms);
     void Cancel(const std::string& binding_id);
+    void ReleaseDirectQuota(std::string quota_id);
 
 private:
     struct RenewalControl final {

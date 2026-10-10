@@ -1,0 +1,16 @@
+{
+  "candidate": "iroh-quality-stability-20261009",
+  "setup_sha256": "3616D1FEDFBD837D7FD0A4C92EAA47E15D142A7F49675698B03F05336DF1935B",
+  "manifest_sha256": "CBC9829895313EACC31A9FFB439754F77E437A28C3794E1BDA2673CEB6165CC6",
+  "upload_operation": "9a0ecce2-9f96-4f10-9668-280319d3363e",
+  "install_operation": "66bfc8c1-745a-44ed-a97c-2cb6edc08ea1",
+  "qos_operation": "c39c994f-8c68-43e7-b2aa-e51260ce8224",
+  "cleanup_operation": "be08c6fb-952b-4821-a7d5-2e024f445c02",
+  "temporary_relay_pid": 39472,
+  "relay_state_file": "quality-test-state.json",
+  "configuration_sha256": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA",
+  "original_configuration_sha256": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+  "remote_workspace": "D:\\112233\\iroh-native-validation-20261009",
+  "enable_operation": "89002815-7c88-4fa9-a578-2446c466ffde",
+  "enable_observation": "Command exited 0; MCP output_drain_timeout. Relay identity/configuration/service independently verified by 154706f0-7b25-482b-85e9-be3740d4fa9d. Do not replay."
+}

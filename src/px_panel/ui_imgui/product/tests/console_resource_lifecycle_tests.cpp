@@ -36,7 +36,8 @@ TEST(ConsoleResourceLifecycle, HttpsReservationFailuresAndRevisionChanges) {
                                                    .application_id = "8ebdbd8e-925d-4885-9401-e87d0418bff9",
                                                    .instance_id = "93488646-70a1-42b3-9c4d-0123456789ab"};
     for (const std::string scenario : {"descriptor_failure", "malformed_descriptor", "invalid_descriptor", "invalid_open_metadata",
-                                       "cleanup_rejected", "success", "stale_close", "concurrent_close", "already_closed", "close_rejected"}) {
+                                       "cleanup_rejected", "success", "stale_close", "concurrent_close", "already_closed", "close_rejected",
+                                       "iroh_wait"}) {
         SCOPED_TRACE(scenario);
         if (!scenarioFilter.empty() && scenario != scenarioFilter) continue;
         px_console::SetConsoleApiLastErrorMessage({});
@@ -50,6 +51,7 @@ TEST(ConsoleResourceLifecycle, HttpsReservationFailuresAndRevisionChanges) {
             EXPECT_EQ(connection.error(), px_console::ConsoleApiError::kParseJsonFailed);
         } else {
             ASSERT_TRUE(connection);
+            if (scenario == "iroh_wait") ASSERT_TRUE(connection->iroh);
             const auto closed =
                 px_console::ClosePanelResourceConnection("127.0.0.1", port, scenario, true, connection->session_id, connection->session_revision);
             if (scenario == "close_rejected") {

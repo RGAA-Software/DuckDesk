@@ -1,0 +1,22 @@
+{
+  "sessions_checked": 248,
+  "active_sessions": [],
+  "relays": [
+    {
+      "host": "49.232.233.61",
+      "fresh": true,
+      "state": "ready",
+      "connections": 0
+    },
+    {
+      "host": "39.71.45.66",
+      "fresh": true,
+      "state": "ready",
+      "connections": 1
+    }
+  ],
+  "device_access": {
+    "groups": [],
+    "users": []
+  }
+}

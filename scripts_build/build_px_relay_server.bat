@@ -5,11 +5,14 @@ rem Focused development build. It does not bump a version or create a release pa
 cd /d "%~dp0.." || exit /b 1
 set "REPO_ROOT=%cd%"
 set "TARGET_ROOT=%REPO_ROOT%\.cache\relay-dev"
+if defined PIXELS_RELAY_TARGET_DIR set "TARGET_ROOT=%PIXELS_RELAY_TARGET_DIR%"
 set "OUTPUT_ROOT=%REPO_ROOT%\output\px_relay\dev"
 
 where cargo.exe >nul 2>nul || (echo ERROR: cargo.exe is required.& exit /b 1)
 
 set "SQLX_OFFLINE=true"
+if not defined CARGO_PROFILE_RELEASE_OPT_LEVEL set "CARGO_PROFILE_RELEASE_OPT_LEVEL=1"
+set "CARGO_PROFILE_RELEASE_INCREMENTAL=true"
 cargo.exe build --locked --release --manifest-path "%REPO_ROOT%\rust_server\Cargo.toml" -p px_relay_server --bin px_relay --target-dir "%TARGET_ROOT%"
 if errorlevel 1 exit /b 1
 

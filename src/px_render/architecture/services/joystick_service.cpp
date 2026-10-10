@@ -1,7 +1,10 @@
 #include "services/joystick_service.h"
 
+#include <thread>
 #include <utility>
 
+#include "px_common/async_runtime.h"
+#include "px_common/blocking_executor.h"
 #include "px_common/log.h"
 #include "px_message.pb.h"
 #include "px_message/proto_converter.h"
@@ -12,9 +15,7 @@ namespace {
 
 class VigemJoystickBackend final : public JoystickBackend {
 public:
-    void SetRumbleCallback(RumbleCallback callback) override {
-        rumble_callback_ = std::move(callback);
-    }
+    void SetRumbleCallback(RumbleCallback callback) override { rumble_callback_ = std::move(callback); }
 
     bool PrepareConnection() override {
         if (controller_ && !controller_->IsConnected()) {
@@ -22,23 +23,19 @@ public:
             controller_.reset();
         }
         if (!controller_) {
-            controller_ = std::make_shared<VigemController>(
-                JoystickType::kJsX360, rumble_callback_);
+            controller_ = std::make_shared<VigemController>(JoystickType::kJsX360, rumble_callback_);
         }
         return controller_->Connect();
     }
 
     bool AllocateController(const std::string& stream_id) override {
-        if (!PrepareConnection() || !controller_ ||
-            !controller_->IsConnected()) {
+        if (!PrepareConnection() || !controller_ || !controller_->IsConnected()) {
             return false;
         }
         return controller_->AllocController(stream_id);
     }
 
-    void ReplayJoystickEvent(
-        const std::string& stream_id,
-        const std::shared_ptr<Message>& message) override {
+    void ReplayJoystickEvent(const std::string& stream_id, const std::shared_ptr<Message>& message) override {
         if (!controller_ || !message) {
             return;
         }
@@ -85,52 +82,43 @@ RenderError MakeJoystickError(std::string operation, std::string reason) {
 
 }  // namespace
 
-std::shared_ptr<JoystickService> JoystickService::Create(
-    BackendFactory backend_factory, SendCallback send_callback) {
-    return std::make_shared<JoystickService>(
-        std::move(backend_factory), std::move(send_callback));
+std::shared_ptr<JoystickService> JoystickService::Create(BackendFactory backend_factory, SendCallback send_callback) {
+    return std::make_shared<JoystickService>(std::move(backend_factory), std::move(send_callback));
 }
 
-JoystickService::JoystickService(
-    BackendFactory backend_factory, SendCallback send_callback)
-    : backend_factory_(std::move(backend_factory)),
-      send_callback_(std::move(send_callback)) {}
+JoystickService::JoystickService(BackendFactory backend_factory, SendCallback send_callback)
+    : backend_factory_(std::move(backend_factory)), send_callback_(std::move(send_callback)) {}
 
-JoystickService::~JoystickService() {
-    static_cast<void>(Stop());
-}
+JoystickService::~JoystickService() { static_cast<void>(Stop()); }
 
 BuiltinModuleRegistration JoystickService::MakeRegistration() {
     const std::weak_ptr<JoystickService> weak_owner = weak_from_this();
     return BuiltinModuleRegistration{
-        .descriptor = BuiltinModuleDescriptor{
-            .id = std::string(kJoystickModuleId),
-            .name = "Joystick",
-            .author = "Pixels",
-            .description = "Built-in per-stream ViGEm controller service",
-            .version_name = "2.0.0",
-            .version_code = 200,
-            .capability = BuiltinModuleCapability::kService,
-            .default_enabled = true,
-        },
+        .descriptor =
+            BuiltinModuleDescriptor{
+                .id = std::string(kJoystickModuleId),
+                .name = "Joystick",
+                .author = "Pixels",
+                .description = "Built-in per-stream ViGEm controller service",
+                .version_name = "2.0.0",
+                .version_code = 200,
+                .capability = BuiltinModuleCapability::kService,
+                .default_enabled = true,
+            },
         .start = [weak_owner]() -> PxAwaitable<ModuleLifecycleResult> {
             const auto owner = weak_owner.lock();
-            co_return owner
-                ? owner->Start()
-                : ModuleLifecycleResult(std::unexpected(MakeJoystickError(
-                      "start", "service owner expired")));
+            co_return owner ? owner->Start() : ModuleLifecycleResult(std::unexpected(MakeJoystickError("start", "service owner expired")));
         },
         .stop = [weak_owner]() -> PxAwaitable<ModuleLifecycleResult> {
             const auto owner = weak_owner.lock();
             co_return owner ? owner->Stop() : ModuleLifecycleResult{};
         },
-        .set_enabled = [weak_owner](const bool enabled) {
-            const auto owner = weak_owner.lock();
-            return owner
-                ? owner->SetEnabled(enabled)
-                : ModuleLifecycleResult(std::unexpected(MakeJoystickError(
-                      "set_enabled", "service owner expired")));
-        },
+        .set_enabled =
+            [weak_owner](const bool enabled) {
+                const auto owner = weak_owner.lock();
+                return owner ? owner->SetEnabled(enabled)
+                             : ModuleLifecycleResult(std::unexpected(MakeJoystickError("set_enabled", "service owner expired")));
+            },
     };
 }
 
@@ -141,15 +129,16 @@ ModuleLifecycleResult JoystickService::Start() {
             return {};
         }
         running_ = true;
+        message_executor_ = PxBlockingExecutor::Create({.thread_count = 1, .max_pending_tasks = 128});
     }
     const auto backend = EnsureBackend();
-    LOGI("event=service.start component=joystick backend_ready={} outcome=success",
-         backend != nullptr);
+    LOGI("event=service.start component=joystick backend_ready={} outcome=success", backend != nullptr);
     return {};
 }
 
 ModuleLifecycleResult JoystickService::Stop() {
-    std::shared_ptr<JoystickBackend> backend;
+    std::shared_ptr<JoystickBackend> backend{};
+    std::shared_ptr<PxBlockingExecutor> executor{};
     {
         std::lock_guard lock(mutex_);
         if (!running_ && !backend_) {
@@ -159,10 +148,25 @@ ModuleLifecycleResult JoystickService::Stop() {
         backend_ready_ = false;
         routes_.clear();
         backend = std::move(backend_);
+        executor = std::move(message_executor_);
+        for (const auto& [stream_id, active] : queued_streams_) active->store(false);
+        queued_streams_.clear();
+    }
+    const bool on_worker{executor && executor->IsWorkerThread()};
+    if (executor) {
+        executor->RequestStop(PxBlockingShutdownMode::kCancelPending);
+        executor->Join();
     }
     if (backend) {
-        std::lock_guard operation_lock(backend_operation_mutex_);
-        backend->Shutdown();
+        const auto shutdown = [backend, operation_mutex = backend_operation_mutex_] {
+            std::lock_guard operation_lock(*operation_mutex);
+            backend->Shutdown();
+        };
+        if (on_worker) {
+            PxAsyncRuntime::DeferJoin(std::thread(shutdown));
+        } else {
+            shutdown();
+        }
     }
     LOGI("event=service.stop component=joystick outcome=success");
     return {};
@@ -178,13 +182,12 @@ ModuleLifecycleResult JoystickService::SetEnabled(const bool enabled) {
             backend_ready_ = false;
             routes_.clear();
             backend = std::move(backend_);
-        }
-        else {
+        } else {
             should_create = running_ && !backend_;
         }
     }
     if (backend) {
-        std::lock_guard operation_lock(backend_operation_mutex_);
+        std::lock_guard operation_lock(*backend_operation_mutex_);
         backend->Shutdown();
     }
     if (should_create) {
@@ -193,15 +196,35 @@ ModuleLifecycleResult JoystickService::SetEnabled(const bool enabled) {
     return {};
 }
 
-void JoystickService::HandleMessage(
-    const std::shared_ptr<Message>& message,
-    const std::string& transport_id) {
-    if (!message || (message->type() != MessageType::kHello &&
-                     message->type() != MessageType::kGamepadState)) {
+bool JoystickService::QueueMessage(const std::shared_ptr<Message>& message, const std::string& transport_id) {
+    if (!message || (message->type() != kHello && message->type() != kGamepadState)) return true;
+    if (message->type() == kHello && !message->hello().enable_controller()) return true;
+    std::lock_guard lock(mutex_);
+    if (!running_ || !enabled_ || !message_executor_ || message->stream_id().empty()) return false;
+    auto stream = queued_streams_.find(message->stream_id());
+    if (stream == queued_streams_.end()) {
+        if (message->type() != kHello || queued_streams_.size() >= 128) return false;
+        stream = queued_streams_.emplace(message->stream_id(), std::make_shared<std::atomic_bool>(true)).first;
+    }
+    const auto result = message_executor_->TryPost([owner = weak_from_this(), active = stream->second, message, transport_id] {
+        if (const auto service = owner.lock()) {
+            std::lock_guard dispatch_lock(service->dispatch_operation_mutex_);
+            if (active->load()) service->HandleMessage(message, transport_id);
+        }
+    });
+    if (result != PxBlockingSubmitResult::kAccepted) {
+        ++rejected_messages_;
+        LOGW("event=joystick.queue outcome=rejected reason={}", static_cast<int>(result));
+        return false;
+    }
+    return true;
+}
+
+void JoystickService::HandleMessage(const std::shared_ptr<Message>& message, const std::string& transport_id) {
+    if (!message || (message->type() != MessageType::kHello && message->type() != MessageType::kGamepadState)) {
         return;
     }
-    if (message->type() == MessageType::kHello &&
-        !message->hello().enable_controller()) {
+    if (message->type() == MessageType::kHello && !message->hello().enable_controller()) {
         return;
     }
     const auto backend = EnsureBackend();
@@ -218,39 +241,43 @@ void JoystickService::HandleMessage(
     if (message->type() == MessageType::kHello) {
         bool allocated = false;
         {
-            std::lock_guard operation_lock(backend_operation_mutex_);
+            std::lock_guard operation_lock(*backend_operation_mutex_);
             allocated = backend->AllocateController(stream_id);
         }
         std::lock_guard lock(mutex_);
         if (allocated) {
             ++allocated_controllers_;
-        }
-        else {
+        } else {
             ++rejected_messages_;
-            LOGE("event=joystick.allocate component=joystick outcome=failed "
-                 "code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target "
-                 "recoverable=true reason=vigem_unavailable");
+            LOGE(
+                "event=joystick.allocate component=joystick outcome=failed "
+                "code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target "
+                "recoverable=true reason=vigem_unavailable");
         }
         return;
     }
     {
-        std::lock_guard operation_lock(backend_operation_mutex_);
+        std::lock_guard operation_lock(*backend_operation_mutex_);
         backend->ReplayJoystickEvent(stream_id, message);
     }
     std::lock_guard lock(mutex_);
     ++replayed_events_;
 }
 
-void JoystickService::HandleClientDisconnected(
-    const std::string& stream_id) {
+void JoystickService::HandleClientDisconnected(const std::string& stream_id) {
     std::shared_ptr<JoystickBackend> backend;
     {
         std::lock_guard lock(mutex_);
         routes_.erase(stream_id);
+        if (const auto stream = queued_streams_.find(stream_id); stream != queued_streams_.end()) {
+            stream->second->store(false);
+            queued_streams_.erase(stream);
+        }
         backend = backend_;
     }
+    std::lock_guard dispatch_lock(dispatch_operation_mutex_);
     if (backend) {
-        std::lock_guard operation_lock(backend_operation_mutex_);
+        std::lock_guard operation_lock(*backend_operation_mutex_);
         backend->RemoveController(stream_id);
     }
 }
@@ -269,10 +296,7 @@ JoystickServiceSnapshot JoystickService::Snapshot() const {
     };
 }
 
-void JoystickService::HandleRumble(
-    const std::string& stream_id,
-    const std::uint8_t strong_motor,
-    const std::uint8_t weak_motor) {
+void JoystickService::HandleRumble(const std::string& stream_id, const std::uint8_t strong_motor, const std::uint8_t weak_motor) {
     SendCallback sender;
     std::string transport_id;
     {
@@ -295,9 +319,8 @@ void JoystickService::HandleRumble(
         auto& rumble = *message.mutable_gamepad_rumble();
         rumble.set_strong_motor(strong_motor);
         rumble.set_weak_motor(weak_motor);
-        sent = sender(
-            transport_id, stream_id,
-            ProtoAsData(&message)); // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
+        sent = sender(transport_id, stream_id,
+                      ProtoAsData(&message));  // NOLINT(pixels-raw-pointer-boundary): synchronous protobuf conversion
     }
     if (!sent) {
         std::lock_guard lock(mutex_);
@@ -317,35 +340,29 @@ std::shared_ptr<JoystickBackend> JoystickService::EnsureBackend() {
         }
         factory = backend_factory_;
     }
-    auto backend = factory
-                       ? factory()
-                       : std::make_shared<VigemJoystickBackend>();
+    auto backend = factory ? factory() : std::make_shared<VigemJoystickBackend>();
     bool prepared = false;
     if (backend) {
         const std::weak_ptr<JoystickService> weak_owner = weak_from_this();
-        backend->SetRumbleCallback(
-            [weak_owner](
-                const std::string& stream_id,
-                const std::uint8_t strong_motor,
-                const std::uint8_t weak_motor) {
-                if (const auto owner = weak_owner.lock()) {
-                    owner->HandleRumble(
-                        stream_id, strong_motor, weak_motor);
-                }
-            });
-        std::lock_guard operation_lock(backend_operation_mutex_);
+        backend->SetRumbleCallback([weak_owner](const std::string& stream_id, const std::uint8_t strong_motor, const std::uint8_t weak_motor) {
+            if (const auto owner = weak_owner.lock()) {
+                owner->HandleRumble(stream_id, strong_motor, weak_motor);
+            }
+        });
+        std::lock_guard operation_lock(*backend_operation_mutex_);
         prepared = backend->PrepareConnection();
     }
     if (!backend || !prepared) {
-        LOGE("event=joystick.connect component=joystick outcome=failed "
-             "code=JOYSTICK_VIGEM_UNAVAILABLE operation=connect_bus "
-             "recoverable=true reason=vigem_unavailable");
+        LOGE(
+            "event=joystick.connect component=joystick outcome=failed "
+            "code=JOYSTICK_VIGEM_UNAVAILABLE operation=connect_bus "
+            "recoverable=true reason=vigem_unavailable");
         return {};
     }
     {
         std::lock_guard lock(mutex_);
         if (!running_ || !enabled_) {
-            std::lock_guard operation_lock(backend_operation_mutex_);
+            std::lock_guard operation_lock(*backend_operation_mutex_);
             backend->Shutdown();
             return {};
         }

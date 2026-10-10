@@ -1,18 +1,18 @@
 use crate::{
-    error::ApiError,
-    node_wire::{NodeRequest, NodeResponse, MAX_MESSAGE_BYTES},
-    request::{self, Input, Page, Params as Query, Revision, Route as Path},
     StateData,
+    error::ApiError,
+    node_wire::{MAX_MESSAGE_BYTES, NodeRequest, NodeResponse},
+    request::{self, Input, Page, Params as Query, Revision, Route as Path},
 };
 use axum::{
+    Json, Router,
     extract::{
-        ws::{Message, WebSocket},
         ConnectInfo, OriginalUri, State, WebSocketUpgrade,
+        ws::{Message, WebSocket},
     },
-    http::{header, HeaderMap, StatusCode},
+    http::{HeaderMap, StatusCode, header},
     response::Response,
     routing::{get, patch},
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use futures_util::{SinkExt, StreamExt};
@@ -21,7 +21,7 @@ use px_console_store::{
     TelemetryTrendRequest, WorkspaceCommandLease,
 };
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::time::timeout;
 use uuid::Uuid;
@@ -252,6 +252,15 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
     state
         .management_events
         .publish("nodes", Some(connection.id()));
+    let iroh_configuration = match managed_iroh_configuration(&state).await {
+        Ok(configuration) => configuration,
+        Err(error) => {
+            tracing::warn!(%error, "Node iroh configuration unavailable");
+            let _ = state.db.nodes().close_connection(&connection).await;
+            let _ = socket.close().await;
+            return;
+        }
+    };
     if send(
         &mut socket,
         &NodeResponse::Authenticated {
@@ -262,6 +271,7 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             generation: connection.generation(),
             control_epoch: connection.epoch().value(),
             relay: None,
+            iroh: iroh_configuration,
         },
     )
     .await
@@ -278,6 +288,19 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
         .management_events
         .publish("nodes", Some(connection.id()));
     let _ = socket.close().await;
+}
+
+async fn managed_iroh_configuration(
+    state: &StateData,
+) -> Result<Option<px_node_protocol::IrohNetworkConfig>, ApiError> {
+    let Some(mut configuration) = state.iroh.clone() else {
+        return Ok(None);
+    };
+    configuration.relays = state.db.relay_nodes().available_iroh_relays().await?;
+    if !configuration.is_valid() {
+        return Err(ApiError::Unavailable);
+    }
+    Ok(Some(configuration))
 }
 
 async fn run_authenticated(
@@ -350,6 +373,11 @@ async fn operation(
                     request_id,
                     state: node.state,
                     endpoint_revision: node.endpoint_revision,
+                    iroh_relays: if state.iroh.is_some() {
+                        Some(state.db.relay_nodes().available_iroh_relays().await?)
+                    } else {
+                        None
+                    },
                 })
             }
             NodeRequest::ReportTelemetryBackfill { samples, .. } => {
@@ -411,6 +439,7 @@ async fn operation(
                             state
                                 .relay_admission
                                 .as_ref()
+                                .filter(|_| state.iroh.is_none())
                                 .map(|admission| admission.app_key.as_str()),
                         )
                     })
@@ -804,6 +833,7 @@ fn error_code(error: ApiError) -> &'static str {
         ApiError::RateLimited => "rate_limited",
         ApiError::Unavailable => "unavailable",
         ApiError::Internal => "internal",
+        ApiError::TransportNotReady => "transport_not_ready",
     }
 }
 #[derive(Deserialize)]

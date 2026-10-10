@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-210116-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 536870912,
+  "cancel_retry": false,
+  "instance_id": "4d952310-7bc9-43cb-8ffb-791cd28e9165",
+  "started_at": "2026-10-10 21:01:18",
+  "posted_input_messages": 1179,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-210116-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-210116-relay\\mixed-1.png"
+  ],
+  "elapsed_seconds": 21.974,
+  "exit_code": 0,
+  "source_sha256": "c047731a3c134f3d34286d608e9c173027d50f43ab9d2064f3c360939977e908",
+  "download_sha256": "c047731a3c134f3d34286d608e9c173027d50f43ab9d2064f3c360939977e908",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 293,
+      "fps": 58.5,
+      "max_gap_ms": 173.4,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 60.0,
+      "max_gap_ms": 49.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.0,
+      "max_gap_ms": 62.6,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 297,
+      "fps": 59.4,
+      "max_gap_ms": 68.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "selected_paths": [
+    "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+  ]
+}

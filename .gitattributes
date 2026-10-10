@@ -1,6 +1,9 @@
 scripts_build/*.bat text eol=crlf
 # Archived originals must retain exact bytes so their SHA-256 manifests survive checkout.
 backup/** -text
+# Isolated iroh crate and reviewed patches have byte-exact SHA-256 manifests.
+rust_transport/vendor/** -text
+patches/iroh/*.patch -text
 # The pinned NSIS toolchain is a verbatim upstream/vendor bundle with binary plug-ins.
 tools/nsis/** binary
 # Keep the source-dependency fingerprint identical on all developer machines.

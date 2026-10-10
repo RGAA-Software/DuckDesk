@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="6"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="16"
+	timestamp="2026-10-09T11:55:05"
+	>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="4.14046" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[       OK ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams (2963 ms)
+[ RUN      ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+[       OK ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind (157 ms)
+[ RUN      ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+[       OK ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic (117 ms)
+[ RUN      ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+[       OK ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery (95 ms)
+[ RUN      ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+[2026-10-09 11:55:09.522] [warning] [t...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_sdk_connection" classname="iroh_sdk_connection" time="3.09526" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (125 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-09 11:55:11.185] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 11:55:11.185] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-09 11:55:11.185] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (1137 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-09 11:55:11.769] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-09 11:55:11.769...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="client_statistics" classname="client_statistics" time="0.192866" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from ClientStatistics
+[ RUN      ] ClientStatistics.FormatsExistingMeasurementsWithCorrectUnits
+[       OK ] ClientStatistics.FormatsExistingMeasurementsWithCorrectUnits (0 ms)
+[ RUN      ] ClientStatistics.MissingMeasurementsAreNotFabricatedAsZero
+[       OK ] ClientStatistics.MissingMeasurementsAreNotFabricatedAsZero (0 ms)
+[ RUN      ] ClientStatistics.MeasuredZeroRemainsDifferentFromUnavailable
+[       OK ] ClientStatistics.MeasuredZeroRemainsDifferentFromUnavailable (0 ms)
+[ RUN      ] ClientStatistics.TransportLabelsFollowActualSnapshotAndLanguage
+[       OK ] ClientStatistics.TransportLabelsFollowActualSnapshotAndLanguage (0 ms)
+[ RUN      ] ClientStatistics.ClientCatalogsHaveCompleteBilingualCoverage
+[       OK ] ClientStatistics.ClientCatalogsHaveCompleteBilingualCoverage (0 ms)
+...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="client_imgui_launch_config" classname="client_imgui_launch_config" time="0.344493" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 22 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 22 tests from ClientImguiLaunchConfigTest
+[ RUN      ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference
+[       OK ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback
+[       OK ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport
+[       OK ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether
+[       OK ...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="px_panel_product_tests" classname="px_panel_product_tests" time="7.12042" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 75 tests from 19 test suites.
+[----------] Global test environment set-up.
+[----------] 19 tests from ApplicationLaunchWorkflow
+[ RUN      ] ApplicationLaunchWorkflow.PreparationDoesNotCompleteUntilClientConfirmsRemoteConnection
+[2026-10-09 11:55:13.629] [info] [application_launch_workflow.cpp:24] Application launch started: application=application request=request generation=1
+[2026-10-09 11:55:13.630] [info] [application_launch_workflow.cpp:249] Application client launched: application=application request=request session=session
+[       OK ] ApplicationLaunchWorkflow.PreparationDoesNotCompleteUntilClientConfirmsRemoteConnection (1 ms)
+[ RUN      ] ApplicationLaunchWorkflow.IrohRelayLaunchDoesNotRequireLegacyRelayTicket
+[2026-10-09 11:55:13.630] [info] [application_launch_workflow.cpp:24] Application launch started: application=application request=request generation=1
+[2026-10-09...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="1.65342" status="run">
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (146 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (121 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (195 ms)
+[ RUN      ] IrohFrontendTest.Ren...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

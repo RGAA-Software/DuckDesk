@@ -1,0 +1,7 @@
+{
+  "capture": ".cache\\iroh-paired-udp-20261011",
+  "filter_name": "PixelsPairedUdp",
+  "acceptance_exit_code": 0,
+  "capture_stop": "Flushing logs...\nMerging metadata...\nLog file: D:\\GoCloud\\GammaRayPremium\\.cache\\iroh-paired-udp-20261011\\direct2.etl (No events lost)\n",
+  "filter_cleanup": "Removed all filters.\n"
+}

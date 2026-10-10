@@ -1,0 +1,9 @@
+{
+  "policy": "Pixels-Iroh-ReceiveFeedback-2Mbps-20261009",
+  "relay_pid": 8580,
+  "rate_bps": 2000000,
+  "began": "2026-10-09T17:44:34.2458591+08:00",
+  "ended": "2026-10-09T17:44:54.2705509+08:00",
+  "remaining": 0,
+  "operation_id": "e813bc97-714e-431b-95e5-c5f4185f224d"
+}

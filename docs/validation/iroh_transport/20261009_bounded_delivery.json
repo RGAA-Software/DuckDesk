@@ -1,0 +1,11 @@
+{
+  "candidate": "iroh-bounded-bbr-20261009",
+  "installed_version": "3.3.97",
+  "verified_artifacts": 314,
+  "service_status": "Running",
+  "setup_sha256": "DC53728E8B8BCC1911DA28B58CFA98D76A1B73E8B66B68C04ED5CFC5481486B7",
+  "manifest_sha256": "CB62FBD00BFEF25C75407AD67BF6854F30C997EB08CA4906F0AC3520CC5A31B9",
+  "render_sha256": "4C0197FF62C4B798F397FB03FBEE420F84966A87DFDC19D361A23A3A1737A4F5",
+  "installation_operation": "13d4be74-4d24-41e4-9c74-a9a8e025ff57",
+  "performance_acceptance": "failed; repeated local send failures triggered a key frame storm; bounded_game_2mbps.json preserves the run"
+}

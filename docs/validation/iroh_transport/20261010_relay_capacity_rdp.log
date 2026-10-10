@@ -1,0 +1,6 @@
+[2026-10-10 16:39:46.600][thread 60236][iroh_dialer.cpp:147][info] : event=iroh.connect outcome=accepted reconnect=false
+[2026-10-10 16:39:46.916][thread 77996][client_window.cpp:269][info] : Client input route: mouse move local=(1007.0,540.0) remote=(0.699,0.581) sent=false state=1 monitor=[]
+[2026-10-10 16:39:46.926][thread 1324][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false
+[2026-10-10 16:39:46.967][thread 1324][rdp_session.cpp:508][info] : event=rdp.desktop.resize width=1440 height=900
+[2026-10-10 16:39:56.973][thread 1324][rdp_session.cpp:524][info] : event=rdp.frame.progress published=38 in_flight=0 dirty=false display_channel=false
+[2026-10-10 16:40:06.987][thread 1324][rdp_session.cpp:524][info] : event=rdp.frame.progress published=56 in_flight=0 dirty=false display_channel=false

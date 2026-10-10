@@ -1,0 +1,239 @@
+{
+  "case": "auto",
+  "passed": true,
+  "error": null,
+  "transfer_seconds": 28.09,
+  "file_sha_matches": true,
+  "phases": [
+    {
+      "name": "warmup",
+      "started_at": "2026-10-11T01:01:08.508336",
+      "ended_at": "2026-10-11T01:01:13.924548",
+      "complete_windows": [],
+      "gaps_gt_100ms": [],
+      "max_observed_gap_ms": null,
+      "fps_range": null
+    },
+    {
+      "name": "video_only_before",
+      "started_at": "2026-10-11T01:01:13.924548",
+      "ended_at": "2026-10-11T01:01:33.975738",
+      "complete_windows": [
+        {
+          "started_at": "2026-10-11T01:01:18.597000",
+          "ended_at": "2026-10-11T01:01:23.597000",
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 34.8,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:01:23.597000",
+          "ended_at": "2026-10-11T01:01:28.602000",
+          "frames": 301,
+          "fps": 60.1,
+          "max_gap_ms": 58.3,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:01:28.602000",
+          "ended_at": "2026-10-11T01:01:33.603000",
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 39.9,
+          "gaps_gt_100ms": 0
+        }
+      ],
+      "gaps_gt_100ms": [],
+      "max_observed_gap_ms": null,
+      "fps_range": [
+        60.0,
+        60.1
+      ]
+    },
+    {
+      "name": "separate_file_process",
+      "started_at": "2026-10-11T01:01:33.975738",
+      "ended_at": "2026-10-11T01:02:02.151064",
+      "complete_windows": [
+        {
+          "started_at": "2026-10-11T01:01:38.628000",
+          "ended_at": "2026-10-11T01:01:43.658000",
+          "frames": 284,
+          "fps": 56.5,
+          "max_gap_ms": 93.8,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:01:43.658000",
+          "ended_at": "2026-10-11T01:01:48.670000",
+          "frames": 297,
+          "fps": 59.2,
+          "max_gap_ms": 73.3,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:01:48.670000",
+          "ended_at": "2026-10-11T01:01:53.688000",
+          "frames": 281,
+          "fps": 56.0,
+          "max_gap_ms": 110.1,
+          "gaps_gt_100ms": 1
+        },
+        {
+          "started_at": "2026-10-11T01:01:53.688000",
+          "ended_at": "2026-10-11T01:01:58.699000",
+          "frames": 278,
+          "fps": 55.5,
+          "max_gap_ms": 145.3,
+          "gaps_gt_100ms": 1
+        }
+      ],
+      "gaps_gt_100ms": [
+        {
+          "at": "2026-10-11T01:01:51.561000",
+          "frame": 2758,
+          "gap_ms": 110.1
+        },
+        {
+          "at": "2026-10-11T01:01:54.614000",
+          "frame": 2944,
+          "gap_ms": 145.3
+        }
+      ],
+      "max_observed_gap_ms": 145.3,
+      "fps_range": [
+        55.5,
+        59.2
+      ]
+    },
+    {
+      "name": "video_only_after",
+      "started_at": "2026-10-11T01:02:02.151064",
+      "ended_at": "2026-10-11T01:02:23.005722",
+      "complete_windows": [
+        {
+          "started_at": "2026-10-11T01:02:03.700000",
+          "ended_at": "2026-10-11T01:02:08.701000",
+          "frames": 300,
+          "fps": 60.0,
+          "max_gap_ms": 41.3,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:02:08.701000",
+          "ended_at": "2026-10-11T01:02:13.712000",
+          "frames": 300,
+          "fps": 59.9,
+          "max_gap_ms": 45.8,
+          "gaps_gt_100ms": 0
+        },
+        {
+          "started_at": "2026-10-11T01:02:13.712000",
+          "ended_at": "2026-10-11T01:02:18.719000",
+          "frames": 301,
+          "fps": 60.1,
+          "max_gap_ms": 34.2,
+          "gaps_gt_100ms": 0
+        }
+      ],
+      "gaps_gt_100ms": [],
+      "max_observed_gap_ms": null,
+      "fps_range": [
+        59.9,
+        60.1
+      ]
+    }
+  ],
+  "processes": {
+    "video": {
+      "pid": 77280,
+      "mode": "desktop",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "fd1070db9b6faf3512d29cd6fcb0d5fd42992121e743761e2c5fd633105a609f",
+      "resource_session_id": "88c599fa-dbbc-4c3e-a349-b75d0e2ab0b0",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4613,
+      "launched_at": "2026-10-11T01:01:07.449697"
+    },
+    "file": {
+      "pid": 49752,
+      "mode": "file-transfer",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "3f17c8cc626061d3693ec18db141add39e9fbc96f26a9569d2a7be330e0a13e3",
+      "resource_session_id": "fa27cd71-a815-4c3c-83b3-bb75e695555f",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4601,
+      "launched_at": "2026-10-11T01:01:34.763642"
+    }
+  },
+  "udp_endpoints": [
+    {
+      "OwningProcess": 49752,
+      "LocalAddress": "::",
+      "LocalPort": 63198
+    },
+    {
+      "OwningProcess": 77280,
+      "LocalAddress": "::",
+      "LocalPort": 61057
+    },
+    {
+      "OwningProcess": 49752,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 63196
+    },
+    {
+      "OwningProcess": 77280,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 61055
+    }
+  ],
+  "access_restored": true,
+  "cleanup_errors": [],
+  "video_paths": [
+    "direct"
+  ],
+  "file_paths": [
+    "1"
+  ],
+  "file_received_video": false,
+  "video_sent_file_payload": false,
+  "video_recovery_events": 24,
+  "transfer_marks": {
+    "start_upload": "2026-10-11T01:01:36",
+    "upload_complete": "2026-10-11T01:01:48.452000",
+    "start_download": "2026-10-11T01:01:48.452000",
+    "download_complete": "2026-10-11T01:01:59.429000"
+  },
+  "transfer_directions": [
+    {
+      "direction": "upload",
+      "started_at": "2026-10-11T01:01:36",
+      "ended_at": "2026-10-11T01:01:48.452000",
+      "seconds": 12.452,
+      "gaps_gt_100ms": []
+    },
+    {
+      "direction": "download",
+      "started_at": "2026-10-11T01:01:48.452000",
+      "ended_at": "2026-10-11T01:01:59.429000",
+      "seconds": 10.977,
+      "gaps_gt_100ms": [
+        {
+          "at": "2026-10-11T01:01:51.561000",
+          "frame": 2758,
+          "gap_ms": 110.1
+        },
+        {
+          "at": "2026-10-11T01:01:54.614000",
+          "frame": 2944,
+          "gap_ms": 145.3
+        }
+      ]
+    }
+  ],
+  "selected_video_paths": [
+    "{\"Ip\":\"39.71.45.66:4613\"}"
+  ]
+}

@@ -116,14 +116,13 @@ function eligibilityKey(relay: ManagedRelay): string {
     if (
         relay.max_connections === null ||
         relay.current_connections === null ||
-        relay.max_rooms === null ||
-        relay.current_rooms === null
+        (relay.iroh_qad_port === null && (relay.max_rooms === null || relay.current_rooms === null))
     ) {
         return "relays.reasons.unknownCapacity";
     }
     if (
         relay.current_connections + 2 > relay.max_connections ||
-        relay.current_rooms + 1 > relay.max_rooms
+        (relay.iroh_qad_port === null && relay.current_rooms !== null && relay.max_rooms !== null && relay.current_rooms + 1 > relay.max_rooms)
     ) {
         return "relays.reasons.full";
     }
@@ -188,6 +187,9 @@ useManagementRefresh(["relays"], refresh);
                     >{{ record.public_host }}:{{ record.public_port }}</template
                 >
             </a-table-column>
+            <a-table-column :title="t('relays.qadPort')">
+                <template #default="{ record }">{{ record.iroh_qad_port ?? t('relays.notApplicable') }}</template>
+            </a-table-column>
             <a-table-column :title="t('relays.state')">
                 <template #default="{ record }">
                     <a-tag :color="isEligible(record) ? 'green' : 'orange'">
@@ -207,7 +209,7 @@ useManagementRefresh(["relays"], refresh);
             <a-table-column :title="t('relays.rooms')">
                 <template #default="{ record }">
                     {{
-                        record.fresh && snapshotCurrent
+                        record.iroh_qad_port !== null ? t('relays.notApplicable') : record.fresh && snapshotCurrent
                             ? formatCapacity(record.current_rooms, record.max_rooms)
                             : t("relays.unknown")
                     }}

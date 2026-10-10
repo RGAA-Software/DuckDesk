@@ -6,6 +6,7 @@
 #define PIXELSPC_UDP_DIRECT_CONNECTION_H
 
 #include "connection.h"
+#include "encoded_video_delivery.h"
 #include <memory>
 #include <string>
 #include <atomic>
@@ -17,6 +18,7 @@
 #include "media_transport/video_stream.h"
 #include "media_transport/audio_stream.h"
 #include "media_transport/packet_timing.h"
+#include "media_transport/video_recovery_policy.h"
 
 namespace asio2 {
 class udp_client;
@@ -52,9 +54,8 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     // Install before Start; callbacks receive owning frames only from this connection's current association.
     void SetOnVoiceFrameCallback(std::function<void(UdpVoiceFrame)> callback);
 
-    // 组帧完成后合成的 kVideoFrame proto,回调语义与 WebRtcLocalConnection::SetOnVideoMessageCallback 一致
-    void SetOnVideoMessageCallback(
-        const std::function<void(std::shared_ptr<px::Message>)>& callback);
+    // Owns the complete frame and the receiver's reference-chain evidence across asynchronous decode dispatch.
+    void SetOnVideoMessageCallback(std::function<void(EncodedVideoDelivery)> callback);
 
     // jitter buffer 按序交付后合成的 kAudioFrame proto;
     // 丢帧信号同样是 kAudioFrame,但 data 为空(解码层据此走 Opus PLC 补 20ms)
@@ -80,6 +81,8 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
    void RequestRfi(uint64_t invalid_frame_index,
                    const std::string& monitor_name);
    void CheckNeedIdr();
+   void CheckVideoRecovery();
+   void SendVideoRecoveryRequest(const media::VideoRecoveryRequest& request);
    void CheckWatchdog();
    void RestoreReachability();
 
@@ -87,6 +90,7 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     static constexpr int kTimerHeartbeat = 1;
     static constexpr int kTimerWatchdog = 2;
     static constexpr int kTimerIdrRetry = 3;
+    static constexpr int kTimerVideoRecovery = 4;
     static constexpr int64_t kWatchdogTimeoutMs = 30000;
 
     std::string host_;
@@ -97,6 +101,7 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
 
     std::shared_ptr<asio2::udp_client> udp_client_ = nullptr;
     media::VideoStreamReceiver video_receiver_{};
+    media::VideoRecoveryPolicy video_recovery_{};
     media::AudioReceiveQueue audio_receiver_{};
     struct MediaWindow final {
         std::uint64_t start_us{};
@@ -114,7 +119,7 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     media::VideoPacketTiming receive_timing_{}; // UDP executor only, reset after the previous socket stops.
     std::map<std::uint8_t, media::VideoReceiveStatistics> receive_statistics_{};
 
-    std::function<void(std::shared_ptr<px::Message>)> video_msg_cbk_;
+    std::function<void(EncodedVideoDelivery)> video_msg_cbk_{};
     std::function<void(std::shared_ptr<px::Message>)> audio_msg_cbk_;
     std::function<void(UdpVoiceFrame)> voice_frame_cbk_{};
     UdpVoiceSendBudget voice_send_budget_{};
@@ -128,8 +133,6 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     std::atomic_int64_t last_recv_ms_ = 0;
     std::atomic_int64_t last_video_frame_ms_{0};
     std::atomic_int64_t last_idr_request_ms_{0};
-    // 最近一次 RFI 请求时间(ms)。目前仅用于日志/诊断,恢复靠 RFI 重试而非 300ms 转 IDR。
-    std::atomic_int64_t last_rfi_request_ms_{0};
     std::atomic_uint64_t recv_pkt_count_{0};
     std::atomic_uint64_t recv_video_pkt_count_{0};
     std::atomic_uint64_t malformed_video_pkt_count_{0};
@@ -138,13 +141,7 @@ class UdpDirectConnection : public Connection, public std::enable_shared_from_th
     // control datagram repeats that idempotent hello instead of heartbeat.
     std::atomic_bool received_media_packet_{false};
 
-    // IDR 请求节流:per mon_slot 上次发 IDR 的时间(仅 udp io 线程访问,无需锁)
-    std::map<uint8_t, std::chrono::steady_clock::time_point> last_idr_time_;
-    std::map<uint8_t, std::chrono::steady_clock::time_point> last_rfi_time_;
     static constexpr int64_t kIdrThrottleMs = 1000;
-    // RFI 不节流(Moonlight 同款):每次判丢立即发 RFI,靠 render 的 range 失效覆盖连续丢帧;
-    // 恢复帧再丢也会被下一次判丢触发重发。0 = 关闭节流。
-    static constexpr int64_t kRfiThrottleMs = 0;
     // A static DDA desktop legitimately has no new video frames. Keep a
     // sparse refresh for decoder recovery without treating normal stillness
     // as a two-second failure loop.

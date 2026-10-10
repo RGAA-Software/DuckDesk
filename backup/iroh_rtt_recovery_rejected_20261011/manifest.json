@@ -1,0 +1,22 @@
+{
+  "reason": "Two real direct mixed-load runs did not establish overall improvement; restore exact preceding contents with fresh mtimes",
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "files": [
+    {
+      "path": "src/px_client_sdk/media_transport/video_recovery_policy.h",
+      "sha256": "a342532fc5546e16e46dba3d4e8e8e4d6acd56b4656a9214c99f5a38acd52cf0"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_encoded_video_delivery.cpp",
+      "sha256": "435c7d8dbeca8c458b66ef11bbbe1f70df79b71b25a50c7aeec69efc76831465"
+    },
+    {
+      "path": "src/px_transport/media_datagrams.cpp",
+      "sha256": "8f3c97178fa568e3e9142e849c6277f0f5ae416551aa70b8ab99a28da52f2834"
+    },
+    {
+      "path": "src/px_transport/media_datagrams.h",
+      "sha256": "6b4efe462364470c3e5a7bb863556c90e42eb1fc814626226e0ae5e9482d43b9"
+    }
+  ]
+}

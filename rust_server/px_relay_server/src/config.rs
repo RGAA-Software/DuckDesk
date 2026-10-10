@@ -35,44 +35,7 @@ impl RelayConfig {
         if control_key.len() < 32 || control_key.len() > 512 {
             return Err("PIXELS_RELAY_CONTROL_KEY must contain 32-512 bytes".to_string());
         }
-        let control_url = required("PIXELS_RELAY_CONSOLE_CONTROL_URL")?;
-        let parsed_control_url = url::Url::parse(&control_url).map_err(|_| {
-            "PIXELS_RELAY_CONSOLE_CONTROL_URL must be an absolute ws/wss URL".to_string()
-        })?;
-        if !matches!(parsed_control_url.scheme(), "ws" | "wss")
-            || parsed_control_url.host_str().is_none()
-            || !parsed_control_url.username().is_empty()
-            || parsed_control_url.password().is_some()
-            || parsed_control_url.query().is_some()
-            || parsed_control_url.fragment().is_some()
-        {
-            return Err(
-                "PIXELS_RELAY_CONSOLE_CONTROL_URL must be an absolute ws/wss URL without credentials, query or fragment".to_string(),
-            );
-        }
-        let tls_config = match env::var("PIXELS_RELAY_CONSOLE_CA_FILE") {
-            Ok(certificate_authority_path) if !certificate_authority_path.trim().is_empty() => {
-                if parsed_control_url.scheme() != "wss" {
-                    return Err(
-                        "PIXELS_RELAY_CONSOLE_CA_FILE requires a wss Console control URL"
-                            .to_string(),
-                    );
-                }
-                Some(load_tls_config(Path::new(&certificate_authority_path))?)
-            }
-            _ => None,
-        };
-        let relay_token = Zeroizing::new(required("PIXELS_RELAY_NODE_TOKEN")?);
-        if relay_token.len() != 64
-            || !relay_token.bytes().all(|byte_value| {
-                byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value)
-            })
-        {
-            return Err(
-                "PIXELS_RELAY_NODE_TOKEN must contain exactly 64 lowercase hexadecimal characters"
-                    .to_string(),
-            );
-        }
+        let control_plane = ControlPlaneConfig::from_environment()?;
         Ok(Self {
             listen,
             app_key,
@@ -92,12 +55,7 @@ impl RelayConfig {
                 3,
                 300,
             )? as u64),
-            control_plane: Some(ControlPlaneConfig {
-                url: parsed_control_url.to_string(),
-                token: Arc::new(relay_token),
-                product_version_code: package_version_code()?,
-                tls_config,
-            }),
+            control_plane: Some(control_plane),
         })
     }
 }
@@ -164,4 +122,53 @@ fn bounded(name: &str, default: usize, minimum: usize, maximum: usize) -> Result
         return Err(format!("{name} must be between {minimum} and {maximum}"));
     }
     Ok(value)
+}
+
+impl ControlPlaneConfig {
+    pub fn from_environment() -> Result<Self, String> {
+        let control_url = required("PIXELS_RELAY_CONSOLE_CONTROL_URL")?;
+        let parsed_control_url = url::Url::parse(&control_url).map_err(|_| {
+            "PIXELS_RELAY_CONSOLE_CONTROL_URL must be an absolute ws/wss URL".to_string()
+        })?;
+        if !matches!(parsed_control_url.scheme(), "ws" | "wss")
+            || parsed_control_url.host_str().is_none()
+            || !parsed_control_url.username().is_empty()
+            || parsed_control_url.password().is_some()
+            || parsed_control_url.query().is_some()
+            || parsed_control_url.fragment().is_some()
+        {
+            return Err(
+                "PIXELS_RELAY_CONSOLE_CONTROL_URL must be an absolute ws/wss URL without credentials, query or fragment".to_string(),
+            );
+        }
+        let tls_config = match env::var("PIXELS_RELAY_CONSOLE_CA_FILE") {
+            Ok(certificate_authority_path) if !certificate_authority_path.trim().is_empty() => {
+                if parsed_control_url.scheme() != "wss" {
+                    return Err(
+                        "PIXELS_RELAY_CONSOLE_CA_FILE requires a wss Console control URL"
+                            .to_string(),
+                    );
+                }
+                Some(load_tls_config(Path::new(&certificate_authority_path))?)
+            }
+            _ => None,
+        };
+        let relay_token = Zeroizing::new(required("PIXELS_RELAY_NODE_TOKEN")?);
+        if relay_token.len() != 64
+            || !relay_token.bytes().all(|byte_value| {
+                byte_value.is_ascii_digit() || (b'a'..=b'f').contains(&byte_value)
+            })
+        {
+            return Err(
+                "PIXELS_RELAY_NODE_TOKEN must contain exactly 64 lowercase hexadecimal characters"
+                    .to_string(),
+            );
+        }
+        Ok(Self {
+            url: parsed_control_url.to_string(),
+            token: Arc::new(relay_token),
+            product_version_code: package_version_code()?,
+            tls_config,
+        })
+    }
 }

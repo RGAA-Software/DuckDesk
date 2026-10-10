@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="0"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="0"
+	timestamp="2026-10-09T14:30:55"
+	>
+	<testcase name="render_architecture_core" classname="render_architecture_core" time="0.19828" status="run">
+		<properties>
+			<property name="cmake_labels" value="render-unit"/>
+		</properties>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 30 tests from 10 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from RenderArchitectureFlowNodeRegistry
+[ RUN      ] RenderArchitectureFlowNodeRegistry.CreatesTypedNodeThroughCompositionRoot
+[       OK ] RenderArchitectureFlowNodeRegistry.CreatesTypedNodeThroughCompositionRoot (0 ms)
+[ RUN      ] RenderArchitectureFlowNodeRegistry.RejectsDuplicateAndRoleMismatch
+[       OK ] RenderArchitectureFlowNodeRegistry.RejectsDuplicateAndRoleMismatch (0 ms)
+[----------] 2 tests from RenderArchitectureFlowNodeRegistry (0 ms total)
+
+[----------] 2 tests from RenderArchitectureMediaTypes
+[ RUN      ] RenderArchitectureMediaTypes.ValidFrameOwnsImmutablePayload
+[       OK ] RenderArchitectureMediaTypes.ValidFrameOwnsImmutablePayload (0 ms)
+[ RUN      ] RenderArchitectureMediaTypes.InvalidFrameReturnsStableTypedError
+[       OK ] RenderArchitectureMediaTypes.Inval...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+	<testcase name="captured_media_pipeline" classname="captured_media_pipeline" time="0.124395" status="run">
+		<properties>
+			<property name="cmake_labels" value="render-lifecycle;render-unit"/>
+		</properties>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from CapturedMediaPipelineTest
+[ RUN      ] CapturedMediaPipelineTest.SourceProcessorsAndObserverUseOneTypedFlow
+[       OK ] CapturedMediaPipelineTest.SourceProcessorsAndObserverUseOneTypedFlow (0 ms)
+[ RUN      ] CapturedMediaPipelineTest.UnregisterDuringDispatchSkipsQueuedProcessor
+[       OK ] CapturedMediaPipelineTest.UnregisterDuringDispatchSkipsQueuedProcessor (0 ms)
+[ RUN      ] CapturedMediaPipelineTest.ProcessorFailureAndOwnerExpiryAreSafe
+[       OK ] CapturedMediaPipelineTest.ProcessorFailureAndOwnerExpiryAreSafe (0 ms)
+[ RUN      ] CapturedMediaPipelineTest.AudioProcessorCanDropAndExpiredCallbackIsRemoved
+[       OK ] CapturedMediaPipelineTest.AudioProcessorCanDropAndExpiredCallbackIsRemoved (0 ms)
+[----------] 4 tests from CapturedMediaPipelineTest (0 ms total)
+
+[----------]...
+[This part of the test output was removed since it exceeds the threshold of 1024 bytes.]
+</system-out>
+	</testcase>
+</testsuite>

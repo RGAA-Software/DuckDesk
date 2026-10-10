@@ -1,0 +1,82 @@
+{
+  "started_at": "2026-10-11T00:57:31.564366",
+  "case": "auto",
+  "evidence": ".cache\\iroh-native-live-20261011-005731-auto",
+  "passed": false,
+  "phases": [
+    {
+      "name": "warmup",
+      "started_at": "2026-10-11T00:57:36.064365",
+      "ended_at": "2026-10-11T00:57:41.325147"
+    },
+    {
+      "name": "video_only_before",
+      "started_at": "2026-10-11T00:57:41.325147",
+      "ended_at": "2026-10-11T00:58:02.176708"
+    },
+    {
+      "name": "separate_file_process",
+      "started_at": "2026-10-11T00:58:02.176708",
+      "ended_at": "2026-10-11T00:59:33.163914"
+    }
+  ],
+  "processes": {
+    "video": {
+      "pid": 81352,
+      "mode": "desktop",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+      "sha256": "f6ae8214b2277f1557f95bb1d36f6f105792fac418a4670b6ba2e365e0e086da",
+      "resource_session_id": "315d7268-b1ce-4541-8ba6-b9613ed876c8",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4613,
+      "launched_at": "2026-10-11T00:57:34.909793"
+    },
+    "file": {
+      "pid": 48116,
+      "mode": "file-transfer",
+      "executable": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "f205d180faa830d87fa9f0a2f2a5f24549b9f102cf9d99cdedab2dc5f5fef757",
+      "resource_session_id": "f430bdda-78cf-472d-8d2a-3bbd9c18e2b6",
+      "remote_host": "39.71.45.66",
+      "remote_port": 4601,
+      "launched_at": "2026-10-11T00:58:02.721442"
+    }
+  },
+  "cleanup_errors": [
+    "access: /api/console/managed/devices/b8298e0b-712d-490e-9936-29f6c07333b2/access HTTP 403"
+  ],
+  "remote_test_file": "D:\\112233\\pixels-independent-88a0b9283eb345adb3b25bd8d5067219.bin",
+  "source_bytes": 67108864,
+  "access_before": {
+    "groups": [],
+    "users": []
+  },
+  "instance_id": "04e23167-f2ee-442e-9660-38b87dcb983f",
+  "posted_input_messages": 6600,
+  "udp_endpoints": [
+    {
+      "OwningProcess": 48116,
+      "LocalAddress": "::",
+      "LocalPort": 57302
+    },
+    {
+      "OwningProcess": 81352,
+      "LocalAddress": "::",
+      "LocalPort": 56885
+    },
+    {
+      "OwningProcess": 48116,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 57300
+    },
+    {
+      "OwningProcess": 81352,
+      "LocalAddress": "0.0.0.0",
+      "LocalPort": 56883
+    }
+  ],
+  "transfer_seconds": 90.987,
+  "file_exit_code": 6,
+  "error": "PIXELS_FILE_TRANSFER_ACCEPTANCE=FAIL:FILE_TRANSFER_TIMEOUT\n",
+  "ended_at": "2026-10-11T00:59:34.647216"
+}

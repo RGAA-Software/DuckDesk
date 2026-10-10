@@ -12,6 +12,7 @@ public:
 private:
     std::shared_ptr<CloudApplicationsPort> port_{};
     std::uint64_t observedGeneration_{};
+    std::uint64_t dispatchedGeneration_{};
     ApplicationLaunchStatus displayedStatus_{ApplicationLaunchStatus::Succeeded};
 };
 

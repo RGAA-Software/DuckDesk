@@ -1,0 +1,3 @@
+RECOVERY_READY: paths=PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4605/)], selected: Some(PathId(0)), closed: false }, .. }
+RELAY_FAILOVER: reselection_ms=5419 disconnected_reselection_ms=4995 same_endpoint_ids=true paths=PathList { snapshot: State { list: [PathData(0, relay:https://49.232.233.61:4605/)], selected: Some(PathId(0)), closed: false }, .. }
+{"datagrams_echoed":120,"datagrams_sent":120,"elapsed_ms":5065,"maximum_datagram_round_trip_us":546904,"maximum_datagram_size":1288,"paths":"PathList { snapshot: State { list: [PathData(0, relay:https://49.232.233.61:4605/)], selected: Some(PathId(0)), closed: false }, .. }","reliable_bytes_verified":6291520}

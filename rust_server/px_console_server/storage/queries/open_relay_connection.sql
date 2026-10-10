@@ -12,5 +12,5 @@ WHERE credential_hash = $1
     AND $3 = (SELECT epoch FROM pixels.control_runtime)
 RETURNING id, name, public_host, public_port, revision, generation, control_epoch, state,
 desired_draining, reported_draining, disabled, report_sequence, last_seen, product_version_code,
-max_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes,
+max_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes, iroh_qad_port,
 true AS "fresh!"

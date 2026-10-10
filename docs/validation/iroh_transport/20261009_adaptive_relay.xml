@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Win32-ninja"
+	tests="2"
+	failures="2"
+	disabled="0"
+	skipped="0"
+	hostname="DESKTOP-4KE66F8"
+	time="1"
+	timestamp="2026-10-09T14:10:46"
+	>
+	<testcase name="iroh_media_datagrams" classname="iroh_media_datagrams" time="1.13257" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 8 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly
+[       OK ] IrohVideoRateControl.RelayQueueGrowthReducesEncoderRateAndStablePathRecoversSlowly (0 ms)
+[ RUN      ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth
+[       OK ] IrohVideoRateControl.StableHighLatencyAndPathChangesDoNotMeanQueueGrowth (0 ms)
+[----------] 2 tests from IrohVideoRateControl (0 ms total)
+
+[----------] 5 tests from IrohMediaTest
+[ RUN      ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(63): error: Value of: server_
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams (201 ms)
+[ RUN      ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(63): error: Value of: server_
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind (74 ms)
+[ RUN      ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(63): error: Value of: server_
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic (45 ms)
+[ RUN      ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(63): error: Value of: server_
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery (76 ms)
+[ RUN      ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(63): error: Value of: server_
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection (52 ms)
+[----------] 5 tests from IrohMediaTest (449 ms total)
+
+[----------] 1 test from IrohVoiceDatagram
+[ RUN      ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages
+[       OK ] IrohVoiceDatagram.RejectsNonVoiceTruncatedAndOversizedMessages (84 ms)
+[----------] 1 test from IrohVoiceDatagram (84 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 3 test suites ran. (533 ms total)
+[  PASSED  ] 3 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] IrohMediaTest.PacedVideoAndAudioUseActualQuicDatagrams
+[  FAILED  ] IrohMediaTest.FecRecoversDroppedShardsAndRetainsReferenceRecoveryKind
+[  FAILED  ] IrohMediaTest.OnePendingFrameExpiresWithoutBlockingReliableTraffic
+[  FAILED  ] IrohMediaTest.BackpressureDropRemainsVisibleToReferenceRecovery
+[  FAILED  ] IrohMediaTest.ReceiverStopsFromVideoCallbackWithoutClosingReliableConnection
+
+ 5 FAILED TESTS
+</system-out>
+	</testcase>
+	<testcase name="iroh_frontend" classname="iroh_frontend" time="0.715547" status="fail">
+		<failure message="Failed"/>
+		<properties/>
+		<system-out>Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 12 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 12 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (20 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (5 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (7 ms)
+[ RUN      ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation (4 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (1 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (1 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (1 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (2 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (1 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (10 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (1 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(96): error: Value of: server_-&gt;Start(transport::testing::EndpointConfiguration())
+  Actual: false
+Expected: true
+
+[  FAILED  ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (3 ms)
+[----------] 12 tests from IrohFrontendTest (63 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 1 test suite ran. (63 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 12 tests, listed below:
+[  FAILED  ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+[  FAILED  ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+[  FAILED  ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+[  FAILED  ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+[  FAILED  ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+[  FAILED  ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+[  FAILED  ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+[  FAILED  ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+[  FAILED  ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+[  FAILED  ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+[  FAILED  ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+[  FAILED  ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+
+12 FAILED TESTS
+</system-out>
+	</testcase>
+</testsuite>

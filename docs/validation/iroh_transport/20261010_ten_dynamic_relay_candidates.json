@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "relay_count": 10,
+  "scope": "live candidate replacement, held stream/datagram and new peer; loopback TLS, not cross-host capacity",
+  "exit_code": 0
+}

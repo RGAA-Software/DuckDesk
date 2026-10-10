@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-09",
+  "development_hashes": {
+    "px_client.exe": "B6735A321C46BBE4BAB2151A51649DAEDAE13FCC222A481482B1EA5F4DAF3FEF",
+    "px_render.exe": "778AE8DA36D00D74CCF96CD625573ADFA1C3ADB61AAEB2E87AEBC385CB639E2C"
+  },
+  "checks": [
+    "iroh_transport: 3 tests",
+    "iroh_sdk_connection: 2 tests",
+    "iroh_frontend: 7 tests"
+  ],
+  "rust_build": "cargo build --release --workspace --locked",
+  "product_iroh_migrated": false,
+  "remote_installer_unchanged_from": "20261009_delivery.json"
+}

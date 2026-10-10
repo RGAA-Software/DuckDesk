@@ -11,6 +11,38 @@ pub struct RelayNodeStore {
 }
 
 impl RelayNodeStore {
+    /// Public endpoints for newly established iroh transports; existing sessions retain their paths.
+    pub async fn available_iroh_relays(
+        &self,
+    ) -> Result<Vec<px_node_protocol::IrohRelayConfig>, StoreError> {
+        let mut transaction = self.pool.begin().await?;
+        control::read_gate(&mut transaction).await?;
+        let endpoints: Vec<(String, i32, i32)> = sqlx::query_as(
+            "SELECT public_host, public_port, iroh_qad_port FROM pixels.relay_nodes \
+             WHERE iroh_qad_port IS NOT NULL AND state='ready' AND connection_hash IS NOT NULL \
+             AND control_epoch=(SELECT epoch FROM pixels.control_runtime) \
+             AND last_seen > clock_timestamp() - interval '30 seconds' \
+             AND NOT disabled AND NOT desired_draining AND reported_draining=false AND deleted_at IS NULL \
+             AND current_connections + 2 <= max_connections \
+             ORDER BY current_connections::numeric / max_connections, id LIMIT 32"
+        ).fetch_all(&mut *transaction).await?;
+        transaction.commit().await?;
+        endpoints
+            .into_iter()
+            .map(|(host, port, qad_port)| {
+                let authority = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+                    format!("[{host}]")
+                } else {
+                    host
+                };
+                Ok(px_node_protocol::IrohRelayConfig {
+                    url: format!("https://{authority}:{port}/"),
+                    qad_port: Some(u16::try_from(qad_port).map_err(|_| StoreError::InvalidInput)?),
+                })
+            })
+            .collect()
+    }
+
     #[cfg(feature = "pg-integration")]
     pub async fn connect(
         config: &px_pg::DatabaseConfig,
@@ -171,7 +203,8 @@ impl RelayNodeStore {
             validated.max_rooms,
             validated.current_rooms,
             validated.uploaded_bytes,
-            validated.forwarded_bytes
+            validated.forwarded_bytes,
+            report.iroh_qad_port.map(i32::from)
         )
         .fetch_optional(&mut *transaction)
         .await?

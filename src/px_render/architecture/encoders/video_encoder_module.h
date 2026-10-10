@@ -89,6 +89,8 @@ public:
     [[nodiscard]] std::optional<EncoderConfig> Configuration(
         const std::string& monitor_name) const;
     void SetClientSideMediaRecording(bool recording) noexcept;
+    // Called on the native encoding thread. False keeps the existing recreation path.
+    [[nodiscard]] virtual bool TryUpdateBitrate(const std::string& monitor_name, std::uint32_t bits_per_second);
     virtual void Reconfigure(const std::string& monitor_name,
                              std::uint32_t bits_per_second,
                              std::uint32_t frames_per_second);

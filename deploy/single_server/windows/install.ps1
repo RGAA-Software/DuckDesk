@@ -119,9 +119,10 @@ function Protect-ServiceDataDirectory {
 }
 
 function Get-EnvironmentValue {
-    param([string]$Path, [string]$Name)
+    param([string]$Path, [string]$Name, [switch]$Optional)
     $prefix = "$Name="
     $matchingLines = @(Get-Content -LiteralPath $Path | Where-Object { $_.StartsWith($prefix, [StringComparison]::Ordinal) })
+    if ($Optional -and $matchingLines.Count -eq 0) { return $null }
     if ($matchingLines.Count -ne 1) { throw "Environment field is missing or duplicated: $Name" }
     return $matchingLines[0].Substring($prefix.Length).Trim("'", '"')
 }
@@ -134,6 +135,38 @@ function Protect-ReferencedServiceFile {
         throw "Service secret must be an existing file within the private configuration root: $Path"
     }
     Protect-ServiceReadFile -Path $resolvedPath -ServiceNames $ServiceNames
+}
+
+function Protect-IrohRelayFiles {
+    param([string]$ConfigRoot, [string]$BackupRootCertificate, [string]$BackupServiceName)
+    $relayEnvironment = Join-Path $ConfigRoot 'relay.env'
+    $relayConfigurationPath = Get-EnvironmentValue -Path $relayEnvironment -Name 'PIXELS_RELAY_IROH_CONFIG' -Optional
+    if ([string]::IsNullOrWhiteSpace($relayConfigurationPath)) { return }
+    if (-not [IO.Path]::IsPathRooted($relayConfigurationPath)) {
+        throw 'PIXELS_RELAY_IROH_CONFIG must be an absolute configuration path.'
+    }
+    Protect-ReferencedServiceFile -Path $relayConfigurationPath -ServiceNames @('Pixels.Relay')
+    $relayConfiguration = Get-Content -LiteralPath $relayConfigurationPath -Raw | ConvertFrom-Json
+    $relayConfigurationDirectory = Split-Path -Parent $relayConfigurationPath
+    $consoleEnvironment = Join-Path $ConfigRoot 'console.env'
+    $consoleCertificatePaths = @('PIXELS_CONSOLE_TLS_CERT', 'PIXELS_CONSOLE_TLS_KEY') | ForEach-Object {
+        [IO.Path]::GetFullPath((Get-EnvironmentValue -Path $consoleEnvironment -Name $_))
+    }
+    foreach ($fieldName in @('certificate_file', 'private_key_file')) {
+        $certificatePath = [string]$relayConfiguration.$fieldName
+        if ([string]::IsNullOrWhiteSpace($certificatePath)) { throw "Relay TLS field is missing: $fieldName" }
+        if (-not [IO.Path]::IsPathRooted($certificatePath)) {
+            $certificatePath = Join-Path $relayConfigurationDirectory $certificatePath
+        }
+        $certificatePath = [IO.Path]::GetFullPath($certificatePath)
+        $serviceReaders = @('Pixels.Relay')
+        if ($certificatePath -in $consoleCertificatePaths) { $serviceReaders += 'Pixels.Console' }
+        if (-not [string]::IsNullOrWhiteSpace($BackupRootCertificate) -and
+            $certificatePath -ieq [IO.Path]::GetFullPath($BackupRootCertificate)) {
+            $serviceReaders += $BackupServiceName
+        }
+        Protect-ReferencedServiceFile -Path $certificatePath -ServiceNames $serviceReaders
+    }
 }
 
 function Protect-LicenseDirectory {
@@ -419,6 +452,8 @@ try {
     foreach ($workspaceKey in $workspaceKeys) {
         Protect-ReferencedServiceFile -Path ([string]$workspaceKey.path) -ServiceNames @('Pixels.Console')
     }
+    # Reconcile shared TLS files after the individual service ACLs are applied.
+    Protect-IrohRelayFiles -ConfigRoot $resolvedConfig -BackupRootCertificate $backupRootCertificate -BackupServiceName $backupName
     $cacheDirectory = Get-EnvironmentValue -Path $consoleEnvironment -Name 'PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY'
     Protect-ServiceDataDirectory -Path $cacheDirectory -ServiceName 'Pixels.Console'
     $consoleLogDirectory = Join-Path (Split-Path -Parent $cacheDirectory) 'logs'

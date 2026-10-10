@@ -1,0 +1,86 @@
+{
+  "payload_pattern": "random 1 MiB block repeated; no within-block compression gain",
+  "passed": true,
+  "evidence": ".cache\\iroh-native-live-20261010-220951-relay",
+  "transport_requested": "iroh-relay",
+  "bytes": 67108864,
+  "cancel_retry": false,
+  "instance_id": "8873a231-4929-413f-ae7b-9abbd5c2285a",
+  "started_at": "2026-10-10 22:09:53",
+  "posted_input_messages": 2081,
+  "screenshots": [
+    ".cache\\iroh-native-live-20261010-220951-relay\\mixed-0.png",
+    ".cache\\iroh-native-live-20261010-220951-relay\\mixed-1.png",
+    ".cache\\iroh-native-live-20261010-220951-relay\\mixed-2.png",
+    ".cache\\iroh-native-live-20261010-220951-relay\\mixed-3.png"
+  ],
+  "elapsed_seconds": 38.579,
+  "exit_code": 0,
+  "source_sha256": "dae2dcb9052246265dd46d7763097cbfea51d287fba6d6512d816e4594d4f2a0",
+  "download_sha256": "dae2dcb9052246265dd46d7763097cbfea51d287fba6d6512d816e4594d4f2a0",
+  "path_evidence": "Actual iroh.path telemetry required; auto selection is not proof of NAT traversal",
+  "media_windows": [
+    {
+      "frames": 303,
+      "fps": 60.4,
+      "max_gap_ms": 49.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 300,
+      "fps": 59.9,
+      "max_gap_ms": 35.5,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 301,
+      "fps": 60.1,
+      "max_gap_ms": 35.4,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 282,
+      "fps": 56.4,
+      "max_gap_ms": 182.3,
+      "gaps_gt_100ms": 2,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 175,
+      "fps": 25.7,
+      "max_gap_ms": 3855.8,
+      "gaps_gt_100ms": 1,
+      "idr": 0,
+      "rfi": 1
+    },
+    {
+      "frames": 170,
+      "fps": 33.8,
+      "max_gap_ms": 76.2,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    },
+    {
+      "frames": 292,
+      "fps": 58.3,
+      "max_gap_ms": 53.0,
+      "gaps_gt_100ms": 0,
+      "idr": 0,
+      "rfi": 0
+    }
+  ],
+  "actual_paths": [
+    "relay"
+  ],
+  "selected_paths": [
+    "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+  ]
+}

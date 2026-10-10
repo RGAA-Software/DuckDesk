@@ -1,0 +1,29 @@
+{
+  "device": "428358431",
+  "workspace": "D:\\112233\\iroh-native-validation-20261009",
+  "enable": "364c2c40-b5b5-47af-a247-12d02ef23054",
+  "enable_observation": "Exited 0 with output_drain_timeout; not replayed; independent verification 10cbe7f1-c079-4822-bd5b-89c7f0124b91",
+  "state": {
+    "relay_pid": 53380,
+    "relay_path": "D:\\112233\\iroh-native-validation-20261009\\px_relay_probe.exe",
+    "relay_started": "2026-10-09T15:57:35.1905815Z",
+    "original_hash": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "configured_hash": "B3DBA7513F7F3D7A28BBF01564B4EECB6A2042D99B0CCC97271787E4B3C3C0DA"
+  },
+  "pipeline_upload": "48d98182-d977-444f-bbd7-16fb103c7500",
+  "pipeline_install": "2a2c9858-cff8-4327-9ff7-e4e705c561f6",
+  "pipeline_game_log": "e22a3c06-c1eb-45ca-ad4b-cee4e90a9352",
+  "pipeline_webview_log": "f54671a8-666a-4ca4-949a-f43b4cf8f8f1",
+  "byte_credit_upload_failed": "7d651353-432c-49c6-9336-39c63a58cfa2",
+  "byte_credit_upload_retry_note": "Original upload terminal failed at offset 0 (PAB stream timed out). Reconnected. Resume submissions bc554f7b-04cf-4ef2-910a-40a7ea93e52e and d45d8579-5b87-43c3-9aa1-761c7703b508 rejected with request-ID conflict; no accepted transfer record. Fresh upload without resume_from accepted below, overwrite=false.",
+  "byte_credit_upload": "5bfb7804-d20c-4f3b-bb16-5b725a86940a",
+  "cleanup_pending": false,
+  "byte_credit_install": "918bb1b1-3e7b-4980-9c74-c2e9f07f1d28",
+  "byte_credit_game_log": "8717d64a-9333-4e1e-87b7-8f63cc2cdd41",
+  "byte_credit_webview_log": "65f091cd-f4d1-436a-a8b1-32bb3da56c31",
+  "byte_credit_qos_mistimed": "81de7466-de90-4b92-839e-60ce7f3320c4",
+  "byte_credit_qos_partial": "a05bc714-520d-491f-b342-e205f2c671ee",
+  "byte_credit_qos_valid": "db8b4d20-3ad3-4760-bc84-ec49e74747fb",
+  "byte_credit_qos_log": "2447e734-4be2-4aba-9b56-78f0f9f50218",
+  "cleanup": "d0b65a92-795f-441f-a7be-86a30b3c3457"
+}

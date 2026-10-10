@@ -1,0 +1,38 @@
+{
+  "candidate": "iroh-adaptive-inplace-20261009",
+  "hashes": [
+    {
+      "Hash": "123ABE0BEC97943EAABDDB1461950E9FD97C596A2921DCE88E4A493CA6365817",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-adaptive-inplace-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe"
+    },
+    {
+      "Hash": "DFE36657DC80BE049FF565CD1991044C514CEF5643CA13D6BA8744590C5F460A",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\product-manifest.json"
+    },
+    {
+      "Hash": "9A7B1449EACD80352E83E6BB6BD1A4D92B6B92EE1D731CB223B42BA191A1E711",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\px_render.exe"
+    },
+    {
+      "Hash": "626EED08CEC6B94A4C4C34E8AAFBAFAE8F3D12B74CF43C2E0074ED93D2061655",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe"
+    },
+    {
+      "Hash": "626EED08CEC6B94A4C4C34E8AAFBAFAE8F3D12B74CF43C2E0074ED93D2061655",
+      "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe"
+    }
+  ],
+  "development_render_matches_dist": true,
+  "upload_operation": "923b011b-b88c-42ce-ad27-2c60fba5d08a",
+  "remote_installation": {"installed_version":"3.3.97","verified_artifacts":314,"service_status":"Running","render_sha256":"9A7B1449EACD80352E83E6BB6BD1A4D92B6B92EE1D731CB223B42BA191A1E711","manifest_sha256":"DFE36657DC80BE049FF565CD1991044C514CEF5643CA13D6BA8744590C5F460A","setup_sha256":"123ABE0BEC97943EAABDDB1461950E9FD97C596A2921DCE88E4A493CA6365817"},
+  "install_operation": "4d44b4e3-b7c2-4e23-acbd-6909b4f460f3",
+  "changes": [
+    "RTT feedback encoder budget",
+    "NVENC in-place rate adjustment without reference-chain destruction",
+    "bounded WebView warning/error console diagnostics"
+  ],
+  "tests": [
+    "20261009_adaptive_inplace_direct.xml",
+    "20261009_adaptive_encoder_contracts.xml"
+  ]
+}

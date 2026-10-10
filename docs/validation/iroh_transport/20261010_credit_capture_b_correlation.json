@@ -1,0 +1,310 @@
+[
+  {
+    "frame_time": "2026-10-10 22:33:43.853",
+    "receive_gap_us": 105269,
+    "hole": {
+      "time": 1791642823.792552,
+      "missing_sequence": 3651023481,
+      "first_later_sequence": 3651023505,
+      "filled_at": 1791642823.792552,
+      "delay_ms": 0.0
+    },
+    "ack_stalled_ms": 0.143,
+    "duplicate_acks": 0,
+    "client_arrivals": [
+      {
+        "time": 1791642823.792552,
+        "direction": "receive",
+        "seq": 3651023481,
+        "ack": 3496532126,
+        "window": 8195,
+        "flags": 24,
+        "payload_bytes": 24
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642829.356127,
+        "direction": "receive",
+        "seq": 3651023481,
+        "ack": 3496532126,
+        "window": 8195,
+        "flags": 24,
+        "payload_bytes": 24
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:33:43.853",
+    "receive_gap_us": 105269,
+    "hole": {
+      "time": 1791642823.807385,
+      "missing_sequence": 3651023621,
+      "first_later_sequence": 3651023713,
+      "filled_at": 1791642823.807385,
+      "delay_ms": 0.0
+    },
+    "ack_stalled_ms": 0.081,
+    "duplicate_acks": 0,
+    "client_arrivals": [
+      {
+        "time": 1791642823.807385,
+        "direction": "receive",
+        "seq": 3651023621,
+        "ack": 3496532126,
+        "window": 8195,
+        "flags": 24,
+        "payload_bytes": 92
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642829.356214,
+        "direction": "receive",
+        "seq": 3651023621,
+        "ack": 3496532126,
+        "window": 8195,
+        "flags": 24,
+        "payload_bytes": 92
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:33:45.118",
+    "receive_gap_us": 103142,
+    "hole": {
+      "time": 1791642825.092861,
+      "missing_sequence": 3652989387,
+      "first_later_sequence": 3652993871,
+      "filled_at": 1791642825.118221,
+      "delay_ms": 25.36
+    },
+    "ack_stalled_ms": 25.326,
+    "duplicate_acks": 18,
+    "client_arrivals": [
+      {
+        "time": 1791642825.118167,
+        "direction": "receive",
+        "seq": 3652989387,
+        "ack": 3499330241,
+        "window": 8193,
+        "flags": 24,
+        "payload_bytes": 1440
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642830.627586,
+        "direction": "receive",
+        "seq": 3652989387,
+        "ack": 3499328525,
+        "window": 8194,
+        "flags": 24,
+        "payload_bytes": 1150
+      },
+      {
+        "time": 1791642830.699471,
+        "direction": "receive",
+        "seq": 3652989387,
+        "ack": 3499330241,
+        "window": 8193,
+        "flags": 24,
+        "payload_bytes": 1440
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:33:57.384",
+    "receive_gap_us": 149152,
+    "hole": {
+      "time": 1791642837.262331,
+      "missing_sequence": 3695593128,
+      "first_later_sequence": 3695610146,
+      "filled_at": 1791642837.343613,
+      "delay_ms": 81.282
+    },
+    "ack_stalled_ms": 81.124,
+    "duplicate_acks": 30,
+    "client_arrivals": [
+      {
+        "time": 1791642837.343427,
+        "direction": "receive",
+        "seq": 3695593128,
+        "ack": 3499956509,
+        "window": 8192,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642837.343713,
+        "direction": "receive",
+        "seq": 3695593128,
+        "ack": 3499957817,
+        "window": 8193,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642842.846201,
+        "direction": "receive",
+        "seq": 3695593128,
+        "ack": 3499955945,
+        "window": 8194,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642842.868068,
+        "direction": "receive",
+        "seq": 3695593128,
+        "ack": 3499956509,
+        "window": 8192,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642842.927632,
+        "direction": "receive",
+        "seq": 3695593128,
+        "ack": 3499957817,
+        "window": 8193,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:34:03.165",
+    "receive_gap_us": 106998,
+    "hole": {
+      "time": 1791642843.074975,
+      "missing_sequence": 3714739140,
+      "first_later_sequence": 3714760740,
+      "filled_at": 1791642843.105844,
+      "delay_ms": 30.869
+    },
+    "ack_stalled_ms": 9.016,
+    "duplicate_acks": 3,
+    "client_arrivals": [
+      {
+        "time": 1791642843.083963,
+        "direction": "receive",
+        "seq": 3714739140,
+        "ack": 3500231016,
+        "window": 8190,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642848.663806,
+        "direction": "receive",
+        "seq": 3714739140,
+        "ack": 3500230491,
+        "window": 8192,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642848.680427,
+        "direction": "receive",
+        "seq": 3714739140,
+        "ack": 3500231016,
+        "window": 8190,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:34:03.396",
+    "receive_gap_us": 116250,
+    "hole": {
+      "time": 1791642843.294117,
+      "missing_sequence": 3715103460,
+      "first_later_sequence": 3715109220,
+      "filled_at": 1791642843.305341,
+      "delay_ms": 11.224
+    },
+    "ack_stalled_ms": 11.168,
+    "duplicate_acks": 4,
+    "client_arrivals": [
+      {
+        "time": 1791642843.305194,
+        "direction": "receive",
+        "seq": 3715103460,
+        "ack": 3500239619,
+        "window": 8195,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642848.886772,
+        "direction": "receive",
+        "seq": 3715103460,
+        "ack": 3500238965,
+        "window": 8190,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642848.899514,
+        "direction": "receive",
+        "seq": 3715103460,
+        "ack": 3500239619,
+        "window": 8195,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ]
+  },
+  {
+    "frame_time": "2026-10-10 22:34:04.331",
+    "receive_gap_us": 132073,
+    "hole": {
+      "time": 1791642844.285959,
+      "missing_sequence": 3717908300,
+      "first_later_sequence": 3717914060,
+      "filled_at": 1791642844.2963,
+      "delay_ms": 10.341
+    },
+    "ack_stalled_ms": 10.417,
+    "duplicate_acks": 4,
+    "client_arrivals": [
+      {
+        "time": 1791642844.2963,
+        "direction": "receive",
+        "seq": 3717908300,
+        "ack": 3500289610,
+        "window": 8191,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ],
+    "relay_transmissions": [
+      {
+        "time": 1791642849.878817,
+        "direction": "receive",
+        "seq": 3717908300,
+        "ack": 3500289144,
+        "window": 8192,
+        "flags": 16,
+        "payload_bytes": 1440
+      },
+      {
+        "time": 1791642849.891671,
+        "direction": "receive",
+        "seq": 3717908300,
+        "ack": 3500289610,
+        "window": 8191,
+        "flags": 16,
+        "payload_bytes": 1440
+      }
+    ]
+  }
+]

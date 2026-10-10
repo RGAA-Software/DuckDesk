@@ -7,6 +7,7 @@ else()
     message(STATUS "net_udp is disabled (PLUGIN_NET_UDP_ENABLED=OFF)")
 endif()
 add_subdirectory(network/ws)
+add_subdirectory(network/iroh)
 add_subdirectory(network/relay)
 add_subdirectory(network/webrtc/local)
 add_subdirectory(architecture/encoders/ffmpeg)
@@ -53,6 +54,7 @@ set(SRCS
         pipeline/encoded_video_fanout.cpp
         ingress/network_event_ingress.cpp
         ingress/application_text_service.cpp
+        ingress/application_clipboard.cpp
         gpu/gpu_adapter_identity.cpp
         rdp/rdp_application.cpp
 )
@@ -85,7 +87,7 @@ target_link_libraries(main render_audio_processors)
 target_link_libraries(main render_audio_sources)
 target_link_libraries(main render_domain_services)
 target_link_libraries(main cap_dda cap_gdi enc_ffmpeg enc_amf enc_nvenc)
-target_link_libraries(main net_ws net_udp net_relay net_rtc_local)
+target_link_libraries(main net_ws net_iroh net_udp net_relay net_rtc_local)
 if(WIN32)
     target_link_libraries(main gdi32 crypt32)
 endif()

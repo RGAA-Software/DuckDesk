@@ -1,0 +1,12 @@
+[
+  {
+    "sha256": "4916D036DC2DA6603E3B3C03B9CFFB98EDA4D00F76A0866668B5FE48E0E68B93",
+    "product": "px_console",
+    "output": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\px_console.exe"
+  },
+  {
+    "sha256": "C89591DB5B6351FBC8CA7DAB0ECFFD7138839800DB6F4801CD983A1821DE7DE4",
+    "product": "px_relay",
+    "output": "D:\\GoCloud\\GammaRayPremium\\output\\px_relay\\dev\\px_relay.exe"
+  }
+]

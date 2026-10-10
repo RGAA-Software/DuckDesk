@@ -1,0 +1,21 @@
+{
+  "revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Retain delay-adaptive file credit experiment; two live Relay runs did not establish a performance improvement, restore fixed receipt credit",
+  "files": [
+    {
+      "path": "src/px_transport/file_send_window.h",
+      "sha256": "FD81C39712A89F8C694875F19FD4863742D684D2A601D5B3D3733DA3061FE649",
+      "status": "?? src/px_transport/file_send_window.h"
+    },
+    {
+      "path": "src/px_transport/message_session.cpp",
+      "sha256": "972355EE8482509ABA688FF451E493F517C5815B286F2A6897C83053239B65E8",
+      "status": "?? src/px_transport/message_session.cpp"
+    },
+    {
+      "path": "src/px_transport/tests/test_file_send_window.cpp",
+      "sha256": "5911F0F0C621155E2D020BCA59691B59162812A48A23F87816F0DA09894240A2",
+      "status": "?? src/px_transport/tests/test_file_send_window.cpp"
+    }
+  ]
+}

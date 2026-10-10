@@ -1,0 +1,105 @@
+{
+  "cases": [
+    {
+      "case": "incompressible_direct",
+      "functional_passed": true,
+      "elapsed_seconds": 29.239,
+      "bytes_each_direction": 67108864,
+      "fps_min": 46.8,
+      "fps_max": 60.3,
+      "max_gap_ms": 289.8,
+      "gaps_gt_100ms": 5,
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "sampled_rtt_max_us": 304943,
+      "sampled_outstanding_max_bytes": null,
+      "business_admissions": 1
+    },
+    {
+      "case": "incompressible_relay",
+      "functional_passed": true,
+      "elapsed_seconds": 44.951,
+      "bytes_each_direction": 67108864,
+      "fps_min": 20.2,
+      "fps_max": 59.6,
+      "max_gap_ms": 429.0,
+      "gaps_gt_100ms": 43,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "sampled_rtt_max_us": 435955,
+      "sampled_outstanding_max_bytes": null,
+      "business_admissions": 1
+    },
+    {
+      "case": "file_credit_direct",
+      "functional_passed": true,
+      "elapsed_seconds": 25.711,
+      "bytes_each_direction": 67108864,
+      "fps_min": 57.4,
+      "fps_max": 59.0,
+      "max_gap_ms": 199.1,
+      "gaps_gt_100ms": 1,
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}"
+      ],
+      "sampled_rtt_max_us": 15289,
+      "sampled_outstanding_max_bytes": 122993,
+      "business_admissions": 1
+    },
+    {
+      "case": "file_credit_relay",
+      "functional_passed": true,
+      "elapsed_seconds": 47.413,
+      "bytes_each_direction": 67108864,
+      "fps_min": 53.9,
+      "fps_max": 60.4,
+      "max_gap_ms": 290.0,
+      "gaps_gt_100ms": 13,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "sampled_rtt_max_us": 115950,
+      "sampled_outstanding_max_bytes": 122993,
+      "business_admissions": 1
+    },
+    {
+      "case": "file_credit_repeat_relay",
+      "functional_passed": true,
+      "elapsed_seconds": 38.64,
+      "bytes_each_direction": 67108864,
+      "fps_min": 59.0,
+      "fps_max": 60.4,
+      "max_gap_ms": 90.7,
+      "gaps_gt_100ms": 0,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "sampled_rtt_max_us": 62013,
+      "sampled_outstanding_max_bytes": 122993,
+      "business_admissions": 1
+    },
+    {
+      "case": "file_credit_outage_relay",
+      "functional_passed": true,
+      "elapsed_seconds": 38.579,
+      "bytes_each_direction": 67108864,
+      "fps_min": 25.7,
+      "fps_max": 60.4,
+      "max_gap_ms": 3855.8,
+      "gaps_gt_100ms": 3,
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "sampled_rtt_max_us": 48147,
+      "sampled_outstanding_max_bytes": 122993,
+      "business_admissions": 1
+    }
+  ],
+  "performance_passed": false,
+  "persistent_configuration_changes": [],
+  "conclusion": "File receive credit bounds bulk backlog and direct/Relay file round trips pass. Relay repeat has no >100 ms gap, but first post-change run retains 13 with maximum 290 ms. TCP retransmission HOL and source-frame delays remain distinct; no universal jitter-elimination claim.",
+  "recovery": "90 Relay stopped then restored; same Client resumed video and file round trip with matching SHA. See injection and outage report; clock offsets prevent direct subtraction of local and remote wall time.",
+  "cleanup": "No active resource sessions or owned Clients; no pixels-credit test files on 90; three services Running, desktop Render PID 24392; both Relays fresh/ready/undrained."
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "Hash": "4506062C62485A78CBA674E2791936F590A6543A7A57D1A8FD9477606B86EF9F",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\iroh-reconnect-recovery-final-20261009\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe"
+  },
+  {
+    "Hash": "D0EA3F654ABA671B63CE6404439B9C74B9E2D0346244155DDD94A33DAFAE1572",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\product-manifest.json"
+  },
+  {
+    "Hash": "77E8E5BF6174937DD43990989D8845D843E04E728FA0C2C66E1A24B7A61AFF2F",
+    "Path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\dist\\px_render.exe"
+  }
+]

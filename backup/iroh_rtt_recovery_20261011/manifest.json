@@ -1,0 +1,26 @@
+{
+  "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+  "reason": "Preserve exact pre-change working contents before RTT-aware reference recovery retry",
+  "files": [
+    {
+      "path": "src/px_client_sdk/media_transport/video_recovery_policy.h",
+      "sha256": "6156caaed21bf6734b0abe856489835b475dca5333fe69981ab27e81e9704c8f",
+      "git_status": "?? src/px_client_sdk/media_transport/video_recovery_policy.h"
+    },
+    {
+      "path": "src/px_client_sdk/tests/test_encoded_video_delivery.cpp",
+      "sha256": "4f824582b0220168efe4b8a9c4e792b75eaddea153bd86eb911eda07e1033ee0",
+      "git_status": "?? src/px_client_sdk/tests/test_encoded_video_delivery.cpp"
+    },
+    {
+      "path": "src/px_transport/media_datagrams.cpp",
+      "sha256": "70564ed559e6e12d784d6a7b019a80bdc56c908a664dc77acf6e85150a3e48d0",
+      "git_status": "?? src/px_transport/media_datagrams.cpp"
+    },
+    {
+      "path": "src/px_transport/media_datagrams.h",
+      "sha256": "e7172e0f7a447b3f465d7084c4cf716d17e8c2931fb51816232ebf729b3f8b7a",
+      "git_status": "?? src/px_transport/media_datagrams.h"
+    }
+  ]
+}

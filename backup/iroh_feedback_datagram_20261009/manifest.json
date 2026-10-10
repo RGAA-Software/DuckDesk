@@ -1,0 +1,42 @@
+[
+  {
+    "path": "src/px_client_sdk/connection/iroh_connection.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_client_sdk/connection/iroh_connection.cpp",
+    "sha256": "98109E978C7F1887E92E3119D038862757941AF746702BD2940C8FD9BB5BACBF",
+    "reason": "Preserve reliable feedback path before replacing with cumulative unordered datagrams following measured feedback delays and Moonlight ControlStream",
+    "archive_batch": "backup/iroh_feedback_datagram_20261009"
+  },
+  {
+    "path": "src/px_client_sdk/connection/iroh_connection.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_client_sdk/connection/iroh_connection.h",
+    "sha256": "AEA66137D9DB9D95A0D410D2B50C768858B5B5A3587D8B84219C22EF7311E0E6",
+    "reason": "Preserve reliable feedback path before replacing with cumulative unordered datagrams following measured feedback delays and Moonlight ControlStream",
+    "archive_batch": "backup/iroh_feedback_datagram_20261009"
+  },
+  {
+    "path": "src/px_render/network/iroh/iroh_session.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_render/network/iroh/iroh_session.cpp",
+    "sha256": "0CFA1B8F21D6BDF8FD1313DCA2563E02854F47C8E3A27324FAEBBE07AE6A38F4",
+    "reason": "Preserve reliable feedback path before replacing with cumulative unordered datagrams following measured feedback delays and Moonlight ControlStream",
+    "archive_batch": "backup/iroh_feedback_datagram_20261009"
+  },
+  {
+    "path": "src/px_render/network/iroh/iroh_session.h",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_render/network/iroh/iroh_session.h",
+    "sha256": "1057C522A996EC44AA286D10317787FDE1C604D93B966E7BF0BEA197DE62F367",
+    "reason": "Preserve reliable feedback path before replacing with cumulative unordered datagrams following measured feedback delays and Moonlight ControlStream",
+    "archive_batch": "backup/iroh_feedback_datagram_20261009"
+  },
+  {
+    "path": "src/px_transport/tests/test_media_datagrams.cpp",
+    "base_revision": "183b9a046e72e319e6f97235570fb7915f7fdab5",
+    "local_status": "?? src/px_transport/tests/test_media_datagrams.cpp",
+    "sha256": "BC29DBD072AF41B4599D649E8D7ED5EA8ACED0ED65DE1196AF82B93E478CEBF9",
+    "reason": "Preserve reliable feedback path before replacing with cumulative unordered datagrams following measured feedback delays and Moonlight ControlStream",
+    "archive_batch": "backup/iroh_feedback_datagram_20261009"
+  }
+]

@@ -172,6 +172,7 @@ public:
     Encoder encoder_{};
     Capture capture_{};
     Transmission transmission_{};
+    std::string iroh_endpoint_configuration_{};
     TargetApplication app_;
     ApplicationMode application_mode_ = ApplicationMode::kDesktop;
     rdp::RdpProxyLaunch rdp_launch_{};

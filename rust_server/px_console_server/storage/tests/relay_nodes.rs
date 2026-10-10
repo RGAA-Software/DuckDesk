@@ -59,8 +59,9 @@ fn report(sequence: u64, draining: bool) -> RelayNodeReport {
         draining,
         max_connections: 4_096,
         current_connections: 8,
-        max_rooms: 2_048,
-        current_rooms: 4,
+        max_rooms: Some(2_048),
+        current_rooms: Some(4),
+        iroh_qad_port: None,
         uploaded_bytes: 1_024,
         forwarded_bytes: 2_048,
     }
@@ -157,6 +158,119 @@ impl Fixture {
 }
 
 #[tokio::test]
+async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots() {
+    let fixture = Fixture::new().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let mut registered = Vec::new();
+    for connection_count in 0..10 {
+        let (profile, credential) = fixture.create_relay().await;
+        let configured = fixture
+            .relay_nodes
+            .configure(
+                &fixture.admin,
+                profile.id,
+                profile.revision,
+                RelayNodeConfiguration {
+                    draining: false,
+                    disabled: false,
+                },
+            )
+            .await
+            .unwrap();
+        let connection = fixture
+            .relay_nodes
+            .open_connection(epoch, &credential, &token())
+            .await
+            .unwrap();
+        let mut capacity_report = report(1, false);
+        capacity_report.max_connections = 10;
+        capacity_report.current_connections = connection_count;
+        capacity_report.max_rooms = None;
+        capacity_report.current_rooms = None;
+        capacity_report.iroh_qad_port = Some(4602);
+        fixture
+            .relay_nodes
+            .report(&connection, &capacity_report)
+            .await
+            .unwrap();
+        registered.push((configured, connection, capacity_report));
+    }
+    let candidate_url = |index: usize| format!("https://{}:4602/", registered[index].0.public_host);
+    let available = fixture.relay_nodes.available_iroh_relays().await.unwrap();
+    assert_eq!(
+        available
+            .iter()
+            .map(|candidate| candidate.url.clone())
+            .collect::<Vec<_>>(),
+        (0..9).map(candidate_url).collect::<Vec<_>>()
+    );
+    // Nine connections leave only one slot: not enough for a new endpoint pair.
+    assert!(!available
+        .iter()
+        .any(|candidate| candidate.url == candidate_url(9)));
+    let mut full_report = registered[0].2.clone();
+    full_report.sequence = 2;
+    full_report.current_connections = 10;
+    fixture
+        .relay_nodes
+        .report(&registered[0].1, &full_report)
+        .await
+        .unwrap();
+    fixture
+        .relay_nodes
+        .configure(
+            &fixture.admin,
+            registered[1].0.id,
+            registered[1].0.revision,
+            RelayNodeConfiguration {
+                draining: true,
+                disabled: false,
+            },
+        )
+        .await
+        .unwrap();
+    fixture
+        .relay_nodes
+        .close_connection(&registered[2].1)
+        .await
+        .unwrap();
+    fixture
+        .relay_nodes
+        .configure(
+            &fixture.admin,
+            registered[3].0.id,
+            registered[3].0.revision,
+            RelayNodeConfiguration {
+                draining: false,
+                disabled: true,
+            },
+        )
+        .await
+        .unwrap();
+    sqlx::query("UPDATE pixels.relay_nodes SET last_seen=clock_timestamp()-interval '40 seconds' WHERE id=$1")
+        .bind(registered[4].0.id).execute(&fixture.owner).await.unwrap();
+    let remaining = fixture.relay_nodes.available_iroh_relays().await.unwrap();
+    assert_eq!(
+        remaining
+            .iter()
+            .map(|candidate| candidate.url.clone())
+            .collect::<Vec<_>>(),
+        (5..9).map(candidate_url).collect::<Vec<_>>()
+    );
+    full_report.sequence = 3;
+    full_report.current_connections = 0;
+    fixture
+        .relay_nodes
+        .report(&registered[0].1, &full_report)
+        .await
+        .unwrap();
+    let restored = fixture.relay_nodes.available_iroh_relays().await.unwrap();
+    assert_eq!(restored.len(), 5);
+    assert_eq!(restored[0].url, candidate_url(0));
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn relay_inventory_starts_draining_and_never_exposes_the_credential() {
     let fixture = Fixture::new().await;
     let (relay_node, _) = fixture.create_relay().await;
@@ -250,6 +364,62 @@ async fn authenticated_reports_are_ordered_bounded_and_fenced_by_connection_gene
         .report(&replacement, &report(1, false))
         .await
         .unwrap();
+    assert!(fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .is_empty());
+    let mut iroh_report = report(2, false);
+    iroh_report.max_rooms = None;
+    iroh_report.current_rooms = None;
+    iroh_report.iroh_qad_port = Some(24605);
+    iroh_report.current_connections = iroh_report.max_connections - 1;
+    fixture
+        .relay_nodes
+        .report(&replacement, &iroh_report)
+        .await
+        .unwrap();
+    assert!(fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .is_empty());
+    iroh_report.sequence = 3;
+    iroh_report.current_connections = 0;
+    fixture
+        .relay_nodes
+        .report(&replacement, &iroh_report)
+        .await
+        .unwrap();
+    assert_eq!(
+        fixture
+            .relay_nodes
+            .available_iroh_relays()
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    sqlx::query("UPDATE pixels.relay_nodes SET last_seen=clock_timestamp()-interval '40 seconds' WHERE id=$1")
+        .bind(relay_node.id).execute(&fixture.owner).await.unwrap();
+    assert!(fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .is_empty());
+    iroh_report.sequence = 4;
+    iroh_report.max_rooms = Some(1);
+    assert_eq!(
+        fixture
+            .relay_nodes
+            .report(&replacement, &iroh_report)
+            .await
+            .unwrap_err(),
+        StoreError::InvalidInput
+    );
     fixture
         .relay_nodes
         .close_connection(&replacement)

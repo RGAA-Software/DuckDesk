@@ -4,6 +4,7 @@ mod app;
 mod rdp_host_setup;
 mod hardware_probe;
 mod hardware_probe_process;
+mod iroh_endpoints;
 mod node_control_client;
 mod node_control_store;
 mod node_gpu_runtime_binding;
