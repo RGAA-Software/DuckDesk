@@ -1,9 +1,10 @@
 # iroh Relay development deployment
 
 `px_relay` now has an explicit iroh data plane on Windows and Linux, using pinned
-iroh-relay 1.3.0. This is the first M1 implementation slice, not an installable
-release. Console control/reporting is integrated; full Windows product installation
-and runtime address refresh are still being completed. Android is scheduled last.
+iroh-relay 1.3.0. Windows Server Setup and Linux Compose installation, Console
+control/reporting, live Relay candidate updates and two-host recovery have existing
+validation evidence. See `docs/validation/iroh_transport/status.md` for installed
+identities and remaining performance/NAT/stability work. Android is scheduled last.
 
 ## Build and start
 
@@ -84,21 +85,61 @@ UI shows “Not applicable”. Console migration 0039 must precede the updated R
 rejected: addresses come from fresh, enabled, non-draining registered iroh Relays
 with connection capacity. Include private Relay CA PEM certificates in the policy.
 Forced Relay mode can be configured before any Relay is ready; node connection
-configuration is withheld until an eligible Relay exists. Node authentication or
-reconnection refreshes this list; live updates to existing Render transports are
-part of the subsequent multi-Relay work.
+configuration is withheld until an eligible Relay exists. Node reports and Service
+heartbeats update existing Render candidates; Clients refresh candidates through
+their existing resource sessions. Candidate updates preserve healthy active
+connections. They do not promise instant migration of existing traffic.
 
 ## Linux container package
 
 `scripts_build/package_px_relay_linux.sh <fresh-binary> <new-directory> <pixels-relay:tag>`
-builds a complete Relay image and saves it with Compose, examples and a SHA-256
-manifest. Verify the package manifest, load `relay-image.tar`, and create
-`config/relay.json`, `config/tls/` and `config/relay-control.env` beside Compose.
-The container runs as UID/GID 10001; certificate key and configuration permissions
-must permit that identity. Use `docker compose up -d --pull never`, then verify
-the running image and `/opt/pixels/bin/px_relay` against the manifest.
+builds a complete Relay image and saves it with Compose, the deployment script,
+examples and a SHA-256 manifest. This is separate from the focused binary build.
+On the Linux host, prepare a persistent directory such as `/etc/pixels/relay`
+containing `relay.json`, `tls/` and `relay-control.env`. Keep this directory across
+upgrades. The container runs as UID/GID 10001; certificate key and configuration
+permissions must permit that identity. The JSON must bind HTTPS and QAD on
+`0.0.0.0:4605` (or `[::]:4605`) inside the container.
 
-The published host TCP/UDP ports default to 4605 and may be set in `.env`; match
+Run from the newly built complete package:
+
+```sh
+python3 deploy.py --verify-only
+python3 deploy.py --config-directory /etc/pixels/relay --project-name pixels-relay
+```
+
+The deployment script verifies all packaged files before Docker changes, loads
+the image, verifies its identity and runtime SHA, then replaces only the `relay`
+service using Compose. It checks the resulting container and runtime SHA. It never
+rewrites the configuration or runs `compose down`. Python 3.8+, Docker Engine and
+the Docker Compose plugin are required.
+
+For upgrades, supply **the existing project's name**, even when the new package
+is in another directory. Read it from the existing container if necessary:
+
+```sh
+docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' <existing-container>
+```
+
+Changing the project name creates a separate service and may conflict with the
+existing listener. Keep the same external configuration and host ports. Set
+`--https-port` and `--qad-port` when host ports differ from 4605. An interrupted
+upgrade can be retried with the same arguments; to revert the image, use a retained
+complete package with this deployment entry point and the same project/configuration.
+No automatic rollback or configuration downgrade is performed.
+
+The script reports container/runtime identity, **not Console readiness**. After
+deployment, check `docker logs --tail 50 <container_id>` using the returned container
+ID, then confirm fresh/ready status in Console and one focused actual Relay connection.
+Failed Docker commands report their operation without dumping configuration or
+credentials; inspect Docker/service logs on the host for the detailed failure.
+
+Windows upgrades continue to use the complete Server Setup. Existing Relay JSON,
+TLS and registration configuration stays under the private configuration root;
+the installer grants the service read access, including shared Console TLS files.
+Do not replace installed Windows executables with focused development outputs.
+
+The published host TCP/UDP ports default to 4605; match
 Console's public HTTPS port and the JSON `qad_public_port`. Private keys and
 registration credentials stay in the mounted configuration, outside the image.
 Both host firewall and cloud security group must permit the configured ports.
@@ -117,5 +158,7 @@ alone does not verify this UDP address-discovery endpoint.
 
 For an explicitly isolated transport check, `console_managed:false` runs without
 Console management. It is not a fallback from failed managed authentication.
-Multi-Relay failover, full Windows packaging and final cross-host business
-acceptance remain M1/M2 work; local or WSL results do not establish those outcomes.
+Two-host Relay recovery, live candidates, maintenance and connection capacity have
+recorded real-host evidence. Remaining NAT, long-duration stability and throughput
+distribution checks are tracked separately; local/WSL packaging checks do not
+replace those outcomes or establish Android acceptance.
