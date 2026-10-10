@@ -30,7 +30,8 @@ public:
 private:
     [[nodiscard]] static bool IsStopped(const std::weak_ptr<IrohDialer>& owner);
     [[nodiscard]] static bool RetryDelay(const std::weak_ptr<IrohDialer>& owner);
-    [[nodiscard]] static bool RefreshEndpoint(const std::shared_ptr<transport::Endpoint>& endpoint, IrohDialParameters& parameters);
+    [[nodiscard]] static IrohEndpointRefreshResult RefreshEndpoint(const std::shared_ptr<transport::Endpoint>& endpoint,
+                                                                   IrohDialParameters& parameters);
     static void Run(std::weak_ptr<IrohDialer> owner, IrohDialParameters parameters);
     void Complete(IrohDialResult result);
     IrohDialParameters parameters_{};

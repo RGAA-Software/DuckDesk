@@ -42,7 +42,8 @@ struct ConsoleResourceConnection final {
 [[nodiscard]] px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnection(const std::string& host, int port,
                                                                                                  const std::string& access_token, bool guest,
                                                                                                  const ConsoleResourceTarget& target, bool view_only,
-                                                                                                 const std::string& request_id);
+                                                                                                 const std::string& request_id,
+                                                                                                 bool file_transfer_only = false);
 
 [[nodiscard]] px::Result<bool, ConsoleApiError> ClosePanelResourceConnection(const std::string& host, int port, const std::string& access_token,
                                                                              bool guest, const std::string& session_id,

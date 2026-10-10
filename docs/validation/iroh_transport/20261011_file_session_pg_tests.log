@@ -1,0 +1,38 @@
+PASS SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable
+PASS ENV: isolated PostgreSQL healthy
+PASS SCHEMA: three fresh databases, repeatable initialization, runtime readiness
+
+running 21 tests
+test android_targets_idempotency_owner_and_guest_are_explicit ... ok
+test close_racing_admission_never_releases_an_issued_transport_grant ... ok
+test close_request_needs_node_proof_and_observer_policy_is_not_control_authority ... ok
+test descriptors_cas_expire_rotate_and_node_admission_is_current_authority ... ok
+test desktop_requires_device_acl_and_never_accepts_guest_or_admin_web ... ok
+test direct_streams_share_the_license_quota_with_resource_sessions ... ok
+test draining_keeps_existing_lease_but_endpoint_change_and_wrong_node_reject ... ok
+test event_failures_rollback_creation_descriptor_confirmation_and_retirement ... ok
+test file_only_session_coexists_with_controller_without_consuming_video_quota ... ok
+test iroh_descriptor_uses_only_the_current_reported_application_launch ... ok
+test license_last_stream_slot_is_atomic_under_concurrent_grants ... ok
+test license_stream_quota_and_service_gate_new_grants ... ok
+test logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebind_origin ... ok
+test management_is_bounded_redacted_and_persistent_without_runtime_delete_privileges ... ok
+test rdp_last_frontend_is_atomic_and_never_uses_android_or_observer_fallback ... ok
+test reconnect_retirement_is_fenced_challenged_and_does_not_free_unknown_occupancy ... ok
+test relay_selection_uses_hard_capacity_filters_and_keeps_the_original_binding ... ok
+test starter_license_allows_only_one_webview_stream ... ok
+test stream_quota_distinguishes_active_occupancy_from_retirement ... ok
+test terminal_instance_closes_its_resource_sessions_and_releases_capacity ... ok
+test unadmitted_close_revokes_descriptor_and_immediately_releases_capacity ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 147.61s
+
+
+   Compiling px_console_store v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_console_server\storage)
+    Finished `release` profile [optimized] target(s) in 55.54s
+     Running tests\sessions.rs (C:\Users\chess\AppData\Local\PixelsRelayBuild\release\deps\sessions-7eb8e3918445852e.exe)
+
+PASS SOURCE: all recorded source hashes unchanged throughout acceptance
+PASS FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance
+PASS CLEANUP: isolated test containers and volume removed
+Report: D:\GoCloud\GammaRayPremium\test-results\server_validation\pg-20261011-022105-8ac9261a

@@ -1,0 +1,159 @@
+[
+  {
+    "kind": "game_hook",
+    "forced_relay": false,
+    "windows": [
+      {
+        "frames": 186,
+        "fps": 37.2,
+        "max_gap_ms": 222.5,
+        "gaps_gt_100ms": 9
+      },
+      {
+        "frames": 203,
+        "fps": 40.6,
+        "max_gap_ms": 207.6,
+        "gaps_gt_100ms": 6
+      },
+      {
+        "frames": 214,
+        "fps": 42.7,
+        "max_gap_ms": 301.4,
+        "gaps_gt_100ms": 2
+      },
+      {
+        "frames": 206,
+        "fps": 41.2,
+        "max_gap_ms": 199.0,
+        "gaps_gt_100ms": 9
+      },
+      {
+        "frames": 208,
+        "fps": 41.5,
+        "max_gap_ms": 171.1,
+        "gaps_gt_100ms": 4
+      },
+      {
+        "frames": 189,
+        "fps": 37.6,
+        "max_gap_ms": 294.1,
+        "gaps_gt_100ms": 6
+      },
+      {
+        "frames": 172,
+        "fps": 34.4,
+        "max_gap_ms": 248.8,
+        "gaps_gt_100ms": 10
+      }
+    ],
+    "state": "connected",
+    "grace_stopped": true,
+    "path_events": [
+      "[2026-10-11 01:56:13.844][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:18.848][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:23.862][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:28.864][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:33.878][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:38.904][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:56:43.909][thread 10656][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0"
+    ]
+  },
+  {
+    "kind": "webview",
+    "forced_relay": false,
+    "windows": [
+      {
+        "frames": 127,
+        "fps": 23.9,
+        "max_gap_ms": 1019.3,
+        "gaps_gt_100ms": 6
+      },
+      {
+        "frames": 154,
+        "fps": 30.6,
+        "max_gap_ms": 253.6,
+        "gaps_gt_100ms": 9
+      },
+      {
+        "frames": 176,
+        "fps": 35.1,
+        "max_gap_ms": 280.6,
+        "gaps_gt_100ms": 10
+      }
+    ],
+    "state": "connected",
+    "grace_stopped": true,
+    "path_events": [
+      "[2026-10-11 01:57:19.154][thread 9292][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:57:24.181][thread 9292][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:57:29.190][thread 9292][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0"
+    ]
+  },
+  {
+    "kind": "rdp",
+    "forced_relay": false,
+    "windows": [],
+    "state": "connected",
+    "grace_stopped": true,
+    "path_events": []
+  },
+  {
+    "kind": "game_hook",
+    "forced_relay": true,
+    "windows": [
+      {
+        "frames": 303,
+        "fps": 60.5,
+        "max_gap_ms": 82.9,
+        "gaps_gt_100ms": 0
+      },
+      {
+        "frames": 301,
+        "fps": 60.0,
+        "max_gap_ms": 52.7,
+        "gaps_gt_100ms": 0
+      },
+      {
+        "frames": 286,
+        "fps": 57.1,
+        "max_gap_ms": 62.0,
+        "gaps_gt_100ms": 0
+      },
+      {
+        "frames": 301,
+        "fps": 60.1,
+        "max_gap_ms": 67.3,
+        "gaps_gt_100ms": 0
+      },
+      {
+        "frames": 294,
+        "fps": 58.8,
+        "max_gap_ms": 91.7,
+        "gaps_gt_100ms": 0
+      },
+      {
+        "frames": 238,
+        "fps": 47.4,
+        "max_gap_ms": 200.2,
+        "gaps_gt_100ms": 4
+      },
+      {
+        "frames": 300,
+        "fps": 59.9,
+        "max_gap_ms": 47.3,
+        "gaps_gt_100ms": 0
+      }
+    ],
+    "state": "connected",
+    "grace_stopped": true,
+    "path_events": [
+      "[2026-10-11 01:59:02.830][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:07.843][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:12.850][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:17.859][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:22.859][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:27.876][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+      "[2026-10-11 01:59:32.887][thread 83816][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0"
+    ]
+  }
+]

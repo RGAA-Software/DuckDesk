@@ -86,7 +86,7 @@ impl ResourceSessionStore {
             SessionTarget::Desktop { device_id } => {
                 let user = subject.owner.columns().0.ok_or(StoreError::Rejected)?;
                 // Desktop observer/takeover policy is not inferred from an application policy.
-                if access != "controller"
+                if !matches!(access, "controller" | "file_transfer")
                     || DeviceStore::visible(connection, user, None, 1, Some(device_id))
                         .await?
                         .is_empty()
@@ -106,6 +106,9 @@ impl ResourceSessionStore {
                 application_id,
                 instance_id,
             } => {
+                if access == "file_transfer" {
+                    return Err(StoreError::Rejected);
+                }
                 InstanceStore::visible(connection, subject.owner, application_id).await?;
                 if !instance_state::owner_authorized(connection, instance_id).await? {
                     return Err(StoreError::Rejected);

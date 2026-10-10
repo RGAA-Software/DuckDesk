@@ -131,7 +131,7 @@ interface ResourceSession {
         | { kind: "desktop"; device_id: string }
         | { kind: "cloud_application"; application_id: string; instance_id: string };
     client_type: string;
-    access_role: "controller" | "observer";
+    access_role: "controller" | "observer" | "file_transfer";
     state: string;
     revision: number;
     created_at: string;

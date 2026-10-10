@@ -102,9 +102,11 @@ px::Result<std::vector<std::shared_ptr<ConsoleUserDevice>>, ConsoleApiError> Con
 px::Result<ConsoleNativeDeviceConnection, ConsoleApiError> ConsoleUserDeviceApi::QueryNativeConnection(const std::string& host, const int port,
                                                                                                        const std::string& access_token,
                                                                                                        const std::string& device_id,
-                                                                                                       const bool view_only) {
-    const auto resource = OpenPanelResourceConnection(
-        host, port, access_token, false, {.kind = ConsoleResourceTargetKind::Desktop, .device_id = device_id}, view_only, px::GetCanonicalUUID());
+                                                                                                       const bool view_only,
+                                                                                                       const bool file_transfer_only) {
+    const auto resource =
+        OpenPanelResourceConnection(host, port, access_token, false, {.kind = ConsoleResourceTargetKind::Desktop, .device_id = device_id}, view_only,
+                                    px::GetCanonicalUUID(), file_transfer_only);
     if (!resource) {
         return TcErr(resource.error());
     }

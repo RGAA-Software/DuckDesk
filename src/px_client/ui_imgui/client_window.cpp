@@ -19,26 +19,6 @@
 namespace px::client::imgui {
 namespace {
 
-ClientText FailureText(const ClientConnectionFailure failure) noexcept {
-    switch (failure) {
-        case ClientConnectionFailure::Authorization:
-            return ClientText::AuthorizationRejected;
-        case ClientConnectionFailure::RemoteAccessDisabled:
-            return ClientText::RemoteAccessDisabled;
-        case ClientConnectionFailure::Occupied:
-            return ClientText::DeviceOccupied;
-        case ClientConnectionFailure::SessionPolicy:
-            return ClientText::SessionPolicyRejected;
-        case ClientConnectionFailure::TakenOver:
-            return ClientText::SessionTakenOver;
-        case ClientConnectionFailure::Transport:
-            return ClientText::TransportRejected;
-        case ClientConnectionFailure::None:
-        default:
-            return ClientText::ConnectionRejected;
-    }
-}
-
 ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
     switch (type) {
         case px::CursorInfoSync::kIdcIBeam:
@@ -131,7 +111,7 @@ void ClientWindow::Draw() {
             {popupTitle}, 540.0F, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings};
         if (modal.Open()) {
             static_cast<void>(
-                px::ui::DialogHeader({"client-error-close"}, text(ClientText::ConnectionFailed), text(FailureText(snapshot.failure)),
+                px::ui::DialogHeader({"client-error-close"}, text(ClientText::ConnectionFailed), text(ConnectionFailureText(snapshot.failure)),
                                      {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));
             if (snapshot.failure == ClientConnectionFailure::None && !snapshot.status.empty()) {
                 ImGui::TextWrapped("%s", snapshot.status.c_str());

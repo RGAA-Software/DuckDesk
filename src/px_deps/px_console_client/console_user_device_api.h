@@ -51,7 +51,8 @@ public:
 
     static px::Result<ConsoleNativeDeviceConnection, ConsoleApiError> QueryNativeConnection(const std::string& host, int port,
                                                                                             const std::string& access_token,
-                                                                                            const std::string& device_id, bool view_only = false);
+                                                                                            const std::string& device_id, bool view_only = false,
+                                                                                            bool file_transfer_only = false);
 };
 
 }  // namespace px_console

@@ -1,0 +1,172 @@
+Start testing: Oct 11 01:44 China Standard Time
+----------------------------------------------------------
+80/96 Testing: iroh_sdk_connection
+80/96 Test: iroh_sdk_connection
+Command: "D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client_sdk/test_iroh_sdk_connection.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client_sdk
+"iroh_sdk_connection" start time: Oct 11 01:44 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 7 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 3 tests from IrohDialer
+[ RUN      ] IrohDialer.ExpiredBusinessSessionStopsRetryImmediately
+[       OK ] IrohDialer.ExpiredBusinessSessionStopsRetryImmediately (648 ms)
+[ RUN      ] IrohDialer.TemporaryLookupFailureHasBoundedRetryAndFinalOutcome
+[       OK ] IrohDialer.TemporaryLookupFailureHasBoundedRetryAndFinalOutcome (1252 ms)
+[ RUN      ] IrohDialer.StopInsideRefreshSuppressesQueuedFailureAndRepeatedStart
+[       OK ] IrohDialer.StopInsideRefreshSuppressesQueuedFailureAndRepeatedStart (631 ms)
+[----------] 3 tests from IrohDialer (2532 ms total)
+
+[----------] 4 tests from IrohSdkConnection
+[ RUN      ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection
+[       OK ] IrohSdkConnection.InvalidChannelInitializationClosesTheAdmittedConnection (39 ms)
+[ RUN      ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl
+[2026-10-11 01:44:20.943] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=2 queued_bytes=2 max_queue_us=15 max_write_us=43 slow_writes=0 path=1 rtt_us=207 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:20.943] [info] [message_session.cpp:257] event=iroh.reliable_send kind=4 local_accepted_bytes=921616 queued_bytes=921616 max_queue_us=13 max_write_us=467 slow_writes=0 path=1 rtt_us=207 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:20.995] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 01:44:20.995] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-11 01:44:20.996] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.FileBackpressureDoesNotLoseBlocksOrBlockControl (100 ms)
+[ RUN      ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback
+[2026-10-11 01:44:21.032] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=16 queued_bytes=16 max_queue_us=226 max_write_us=139 slow_writes=0 path=1 rtt_us=492 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:21.034] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 01:44:21.034] [warning] [thread.cpp:151] Thread iroh-datagram-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 01:44:21.034] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[2026-10-11 01:44:21.034] [warning] [thread.cpp:151] Thread iroh-datagram-receive requested Exit from itself; lifetime-safe reaping is deferred.
+[       OK ] IrohSdkConnection.ReliableDeliveryAndStopFromDatagramCallback (37 ms)
+[ RUN      ] IrohSdkConnection.BusinessMessagesUseSeparateStreamsAndReceiveCallbackCanStop
+[2026-10-11 01:44:21.064] [info] [message_session.cpp:257] event=iroh.reliable_send kind=2 local_accepted_bytes=2 queued_bytes=2 max_queue_us=12 max_write_us=19 slow_writes=0 path=1 rtt_us=326 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:21.064] [info] [message_session.cpp:257] event=iroh.reliable_send kind=1 local_accepted_bytes=2 queued_bytes=2 max_queue_us=11 max_write_us=16 slow_writes=0 path=1 rtt_us=326 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:21.065] [info] [message_session.cpp:257] event=iroh.reliable_send kind=4 local_accepted_bytes=524304 queued_bytes=524304 max_queue_us=14 max_write_us=376 slow_writes=0 path=1 rtt_us=297 cwnd_bytes=12000 tx_lost=0 error=0
+[2026-10-11 01:44:21.068] [info] [message_session.cpp:379] event=iroh.file_flow outstanding_bytes=524304 window_bytes=262144 progress_age_ms=3 backpressure_count=0
+[2026-10-11 01:44:21.068] [info] [thread.cpp:223] Ok, thread exit: iroh-send-1
+[2026-10-11 01:44:21.068] [info] [thread.cpp:223] Ok, thread exit: iroh-send-2
+[2026-10-11 01:44:21.068] [info] [thread.cpp:223] Ok, thread exit: iroh-send-3
+[2026-10-11 01:44:21.068] [info] [thread.cpp:223] Ok, thread exit: iroh-send-4
+[2026-10-11 01:44:21.068] [warning] [thread.cpp:151] Thread iroh-message-dispatch requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 01:44:21.068] [warning] [thread.cpp:151] Thread iroh-message-dispatch requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-11 01:44:21.068] [info] [thread.cpp:223] Ok, thread exit: iroh-message-dispatch
+[       OK ] IrohSdkConnection.BusinessMessagesUseSeparateStreamsAndReceiveCallbackCanStop (34 ms)
+[----------] 4 tests from IrohSdkConnection (211 ms total)
+
+[----------] Global test environment tear-down
+[==========] 7 tests from 2 test suites ran. (2743 ms total)
+[  PASSED  ] 7 tests.
+<end of output>
+Test time =   3.27 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_sdk_connection" end time: Oct 11 01:44 China Standard Time
+"iroh_sdk_connection" time elapsed: 00:00:03
+----------------------------------------------------------
+
+88/96 Testing: client_imgui_launch_config
+88/96 Test: client_imgui_launch_config
+Command: "D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client/test_client_imgui_launch_config.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client
+"client_imgui_launch_config" start time: Oct 11 01:44 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 24 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from ClientConnectionFailureTest
+[ RUN      ] ClientConnectionFailureTest.TerminalRecoveryFailuresHaveChineseAndEnglishMessages
+[       OK ] ClientConnectionFailureTest.TerminalRecoveryFailuresHaveChineseAndEnglishMessages (0 ms)
+[----------] 1 test from ClientConnectionFailureTest (0 ms total)
+
+[----------] 23 tests from ClientImguiLaunchConfigTest
+[ RUN      ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference
+[       OK ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback
+[       OK ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport
+[       OK ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether
+[       OK ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration
+[       OK ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority
+[       OK ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements
+[       OK ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword
+[       OK ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword
+[       OK ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession
+[       OK ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential
+[       OK ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType
+[       OK ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType (0 ms)
+[----------] 23 tests from ClientImguiLaunchConfigTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 24 tests from 2 test suites ran. (0 ms total)
+[  PASSED  ] 24 tests.
+<end of output>
+Test time =   0.22 sec
+----------------------------------------------------------
+Test Passed.
+"client_imgui_launch_config" end time: Oct 11 01:44 China Standard Time
+"client_imgui_launch_config" time elapsed: 00:00:00
+----------------------------------------------------------
+
+90/96 Testing: client_instance_guard
+90/96 Test: client_instance_guard
+Command: "D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client/test_client_instance_guard.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_client
+"client_instance_guard" start time: Oct 11 01:44 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from ClientInstanceGuardTest
+[ RUN      ] ClientInstanceGuardTest.ActivatesTheExistingInstanceForTheSameRemoteAndMode
+[       OK ] ClientInstanceGuardTest.ActivatesTheExistingInstanceForTheSameRemoteAndMode (0 ms)
+[ RUN      ] ClientInstanceGuardTest.KeepsDesktopAndFileTransferAsSeparateSingletons
+[       OK ] ClientInstanceGuardTest.KeepsDesktopAndFileTransferAsSeparateSingletons (0 ms)
+[ RUN      ] ClientInstanceGuardTest.ActivationMonitorReceivesRequestsWithoutFramePolling
+[       OK ] ClientInstanceGuardTest.ActivationMonitorReceivesRequestsWithoutFramePolling (104 ms)
+[ RUN      ] ClientInstanceGuardTest.NormalizesDeviceIdSpacingAndAsciiCase
+[       OK ] ClientInstanceGuardTest.NormalizesDeviceIdSpacingAndAsciiCase (0 ms)
+[----------] 4 tests from ClientInstanceGuardTest (104 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (104 ms total)
+[  PASSED  ] 4 tests.
+<end of output>
+Test time =   0.22 sec
+----------------------------------------------------------
+Test Passed.
+"client_instance_guard" end time: Oct 11 01:44 China Standard Time
+"client_instance_guard" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 11 01:44 China Standard Time

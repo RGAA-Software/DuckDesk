@@ -19,12 +19,14 @@ pub enum SessionTarget {
 pub enum SessionAccess {
     Controller,
     Observer,
+    FileTransfer,
 }
 impl SessionAccess {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Controller => "controller",
             Self::Observer => "observer",
+            Self::FileTransfer => "file_transfer",
         }
     }
 }

@@ -54,16 +54,18 @@ bool IrohDialer::RetryDelay(const std::weak_ptr<IrohDialer>& owner) {
     return !IsStopped(owner);
 }
 
-bool IrohDialer::RefreshEndpoint(const std::shared_ptr<transport::Endpoint>& endpoint, IrohDialParameters& parameters) {
-    if (!parameters.refresh_endpoint) return true;
-    const auto refreshed = parameters.refresh_endpoint();
-    if (!refreshed) return false;
+IrohEndpointRefreshResult IrohDialer::RefreshEndpoint(const std::shared_ptr<transport::Endpoint>& endpoint, IrohDialParameters& parameters) {
+    if (!parameters.refresh_endpoint)
+        return {.description = IrohConnectionDescription{parameters.endpoint_address, parameters.endpoint_configuration}};
+    const auto result = parameters.refresh_endpoint();
+    const auto& refreshed = result.description;
+    if (!refreshed || !result.terminal_error.empty()) return result;
     const auto configuration = nlohmann::json::parse(refreshed->endpoint_configuration, nullptr, false);
-    if (!configuration.is_object()) return false;
+    if (!configuration.is_object()) return {.terminal_error = "IROH_ENDPOINT_INVALID"};
     const auto candidates = configuration.value("relays", nlohmann::json::array());
     if (!endpoint->UpdateRelays(candidates.dump())) {
         LOGW("event=iroh.relay_candidates outcome=update_failed");
-        return false;
+        return {};
     }
     auto current_configuration = nlohmann::json::parse(parameters.endpoint_configuration, nullptr, false);
     if (current_configuration.is_object() && current_configuration.value("relays", nlohmann::json::array()) != candidates) {
@@ -77,13 +79,14 @@ bool IrohDialer::RefreshEndpoint(const std::shared_ptr<transport::Endpoint>& end
              refreshed->endpoint_address);
         parameters.endpoint_address = refreshed->endpoint_address;
     }
-    return true;
+    return result;
 }
 
 void IrohDialer::Run(std::weak_ptr<IrohDialer> owner, IrohDialParameters parameters) {
     const auto clear_credentials = PxScopeExit{[&parameters] {
         for (auto& [name, value] : parameters.frontend) std::fill(value.begin(), value.end(), '\0');
     }};
+    parameters.reconnect_timeout = std::clamp(parameters.reconnect_timeout, std::chrono::milliseconds(1), std::chrono::milliseconds(120000));
     if (parameters.endpoint_address.empty()) {
         if (const auto dialer = owner.lock()) dialer->Complete({.error_code = "IROH_ENDPOINT_MISSING"});
         return;
@@ -110,9 +113,17 @@ void IrohDialer::Run(std::weak_ptr<IrohDialer> owner, IrohDialParameters paramet
             if (const auto dialer = owner.lock()) dialer->Complete({.error_code = "IROH_RECONNECT_EXPIRED"});
             return;
         }
-        if (retry_deadline && !RefreshEndpoint(endpoint, parameters)) {
-            if (RetryDelay(owner)) continue;
-            return;
+        if (retry_deadline) {
+            const auto refreshed = RefreshEndpoint(endpoint, parameters);
+            if (!refreshed.terminal_error.empty()) {
+                if (const auto dialer = owner.lock()) dialer->Complete({.error_code = refreshed.terminal_error});
+                return;
+            }
+            if (!refreshed.description) {
+                if (RetryDelay(owner)) continue;
+                return;
+            }
+            if (std::chrono::steady_clock::now() >= *retry_deadline) continue;
         }
         if (IsStopped(owner)) return;
         const auto connect_started = std::chrono::steady_clock::now();
@@ -128,7 +139,7 @@ void IrohDialer::Run(std::weak_ptr<IrohDialer> owner, IrohDialParameters paramet
         }
         if (!connection) {
             if (!retry_deadline && parameters.refresh_endpoint) {
-                retry_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+                retry_deadline = std::chrono::steady_clock::now() + parameters.reconnect_timeout;
             }
             if (retry_deadline && RetryDelay(owner)) continue;
             if (const auto dialer = owner.lock()) dialer->Complete({.error_code = "IROH_CONNECT_FAILED"});
@@ -151,16 +162,25 @@ void IrohDialer::Run(std::weak_ptr<IrohDialer> owner, IrohDialParameters paramet
         auto next_refresh = std::chrono::steady_clock::now() + std::chrono::seconds(5);
         while (!IsStopped(owner) && !connection->IsClosed()) {
             if (parameters.refresh_endpoint && std::chrono::steady_clock::now() >= next_refresh) {
-                static_cast<void>(RefreshEndpoint(endpoint, parameters));
+                const auto refreshed = RefreshEndpoint(endpoint, parameters);
+                if (!refreshed.terminal_error.empty()) {
+                    connection->Close();
+                    if (const auto dialer = owner.lock()) dialer->Complete({.error_code = refreshed.terminal_error});
+                    return;
+                }
                 next_refresh = std::chrono::steady_clock::now() + std::chrono::seconds(5);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
-        if (IsStopped(owner) || !connection->CanReconnect()) return;
+        if (IsStopped(owner)) return;
+        if (!connection->CanReconnect()) {
+            if (const auto dialer = owner.lock()) dialer->Complete({.error_code = "IROH_REMOTE_CLOSED"});
+            return;
+        }
         LOGW("event=iroh.connect outcome=network_lost action=readmit");
         // Admission must finish while the original application/runtime is still available.
         // An expired or rejected business session is never recreated behind the user's back.
-        retry_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+        retry_deadline = std::chrono::steady_clock::now() + parameters.reconnect_timeout;
         if (!RetryDelay(owner)) return;
     }
 }

@@ -165,12 +165,14 @@ std::optional<px_console::ConsolePublicDeviceEndpoint> PanelConsoleSession::Reso
 }
 
 std::optional<px_console::ConsoleNativeDeviceConnection> PanelConsoleSession::QueryNativeDeviceConnection(const std::string& deviceId,
-                                                                                                          const bool viewOnly) {
+                                                                                                          const bool viewOnly,
+                                                                                                          const bool fileTransferOnly) {
     const auto endpoint = config_->Console();
     if (!endpoint) return std::nullopt;
     const auto token = ReadAccessToken(*endpoint);
     if (token.empty()) return std::nullopt;
-    auto result = px_console::ConsoleUserDeviceApi::QueryNativeConnection(endpoint->host, endpoint->port, token, deviceId, viewOnly);
+    auto result =
+        px_console::ConsoleUserDeviceApi::QueryNativeConnection(endpoint->host, endpoint->port, token, deviceId, viewOnly, fileTransferOnly);
     return result ? std::optional{std::move(result.value())} : std::nullopt;
 }
 

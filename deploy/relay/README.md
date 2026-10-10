@@ -139,6 +139,17 @@ TLS and registration configuration stays under the private configuration root;
 the installer grants the service read access, including shared Console TLS files.
 Do not replace installed Windows executables with focused development outputs.
 
+For an intentional Windows service stop/start, use elevated PowerShell
+`Stop-Service Pixels.Relay` / `Start-Service Pixels.Relay`; inspect status with
+`Get-Service Pixels.Relay` and the Relay logs under the installed Server data root.
+For Linux, use `docker stop <verified-container-id>` / `docker start <verified-container-id>`
+and `docker logs --tail 50 <verified-container-id>`. Verify the ID belongs to the
+intended Compose project first. Use the complete-package `deploy.py` command above
+for upgrades, rather than creating a second container. Stop/start interrupts sessions;
+planned maintenance should first enable draining in Console, allow existing traffic
+to finish, then stop. After restarting, confirm fresh/ready and release maintenance
+explicitly when appropriate. Process state alone is not a successful transport check.
+
 The published host TCP/UDP ports default to 4605; match
 Console's public HTTPS port and the JSON `qad_public_port`. Private keys and
 registration credentials stay in the mounted configuration, outside the image.

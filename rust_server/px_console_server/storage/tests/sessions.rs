@@ -1779,6 +1779,160 @@ async fn logout_and_guest_revocation_deny_descriptors_and_new_login_cannot_rebin
     fixture.close().await;
 }
 #[tokio::test]
+async fn file_only_session_coexists_with_controller_without_consuming_video_quota() {
+    let fixture = Fixture::new().await;
+    let session_store = store().await;
+    let (node, _, _) = fixture.prepared(DeploymentTarget::Webview, 4).await;
+    let device: Uuid = sqlx::query_scalar("SELECT device_id FROM pixels.nodes WHERE id=$1")
+        .bind(node.id())
+        .fetch_one(&fixture.owner)
+        .await
+        .unwrap();
+    let initial_login = fixture.session("user", ClientType::Panel).await;
+    let identity = fixture
+        .identity
+        .authenticate(&initial_login, ClientType::Panel)
+        .await
+        .unwrap();
+    let file_request = OpenResourceSession {
+        request_id: Uuid::new_v4(),
+        target: SessionTarget::Desktop { device_id: device },
+        access: SessionAccess::FileTransfer,
+    };
+    assert!(session_store
+        .open(
+            ResourceCredential::User(&initial_login),
+            ClientType::Panel,
+            &file_request
+        )
+        .await
+        .is_err());
+    fixture
+        .devices
+        .replace_access(
+            &fixture.admin,
+            device,
+            1,
+            &DeviceAccess {
+                users: vec![identity.user_id],
+                groups: vec![],
+            },
+        )
+        .await
+        .unwrap();
+    let revision: i64 =
+        sqlx::query_scalar("SELECT authorization_revision FROM pixels.users WHERE id=$1")
+            .bind(identity.user_id)
+            .fetch_one(&fixture.owner)
+            .await
+            .unwrap();
+    let login = token();
+    fixture
+        .identity
+        .issue_session(
+            identity.user_id,
+            revision,
+            &login,
+            ClientType::Panel,
+            Duration::from_secs(3600),
+        )
+        .await
+        .unwrap();
+    let controller_request = OpenResourceSession {
+        request_id: Uuid::new_v4(),
+        target: file_request.target,
+        access: SessionAccess::Controller,
+    };
+    let occupied_slots: i64 = sqlx::query_scalar(
+        "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL AND access_role <> 'file_transfer') + \
+         (SELECT count(*) FROM pixels.direct_streams WHERE expires_at > clock_timestamp())"
+    ).fetch_one(&fixture.owner).await.unwrap();
+    let entitlement =
+        RuntimeEntitlement::new(u32::try_from(occupied_slots + 1).unwrap(), true, true, true)
+            .unwrap();
+    let controller = session_store
+        .open_with_entitlement(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            &controller_request,
+            entitlement,
+        )
+        .await
+        .unwrap();
+    let file_session = session_store
+        .open_with_entitlement(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            &file_request,
+            entitlement,
+        )
+        .await
+        .unwrap();
+    assert_ne!(file_session.id, controller.id);
+    assert_eq!(file_session.access_role, "file_transfer");
+    let descriptor = session_store
+        .descriptor(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            file_session.id,
+            file_session.revision,
+            &token(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(descriptor.port, 4601);
+    let duplicate_controller = OpenResourceSession {
+        request_id: Uuid::new_v4(),
+        ..controller_request
+    };
+    assert!(session_store
+        .open_with_entitlement(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            &duplicate_controller,
+            entitlement
+        )
+        .await
+        .is_err());
+    let without_desktop = RuntimeEntitlement::new(8, true, false, true).unwrap();
+    let other_file = OpenResourceSession {
+        request_id: Uuid::new_v4(),
+        ..file_request
+    };
+    assert_eq!(
+        session_store
+            .open_with_entitlement(
+                ResourceCredential::User(&login),
+                ClientType::Panel,
+                &other_file,
+                without_desktop
+            )
+            .await,
+        Err(StoreError::LicenseRestriction)
+    );
+    session_store
+        .request_close(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            controller.id,
+            controller.revision,
+        )
+        .await
+        .unwrap();
+    session_store
+        .request_close(
+            ResourceCredential::User(&login),
+            ClientType::Panel,
+            file_session.id,
+            descriptor.session.revision,
+        )
+        .await
+        .unwrap();
+    session_store.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
 async fn desktop_requires_device_acl_and_never_accepts_guest_or_admin_web() {
     let fixture = Fixture::new().await;
     let session_store = store().await;

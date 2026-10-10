@@ -17,6 +17,7 @@
 #include "px_render/network/iroh/iroh_transport.h"
 #include "px_render/network/ws/ws_transport.h"
 #include "px_transport/tests/endpoint_configuration.h"
+#include "sdk_messages.h"
 #include "sdk_net_client.h"
 
 namespace px {
@@ -191,6 +192,60 @@ TEST_F(IrohFrontendTest, DesktopAcceptsExistingConsoleSessionWithoutDevicePasswo
     connection->Close();
 }
 
+TEST_F(IrohFrontendTest, FileOnlyGrantUsesIndependentConnectionWithoutControlSeatOrVideoPermission) {
+    const auto controller = Connect();
+    ASSERT_TRUE(controller);
+    const auto control_open = transport::OpenFrontend(controller, Parameters("desktop-controller"), 5000);
+    ASSERT_TRUE(control_open && control_open->reply.accepted);
+    std::shared_ptr<AcceptedIrohFrontend> control_frontend{};
+    {
+        std::unique_lock lock(state_->mutex);
+        ASSERT_TRUE(state_->changed.wait_for(lock, std::chrono::seconds(3), [state = state_] { return state->connected == 1; }));
+        control_frontend = state_->accepted;
+    }
+    services_->ConfigureFrontendAuthorizer(
+        [](ConsoleFrontendAdmissionRequest request, std::chrono::steady_clock::time_point) -> PxAwaitable<PxResult<ConsoleFrontendGrant>> {
+            co_return PxResult<ConsoleFrontendGrant>::Success({.session_id = request.session_id,
+                                                               .revision = request.revision,
+                                                               .target_kind = "desktop",
+                                                               .device_id = "iroh-test-device",
+                                                               .client_type = "panel",
+                                                               .access_role = "file_transfer",
+                                                               .valid_for_ms = 30000});
+        });
+    const auto file_endpoint = transport::Endpoint::Bind(transport::testing::EndpointConfiguration(), 5000);
+    ASSERT_TRUE(file_endpoint);
+    const auto file_connection = file_endpoint->Connect(*server_->Address(), 5000);
+    ASSERT_TRUE(file_connection);
+    const auto opened = transport::OpenFrontend(file_connection,
+                                                {{"stream_id", "console-file"},
+                                                 {"session_id", "console-file"},
+                                                 {"session_revision", "1"},
+                                                 {"frontend_token", "existing-file-authorization"},
+                                                 {"file_transfer_only", "1"}},
+                                                5000);
+    ASSERT_TRUE(opened && opened->reply.accepted) << (opened ? opened->reply.code : "no reply");
+    EXPECT_EQ(opened->channels.size(), 2);
+    EXPECT_TRUE(opened->channels.contains(transport::ChannelKind::kFile));
+    EXPECT_FALSE(opened->channels.contains(transport::ChannelKind::kInput));
+    std::shared_ptr<IrohFrontend> file_frontend{};
+    {
+        std::unique_lock lock(state_->mutex);
+        ASSERT_TRUE(state_->changed.wait_for(lock, std::chrono::seconds(3), [state = state_] { return state->connected == 2; }));
+        file_frontend = state_->accepted->frontend;
+    }
+    file_frontend->UpdatePermissions({"view", "input", "file", "audio"});
+    EXPECT_TRUE(file_frontend->Allows("file"));
+    EXPECT_FALSE(file_frontend->Allows("view"));
+    EXPECT_FALSE(file_frontend->Allows("input"));
+    EXPECT_FALSE(controller->IsClosed());
+    controller->Close();
+    EXPECT_FALSE(file_connection->IsClosed());
+    EXPECT_FALSE(file_frontend->IsClosed());
+    file_connection->Close();
+    file_endpoint->Close();
+}
+
 TEST_F(IrohFrontendTest, SequencedBackpressureDoesNotRequestPrePacketizationRecovery) {
     server_->Stop();
     const auto module = std::make_shared<IrohTransport>(services_, runtime_);
@@ -346,13 +401,13 @@ TEST_F(IrohFrontendTest, NetClientReadmitsAfterRelayOutageClosesQuic) {
     parameters.iroh_->endpoint_configuration = client_configuration.dump();
     const auto refresh_count = std::make_shared<std::atomic_size_t>();
     parameters.iroh_->refresh_endpoint = [server = std::weak_ptr<IrohServer>{server_}, refresh_count,
-                                          configuration = parameters.iroh_->endpoint_configuration]() -> std::optional<IrohConnectionDescription> {
+                                          configuration = parameters.iroh_->endpoint_configuration]() -> IrohEndpointRefreshResult {
         ++*refresh_count;
         const auto current = server.lock();
-        if (!current) return std::nullopt;
+        if (!current) return {};
         const auto refreshed = current->Address();
         if (refreshed) std::cout << "IROH_REFRESHED_ADDRESS " << *refreshed << std::endl;
-        return refreshed ? std::optional<IrohConnectionDescription>{{*refreshed, configuration}} : std::nullopt;
+        return {.description = refreshed ? std::optional<IrohConnectionDescription>{{*refreshed, configuration}} : std::nullopt};
     };
     parameters.enable_video_ = true;
     parameters.stream_id_ = "reconnect-client";
@@ -422,6 +477,60 @@ TEST_F(IrohFrontendTest, NetClientReadmitsAfterRelayOutageClosesQuic) {
     EXPECT_GT(refresh_count->load(), 0);
 }
 
+TEST_F(IrohFrontendTest, NetClientRetriesTemporaryLookupAndConnectsToRefreshedEndpoint) {
+    RouteSessions();
+    const auto address = server_->Address();
+    ASSERT_TRUE(address);
+    const auto notifier = std::make_shared<MessageNotifier>(MessageNotifierOptions{.runtime = runtime_});
+    const auto refresh_count = std::make_shared<std::atomic_size_t>();
+    const auto configuration = transport::testing::EndpointConfiguration();
+    SdkConnectionParams parameters{};
+    parameters.iroh_ =
+        IrohDialParameters{.endpoint_address = "{}", .endpoint_configuration = configuration, .frontend = Parameters("lookup-retry-client")};
+    parameters.iroh_->refresh_endpoint = [refresh_count, address = *address, configuration] {
+        if (++*refresh_count == 1) return IrohEndpointRefreshResult{};
+        return IrohEndpointRefreshResult{.description = IrohConnectionDescription{address, configuration}};
+    };
+    const auto client = std::make_shared<NetClient>(std::move(parameters), notifier);
+    const auto cleanup = PxScopeExit{[client] { client->Exit(); }};
+    const auto connected = std::make_shared<std::promise<void>>();
+    auto ready = connected->get_future();
+    client->SetOnConnectCallback([connected] { connected->set_value(); });
+    client->Start();
+    ASSERT_EQ(ready.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    EXPECT_EQ(refresh_count->load(), 2);
+    ASSERT_TRUE(WaitForRoute());
+}
+
+TEST_F(IrohFrontendTest, EndedBusinessSessionClosesConnectedTransportAndAllowsStopFromNotification) {
+    RouteSessions();
+    const auto address = server_->Address();
+    ASSERT_TRUE(address);
+    const auto notifier = std::make_shared<MessageNotifier>(MessageNotifierOptions{.runtime = runtime_});
+    SdkConnectionParams parameters{};
+    parameters.iroh_ = IrohDialParameters{.endpoint_address = *address,
+                                          .endpoint_configuration = transport::testing::EndpointConfiguration(),
+                                          .frontend = Parameters("expired-connected-client")};
+    parameters.iroh_->refresh_endpoint = [] { return IrohEndpointRefreshResult{.terminal_error = "IROH_SESSION_ENDED"}; };
+    const auto client = std::make_shared<NetClient>(std::move(parameters), notifier);
+    const auto cleanup = PxScopeExit{[client] { client->Exit(); }};
+    const auto connected = std::make_shared<std::atomic_size_t>();
+    client->SetOnConnectCallback([connected] { ++*connected; });
+    const auto terminal = std::make_shared<std::promise<std::string>>();
+    auto ended = terminal->get_future();
+    const auto listener = notifier->CreateListener(MessageExecutionLane::kControl);
+    listener->Listen<SdkMsgIrohConnectionFailed>([owner = std::weak_ptr<NetClient>{client}, terminal](const SdkMsgIrohConnectionFailed& event) {
+        if (const auto current = owner.lock()) current->Exit();
+        terminal->set_value(event.error_code);
+    });
+    client->Start();
+    ASSERT_EQ(ended.wait_for(std::chrono::seconds(8)), std::future_status::ready);
+    EXPECT_EQ(ended.get(), "IROH_SESSION_ENDED");
+    EXPECT_EQ(connected->load(), 1);
+    std::unique_lock lock(state_->mutex);
+    ASSERT_TRUE(state_->changed.wait_for(lock, std::chrono::seconds(3), [state = state_] { return state->disconnected == 1; }));
+}
+
 TEST_F(IrohFrontendTest, NetClientReportsAdmissionFailureWithoutConnectedCallback) {
     const auto address = server_->Address();
     ASSERT_TRUE(address);
@@ -435,10 +544,16 @@ TEST_F(IrohFrontendTest, NetClientReportsAdmissionFailureWithoutConnectedCallbac
     const auto connected = std::make_shared<std::atomic_size_t>();
     const auto rejected = std::make_shared<std::promise<void>>();
     auto failed = rejected->get_future();
+    const auto terminal = std::make_shared<std::promise<std::string>>();
+    auto terminal_result = terminal->get_future();
+    const auto listener = notifier->CreateListener(MessageExecutionLane::kControl);
+    listener->Listen<SdkMsgIrohConnectionFailed>([terminal](const SdkMsgIrohConnectionFailed& event) { terminal->set_value(event.error_code); });
     client->SetOnConnectCallback([connected] { ++*connected; });
     client->SetOnDisconnectedCallback([rejected] { rejected->set_value(); });
     client->Start();
     ASSERT_EQ(failed.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    ASSERT_EQ(terminal_result.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    EXPECT_EQ(terminal_result.get(), "SESSION_PASSWORD_REJECTED");
     EXPECT_EQ(connected->load(), 0);
     client->Exit();
 }

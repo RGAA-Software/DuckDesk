@@ -69,6 +69,15 @@ ClientSession::ClientSession(ClientLaunchConfig config, std::shared_ptr<px::Wind
     : config_{std::move(config)}, videoResources_{std::move(videoResources)}, audio_{std::make_unique<ClientAudioOutput>()} {}
 ClientSession::~ClientSession() { Stop(); }
 
+void ClientSession::BindIrohFailureListener() {
+    listener_->Listen<px::SdkMsgIrohConnectionFailed>([owner = weak_from_this()](const px::SdkMsgIrohConnectionFailed& event) {
+        const auto session = owner.lock();
+        if (!session || session->stopped_.load()) return;
+        session->transportTerminal_.store(true);
+        session->SetState(ClientConnectionState::Rejected, event.error_code, IrohConnectionFailure(event.error_code));
+    });
+}
+
 bool ClientSession::Initialize() {
     if (config_.rdp) return InitializeRdp();
     notifier_ = std::make_shared<px::MessageNotifier>();
@@ -77,6 +86,7 @@ bool ClientSession::Initialize() {
     if (!listener_ || !sdk_) {
         return false;
     }
+    BindIrohFailureListener();
     const std::string clientSignalId{"client_" + config_.localDeviceId + "_" + px::MD5::Hex(config_.remoteDeviceId)};
     const std::string remoteSignalId{"server_" + config_.remoteDeviceId};
     auto params = std::make_shared<px::ThunderSdkParams>();

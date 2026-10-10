@@ -69,13 +69,16 @@ bool IsSha256(const std::string_view value) {
 px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnection(const std::string& host, const int port,
                                                                                    const std::string& access_token, const bool guest,
                                                                                    const ConsoleResourceTarget& target, const bool view_only,
-                                                                                   const std::string& request_id) {
+                                                                                   const std::string& request_id, const bool file_transfer_only) {
+    if (file_transfer_only && (guest || view_only || target.kind != ConsoleResourceTargetKind::Desktop)) {
+        return TcErr(ConsoleApiError::kInvalidParams);
+    }
     if (!px::IsCanonicalUUID(request_id)) {
         LOGE("OpenResourceSession rejected locally: field=request_id code=invalid_uuid_format");
         return TcErr(ConsoleApiError::kInvalidParams);
     }
     const std::string subject{guest ? "guest" : "user"};
-    const std::string access{view_only ? "observer" : "controller"};
+    const std::string access{file_transfer_only ? "file_transfer" : view_only ? "observer" : "controller"};
     const auto target_payload = TargetPayload(target);
     const auto open_client = MakeConsoleHttpClient(host, port, "/api/console/resource-sessions", 5'000);
     SetPanelRequestHeaders(open_client, access_token, subject);

@@ -812,7 +812,7 @@ export default {
             admin_web: "Admin console",
             unknown: "Unknown client",
         },
-        roles: { controller: "Control", observer: "View only", unknown: "Unknown role" },
+        roles: { controller: "Control", observer: "View only", file_transfer: "File transfer", unknown: "Unknown role" },
         sessionStates: {
             pending: "Connecting",
             connected: "Connected",

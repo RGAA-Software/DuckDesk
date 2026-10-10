@@ -14,7 +14,6 @@ add_library(px_client_imgui_runtime STATIC
     ui_imgui/client_audio_output.cpp
     ui_imgui/client_file_transfer_acceptance.cpp
     ui_imgui/client_file_transfer_format.cpp
-    ui_imgui/client_file_transfer_panel.cpp
     ui_imgui/client_file_transfer_window.cpp
     ui_imgui/client_file_browser_model.cpp
     ui_imgui/client_input_mapper.cpp
@@ -108,8 +107,9 @@ if(BUILD_TESTING AND TARGET GTest::gtest)
     target_link_libraries(test_client_controller_position PRIVATE px_common GTest::gtest GTest::gtest_main)
     add_test(NAME client_controller_position COMMAND test_client_controller_position)
 
-    add_executable(test_client_imgui_launch_config tests/test_imgui_launch_config.cpp ui_imgui/client_launch_config.cpp)
+    add_executable(test_client_imgui_launch_config tests/test_imgui_launch_config.cpp ui_imgui/client_launch_config.cpp ui_imgui/client_text.cpp)
     target_include_directories(test_client_imgui_launch_config PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_include_directories(test_client_imgui_launch_config PRIVATE "${PX_PRODUCT_GENERATED_DIR}")
     target_link_libraries(test_client_imgui_launch_config PRIVATE px_common nlohmann_json::nlohmann_json GTest::gtest GTest::gtest_main)
     add_test(NAME client_imgui_launch_config COMMAND test_client_imgui_launch_config)
 

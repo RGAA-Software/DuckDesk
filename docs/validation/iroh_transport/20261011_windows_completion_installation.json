@@ -1,0 +1,43 @@
+{
+  "candidate": "iroh-windows-completion-20261011",
+  "setup_sha256": "BE21A7CAD0536BACBC843C10FC25A038B092B9C56C9B1AFFA8B80D85EE1E19E8",
+  "setup_exit": 0,
+  "manifest_sha256": "81CF8F577C5F9177E9F1147A7ABA8BB9482B8C9BA25FB04E0A488704662F1064",
+  "product_version": "3.3.97",
+  "verified_artifacts": 314,
+  "runtime_artifacts": [
+    {
+      "path": "px_render.exe",
+      "sha256": "245B50461C6C5BE8CB0E44DF556DBE52EFCDB51656846245E9C8FBD328C7B464"
+    },
+    {
+      "path": "px_client.exe",
+      "sha256": "86B152B56DF7E34AC85F13EDF211BB66B0184C0C8881B1587AAF81336B1B5701"
+    },
+    {
+      "path": "px_panel.exe",
+      "sha256": "E0758ED9441B43EA2D0EAEB6AB5B1F5B1D0655025DC6507AF7D92468EDC26970"
+    },
+    {
+      "path": "px_service.exe",
+      "sha256": "406D50144FBB808A23B191F1852BC50D4EC955848C748A648FD58C98F7CAA9AC"
+    }
+  ],
+  "service": "Running",
+  "sessions_before": [
+    " streamtest                                1  �Ͽ�         8:24  2026/10/10 17:29",
+    " administrator         console             2  ������      ��     2026/10/10 17:30"
+  ],
+  "sessions_after": [
+    " streamtest                                1  �Ͽ�         8:25  2026/10/10 17:29",
+    " administrator         console             2  ������      ��     2026/10/10 17:30"
+  ],
+  "processes": [
+    {
+      "ProcessName": "px_render",
+      "Id": 22296,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "session_output_note": "MCP stdout contained decoding replacement in localized quser status; account/session IDs and original login times preserved. Full UTF-8 result retained on 90."
+}

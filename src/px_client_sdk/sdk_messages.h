@@ -60,6 +60,10 @@ struct SdkMsgUdpMediaUnavailable {
 
 struct SdkMsgUdpMediaAvailable {};
 
+struct SdkMsgIrohConnectionFailed final {
+    std::string error_code{};
+};
+
 class SdkMsgWsConnectionRejected {
   public:
     WsControlRejection rejection_ = WsControlRejection::kSessionPolicy;

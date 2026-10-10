@@ -137,10 +137,12 @@ PxAwaitable<PxResult<FrontendAdmission>> AuthenticateFrontendAsync(std::weak_ptr
                                                                         "Console frontend identity was rejected", false,
                                                                         "CONSOLE_FRONTEND_IDENTITY_MISMATCH"));
     }
-    const bool controller = grant.access_role == "controller";
+    const bool file_transfer = grant.access_role == "file_transfer";
+    const bool controller = grant.access_role == "controller" || file_transfer;
     co_return PxResult<FrontendAdmission>::Success(FrontendAdmission{
-        .permissions_ =
-            controller ? std::vector<std::string>{"view", "input", "clipboard", "file", "audio", "rdp"} : std::vector<std::string>{"view", "audio"},
+        .permissions_ = file_transfer ? std::vector<std::string>{"file"}
+                        : controller  ? std::vector<std::string>{"view", "input", "clipboard", "file", "audio", "rdp"}
+                                      : std::vector<std::string>{"view", "audio"},
         .logical_session_id_ = grant.session_id,
         .stream_id_ = descriptor->stream_id,
         .join_mode_ = controller ? "control" : "observe",

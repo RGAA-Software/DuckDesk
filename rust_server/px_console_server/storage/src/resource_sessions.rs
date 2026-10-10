@@ -79,11 +79,15 @@ impl ResourceSessionStore {
         sqlx::query("SELECT pg_advisory_xact_lock(5788347791197331458)")
             .execute(&mut *tx)
             .await?;
-        if entitlement.starter_mode_limit {
+        let file_transfer_only = request.access.name() == "file_transfer";
+        if file_transfer_only && client != ClientType::Panel {
+            return Err(StoreError::Rejected);
+        }
+        if entitlement.starter_mode_limit && !file_transfer_only {
             let active_in_category: i64 = sqlx::query_scalar(
                 "SELECT (SELECT count(*) FROM pixels.resource_sessions AS resource_session \
                  LEFT JOIN pixels.instances AS instance ON instance.id=resource_session.instance_id \
-                 WHERE resource_session.closed_at IS NULL AND \
+                 WHERE resource_session.closed_at IS NULL AND resource_session.access_role <> 'file_transfer' AND \
                  (($1='desktop' AND resource_session.target_kind='desktop') OR instance.kind=$1)) + \
                  (SELECT count(*) FROM pixels.direct_streams WHERE $1='desktop' AND expires_at > clock_timestamp())",
             )
@@ -101,12 +105,12 @@ impl ResourceSessionStore {
             }
         }
         let active_sessions: i64 = sqlx::query_scalar(
-            "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL) + \
+            "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL AND access_role <> 'file_transfer') + \
              (SELECT count(*) FROM pixels.direct_streams WHERE expires_at > clock_timestamp())",
         )
         .fetch_one(&mut *tx)
         .await?;
-        if active_sessions >= i64::from(entitlement.max_streams) {
+        if !file_transfer_only && active_sessions >= i64::from(entitlement.max_streams) {
             return Err(Self::quota_occupancy_error(
                 &mut tx,
                 None,
@@ -220,7 +224,7 @@ impl ResourceSessionStore {
         let retiring_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM pixels.resource_sessions AS session \
              LEFT JOIN pixels.instances AS instance ON instance.id=session.instance_id \
-             WHERE session.closed_at IS NULL AND session.state IN ('closing','reconcile_required') \
+             WHERE session.closed_at IS NULL AND session.access_role <> 'file_transfer' AND session.state IN ('closing','reconcile_required') \
              AND ($1::text IS NULL OR instance.kind=$1 OR ($1='desktop' AND session.target_kind='desktop'))",
         )
         .bind(category)

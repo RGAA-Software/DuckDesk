@@ -1,0 +1,35 @@
+{
+  "services": [
+    {
+      "Name": "Pixels.Console",
+      "status": "Running"
+    },
+    {
+      "Name": "Pixels.Relay",
+      "status": "Running"
+    },
+    {
+      "Name": "px_service",
+      "status": "Running"
+    }
+  ],
+  "processes": [
+    {
+      "Id": 18512,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "sessions": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " streamtest                                1  Disc         9:06  2026/10/10 17:29",
+    " administrator         console             2  Active      none   2026/10/10 17:30",
+    " pxrdp_2c3153bd5fff41                      3  Disc           38  2026/10/11 1:58"
+  ],
+  "schema_log": [
+    "Pixels Server 1.0.56 exit=0",
+    "PRE_UPGRADE_BACKUP=C:\\ProgramData\\Pixels\\Server\\data\\database-upgrades\\2d101f562d1a4afbb64ce5f5ec594d9d",
+    "SCHEMA_READY version=40",
+    "RUNNING official-server 1.0.56 deployment=2f5b1d67-6dba-47bd-a985-f5925a0b1662",
+    ""
+  ]
+}

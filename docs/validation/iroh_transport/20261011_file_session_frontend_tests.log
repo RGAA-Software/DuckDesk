@@ -1,0 +1,93 @@
+Start testing: Oct 11 02:19 China Standard Time
+----------------------------------------------------------
+103/148 Testing: iroh_frontend
+103/148 Test: iroh_frontend
+Command: "D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_render/tests/test_iroh_frontend.exe"
+Directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake/src/px_render/tests
+"iroh_frontend" start time: Oct 11 02:19 China Standard Time
+Output:
+----------------------------------------------------------
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 20 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 20 tests from IrohFrontendTest
+[ RUN      ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword
+[       OK ] IrohFrontendTest.DesktopAcceptsExistingConsoleSessionWithoutDevicePassword (74 ms)
+[ RUN      ] IrohFrontendTest.FileOnlyGrantUsesIndependentConnectionWithoutControlSeatOrVideoPermission
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.FileOnlyGrantUsesIndependentConnectionWithoutControlSeatOrVideoPermission (89 ms)
+[ RUN      ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.SequencedBackpressureDoesNotRequestPrePacketizationRecovery (94 ms)
+[ RUN      ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient
+Log initialization failed: logger with name 'spd.log' already exists
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderModuleRoutesEncoderAndFileOutputToNetClient (72 ms)
+[ RUN      ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientDialsAdmitsReceivesMediaAndStopsFromItsCallback (74 ms)
+[ RUN      ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+Log initialization failed: logger with name 'spd.log' already exists
+D:\GoCloud\GammaRayPremium\src\px_render\tests\unit\test_iroh_frontend.cpp(390): Skipped
+Requires the owned-Relay outage harness
+
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic (25 ms)
+[ RUN      ] IrohFrontendTest.NetClientRetriesTemporaryLookupAndConnectsToRefreshedEndpoint
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientRetriesTemporaryLookupAndConnectsToRefreshedEndpoint (1287 ms)
+[ RUN      ] IrohFrontendTest.EndedBusinessSessionClosesConnectedTransportAndAllowsStopFromNotification
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.EndedBusinessSessionClosesConnectedTransportAndAllowsStopFromNotification (5109 ms)
+[ RUN      ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientReportsAdmissionFailureWithoutConnectedCallback (54 ms)
+[ RUN      ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.NetClientVoiceUsesBidirectionalDatagramsAndHonorsAudioRevocation (78 ms)
+[ RUN      ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RenderMediaReachesSdkAndReferenceLossReturnsOverReliableControl (46 ms)
+[ RUN      ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.KeyFrameRequestBurstsAreCoalescedAndLaterRecoveryIsAllowed (1192 ms)
+[ RUN      ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.AcceptedRepairAllowsNextIndependentLossWithoutCooldown (67 ms)
+[ RUN      ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RealQuicAdmissionControlDatagramAndSingleDisconnect (297 ms)
+[ RUN      ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.OccupiedControllerReturnsReasonWithoutAnotherOccupant (54 ms)
+[ RUN      ] IrohFrontendTest.WrongPasswordReturnsStructuredReason
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.WrongPasswordReturnsStructuredReason (75 ms)
+[ RUN      ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.StopInterruptsIncompleteHandshakeAndDoesNotCreateAnOccupant (74 ms)
+[ RUN      ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.BusinessMessagesRetainRouteAndUseIndependentInputStream (96 ms)
+[ RUN      ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.InputCannotBeSmuggledOverTheControlStream (73 ms)
+[ RUN      ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose
+Log initialization failed: logger with name 'spd.log' already exists
+[       OK ] IrohFrontendTest.RdpBytesCrossQuicAndLoopbackWithSingleFrontendAndImmediateClose (68 ms)
+[----------] 20 tests from IrohFrontendTest (9010 ms total)
+
+[----------] Global test environment tear-down
+[==========] 20 tests from 1 test suite ran. (9010 ms total)
+[  PASSED  ] 19 tests.
+[  SKIPPED ] 1 test, listed below:
+[  SKIPPED ] IrohFrontendTest.NetClientReadmitsAfterRelayOutageClosesQuic
+<end of output>
+Test time =   9.58 sec
+----------------------------------------------------------
+Test Passed.
+"iroh_frontend" end time: Oct 11 02:19 China Standard Time
+"iroh_frontend" time elapsed: 00:00:09
+----------------------------------------------------------
+
+End testing: Oct 11 02:19 China Standard Time

@@ -1,0 +1,72 @@
+[
+  {
+    "original_path": "src/px_client/CMakeLists.txt",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "f46c78c7d758245c274159a3348f864301e8fe1e39964c41c1b9927873ed526f"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_file_transfer_panel.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "3a8be8f44c7d3cde3c59006c6234d152f5fa57380013988af7137c69265a5f77"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_file_transfer_panel.h",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "4059f07c858de00b0873749aad67217ebeb5247715e76cc0186fda25db8f6cde"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_connection_params.h",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "55aa0f394b1669e754161ef173dc5bf4033b0030f279e285347dd3ff630313f5"
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/iroh_dialer.h",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "cd1bd354e4d42dd46bbb2fc3dc53eb410c9beec86ec8ba3564ab9307e96ca030"
+  },
+  {
+    "original_path": "src/px_client_sdk/connection/iroh_dialer.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "2a681697d9ee6e44b295949f67f0121d7a8d813a9919c30464dacde8ad511568"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_iroh_reconnect.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "dfbd5c24fefbc8332d0f1c486e7255b9df0138e5ae21c54bacc48c2b2f5a2211"
+  },
+  {
+    "original_path": "src/px_client_sdk/sdk_iroh_connection.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Retire unreachable embedded file panel and replace fixed-budget/ambiguous reconnect outcome handling",
+    "sha256": "c9402ea69fcd21246bbb11ca9ee6c0cf9856924fce416d51cb9515615af711a1"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_window.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Consolidate localized connection failure presentation",
+    "sha256": "d1745c90b40927de387dac1973f50c3465dd0daf3d0fd9038358bff295a4cfae"
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_file_transfer_window.cpp",
+    "base_revision": "a217f93314dc86a3e078b7f45e20ef09fe22f244",
+    "local_modification_status": "clean",
+    "reason": "Consolidate localized connection failure presentation",
+    "sha256": "73db2b42e6d4045d135e75a6e565f675938b8ecc036900e06346c57a756c2b80"
+  }
+]

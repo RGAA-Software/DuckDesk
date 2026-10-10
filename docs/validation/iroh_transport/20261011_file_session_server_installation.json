@@ -1,0 +1,10 @@
+{
+  "version": "1.0.56",
+  "verified_files": 35,
+  "services": {
+    "Pixels.Console": "Running",
+    "Pixels.Relay": "Running"
+  },
+  "setup_sha256": "7AC4CCA61D9C2CBF22A4B5B61406B27CE875354E636FD8339E4B8BD1AA2B9AA3",
+  "manifest_sha256": "40C595E3CFD206A467A994BF9E7DA1B65566048DD487A94DC55143DEDA85FE9F"
+}

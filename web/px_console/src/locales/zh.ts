@@ -773,7 +773,7 @@ export default {
             admin_web: "管理后台",
             unknown: "未知客户端",
         },
-        roles: { controller: "控制", observer: "观看", unknown: "未知角色" },
+        roles: { controller: "控制", observer: "观看", file_transfer: "文件传输", unknown: "未知角色" },
         sessionStates: {
             pending: "连接中",
             connected: "已连接",

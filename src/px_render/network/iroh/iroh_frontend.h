@@ -37,6 +37,7 @@ private:
     std::string binding_id_{};
     std::string visitor_device_id_{};
     bool rdp_{};
+    bool file_transfer_only_{};
     mutable std::recursive_mutex lifecycle_mutex_{};
     RenderEventCallback events_{};
     std::atomic_bool closed_{};

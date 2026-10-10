@@ -1,7 +1,8 @@
 #pragma once
 
-#include <optional>
+#include <chrono>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -13,13 +14,20 @@ enum class SdkSessionMode { kNative, kRdp };
 enum class SdkMediaTransport { kUdp, kWebSocket, kIroh };
 enum class SdkConnectionRoute { kDirect, kWebSocketRelay };
 
+struct IrohEndpointRefreshResult final {
+    std::optional<IrohConnectionDescription> description{};
+    std::string terminal_error{};
+};
+
 struct IrohDialParameters final {
     std::string endpoint_address{};
     std::string endpoint_configuration{"{}"};
     // Existing resource-session/frontend parameters; this transport creates no additional credentials.
     std::unordered_map<std::string, std::string> frontend{};
     // Composition supplies a bounded lookup for this same resource session.
-    std::function<std::optional<IrohConnectionDescription>()> refresh_endpoint{};
+    std::function<IrohEndpointRefreshResult()> refresh_endpoint{};
+    // Local retry ceiling, not an extension of the server's application grace or session lease.
+    std::chrono::milliseconds reconnect_timeout{std::chrono::seconds(30)};
 };
 
 // Value configuration for the native transport. No renderer, codec, OS handle or

@@ -3,11 +3,75 @@
 #include <future>
 
 #include "connection/iroh_connection.h"
+#include "connection/iroh_dialer.h"
 #include "px_common/data.h"
 #include "px_message.pb.h"
 
 namespace px {
 namespace {
+
+TEST(IrohDialer, ExpiredBusinessSessionStopsRetryImmediately) {
+    const auto failure = std::make_shared<std::promise<std::string>>();
+    auto finished = failure->get_future();
+    const auto refresh_count = std::make_shared<std::atomic_size_t>();
+    IrohDialParameters parameters{.endpoint_address = "{}"};
+    parameters.refresh_endpoint = [refresh_count] {
+        ++*refresh_count;
+        return IrohEndpointRefreshResult{.terminal_error = "IROH_SESSION_ENDED"};
+    };
+    const auto dialer = std::make_shared<IrohDialer>(std::move(parameters), [failure](IrohDialResult result) {
+        if (result.stage == IrohDialStage::kFailed) failure->set_value(result.error_code);
+    });
+    dialer->Start();
+    ASSERT_EQ(finished.wait_for(std::chrono::seconds(3)), std::future_status::ready);
+    EXPECT_EQ(finished.get(), "IROH_SESSION_ENDED");
+    EXPECT_EQ(refresh_count->load(), 1);
+    dialer->Stop();
+    dialer->Stop();
+}
+
+TEST(IrohDialer, TemporaryLookupFailureHasBoundedRetryAndFinalOutcome) {
+    const auto failure = std::make_shared<std::promise<std::string>>();
+    auto finished = failure->get_future();
+    const auto refresh_count = std::make_shared<std::atomic_size_t>();
+    IrohDialParameters parameters{.endpoint_address = "{}"};
+    parameters.reconnect_timeout = std::chrono::milliseconds(800);
+    parameters.refresh_endpoint = [refresh_count] {
+        ++*refresh_count;
+        return IrohEndpointRefreshResult{};
+    };
+    const auto dialer = std::make_shared<IrohDialer>(std::move(parameters), [failure](IrohDialResult result) {
+        if (result.stage == IrohDialStage::kFailed) failure->set_value(result.error_code);
+    });
+    dialer->Start();
+    ASSERT_EQ(finished.wait_for(std::chrono::seconds(3)), std::future_status::ready);
+    EXPECT_EQ(finished.get(), "IROH_RECONNECT_EXPIRED");
+    EXPECT_GT(refresh_count->load(), 0);
+    EXPECT_LE(refresh_count->load(), 2);
+    dialer->Stop();
+}
+
+TEST(IrohDialer, StopInsideRefreshSuppressesQueuedFailureAndRepeatedStart) {
+    const auto owner = std::make_shared<std::weak_ptr<IrohDialer>>();
+    const auto canceled = std::make_shared<std::promise<void>>();
+    auto stopped = canceled->get_future();
+    const auto failures = std::make_shared<std::atomic_size_t>();
+    IrohDialParameters parameters{.endpoint_address = "{}"};
+    parameters.refresh_endpoint = [owner, canceled] {
+        if (const auto dialer = owner->lock()) dialer->Stop();
+        canceled->set_value();
+        return IrohEndpointRefreshResult{.terminal_error = "IROH_SESSION_ENDED"};
+    };
+    const auto dialer = std::make_shared<IrohDialer>(std::move(parameters), [failures](IrohDialResult result) {
+        if (result.stage == IrohDialStage::kFailed) ++*failures;
+    });
+    *owner = dialer;
+    dialer->Start();
+    ASSERT_EQ(stopped.wait_for(std::chrono::seconds(3)), std::future_status::ready);
+    dialer->Stop();
+    dialer->Start();
+    EXPECT_EQ(failures->load(), 0);
+}
 
 TEST(IrohSdkConnection, InvalidChannelInitializationClosesTheAdmittedConnection) {
     const auto server_endpoint = transport::Endpoint::Bind("{}", 5000);

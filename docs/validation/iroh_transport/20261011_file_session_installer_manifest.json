@@ -1,0 +1,21 @@
+{
+  "schema_version": 4,
+  "product": "cloud_node",
+  "distribution": "official",
+  "release_namespace": "pixels.official",
+  "oem_id": null,
+  "company": "Pixels",
+  "publisher_name": "Pixels",
+  "installer_basename": "PixelsCloudNode",
+  "oem_profile_sha256": null,
+  "product_version": "3.3.97",
+  "product_version_code": 30397,
+  "git_revision": "a217f93314dc",
+  "windows_code_signing": "unsigned",
+  "payload_manifest_sha256": "FE4157CECB858D0BDC922E959A04A883900CBE3E49A2E0D89DA089CDAA95F73C",
+  "payload_artifact_count": 314,
+  "installer": {
+    "path": "PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "16E56344D40DB4D4C913845E3783BFF1B3C9FDB888148B8FF01C48405314BCA3"
+  }
+}

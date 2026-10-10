@@ -1,0 +1,11 @@
+{
+  "connections": {},
+  "cleanup_errors": [],
+  "small_file": {
+    "bytes": 4096,
+    "sha256": "6277cb950210034ff5c7ddeae2dae8e4ee0401105de7c4cf76df287fe74de67b",
+    "remote_file_deleted": true,
+    "session_id": "c30ad54a-ded7-4dbd-9058-da18e67aeb5e"
+  },
+  "access_restored": true
+}

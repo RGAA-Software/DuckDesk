@@ -391,6 +391,8 @@ std::shared_ptr<px::VoiceCallController> ClientSession::VoiceCall() const {
 
 void ClientSession::SetState(const ClientConnectionState state, std::string status, const ClientConnectionFailure failure) {
     const std::scoped_lock lock{mutex_};
+    // A queued disconnect/frame from the retired adapter must not undo the final failure.
+    if (transportTerminal_.load() && state != ClientConnectionState::Rejected) return;
     state_ = state;
     failure_ = failure;
     status_ = std::move(status);

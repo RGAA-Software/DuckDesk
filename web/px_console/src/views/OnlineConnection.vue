@@ -85,7 +85,7 @@ function targetName(session: ResourceSession): string {
 function localizedValue(category: "clients" | "roles" | "sessionStates", value: string): string {
     const knownValues = {
         clients: ["panel", "android", "user_web", "admin_web"],
-        roles: ["controller", "observer"],
+        roles: ["controller", "observer", "file_transfer"],
         sessionStates: ["pending", "connected", "closed"],
     };
     return t(`activity.${category}.${knownValues[category].includes(value) ? value : "unknown"}`);

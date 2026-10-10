@@ -47,11 +47,21 @@ PxAwaitable<PxResult<std::shared_ptr<IrohFrontend>>> IrohFrontend::AdmitAsync(st
     const auto peer_identity = connection->PeerId();
     if (!peer_identity) co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(AdmissionError("TRANSPORT_UNAVAILABLE"));
     // Endpoint identity comes from the authenticated QUIC peer, never a client-supplied address.
-    auto authentication = co_await AuthenticateFrontendAsync(services, parameters, *peer_identity, true);
+    const bool file_transfer_only = Parameter(parameters, "file_transfer_only") == "1";
+    if (file_transfer_only && rdp) co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(AdmissionError("SESSION_CAPABILITY_DENIED"));
+    auto authentication = co_await AuthenticateFrontendAsync(services, parameters, *peer_identity, !file_transfer_only);
     if (!authentication.HasValue()) co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(authentication.Error());
     const auto frontend = std::make_shared<IrohFrontend>(services, leases, connection, authentication.TakeValue(), "iroh:" + GenerateRandomBase64Id(),
                                                          Parameter(parameters, "visitor_device_id"), rdp, std::move(events));
     auto& admission = frontend->admission_;
+    frontend->file_transfer_only_ = file_transfer_only;
+    if (file_transfer_only) {
+        if (!frontend->Allows("file")) co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(AdmissionError("SESSION_CAPABILITY_DENIED"));
+        // The caller can reduce an existing grant, never gain additional permissions.
+        admission.permissions_ = {"file"};
+    } else if (admission.console_frontend_grant_ && admission.console_frontend_grant_->access_role == "file_transfer") {
+        co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(AdmissionError("SESSION_CAPABILITY_DENIED"));
+    }
     if (Parameter(parameters, "stream_id") != admission.stream_id_ || admission.stream_id_.empty())
         co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(AdmissionError("SESSION_STREAM_MISMATCH"));
     if ((Parameter(parameters, "rdp") == "1") != rdp)
@@ -74,7 +84,8 @@ PxAwaitable<PxResult<std::shared_ptr<IrohFrontend>>> IrohFrontend::AdmitAsync(st
         .allow_takeover = admission.allow_takeover_,
         .input_allowed = frontend->Allows("input"),
     };
-    auto bound = co_await AdmitFrontendSessionAsync(services, grant, LogicalSessionTransport::kIroh, frontend->binding_id_);
+    const auto logical_transport = file_transfer_only ? LogicalSessionTransport::kFileTransfer : LogicalSessionTransport::kIroh;
+    auto bound = co_await AdmitFrontendSessionAsync(services, grant, logical_transport, frontend->binding_id_);
     if (!bound.HasValue()) co_return PxResult<std::shared_ptr<IrohFrontend>>::Failure(bound.Error());
     if (bound.Value().code != LogicalSessionAdmissionCode::kAccepted) {
         const auto code = bound.Value().code == LogicalSessionAdmissionCode::kOccupied               ? "SESSION_OCCUPIED"
@@ -115,7 +126,9 @@ void IrohFrontend::StartLease(const LogicalSessionGrant& grant) {
 
 void IrohFrontend::UpdatePermissions(const std::vector<std::string>& permissions) {
     std::lock_guard lock(lifecycle_mutex_);
-    admission_.permissions_ = permissions;
+    admission_.permissions_ = file_transfer_only_ ? (std::ranges::find(permissions, "file") != permissions.end() ? std::vector<std::string>{"file"}
+                                                                                                                 : std::vector<std::string>{})
+                                                  : permissions;
     if (rdp_ && !std::ranges::all_of(std::array{"rdp", "view", "input", "audio", "clipboard"},
                                      [owner = shared_from_this()](std::string_view capability) { return owner->Allows(capability); }))
         Close(ResourceChannelCloseOutcome::kPolicyRevoked);

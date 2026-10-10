@@ -1,9 +1,40 @@
 # iroh 长任务执行状态
 
-目标：完成 `docs/iroh_transport_execution_plan_20261008.md` 的 P0–P7 开发与验收。
-用户已明确要求持续执行全部阶段。90 工作区为 `D:\112233`，不向桌面复制文件。
+当前目标（2026-10-11）：按 `docs/iroh_transport_execution_plan_20261008.md` 第 0.9 节，连续完成 Windows/Linux iroh 网络开发与交付，**本次不做 Android**。
+早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
+90 工作区为 `D:\112233`，不向桌面复制文件。
 
 ## 最新实机接续：2026-10-11，Windows 应用 iroh
+
+### Windows/Linux 功能与交付已验收，提交收束（2026-10-11）
+
+- A：BJ 新完整 Linux 镜像部署入口升级通过，配置 SHA 未变；强制 BJ 协议检查 120/120 datagrams、6,291,520 bytes 可靠流通过。Windows Relay 随本轮新 Server 完整 Setup 安装通过。
+- B：修复同设备桌面 + 文件窗口 409：新增复用既有设备授权的 `file_transfer` 角色，文件连接不占控制席/视频额度，只允许文件能力；Console/Panel/SDK/Render/管理页同步。实机两个进程同时连接、关闭媒体文件仍连接、新角色 4 KiB 往返 SHA 通过，临时 ACL 已恢复为空。旧无调用内嵌文件面板已原样归档。
+- C：重拨默认从 8 秒改为 30 秒有界预算，明确区分暂时端点查询失败与会话结束；终止错误经 SDK 上报 Client 并中英文提示，阻止旧回调覆盖终止状态。不会延长应用默认 10 秒宽限、自动重启应用或注销 RDP 会话。补 Panel 启动失败资源会话释放。
+- D：候选资格/容量及动态路径核对完成，复用双 Relay 故障/维护/容量证据；真实复杂 NAT、十 Relay 规模和长期稳定性未验收，不重新开启叫停专项。
+- E：21 PostgreSQL 会话测试、Frontend 19 项（1 专用故障项复用既有实测）、Client 三目标、Web 6 项与构建、Server 包 8 项通过。开发产物已同步 dist 且 SHA 一致，`20261011_file_session_build.json`。
+- 90 最新完整安装位于 `D:\112233\iroh-file-session-completion-20261011`：Server **1.0.56** Setup SHA `7AC4CCA6…A2B9AA3`、schema **40**、35 文件核验；Cloud Node **3.3.97** Setup SHA `16E56344…314BCA3`、314 文件核验，Render SHA `574DF82344D8620736F2FA741F53C859D976FBB3850E7DFF58129151A86BDEFB`。详见 `20261011_file_session_*installation.json`。
+- 首次 Server 安装因 32 位 PowerShell 缺注册表而失败，旧服务未停；安装器改 Sysnative 64 位 PowerShell 后成功，未修改系统注册表。旧运行 Server 实为 1.0.55，失败的缓存 1.0.54 候选未安装。
+- 正常 GameHook/WebView/RDP 与强制 Relay 游戏连接、画面及宽限退出通过。**画面性能未解决**：首轮 direct 游戏 34.4–42.7 FPS/约 301ms，最终短检查 29.1–32.0 FPS/约 277ms、频繁 RFI；强制 Relay 多数窗口约 60，一次 47.4 FPS/200ms。不能称为“只有少量混传抖动”或稳定 60 FPS，未确认网络/网卡/代码根因。发送策略本批未改，没有恢复饱和混传/网卡实验。
+- 清理完成：257 会话均 closed，本机无测试 Client；90 仅桌面 Render 18512，RDP 及其他 Windows 登录会话保留。control_epoch=69，node generation=434，两 Relay generation=90/15，均 fresh/ready；设备 ACL `users=[]/groups=[]`。持久变化为 schema/备份 schema 和产品包更新，原 Relay 配置、网卡、宽限期保持。
+- F：实现/证据文档已汇总至 `20261011_windows_completion.md`，最终检查和 commit/push 收束中。Android 明确排除，旧消费者仍需的路径未删除。
+- **后续未完成项**：从本批双路径日志继续定位 direct 画面性能，真实 NAT/规模/长稳验证；这些不冒称通过。当前只完成第 0.9 节功能交付范围，不宣称整个网络性能目标完成。
+
+### 当前任务：Windows/Linux 一次完成，Android 排除（2026-10-11）
+
+- 用户明确要求“android先不做，规划一个完整任务，我要一次性做完”。总计划第 0.9 节及 AGENTS.md 已同步范围，覆盖下方旧的“Android 最后接入”本次安排。
+- 一个任务连续执行六段：A 双系统 Relay 交付 → B Windows 独立文件传输 → C 自动重连与宽限期 → D P2P/多 Relay 功能缺口 → E 完整包及必要集成回归 → F 提交 push、证据与文档结项。阶段完成不等待重复“继续”。
+- Android 开发/验收、它依赖的旧数据面退役和已叫停的性能/网卡专项排除；已有网络消费者、文件和剪贴板证据复用。必要功能回归保留，不借整体任务自动恢复饱和混传压测。
+- 本次仅更新规划，未构建、部署或启动测试。安装身份/持久配置沿用上一实机记录；当前代码基线 `a217f9331`。
+- **直接下一步：A，生成完整 Linux Relay 镜像包并用 BJ 现有项目/配置完成新入口升级验收。** 后续直接衔接 B–F；缺环境如实列出，不将未验证 NAT 或未修复功能缺陷冒称完成。
+
+### 当前规划：后续整体顺序已收敛（2026-10-11）
+
+- 当前已推送基线为 `a217f9331`（含前序 `97d81fd1d`）。后续任务详见 [总计划 0.8](../../iroh_transport_execution_plan_20261008.md#08-后续整体执行安排2026-10-11当前顺序)。
+- 顺序：BJ 完整包升级验收 → Windows 独立文件入口核对 → 断网/重连与宽限期生命周期 → NAT/多 Relay 缺口 → Windows/Linux 网络版本收束 → Android 最后接入 → 旧数据面归档退役。
+- 源码核实：Panel 独立文件入口和 Client `fileTransferOnly` 模式已有；不能重新从零实现。`iroh_dialer.cpp` 业务重拨仍固定 8 秒，需要与应用退出宽限期及会话有效性一起梳理，不能仅延长一个常量。
+- 本次只更新规划，未构建、部署、重启或开展实机测试；上一批运行身份和配置记录继续有效，本轮混传压测继续停止。计划列入的未来网络验证不代表现在恢复测试。
+- **唯一下一步仍为 BJ 新 Linux Relay 包升级验收**，复用现有项目/配置与已通过的 Windows 安装证据。M3 抖动/NAT/长期稳定性不标完成，Android 前不移除仍有消费者的旧栈。
 
 ### 当前主线交付：M4 Linux Relay 升级入口（2026-10-11）
 

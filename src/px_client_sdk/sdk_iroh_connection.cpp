@@ -2,6 +2,8 @@
 #include "connection/iroh_dialer.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
+#include "px_common/message_notifier.h"
+#include "sdk_messages.h"
 #include "sdk_net_client.h"
 #include "sdk_statistics.h"
 
@@ -13,7 +15,9 @@ bool NetClient::PostIrohVoice(const Message& message) {
 
 void NetClient::StartIrohConnection() {
     const auto owner = weak_from_this();
-    const auto dialer = std::make_shared<IrohDialer>(*params_.iroh_, [owner](IrohDialResult result) {
+    auto parameters = *params_.iroh_;
+    parameters.frontend["file_transfer_only"] = params_.file_transfer_only_ ? "1" : "0";
+    const auto dialer = std::make_shared<IrohDialer>(std::move(parameters), [owner](IrohDialResult result) {
         const auto client = owner.lock();
         if (!client || client->exited_) return;
         if (result.stage == IrohDialStage::kStarting) {
@@ -33,6 +37,7 @@ void NetClient::StartIrohConnection() {
         if (!result.connection) {
             LOGW("event=iroh.connect outcome=failed code={}", result.error_code);
             if (client->dis_conn_cbk_) client->dis_conn_cbk_();
+            if (client->msg_notifier_) client->msg_notifier_->SendAppMessage(SdkMsgIrohConnectionFailed{result.error_code});
             return;
         }
         const auto generation = client->managed_media_generation_.load();

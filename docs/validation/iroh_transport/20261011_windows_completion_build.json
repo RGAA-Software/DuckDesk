@@ -1,0 +1,34 @@
+{
+  "configuration": "Release",
+  "distribution": "development",
+  "artifacts": [
+    {
+      "product": "client",
+      "component": "px_client.exe",
+      "build": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "build_official\\client\\dist\\px_client.exe",
+      "sha256": "9f2b56d0cb1e53f6d8714a0a49571fd9a1dd36340a470cbcafb737ef31f05a39"
+    },
+    {
+      "product": "client",
+      "component": "px_panel.exe",
+      "build": "build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "build_official\\client\\dist\\px_panel.exe",
+      "sha256": "768a738415d9def6c8a67fb3ffa0b60574fc30a3cc29203af5ca4a6f50f06da9"
+    },
+    {
+      "product": "cloud_node",
+      "component": "px_client.exe",
+      "build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "2747ec682007f76d4b2a4d318e539864dece4a3776917b57b8c5afd6adf4f652"
+    },
+    {
+      "product": "cloud_node",
+      "component": "px_panel.exe",
+      "build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+      "dist": "build_official\\cloud_node\\dist\\px_panel.exe",
+      "sha256": "67c54fa89ed3bd2f80c600012273f84de7eaf132a3fa47b2dc48080db60a8f8f"
+    }
+  ]
+}

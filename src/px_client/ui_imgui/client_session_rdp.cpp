@@ -47,6 +47,7 @@ bool ClientSession::InitializeRdp() {
     notifier_ = std::make_shared<px::MessageNotifier>();
     listener_ = notifier_->CreateListener(px::MessageExecutionLane::kControl);
     if (!listener_) return false;
+    BindIrohFailureListener();
     px::SdkConnectionParams params{};
     params.session_mode_ = px::SdkSessionMode::kRdp;
     params.iroh_ = BuildClientIrohParameters(config_);

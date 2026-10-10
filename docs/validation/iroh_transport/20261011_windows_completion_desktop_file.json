@@ -1,0 +1,17 @@
+{
+  "connections": {
+    "desktop": {
+      "pid": 70320,
+      "session_id": "2e3942fa-d864-456b-8e37-2da7a7d0ccbc",
+      "connected": true
+    },
+    "file-transfer": {
+      "pid": 9880,
+      "session_id": "b644f6f4-246f-4f43-adc3-35c519552cbe",
+      "connected": true
+    }
+  },
+  "cleanup_errors": [],
+  "file_survives_media_close": true,
+  "access_restored": true
+}

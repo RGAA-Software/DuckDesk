@@ -1,0 +1,6 @@
+{
+  "archive_sha256": "53626726e0ee4429480880cf6c08236b2d1414b066186ff98085374f024d10f3",
+  "exit_code": 0,
+  "stdout": "/home/ubuntu/relay-delivery-20261011.tar.gz: OK\n{\n  \"project\": \"pixels-relay-bj-200m\",\n  \"container_id\": \"2344ee301a54653d5f13041cae76a16366ec32e21fe81bf4955b9c4f1daf70dc\",\n  \"image_id\": \"sha256:c0d1449319def4b2ef6951027ad8805b57b98b2cd5fff493f2659a51253e6b16\",\n  \"runtime_sha256\": \"9fbd130af5009168196ea8190991c03b66b45271d14bfda17641e8353f3963dd\",\n  \"state\": \"running\",\n  \"console_readiness\": \"not_checked\",\n  \"config_directory\": \"/opt/pixels/relay-bj-200m/config\"\n}\n",
+  "stderr": ""
+}

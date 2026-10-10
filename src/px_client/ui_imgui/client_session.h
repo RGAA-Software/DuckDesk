@@ -8,12 +8,13 @@
 #include <string>
 #include <vector>
 
+#include "client_connection_failure.h"
 #include "client_launch_config.h"
-#include "client_statistics.h"
-#include "client_screenshot.h"
 #include "client_recording_result.h"
-#include "rdp/rdp_clipboard_content.h"
+#include "client_screenshot.h"
+#include "client_statistics.h"
 #include "client_video_frame.h"
+#include "rdp/rdp_clipboard_content.h"
 
 namespace px {
 class Data;
@@ -44,7 +45,6 @@ class ClientAudioOutput;
 
 enum class ClientConnectionState : std::uint8_t { Connecting, Connected, MediaUnavailable, Rejected, Disconnected };
 
-enum class ClientConnectionFailure : std::uint8_t { None, Authorization, RemoteAccessDisabled, Occupied, SessionPolicy, TakenOver, Transport };
 
 struct ClientResolution final {
     int width{};
@@ -177,6 +177,7 @@ public:
 private:
     [[nodiscard]] bool SendMedia(const std::shared_ptr<px::Data>& data) const;
     bool InitializeRdp();
+    void BindIrohFailureListener();
     void StartRdpProtocol(std::uint16_t loopbackPort, std::uint64_t generation);
     void ResetRdpTransport();
     void ApplyRdpFrame(const std::shared_ptr<const px::rdp::DesktopFrame>& frame);
@@ -203,6 +204,7 @@ private:
     std::shared_ptr<px::SdkStatistics> statistics_{};
     mutable std::mutex mutex_{};
     ClientConnectionState state_{ClientConnectionState::Connecting};
+    std::atomic_bool transportTerminal_{};
     ClientConnectionFailure failure_{ClientConnectionFailure::None};
     std::string status_{"Connecting"};
     std::string monitorName_{};

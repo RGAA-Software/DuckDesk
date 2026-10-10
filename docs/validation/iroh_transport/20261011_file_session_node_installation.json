@@ -1,0 +1,46 @@
+{
+  "candidate": "iroh-file-session-completion-20261011",
+  "setup_sha256": "16E56344D40DB4D4C913845E3783BFF1B3C9FDB888148B8FF01C48405314BCA3",
+  "setup_exit": 0,
+  "manifest_sha256": "FE4157CECB858D0BDC922E959A04A883900CBE3E49A2E0D89DA089CDAA95F73C",
+  "product_version": "3.3.97",
+  "verified_artifacts": 314,
+  "runtime_artifacts": [
+    {
+      "path": "px_render.exe",
+      "sha256": "574DF82344D8620736F2FA741F53C859D976FBB3850E7DFF58129151A86BDEFB"
+    },
+    {
+      "path": "px_client.exe",
+      "sha256": "46DAE9BBA7591CD179E166340F07A6D9F8EB3E18E110C6381F9BE214E41C1D99"
+    },
+    {
+      "path": "px_panel.exe",
+      "sha256": "08A185C5FCD5450F380395D37F815B4197D235DE04435ACCA26D7274FD4CE4CB"
+    },
+    {
+      "path": "px_service.exe",
+      "sha256": "406D50144FBB808A23B191F1852BC50D4EC955848C748A648FD58C98F7CAA9AC"
+    }
+  ],
+  "service": "Running",
+  "sessions_before": [
+    " 用户名                会话名             ID  状态    空闲时间   登录时间",
+    " streamtest                                1  断开         9:03  2026/10/10 17:29",
+    " administrator         console             2  运行中      无     2026/10/10 17:30",
+    " pxrdp_2c3153bd5fff41                      3  断开           35  2026/10/11 1:58"
+  ],
+  "sessions_after": [
+    " 用户名                会话名             ID  状态    空闲时间   登录时间",
+    " streamtest                                1  断开         9:03  2026/10/10 17:29",
+    " administrator         console             2  运行中      无     2026/10/10 17:30",
+    " pxrdp_2c3153bd5fff41                      3  断开           35  2026/10/11 1:58"
+  ],
+  "processes": [
+    {
+      "ProcessName": "px_render",
+      "Id": 18512,
+      "Path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ]
+}

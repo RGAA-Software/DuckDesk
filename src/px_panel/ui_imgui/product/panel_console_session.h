@@ -33,7 +33,8 @@ public:
     [[nodiscard]] std::vector<std::shared_ptr<px_console::ConsoleUserDevice>> QueryDevices();
     [[nodiscard]] std::optional<px_console::ConsolePublicDeviceEndpoint> ResolvePublicDeviceCode(const std::string& publicDeviceCode);
     [[nodiscard]] std::optional<px_console::ConsoleNativeDeviceConnection> QueryNativeDeviceConnection(const std::string& deviceId,
-                                                                                                       bool viewOnly = false);
+                                                                                                       bool viewOnly = false,
+                                                                                                       bool fileTransferOnly = false);
     [[nodiscard]] px::Result<std::vector<px_console::ConsoleUserApplication>, px_console::ConsoleApiError> QueryApplications();
     [[nodiscard]] px::Result<px_console::ConsoleUserAppInstance, px_console::ConsoleApiError> StartApplication(const std::string& appId,
                                                                                                                const std::string& requestId);

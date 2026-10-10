@@ -21,6 +21,7 @@
 #include "panel_device_presence.h"
 #include "panel_product_runtime.h"
 #include "px_common/http_client.h"
+#include "px_common/scope_exit.h"
 #include "px_common/uuid.h"
 #include "px_console_client/console_api.h"
 #include "px_console_client/console_user_device.h"
@@ -542,7 +543,8 @@ private:
                 }
                 parsed->displayName = (*matchingDevice)->device_name_;
                 parsed->platform = px::ui::ParseDevicePlatform((*matchingDevice)->platform_);
-                const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId, mode == DirectSessionMode::ViewOnly);
+                const auto connection = runtime_->Console()->QueryNativeDeviceConnection(parsed->deviceId, mode == DirectSessionMode::ViewOnly,
+                                                                                         mode == DirectSessionMode::FileTransfer);
                 if (!connection) {
                     connectionProgress_.Fail(generation, ui::ConnectionStepKind::ResolveDevice,
                                              ui::ConnectionFailureReason::DeviceResolutionFailed,
@@ -597,6 +599,12 @@ private:
     }
 
     void RunDirect(const std::uint64_t generation, ParsedConnectionInput target, const DirectSessionMode mode) {
+        bool connected{};
+        const auto releaseFailedSession = PxScopeExit{[console = runtime_->Console(), &target, &connected] {
+            if (!connected && IsCanonicalUUID(target.frontendSessionId) && target.frontendSessionRevision > 0) {
+                static_cast<void>(console->CloseResourceConnection(target.frontendSessionId, target.frontendSessionRevision));
+            }
+        }};
         const bool fileTransfer{mode == DirectSessionMode::FileTransfer};
         const bool viewOnly{mode != DirectSessionMode::Control};
         const std::string unboundEndpointCredentialKey{target.deviceId.empty() && target.publicDeviceCode.empty() ? CredentialKey(target)
@@ -783,6 +791,7 @@ private:
             }
             connectionProgress_.Complete(generation,
                                          std::string{px::ui::ApplicationName()} + (fileTransfer ? " File Transfer started." : " Client started."));
+            connected = true;
             if (!consoleAuthorized) {
                 const bool identitySaved{credentialVault_->Write(credentialKey, target.password)};
                 const bool endpointSaved{unboundEndpointCredentialKey.empty() ||

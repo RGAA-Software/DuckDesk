@@ -63,8 +63,9 @@ bool IsAcceptedWebSocketFrontendGrant(const WebSocketFrontendDescriptor& descrip
                                           grant.instance_id.empty() && grant.application_id.empty()
                                     : grant.target_kind == "cloud_application" && grant.instance_id == render_instance_id;
     return target_matches &&
-           (grant.access_role == "controller" || grant.access_role == "observer") && grant.session_id == descriptor.session_id &&
-           grant.revision == descriptor.revision && grant.valid_for_ms > 0;
+           (grant.access_role == "controller" || grant.access_role == "observer" ||
+            (grant.access_role == "file_transfer" && grant.target_kind == "desktop" && grant.client_type == "panel")) &&
+           grant.session_id == descriptor.session_id && grant.revision == descriptor.revision && grant.valid_for_ms > 0;
 }
 
 bool HasSameConsoleFrontendIdentity(const ConsoleFrontendGrant& expected, const ConsoleFrontendGrant& renewed) {

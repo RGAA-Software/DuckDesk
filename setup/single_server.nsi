@@ -89,15 +89,16 @@ Function .onGUIEnd
 FunctionEnd
 
 Section "Install"
+    ; NSIS is 32-bit; invoke native PowerShell without WOW64 redirection.
     InitPluginsDir
     SetOutPath "$PLUGINSDIR\payload"
     File /r "${PAYLOAD_DIR}\*.*"
     IfFileExists "$ConfigRoot\setup.complete" existing_install fresh_install
     fresh_install:
-    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\stage_setup.ps1" -PackageRoot "$PLUGINSDIR\payload" -ExpectedManifestSha256 "${MANIFEST_SHA256}" -ConfigRoot "$ConfigRoot" -DataRoot "$DataRoot" -InstallRoot "$INSTDIR"'
+    nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\stage_setup.ps1" -PackageRoot "$PLUGINSDIR\payload" -ExpectedManifestSha256 "${MANIFEST_SHA256}" -ConfigRoot "$ConfigRoot" -DataRoot "$DataRoot" -InstallRoot "$INSTDIR"'
     Goto install_result
     existing_install:
-    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\install.ps1" -PackageRoot "$PLUGINSDIR\payload" -ExpectedManifestSha256 "${MANIFEST_SHA256}" -ConfigRoot "$ConfigRoot" -DataRoot "$DataRoot" -InstallRoot "$INSTDIR" $RecoveryArgument'
+    nsExec::ExecToStack '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\payload\install.ps1" -PackageRoot "$PLUGINSDIR\payload" -ExpectedManifestSha256 "${MANIFEST_SHA256}" -ConfigRoot "$ConfigRoot" -DataRoot "$DataRoot" -InstallRoot "$INSTDIR" $RecoveryArgument'
     install_result:
     Pop $0
     Pop $InstallOutput
@@ -134,10 +135,10 @@ SectionEnd
 Section "Uninstall"
     IfFileExists "$INSTDIR\current\uninstall.ps1" installed_uninstall staged_uninstall
     staged_uninstall:
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup_payload\uninstall.ps1" -InstallRoot "$INSTDIR"'
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\setup_payload\uninstall.ps1" -InstallRoot "$INSTDIR"'
     Goto uninstall_result
     installed_uninstall:
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\current\uninstall.ps1" -InstallRoot "$INSTDIR"'
+    nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\current\uninstall.ps1" -InstallRoot "$INSTDIR"'
     uninstall_result:
     Pop $0
     StrCmp $0 "0" uninstall_succeeded

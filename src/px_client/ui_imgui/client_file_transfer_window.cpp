@@ -933,9 +933,7 @@ void ClientFileTransferWindow::DrawConnectionFailure(const ClientSessionSnapshot
     if (!modal.Open())
         return;
     const auto text = [english = english_](const ClientText id) { return ClientTextValue(id, english).data(); };
-    const std::string_view description{snapshot.failure == ClientConnectionFailure::RemoteAccessDisabled
-                                           ? ClientTextValue(ClientText::RemoteAccessDisabled, english_)
-                                           : std::string_view{snapshot.status}};
+    const std::string_view description{ClientTextValue(ConnectionFailureText(snapshot.failure), english_)};
     static_cast<void>(
         px::ui::DialogHeader({"standalone-file-error-close"}, text(ClientText::ConnectionFailed), description,
                              {.icon = px::ui::VectorIcon::TriangleAlert, .tone = px::ui::BadgeVariant::Destructive, .closeable = false}));

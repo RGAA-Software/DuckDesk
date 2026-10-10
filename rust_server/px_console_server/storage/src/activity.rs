@@ -167,7 +167,10 @@ impl ActivityStore {
         let endpoint = ResourceSessionStore::live_endpoint(connection, &session).await?;
         if (endpoint.transport == "rdp" && !matches!(channel_kind, "rdp" | "control"))
             || (endpoint.transport != "rdp" && channel_kind == ChannelKind::Rdp.name())
-            || (channel_kind == "file" && session.access_role != "controller")
+            || (channel_kind == "file"
+                && !matches!(session.access_role.as_str(), "controller" | "file_transfer"))
+            || (session.access_role == "file_transfer"
+                && !matches!(channel_kind, "control" | "file"))
         {
             return Err(StoreError::Rejected);
         }

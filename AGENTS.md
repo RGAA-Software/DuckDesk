@@ -1,5 +1,12 @@
 # Workspace delivery rules
 
+- Current transport task scope (2026-10-11): complete the Windows/Linux iroh transport delivery as one continuous task.
+  Android implementation and acceptance are excluded from this task, rather than a final phase within it.
+  Preserve all data paths still consumed by Android; global legacy transport retirement is deferred with Android.
+  The current task and completion criteria are in section 0.9 of `docs/iroh_transport_execution_plan_20261008.md`.
+  Reuse passed evidence, finish each required development/delivery step without asking the user to restart each batch,
+  and keep the stopped mixed-load/NIC stress investigation outside the current task's completion prerequisites.
+
 - Transport scope correction (2026-10-10): keep this long task focused on media transport, iroh direct/relay, reliable streams/datagrams,
   multi-Relay allocation/recovery, Windows/Linux delivery and Android last. Validate existing business features only as transport consumers
   or when affected by a concrete change; independent recording/playback and exhaustive clipboard/UI acceptance are not transport milestones.

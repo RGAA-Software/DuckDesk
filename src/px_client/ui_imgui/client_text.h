@@ -53,6 +53,8 @@ enum class ClientText : std::uint8_t {
     SessionPolicyRejected,
     SessionTakenOver,
     TransportRejected,
+    ReconnectExpired,
+    SessionEnded,
     ConnectionFailed,
     Ok,
     Light,

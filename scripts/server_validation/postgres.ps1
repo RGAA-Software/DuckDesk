@@ -481,7 +481,7 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=20;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=4;deployments=7;instances=19;commands=16;workspaces=6;database=2;sessions=20;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
+        $suiteCounts = @{unit=20;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=4;deployments=7;instances=19;commands=16;workspaces=6;database=2;sessions=21;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 8
         $suiteCounts['cn-license'] = 1
@@ -854,7 +854,7 @@ try {
     Add-TestCases $databaseIntegration 'native/composition' 2
     $sessionIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','sessions','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $sessionIntegration
-    Add-TestCases $sessionIntegration 'native/sessions' 20
+    Add-TestCases $sessionIntegration 'native/sessions' 21
     $transferIntegration = Invoke-Checked 'cargo' @('test','--locked','--manifest-path',$manifest,'-p','px_console_store','--features','pg-integration','--test','transfers','--target-dir',$targetDir,'--','--test-threads=1')
     Write-Host $transferIntegration
     Add-TestCases $transferIntegration 'native/transfers' 8

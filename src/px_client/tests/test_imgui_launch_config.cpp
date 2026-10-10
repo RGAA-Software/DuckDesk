@@ -2,10 +2,23 @@
 
 #include <string>
 
+#include "client_connection_failure.h"
 #include "client_launch_config.h"
 #include "px_common/console_frontend_relay_credential.h"
 
 namespace px::client::imgui {
+
+TEST(ClientConnectionFailureTest, TerminalRecoveryFailuresHaveChineseAndEnglishMessages) {
+    EXPECT_EQ(IrohConnectionFailure("IROH_RECONNECT_EXPIRED"), ClientConnectionFailure::ReconnectExpired);
+    EXPECT_EQ(IrohConnectionFailure("IROH_SESSION_ENDED"), ClientConnectionFailure::SessionEnded);
+    EXPECT_EQ(IrohConnectionFailure("IROH_REMOTE_CLOSED"), ClientConnectionFailure::SessionEnded);
+    for (const auto failure : {ClientConnectionFailure::ReconnectExpired, ClientConnectionFailure::SessionEnded}) {
+        const auto key = ConnectionFailureText(failure);
+        EXPECT_FALSE(ClientTextValue(key, false).empty());
+        EXPECT_FALSE(ClientTextValue(key, true).empty());
+        EXPECT_NE(ClientTextValue(key, false), ClientTextValue(key, true));
+    }
+}
 
 TEST(ClientImguiLaunchConfigTest, IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference) {
     const auto config = ParseClientLaunchEnvelope(R"({

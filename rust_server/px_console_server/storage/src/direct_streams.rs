@@ -52,7 +52,7 @@ impl DirectStreamStore {
             .execute(&mut *transaction)
             .await?;
         let active_sessions: i64 = sqlx::query_scalar(
-            "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL) + \
+            "SELECT (SELECT count(*) FROM pixels.resource_sessions WHERE closed_at IS NULL AND access_role <> 'file_transfer') + \
              (SELECT count(*) FROM pixels.direct_streams WHERE expires_at>clock_timestamp())",
         )
         .fetch_one(&mut *transaction)
@@ -60,7 +60,7 @@ impl DirectStreamStore {
         let active_desktops: i64 = if entitlement.starter_mode_limit {
             sqlx::query_scalar(
                 "SELECT (SELECT count(*) FROM pixels.resource_sessions \
-                 WHERE target_kind='desktop' AND closed_at IS NULL) + \
+                 WHERE target_kind='desktop' AND closed_at IS NULL AND access_role <> 'file_transfer') + \
                  (SELECT count(*) FROM pixels.direct_streams WHERE expires_at>clock_timestamp())",
             )
             .fetch_one(&mut *transaction)

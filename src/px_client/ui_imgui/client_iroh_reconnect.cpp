@@ -18,7 +18,7 @@ void BindClientIrohRefresh(std::optional<px::IrohDialParameters>& parameters, co
     const auto endpoint_identity = nlohmann::json::parse(parameters->endpoint_address).at("id").get<std::string>();
     const auto address_url = std::format("{}/api/console/resource-sessions/{}/iroh-endpoint", console_origin, config.frontendSessionId);
     parameters->refresh_endpoint = [address_url, endpoint_identity, credential = config.frontendToken,
-                                    revision = config.frontendSessionRevision]() -> std::optional<IrohConnectionDescription> {
+                                    revision = config.frontendSessionRevision]() -> IrohEndpointRefreshResult {
         cpr::Session request{};
         request.SetUrl(cpr::Url{address_url});
         request.SetTimeout(cpr::Timeout{1500});
@@ -30,15 +30,18 @@ void BindClientIrohRefresh(std::optional<px::IrohDialParameters>& parameters, co
         const auto response = request.Post();
         if (response.status_code != 200) {
             LOGW("event=iroh.endpoint_refresh outcome=unavailable http={}", response.status_code);
-            return std::nullopt;
+            if (response.status_code == 401 || response.status_code == 403 || response.status_code == 404 || response.status_code == 410)
+                return {.terminal_error = "IROH_SESSION_ENDED"};
+            if (response.status_code == 400 || response.status_code == 409) return {.terminal_error = "IROH_ENDPOINT_INVALID"};
+            return {};
         }
         const auto description = nlohmann::json::parse(response.text, nullptr, false);
         const auto refreshed = px::ParseIrohConnectionDescription(description);
         if (!refreshed || description["endpoint_address"].value("id", std::string{}) != endpoint_identity) {
             LOGW("event=iroh.endpoint_refresh outcome=rejected reason=endpoint_identity_changed_or_invalid");
-            return std::nullopt;
+            return {.terminal_error = "IROH_ENDPOINT_INVALID"};
         }
-        return refreshed;
+        return {.description = refreshed};
     };
 }
 }  // namespace px::client::imgui
