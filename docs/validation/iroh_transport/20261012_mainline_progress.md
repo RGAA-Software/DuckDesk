@@ -28,4 +28,4 @@
 
 90工作区D:\112233；Cloud Node3.3.97候选decoder-output-recovery-20261012（Render6F9A2D19…/NodeClient0C9B2695…），本机Client408717B2…/Panel8ACEB454…；详细全SHA、45分钟指标和恢复回归见 [本轮验收](20261012_decoder_recovery_acceptance.md)。应用10000kbps/revision19、宽限10秒，双Relayfresh/ready/原标志，316业务会话closed。本轮没有Relay、Android或认证契约改动。
 
-先前主线功能/交付提交bf5ebc03a已推送，状态文档基线c449357a3。本轮媒体代码、失败与通过证据、验收及本分析纳入同一收尾提交；实际push结果以Git远端核对为准，不借旧提交声称新代码已推送。
+先前主线功能/交付提交bf5ebc03a已推送，状态文档基线c449357a3。本轮媒体代码、失败与通过证据、验收及本分析已提交并push master：5fe4b8ae8，远端从c449357a3推进。当前完成的是卡帧任务工程验收和主线分析，未将NAT/规模/长期稳定性或Android冒标完成。
