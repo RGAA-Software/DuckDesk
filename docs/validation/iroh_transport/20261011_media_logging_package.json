@@ -1,0 +1,9 @@
+{
+  "candidate": "media-logging-20261011",
+  "setup": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\media-logging-20261011\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+  "setup_size": 278613017,
+  "setup_sha256": "de1a1e13dc054480437bc249ce1238073d7b2e1490dea20260fcd18c97937e00",
+  "manifest_path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\media-logging-20261011\\installer\\3.3.97\\app\\product-manifest.json",
+  "manifest_sha256": "5e7340b279645efdd60c4e63fcad68a1919e749bbdffa97ac5b02cac15e28ff1",
+  "artifacts": 314
+}

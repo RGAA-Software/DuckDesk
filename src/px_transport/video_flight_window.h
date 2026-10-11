@@ -1,6 +1,9 @@
 #pragma once
 
+#include <limits>
+
 #include "video_receive_feedback.h"
+#include "video_send_pacing.h"
 
 namespace px::transport {
 
@@ -9,6 +12,8 @@ namespace px::transport {
 class VideoFlightWindow final {
 public:
     using Clock = std::chrono::steady_clock;
+
+    explicit VideoFlightWindow(VideoSendBudget video_budget = VideoSendBudget{}) : video_budget_(video_budget) {}
 
     struct Snapshot final {
         std::size_t frames{};
@@ -20,6 +25,7 @@ public:
         std::int64_t progress_age_us{};
         std::int64_t probe_wait_us{};
         std::uint64_t forward_delay_growth_us{};
+        std::uint64_t return_delay_growth_us{};
     };
 
     [[nodiscard]] Snapshot Inspect(std::uint8_t stream, Clock::time_point now) const {
@@ -34,7 +40,8 @@ public:
                 .oldest_age_us = std::chrono::duration_cast<std::chrono::microseconds>(now - window.pending.front().sent).count(),
                 .progress_age_us = std::chrono::duration_cast<std::chrono::microseconds>(now - window.progress_at).count(),
                 .probe_wait_us = std::chrono::duration_cast<std::chrono::microseconds>(window.next_probe - now).count(),
-                .forward_delay_growth_us = window.forward_delay_growth_us};
+                .forward_delay_growth_us = window.forward_delay_growth_us,
+                .return_delay_growth_us = window.return_delay_growth_us};
     }
 
     void ObserveRtt(std::uint64_t rtt_us) {
@@ -76,13 +83,29 @@ public:
         const auto position = streams_.find(report.stream);
         if (position == streams_.end()) return;
         auto& window = position->second;
-        if (report.elapsed_us <= window.feedback_elapsed_us || report.complete_frames < window.complete_frames) return;
+        if (report.elapsed_us <= window.feedback_elapsed_us || report.complete_frames < window.complete_frames ||
+            report.elapsed_us > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max()))
+            return;
         window.feedback_elapsed_us = report.elapsed_us;
         window.complete_frames = report.complete_frames;
         if (!report.latest_frame_index) return;
         const auto acknowledged = std::find_if(window.pending.begin(), window.pending.end(),
                                                [&report](const Pending& pending) { return pending.frame_index == *report.latest_frame_index; });
         if (acknowledged == window.pending.end()) return;
+        const auto acknowledged_sent = acknowledged->sent;
+        // Receiver elapsed time and sender arrival intervals share no epoch.
+        // Their interval difference still measures additional return delay.
+        // Only advancing receipts calibrate this allowance; repeated stale
+        // status cannot increase it for a receiver that has stopped progressing.
+        if (!window.return_baseline_at) {
+            window.return_baseline_at = now;
+            window.return_baseline_elapsed_us = report.elapsed_us;
+        }
+        const auto arrival_interval_us = std::chrono::duration_cast<std::chrono::microseconds>(now - *window.return_baseline_at).count();
+        const auto generated_interval_us = report.elapsed_us - window.return_baseline_elapsed_us;
+        const auto return_offset_us = arrival_interval_us - static_cast<std::int64_t>(generated_interval_us);
+        window.minimum_return_offset_us = std::min(window.minimum_return_offset_us, return_offset_us);
+        window.return_delay_growth_us = static_cast<std::uint64_t>(return_offset_us) - static_cast<std::uint64_t>(window.minimum_return_offset_us);
         // Compare receiver report-generation intervals with the corresponding
         // local frame-send intervals. Clock offsets cancel; the return trip
         // is excluded. Using `now - sent` here mistakes delayed feedback for
@@ -91,8 +114,8 @@ public:
             window.baseline_sent = acknowledged->sent;
             window.baseline_report_elapsed_us = report.elapsed_us;
         }
-        const auto source_interval_us = static_cast<std::uint64_t>(
-            std::chrono::duration_cast<std::chrono::microseconds>(acknowledged->sent - window.baseline_sent).count());
+        const auto source_interval_us =
+            static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(acknowledged->sent - window.baseline_sent).count());
         const auto receiver_interval_us = report.elapsed_us - *window.baseline_report_elapsed_us;
         if (receiver_interval_us < source_interval_us) {
             window.baseline_sent = acknowledged->sent;
@@ -105,8 +128,8 @@ public:
         // Confirmed forward recovery restores burst capacity immediately, even
         // if acknowledgements still queue on the return path. Keeping a reduced
         // budget for a fixed second turns that old congestion into fresh capture
-        // pauses. Preserve the pending debt and all hard queue/history bounds.
-        if (!forward_congested) window.budget_bytes = 256 * 1024;
+        // pauses. Preserve pending debt and bounded queue/history limits.
+        if (!forward_congested) window.budget_bytes = HealthyBudget(window.return_delay_growth_us);
         window.progress_at = now;
         const auto end = std::next(acknowledged);
         for (auto pending = window.pending.begin(); pending != end; ++pending) {
@@ -114,6 +137,19 @@ public:
             window.confirmed_wire_bytes += pending->bytes;
         }
         window.pending.erase(window.pending.begin(), end);
+        if (window.pending.empty()) {
+            // This receipt retired every outstanding frame. Historical delay
+            // and throughput describe the completed burst, not a new one.
+            // Carrying its reduced credits forward creates fresh capture
+            // pauses even after both the remote debt and QUIC queue drain.
+            window.budget_bytes = HealthyBudget(window.return_delay_growth_us);
+            window.forward_delay_growth_us = 0;
+            window.baseline_sent = acknowledged_sent;
+            window.baseline_report_elapsed_us = report.elapsed_us;
+            window.confirmed_wire_bytes = 0;
+            window.budget_sample_elapsed_us = report.elapsed_us;
+            return;
+        }
         const auto sample_us = report.elapsed_us - window.budget_sample_elapsed_us;
         if (sample_us >= 250000) {
             // Bound latency using actual receipt throughput, including packet/FEC
@@ -126,9 +162,8 @@ public:
             // Low throughput can simply mean a static scene. Constrain only
             // after forward delay grows. A later forward stall constrains the
             // window again using the next receipt-throughput sample.
-            window.budget_bytes = forward_congested
-                                      ? std::clamp<std::size_t>(std::max(throughput_budget, frame_budget), 32 * 1024, 256 * 1024)
-                                      : 256 * 1024;
+            window.budget_bytes = forward_congested ? std::clamp<std::size_t>(std::max(throughput_budget, frame_budget), 32 * 1024, 256 * 1024)
+                                                    : HealthyBudget(window.return_delay_growth_us);
             window.confirmed_wire_bytes = 0;
             window.budget_sample_elapsed_us = report.elapsed_us;
         }
@@ -141,6 +176,15 @@ public:
     }
 
 private:
+    [[nodiscard]] std::size_t HealthyBudget(std::uint64_t return_delay_growth_us) const {
+        // Account for negotiated wire rate, baseline RTT, two feedback periods,
+        // and measured extra return delay. These bytes have already left the
+        // bounded QUIC admission queue; this is not a larger unsent buffer.
+        const auto horizon_us =
+            100000 + std::min<std::uint64_t>(baseline_rtt_us_.value_or(0), 500000) + std::min<std::uint64_t>(return_delay_growth_us, 500000);
+        return std::clamp<std::size_t>(video_budget_.VideoWireBitsPerSecond() * horizon_us / 8000000, 256 * 1024, 1024 * 1024);
+    }
+
     struct Pending final {
         std::uint64_t frame_index{};
         std::size_t bytes{};
@@ -160,7 +204,12 @@ private:
         Clock::time_point baseline_sent{};
         std::optional<std::uint64_t> baseline_report_elapsed_us{};
         std::uint64_t forward_delay_growth_us{};
+        std::optional<Clock::time_point> return_baseline_at{};
+        std::uint64_t return_baseline_elapsed_us{};
+        std::int64_t minimum_return_offset_us{};
+        std::uint64_t return_delay_growth_us{};
     };
+    VideoSendBudget video_budget_{};
     std::map<std::uint8_t, Window> streams_{};
     std::optional<std::uint64_t> baseline_rtt_us_{};
 };

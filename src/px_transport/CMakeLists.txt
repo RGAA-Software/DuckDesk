@@ -10,7 +10,8 @@ else()
 endif()
 set(PX_TRANSPORT_RUST_LIBRARY "${PROJECT_SOURCE_DIR}/rust_transport/target/${PX_TRANSPORT_RUST_PROFILE}/px_transport_ffi.lib"
     CACHE FILEPATH "Pixels transport Rust static library for the selected distribution" FORCE)
-add_library(px_transport_cpp STATIC transport.cpp channel.cpp session_open.cpp message_session.cpp media_datagrams.cpp media_timer_resolution.cpp voice_datagram.cpp)
+add_library(px_transport_cpp STATIC transport.cpp channel.cpp session_open.cpp message_session.cpp
+    media_datagrams.cpp video_diagnostics.cpp media_timer_resolution.cpp voice_datagram.cpp)
 target_include_directories(px_transport_cpp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_features(px_transport_cpp PUBLIC cxx_std_23)
 target_link_libraries(px_transport_cpp PRIVATE nlohmann_json::nlohmann_json px_common_async px_message OpenSSL::SSL OpenSSL::Crypto)

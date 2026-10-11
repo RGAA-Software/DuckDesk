@@ -32,11 +32,14 @@ class DecoderStartupGate final {
         last_request_.reset();
     }
 
-    [[nodiscard]] bool IsSynchronized() const {
-        return synchronized_;
+    void RequireKeyFrame(std::chrono::steady_clock::time_point requested_at) {
+        synchronized_ = false;
+        last_request_ = requested_at;
     }
 
-  private:
+    [[nodiscard]] bool IsSynchronized() const { return synchronized_; }
+
+private:
     bool synchronized_{};
     std::optional<std::chrono::steady_clock::time_point> last_request_{};
 };

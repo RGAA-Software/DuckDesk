@@ -1,0 +1,68 @@
+{
+  "version": "3.3.97",
+  "candidate": "stutter-unified-20261012",
+  "development": {
+    "client/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "0759A9A0F5CD9DF4F4BD250A0D9D8AFEAE254F64BAA271C859CB0D07E6361C76"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+        "sha256": "0759A9A0F5CD9DF4F4BD250A0D9D8AFEAE254F64BAA271C859CB0D07E6361C76"
+      }
+    },
+    "client/px_panel": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+        "sha256": "8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe",
+        "sha256": "8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F"
+      }
+    },
+    "cloud_node/px_render": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+        "sha256": "4024A693C72BCC0AA9F221FD599B0264F08B41895E82D9CB56CDE011A34488F0"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+        "sha256": "4024A693C72BCC0AA9F221FD599B0264F08B41895E82D9CB56CDE011A34488F0"
+      }
+    },
+    "cloud_node/px_client": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+        "sha256": "E3C16EF43CFC3E09F9B151BFE3A1A39D90D817244AC4A4EFE774B70FCE75F7B2"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+        "sha256": "E3C16EF43CFC3E09F9B151BFE3A1A39D90D817244AC4A4EFE774B70FCE75F7B2"
+      }
+    },
+    "cloud_node/px_panel": {
+      "build": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+        "sha256": "77AD5D274DDC915BE42F68598AB265286A2827BEE1B5D685D66798F205333DD9"
+      },
+      "dist": {
+        "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_panel.exe",
+        "sha256": "77AD5D274DDC915BE42F68598AB265286A2827BEE1B5D685D66798F205333DD9"
+      }
+    }
+  },
+  "setup": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\stutter-unified-20261012\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+    "sha256": "710967A1F2B84E262B40D3BA82A53636B857E429DBB48AB40D7EF50127355AC2"
+  },
+  "manifest": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\stutter-unified-20261012\\installer\\3.3.97\\app\\product-manifest.json",
+    "sha256": "34936783784ACA5C0DBEA49BBEE57AE0278F33D3818B71B698C5B9168E7E383D"
+  },
+  "render": {
+    "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\stutter-unified-20261012\\installer\\3.3.97\\app\\px_render.exe",
+    "sha256": "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E"
+  }
+}

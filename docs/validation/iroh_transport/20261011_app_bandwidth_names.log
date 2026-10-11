@@ -1,0 +1,5 @@
+warning: in the working copy of 'src/px_render/network/iroh/iroh_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 350 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.

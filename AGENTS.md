@@ -1,5 +1,8 @@
 # Workspace delivery rules
 
+- Build parallelism decision (2026-10-11): use 18 build jobs for every subsequent compilation; do not use all available cores.
+  Pass the job count explicitly to focused C++ build entry points and to other compilers when invoked.
+
 - Current transport task scope (2026-10-11): complete the Windows/Linux iroh transport delivery as one continuous task.
   Android implementation and acceptance are excluded from this task, rather than a final phase within it.
   Preserve all data paths still consumed by Android; global legacy transport retirement is deferred with Android.

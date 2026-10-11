@@ -1,0 +1,170 @@
+{
+  "scope": "single media connection, Data packet space, IP path 1",
+  "packet_bounds_exclusive": [
+    10,
+    37136
+  ],
+  "missing_packets": {
+    "24452": {
+      "constructed_at": "2026-10-11T02:45:49.562671Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24453": {
+      "constructed_at": "2026-10-11T02:45:49.562677Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24454": {
+      "constructed_at": "2026-10-11T02:45:49.566897Z",
+      "frames": [
+        "STREAM id: client bidirectional stream 0 off: 85786 len: 25 fin: false"
+      ],
+      "bytes": 59
+    },
+    "24455": {
+      "constructed_at": "2026-10-11T02:45:49.572389Z",
+      "frames": [
+        "STREAM id: client bidirectional stream 0 off: 85811 len: 18 fin: false"
+      ],
+      "bytes": 52
+    },
+    "24472": {
+      "constructed_at": "2026-10-11T02:45:49.579102Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24473": {
+      "constructed_at": "2026-10-11T02:45:49.579138Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24474": {
+      "constructed_at": "2026-10-11T02:45:49.579143Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24475": {
+      "constructed_at": "2026-10-11T02:45:49.579147Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24476": {
+      "constructed_at": "2026-10-11T02:45:49.579168Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24477": {
+      "constructed_at": "2026-10-11T02:45:49.579173Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24478": {
+      "constructed_at": "2026-10-11T02:45:49.579178Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24479": {
+      "constructed_at": "2026-10-11T02:45:49.579212Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24480": {
+      "constructed_at": "2026-10-11T02:45:49.579218Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24481": {
+      "constructed_at": "2026-10-11T02:45:49.579238Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24482": {
+      "constructed_at": "2026-10-11T02:45:49.579244Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24483": {
+      "constructed_at": "2026-10-11T02:45:49.579248Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24484": {
+      "constructed_at": "2026-10-11T02:45:49.579269Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24485": {
+      "constructed_at": "2026-10-11T02:45:49.579274Z",
+      "frames": [
+        "DATAGRAM len: 1100"
+      ],
+      "bytes": 1130
+    },
+    "24486": {
+      "constructed_at": "2026-10-11T02:45:49.580864Z",
+      "frames": [
+        "PATH_ACK_ECN path_id: 1 ranges: [6009..6021] delay: 2µs"
+      ],
+      "bytes": 38
+    },
+    "24487": {
+      "constructed_at": "2026-10-11T02:45:49.583047Z",
+      "frames": [
+        "STREAM id: client bidirectional stream 0 off: 85829 len: 25 fin: false"
+      ],
+      "bytes": 59
+    },
+    "24488": {
+      "constructed_at": "2026-10-11T02:45:49.588985Z",
+      "frames": [
+        "STREAM id: client bidirectional stream 0 off: 85854 len: 18 fin: false"
+      ],
+      "bytes": 52
+    }
+  },
+  "missing_packet_count": 21,
+  "missing_datagram_frames": 16,
+  "client_ack": "2026-10-11T02:45:43.364964Z TRACE send{space=Data pn=6028 path_id=1}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 1 ranges: [24318..24452,24456..24472,24489..24494] delay: 11µs",
+  "reliable_retransmit_receipts": [
+    "2026-10-11T02:45:43.367370Z TRACE pkt{path_id=1}:recv{space=Data pn=24517}: noq_proto::connection: got frame STREAM id=client bidirectional stream 0 offset=85786 len=43 fin=false",
+    "2026-10-11T02:45:43.367394Z TRACE pkt{path_id=1}:recv{space=Data pn=24518}: noq_proto::connection: got frame STREAM id=client bidirectional stream 0 offset=85829 len=43 fin=false"
+  ],
+  "receiver_queue_evictions": 0,
+  "sender_loss_events": [
+    "2026-10-11T02:45:49.597757Z TRACE pkt{path_id=1}:recv{space=Data pn=6023}:frame{ty=PATH_ACK_ECN path=1}: noq_proto::connection: packets lost path_id=1 count=4 lost_bytes=2371",
+    "2026-10-11T02:45:49.597880Z TRACE pkt{path_id=1}:recv{space=Data pn=6028}:frame{ty=PATH_ACK_ECN path=1}: noq_proto::connection: packets lost path_id=1 count=17 lost_bytes=15931"
+  ],
+  "incident_congestion_blocks": 0,
+  "limitation": "QUIC construction-to-receive evidence; no socket/NIC capture in this batch"
+}

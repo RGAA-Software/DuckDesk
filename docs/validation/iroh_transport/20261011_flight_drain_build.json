@@ -1,0 +1,32 @@
+[
+  {
+    "source": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "destination": "build_official\\client\\dist\\px_client.exe",
+    "sha256": "08d2a7d81ee9eecbdedbdcf189782364a179587d5092e2698ad0a931fea48a92"
+  },
+  {
+    "source": "build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+    "destination": "build_official\\client\\dist\\px_panel.exe",
+    "sha256": "08fb84747daff9440e739418274d8106d5a4b359a70f434f7b68f1a1d856ddb1"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "destination": "build_official\\cloud_node\\dist\\px_client.exe",
+    "sha256": "804cab5e18fb9e136c722bb3df3e147bb968fcb92d2c0f1eb3b2ca3eff41c974"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+    "destination": "build_official\\cloud_node\\dist\\px_panel.exe",
+    "sha256": "b91bc9d7173313d6c893dcb5953ffe477161cfaedc4f2c99a731b58e2eb76889"
+  },
+  {
+    "source": "build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "destination": "build_official\\cloud_node\\dist\\px_render.exe",
+    "sha256": "3dafb8847af1b3534e4334d51784bf9412802b983639f5039d0b91f620d5e125"
+  },
+  {
+    "source": "build_official\\cloud_node\\cargo\\target\\release\\px_service.exe",
+    "destination": "build_official\\cloud_node\\dist\\px_service.exe",
+    "sha256": "ee2cfcc775356ba371766a2049e6f69769538871ddfd314ab919ce8805e11ae0"
+  }
+]

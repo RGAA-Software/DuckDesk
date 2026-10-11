@@ -1,0 +1,172 @@
+{
+  "capture_metadata": {
+    "client_nic": {
+      "truncated": 0,
+      "duplicates": 0,
+      "flows": [
+        {
+          "flow": [
+            "39.71.45.66",
+            4613,
+            "192.168.31.6",
+            62394
+          ],
+          "packets": 33345
+        },
+        {
+          "flow": [
+            "192.168.31.6",
+            62394,
+            "39.71.45.66",
+            4613
+          ],
+          "packets": 6439
+        }
+      ]
+    },
+    "client_tcpip": {
+      "truncated": 0,
+      "duplicates": 0,
+      "flows": [
+        {
+          "flow": [
+            "39.71.45.66",
+            4613,
+            "192.168.31.6",
+            62394
+          ],
+          "packets": 33345
+        },
+        {
+          "flow": [
+            "192.168.31.6",
+            62394,
+            "39.71.45.66",
+            4613
+          ],
+          "packets": 6439
+        }
+      ]
+    },
+    "server_nic": {
+      "truncated": 0,
+      "duplicates": 0,
+      "flows": [
+        {
+          "flow": [
+            "10.0.0.90",
+            4613,
+            "39.82.198.244",
+            62394
+          ],
+          "packets": 33593
+        },
+        {
+          "flow": [
+            "39.82.198.244",
+            62394,
+            "10.0.0.90",
+            4613
+          ],
+          "packets": 6439
+        }
+      ]
+    },
+    "server_tcpip": {
+      "truncated": 0,
+      "duplicates": 0,
+      "flows": [
+        {
+          "flow": [
+            "10.0.0.90",
+            4613,
+            "39.82.198.244",
+            62394
+          ],
+          "packets": 33593
+        },
+        {
+          "flow": [
+            "39.82.198.244",
+            62394,
+            "10.0.0.90",
+            4613
+          ],
+          "packets": 6439
+        }
+      ]
+    }
+  },
+  "client_window": [
+    1791687392.946,
+    1791687411.946
+  ],
+  "layers": {
+    "forward": {
+      "client_nic_not_tcpip": 0,
+      "client_tcpip_not_nic": 0,
+      "server_nic_not_tcpip": 0,
+      "server_tcpip_not_nic": 0
+    },
+    "reverse": {
+      "client_nic_not_tcpip": 0,
+      "client_tcpip_not_nic": 0,
+      "server_nic_not_tcpip": 0,
+      "server_tcpip_not_nic": 0
+    }
+  },
+  "directions": {
+    "forward": {
+      "active_send_range": [
+        1791687399.185867,
+        1791687418.185867
+      ],
+      "active_sent": 27030,
+      "matched": 26854,
+      "missing": 176,
+      "unmatched_received_all_capture": 0,
+      "clock_offset_plus_minimum_transit_seconds": -6.2398669719696045,
+      "host_boundary_delays": {
+        "client": {
+          "max_abs_ms": 1.6510486602783203,
+          "median_abs_ms": 0.007152557373046875
+        },
+        "server": {
+          "max_abs_ms": 0.8499622344970703,
+          "median_abs_ms": 0.00095367431640625
+        }
+      },
+      "relative_delay_ms": {
+        "median": 6.406545639038086,
+        "p99": 79.04911041259766,
+        "max": 202.6810646057129
+      }
+    },
+    "reverse": {
+      "active_send_range": [
+        1791687392.946,
+        1791687411.946
+      ],
+      "active_sent": 4727,
+      "matched": 4727,
+      "missing": 0,
+      "unmatched_received_all_capture": 0,
+      "clock_offset_plus_minimum_transit_seconds": 6.240610122680664,
+      "host_boundary_delays": {
+        "client": {
+          "max_abs_ms": 0.0209808349609375,
+          "median_abs_ms": 0.00286102294921875
+        },
+        "server": {
+          "max_abs_ms": 0.0050067901611328125,
+          "median_abs_ms": 0.00095367431640625
+        }
+      },
+      "relative_delay_ms": {
+        "median": 0.9539127349853516,
+        "p99": 27.948856353759766,
+        "max": 62.674760818481445
+      }
+    }
+  }
+}

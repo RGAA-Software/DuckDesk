@@ -1,0 +1,35 @@
+[
+  {
+    "upstream": [
+      "39.71.45.66",
+      4613
+    ],
+    "ingress": [
+      "127.0.0.1",
+      58107
+    ],
+    "started_epoch": 1791741703.7187366,
+    "forwarded_downlink": 53010,
+    "forwarded_uplink": 28265,
+    "dropped_large_downlink": 42,
+    "drop_windows": [
+      {
+        "window": 20,
+        "first_epoch": 1791741723.7243829,
+        "count": 13
+      },
+      {
+        "window": 35,
+        "first_epoch": 1791741738.7246375,
+        "count": 17
+      },
+      {
+        "window": 50,
+        "first_epoch": 1791741753.7322524,
+        "count": 12
+      }
+    ],
+    "failure": "[WinError 10054] An existing connection was forcibly closed by the remote host",
+    "scope": "Only this owned UDP connection; encrypted datagrams >=900 bytes, three 40ms downlink drops. Not a normal-path FPS gate."
+  }
+]

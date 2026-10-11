@@ -1,0 +1,7 @@
+{
+  "candidate": "relay-probe-20261011",
+  "setup_path": "build_official\\cloud_node\\official\\candidates\\relay-probe-20261011\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+  "setup_size": 278541638,
+  "setup_sha256": "7631CBC63AEB82AE29086FDE945740836BF72ABC05CCE231244546E37B911FAB",
+  "manifest_sha256": "5D1B5E0BA132062FF5E701B93241DBAAABD2FF5847D91BD7B7E58418E1AE5B8A"
+}

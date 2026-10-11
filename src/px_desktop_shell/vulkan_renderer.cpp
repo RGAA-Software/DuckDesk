@@ -1,4 +1,5 @@
 #include "vulkan_renderer.h"
+#include "video_presentation_progress.h"
 
 #include "window_host.h"
 
@@ -123,6 +124,8 @@ std::shared_ptr<RawImage> DownloadD3dNv12Frame(const D3D11Image& source) {
 } // namespace
 
 struct VulkanRenderer::Impl final {
+    VideoPresentationProgress videoProgress{};
+    std::uint64_t consecutiveAcquisitionChanges{};
     explicit Impl(const WindowHost& windowValue) : window{std::cref(windowValue)} {}
 
     std::reference_wrapper<const WindowHost> window;
@@ -527,7 +530,9 @@ bool VulkanRenderer::UpdateVideoTexture(const int width, const int height, const
     source.crop = {0.0F, 0.0F, static_cast<float>(width), static_cast<float>(height)};
     source.repr = pl_color_repr_rgb;
     source.color = pl_color_space_srgb;
-    return impl_->RenderSource(source);
+    const bool uploaded = impl_->RenderSource(source);
+    if (uploaded) impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
+    return uploaded;
 }
 
 bool VulkanRenderer::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
@@ -545,17 +550,23 @@ bool VulkanRenderer::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
             return false;
         const bool rendered{impl_->RenderSource(source)};
         pl_unmap_avframe(impl_->vulkan->gpu, &source);
+        if (rendered) impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
         return rendered;
     }
-    if (image->Format() == kRawImageNV12 || image->Format() == kRawImageI420 || image->Format() == kRawImageI444)
-        return impl_->UploadYuv(image);
+    if (image->Format() == kRawImageNV12 || image->Format() == kRawImageI420 || image->Format() == kRawImageI444) {
+        const bool uploaded = impl_->UploadYuv(image);
+        if (uploaded) impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
+        return uploaded;
+    }
     if (image->Format() == kRawImageD3D11Texture) {
         const auto d3dFrame = D3D11FrameOf(image);
         const auto downloaded = d3dFrame ? DownloadD3dNv12Frame(*d3dFrame) : nullptr;
         if (!downloaded)
             return false;
         LOGW("Vulkan decoder was unavailable; presenting D3D11VA fallback through a YUV-only transfer");
-        return impl_->UploadYuv(downloaded);
+        const bool uploaded = impl_->UploadYuv(downloaded);
+        if (uploaded) impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
+        return uploaded;
     }
     return false;
 }
@@ -576,6 +587,7 @@ AvBufferPtr VulkanRenderer::ShareDecoderDevice() {
 }
 
 void VulkanRenderer::Render() {
+    const auto render_started = VideoPresentationProgress::Clock::now();
     impl_->RecreateSwapchainIfNeeded();
     auto& window = impl_->swapchain;
     const VkSemaphore acquired{window.FrameSemaphores[window.SemaphoreIndex].ImageAcquiredSemaphore};
@@ -583,11 +595,19 @@ void VulkanRenderer::Render() {
     const VkResult acquisition{vkAcquireNextImageKHR(impl_->vulkan->device, window.Swapchain, std::numeric_limits<std::uint64_t>::max(), acquired,
                                                      VK_NULL_HANDLE, &window.FrameIndex)};
     if (acquisition == VK_ERROR_OUT_OF_DATE_KHR || acquisition == VK_SUBOPTIMAL_KHR) {
+        ++impl_->consecutiveAcquisitionChanges;
+        if (impl_->consecutiveAcquisitionChanges % 60 == 1) {
+            LOGI("event=video.swapchain_acquire result={} consecutive={} acquired={}", static_cast<int>(acquisition),
+                 impl_->consecutiveAcquisitionChanges, acquisition == VK_SUBOPTIMAL_KHR);
+        }
         impl_->RequestCurrentWindowResize();
-        return;
+        if (acquisition == VK_ERROR_OUT_OF_DATE_KHR) return;
+    } else {
+        impl_->consecutiveAcquisitionChanges = 0;
     }
-    if (!VulkanSucceeded(acquisition, "acquire swapchain image"))
-        return;
+    // SUBOPTIMAL acquired a usable image and signaled its semaphore. Submit and
+    // present that image before rebuilding, as the fixed ImGui SDL3 reference does.
+    if (acquisition != VK_SUBOPTIMAL_KHR && !VulkanSucceeded(acquisition, "acquire swapchain image")) return;
     auto& frame = window.Frames[window.FrameIndex];
     if (!VulkanSucceeded(vkWaitForFences(impl_->vulkan->device, 1, &frame.Fence, VK_TRUE, std::numeric_limits<std::uint64_t>::max()),
                          "wait for UI frame") ||
@@ -640,6 +660,9 @@ void VulkanRenderer::Render() {
     impl_->vulkan->lock_queue(impl_->vulkan, impl_->queueFamily, 0);
     const VkResult presented{vkQueuePresentKHR(impl_->queue, &present)};
     impl_->vulkan->unlock_queue(impl_->vulkan, impl_->queueFamily, 0);
+    const auto presented_at = VideoPresentationProgress::Clock::now();
+    LogVideoPresentation(impl_->videoProgress.Presented(presented == VK_SUCCESS || presented == VK_SUBOPTIMAL_KHR, presented_at,
+                                                      presented_at - render_started), "vulkan");
     if (presented == VK_ERROR_OUT_OF_DATE_KHR || presented == VK_SUBOPTIMAL_KHR)
         impl_->RequestCurrentWindowResize();
     else

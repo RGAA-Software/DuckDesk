@@ -1,0 +1,105 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1448 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_encoded_video_delivery
+[0/2] Re-checking globbed directories...
+[1/2] Building CXX object src\px_client_sdk\CMakeFiles\test_encoded_video_delivery.dir\tests\test_encoded_video_delivery.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/2] Linking CXX executable src\px_client_sdk\test_encoded_video_delivery.exe
+DONE: test_encoded_video_delivery
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 81: encoded_video_delivery
+1/1 Test #81: encoded_video_delivery ...........***Failed    0.24 sec
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 23 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 9 tests from VideoRecoveryPolicy
+[ RUN      ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline
+[       OK ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline (0 ms)
+[ RUN      ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference
+[       OK ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference (0 ms)
+[ RUN      ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle
+[       OK ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle (0 ms)
+[ RUN      ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog
+[       OK ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog (0 ms)
+[ RUN      ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss
+[       OK ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss (0 ms)
+[ RUN      ] VideoRecoveryPolicy.KnownReferenceRepairsAnIncompleteFinalFrameWithoutWaitingForAnotherCompleteFrame
+[       OK ] VideoRecoveryPolicy.KnownReferenceRepairsAnIncompleteFinalFrameWithoutWaitingForAnotherCompleteFrame (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ActivePartialDatagramsDoNotInvalidateAHealthyLargeFrame
+[       OK ] VideoRecoveryPolicy.ActivePartialDatagramsDoNotInvalidateAHealthyLargeFrame (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ReliableRelayPartialPauseWaitsForTheOriginalFrameWithoutSpeculativeRepair
+[       OK ] VideoRecoveryPolicy.ReliableRelayPartialPauseWaitsForTheOriginalFrameWithoutSpeculativeRepair (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ReliableRelayStillRepairsRealReferenceLossAndDirectPathRestoresThePartialDeadline
+[       OK ] VideoRecoveryPolicy.ReliableRelayStillRepairsRealReferenceLossAndDirectPathRestoresThePartialDeadline (0 ms)
+[----------] 9 tests from VideoRecoveryPolicy (0 ms total)
+
+[----------] 13 tests from VideoDeliveryFixture
+[ RUN      ] VideoDeliveryFixture.PartialReferenceFrameHasBoundedRepairDeadlineAndLateFecCompletionCancelsIt
+[       OK ] VideoDeliveryFixture.PartialReferenceFrameHasBoundedRepairDeadlineAndLateFecCompletionCancelsIt (0 ms)
+[ RUN      ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference
+[       OK ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference (0 ms)
+[ RUN      ] VideoDeliveryFixture.MissingTransportFrameRequestsRepairBeforeTheSuccessorIsCompletelyAssembled
+[       OK ] VideoDeliveryFixture.MissingTransportFrameRequestsRepairBeforeTheSuccessorIsCompletelyAssembled (0 ms)
+[ RUN      ] VideoDeliveryFixture.SpeculativeLossStillAllowsLateFecCompletionWithoutReferenceInvalidation
+[       OK ] VideoDeliveryFixture.SpeculativeLossStillAllowsLateFecCompletionWithoutReferenceInvalidation (0 ms)
+[ RUN      ] VideoDeliveryFixture.CompleteRecoveryCancelsLossFromTheSameFeedIncludingReferenceCounterOverflow
+[       OK ] VideoDeliveryFixture.CompleteRecoveryCancelsLossFromTheSameFeedIncludingReferenceCounterOverflow (0 ms)
+[ RUN      ] VideoDeliveryFixture.SpeculativeTelemetryDoesNotSuppressRepairWhenTheQueueFinallyRetiresThatFrame
+D:\GoCloud\GammaRayPremium\src\px_client_sdk\tests\test_encoded_video_delivery.cpp(345): error: Expected equality of these values:
+  retired.invalid_reference_frame
+    Which is: (nullopt)
+  101U
+    Which is: 101
+
+[  FAILED  ] VideoDeliveryFixture.SpeculativeTelemetryDoesNotSuppressRepairWhenTheQueueFinallyRetiresThatFrame (0 ms)
+[ RUN      ] VideoDeliveryFixture.FinalLossRequestsRepairOnTheFirstSuccessorShardUsingObservedDirectFrame599
+[       OK ] VideoDeliveryFixture.FinalLossRequestsRepairOnTheFirstSuccessorShardUsingObservedDirectFrame599 (0 ms)
+[ RUN      ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery
+[       OK ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss
+[       OK ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss (0 ms)
+[ RUN      ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery
+[       OK ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames
+[       OK ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames (0 ms)
+[ RUN      ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr
+[       OK ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr (0 ms)
+[ RUN      ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains
+[       OK ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains (0 ms)
+[----------] 13 tests from VideoDeliveryFixture (1 ms total)
+
+[----------] 1 test from VideoReferenceReset
+[ RUN      ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery
+[       OK ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery (0 ms)
+[----------] 1 test from VideoReferenceReset (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 23 tests from 3 test suites ran. (1 ms total)
+[  PASSED  ] 22 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] VideoDeliveryFixture.SpeculativeTelemetryDoesNotSuppressRepairWhenTheQueueFinallyRetiresThatFrame
+
+ 1 FAILED TEST
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.30 sec
+
+The following tests FAILED:
+	 81 - encoded_video_delivery (Failed)
+Errors while running CTest

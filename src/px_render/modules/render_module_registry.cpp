@@ -121,7 +121,9 @@ void RenderModuleRegistry::StartModules() {
                     : settings_.IsGameHookMode() ? "game-hook"
                                                  : (settings_.IsWebViewMode() ? "webview" : "desktop"),
         .rdp_proxy_port = settings_.IsRdpMode() ? settings_.rdp_launch_.proxy_port : std::uint16_t{},
-        .udp_media_budget_bps = static_cast<std::uint64_t>(std::max(1, settings_.encoder_.bitrate_)) * 1'000'000,
+        .udp_media_budget_bps = settings_.application_media_bandwidth_kbps_ != 0
+                                   ? static_cast<std::uint64_t>(settings_.application_media_bandwidth_kbps_) * 1000
+                                   : static_cast<std::uint64_t>(std::max(1, settings_.encoder_.bitrate_)) * 1'000'000,
     };
     const auto register_builtin = [base_configuration](const std::shared_ptr<RenderModule>& module, const std::string& module_name) -> bool {
         auto configuration = base_configuration;

@@ -1,0 +1,54 @@
+{
+  "direct": [
+    {
+      "kind": "game_hook",
+      "state": "connected",
+      "grace_stopped": true,
+      "sample_seconds": 60.000406980514526,
+      "delivered_frames": 2967,
+      "fps_between_deliveries": 49.465812585877224,
+      "max_gap_ms": 338.561,
+      "p99_gap_ms": 122.38,
+      "gaps_over_100ms": 34,
+      "receive_windows": [
+        "[2026-10-11 18:52:08.896][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=208, fps=41.4, max_gap_ms=273.2, gaps_gt_100ms=4, idr=0, rfi=10",
+        "[2026-10-11 18:52:13.923][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=209, fps=41.6, max_gap_ms=338.6, gaps_gt_100ms=3, idr=0, rfi=10",
+        "[2026-10-11 18:52:18.939][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=277, fps=55.2, max_gap_ms=162.5, gaps_gt_100ms=1, idr=0, rfi=3",
+        "[2026-10-11 18:52:23.957][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=302, fps=60.2, max_gap_ms=37.0, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:52:28.968][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=46.5, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:52:33.974][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=251, fps=50.1, max_gap_ms=213.7, gaps_gt_100ms=4, idr=0, rfi=7",
+        "[2026-10-11 18:52:38.994][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=206, fps=41.0, max_gap_ms=258.3, gaps_gt_100ms=7, idr=0, rfi=13",
+        "[2026-10-11 18:52:43.999][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=221, fps=44.2, max_gap_ms=244.5, gaps_gt_100ms=4, idr=0, rfi=8",
+        "[2026-10-11 18:52:49.008][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=279, fps=55.7, max_gap_ms=122.5, gaps_gt_100ms=1, idr=0, rfi=2",
+        "[2026-10-11 18:52:54.107][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=229, fps=44.9, max_gap_ms=229.3, gaps_gt_100ms=5, idr=0, rfi=11",
+        "[2026-10-11 18:52:59.113][thread 81544][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=206, fps=41.2, max_gap_ms=293.2, gaps_gt_100ms=5, idr=0, rfi=11"
+      ]
+    }
+  ],
+  "relay": [
+    {
+      "kind": "game_hook",
+      "state": "connected",
+      "grace_stopped": true,
+      "sample_seconds": 60.00034952163696,
+      "delivered_frames": 3592,
+      "fps_between_deliveries": 59.86518480412557,
+      "max_gap_ms": 253.616,
+      "p99_gap_ms": 27.026,
+      "gaps_over_100ms": 1,
+      "receive_windows": [
+        "[2026-10-11 18:54:10.284][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=49.0, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:15.294][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=28.2, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:20.296][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=26.0, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:25.314][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.0, max_gap_ms=41.9, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:30.324][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=25.4, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:35.331][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=36.6, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:40.339][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=30.2, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:45.348][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=293, fps=58.5, max_gap_ms=253.6, gaps_gt_100ms=1, idr=0, rfi=0",
+        "[2026-10-11 18:54:50.356][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=22.7, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:54:55.361][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=49.6, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 18:55:00.372][thread 75512][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=26.2, gaps_gt_100ms=0, idr=0, rfi=0"
+      ]
+    }
+  ]
+}

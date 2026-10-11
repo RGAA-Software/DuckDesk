@@ -1,0 +1,37 @@
+[
+  {
+    "product": "client",
+    "component": "px_client",
+    "build_path": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "dist_path": "build_official\\client\\dist\\px_client.exe",
+    "sha256": "a1278f07bbd8babf1f9432798cd02ee60ffbd53ac0eedafc2a20730b25c48a43"
+  },
+  {
+    "product": "client",
+    "component": "px_panel",
+    "build_path": "build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist_path": "build_official\\client\\dist\\px_panel.exe",
+    "sha256": "3fdb42b4cea0a90c955d2bace94a0b9ab974c03582939f481e35f6c9f6f06c98"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_render",
+    "build_path": "build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "dist_path": "build_official\\cloud_node\\dist\\px_render.exe",
+    "sha256": "e50135c57781a4019ac53eba33f25e9988ef06be07aa7d6b9396ec0df868666c"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_client",
+    "build_path": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "dist_path": "build_official\\cloud_node\\dist\\px_client.exe",
+    "sha256": "e953ba747398afc304b88c6426fc577863bfd499d8e7e4b927b40dd2c955e0ea"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_panel",
+    "build_path": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist_path": "build_official\\cloud_node\\dist\\px_panel.exe",
+    "sha256": "8ebccbd96ecd983c97d4faa7903cac4ad7cdcd7202ddf1124bd7cf125fc97914"
+  }
+]

@@ -1,0 +1,5 @@
+EVIDENCE .cache\iroh-native-live-20261012-014540-auto
+RUNNING game_hook instance=015e721a-cb7a-4eba-982b-5a4f7d7a43f5
+DESCRIPTOR_READY seconds=0.57
+CONNECTED game_hook visit=loss-feedback
+{"route": "direct", "segment": "1", "series": "decoder_output", "requested_seconds": 300, "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9", "instance_id": "015e721a-cb7a-4eba-982b-5a4f7d7a43f5", "client_pid": 41508, "session_id": "a82745c6-757a-4a5c-b7c8-383b23d3a358", "sample_started_epoch": 1791740745.253881, "drag": {"window_found": true, "posted_mouse_messages": 480, "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"}, "sample_ended_epoch": 1791741045.2552292, "state": "connected", "grace_stopped_seconds": 11.23, "grace_stopped": true}

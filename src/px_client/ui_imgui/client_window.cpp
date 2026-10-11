@@ -4,8 +4,10 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <memory>
+#include <string_view>
 
 #include "client_input_mapper.h"
 #include "client_text.h"
@@ -18,6 +20,11 @@
 
 namespace px::client::imgui {
 namespace {
+
+void LogSlowVideoUiOperation(std::string_view operation, std::chrono::steady_clock::time_point started) {
+    const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count();
+    if (duration_us >= 50000) LOGI("event=video.ui_operation phase=slow operation={} duration_us={}", operation, duration_us);
+}
 
 ImGuiMouseCursor RemoteMouseCursor(const std::uint32_t type) noexcept {
     switch (type) {
@@ -68,8 +75,12 @@ void ClientWindow::Draw() {
     shell_.get().SetLanguage(english_ ? px::ui::Language::English : px::ui::Language::SimplifiedChinese);
     const bool english = english_;
     const auto text = [english](const ClientText id) { return ClientTextValue(id, english).data(); };
+    const auto clipboard_started = std::chrono::steady_clock::now();
     SynchronizeClipboard();
+    LogSlowVideoUiOperation("clipboard", clipboard_started);
+    const auto snapshot_started = std::chrono::steady_clock::now();
     const auto snapshot = session_->Snapshot();
+    LogSlowVideoUiOperation("snapshot", snapshot_started);
     if (terminalErrorShown_ && (snapshot.state == ClientConnectionState::Connected || snapshot.state == ClientConnectionState::MediaUnavailable)) {
         terminalErrorShown_ = false;
         terminalErrorPopupOpened_ = false;
@@ -85,12 +96,25 @@ void ClientWindow::Draw() {
         shell_.get().RequestShowAndRaise();
     }
     if (snapshot.frame && snapshot.frame != uploadedFrame_) {
+        const auto upload_started = std::chrono::steady_clock::now();
         const bool uploaded{snapshot.frame->native
                                 ? shell_.get().UpdateVideoFrame(snapshot.frame->native)
                                 : shell_.get().UpdateVideoTexture(snapshot.frame->width, snapshot.frame->height, snapshot.frame->bgra)};
-        if (uploaded) uploadedFrame_ = snapshot.frame;
+        if (uploaded) {
+            uploadedFrame_ = snapshot.frame;
+            consecutiveRejectedUploads_ = 0;
+        } else {
+            ++consecutiveRejectedUploads_;
+            if (consecutiveRejectedUploads_ % 60 == 1) {
+                LOGI("event=video.upload_rejected consecutive={} width={} height={} native={}", consecutiveRejectedUploads_, snapshot.frame->width,
+                     snapshot.frame->height, static_cast<bool>(snapshot.frame->native));
+            }
+        }
+        LogSlowVideoUiOperation("upload", upload_started);
     }
+    const auto toolbar_started = std::chrono::steady_clock::now();
     const auto toolbarAction = toolbar_->Draw(session_, shell_.get().Logo(), english_, darkTheme_, shell_.get().IsFullscreen());
+    LogSlowVideoUiOperation("toolbar", toolbar_started);
     if (toolbarAction.toggleLanguage) english_ = !english_;
     if (toolbarAction.toggleTheme) {
         darkTheme_ = !darkTheme_;

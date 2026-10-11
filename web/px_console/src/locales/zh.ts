@@ -177,7 +177,9 @@ export default {
         disconnectGrace: "断开宽限期（秒）",
         disconnectGraceHelp:
             "最后一位客户端断开后，等待此时长再停止实例；期间重新连接会取消退出。默认 10 秒，范围 1～3600 秒，保存后对新启动的实例生效。RDP 只停止连接运行时，保留 Windows 会话和应用。",
-        bitrate: "码率（kbps）",
+        bitrate: "每路媒体带宽预算（kbps）",
+        bandwidthHelp:
+            "10000 kbps = 10 Mbps。每路连接独立使用此预算，自动为音频、纠错和协议开销预留空间；实际码率随网络情况降低。保存后对新启动的应用实例生效。",
         catalogTitle: "应用目录",
         codec: "编码格式",
         create: "新建应用",

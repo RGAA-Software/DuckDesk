@@ -1,0 +1,394 @@
+{
+  "sample": {
+    "route": "90",
+    "segment": "1",
+    "series": "tcp_path",
+    "requested_seconds": 300,
+    "evidence": ".cache\\iroh-native-live-20261011-235706-relay",
+    "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "instance_id": "01572230-b694-44a2-aea8-a34b216bfa72",
+    "client_pid": 17832,
+    "session_id": "57c79c72-8c32-43aa-b8c6-ddf59ed1d0f8",
+    "sample_started_epoch": 1791734231.282753,
+    "tcp_statistics": "D:\\GoCloud\\GammaRayPremium\\.cache\\20261011_tcp_path_90_1_tcp.csv",
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 480,
+      "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+    },
+    "sample_ended_epoch": 1791734531.2944832,
+    "state": "connected",
+    "grace_stopped_seconds": 11.34,
+    "grace_stopped": true,
+    "tcp_monitor_exit": 0
+  },
+  "clock": {
+    "local_start_ms": 1791734169850,
+    "local_finished_ms": 1791734170096,
+    "remote_epoch_ms": 1791734176938,
+    "clock_offset_estimate_ms": 6965,
+    "uncertainty_ms": 123
+  },
+  "primary_flows": {
+    "client": "192.168.31.6:62390-39.71.45.66:4605",
+    "source": "10.0.0.90:4605-39.82.198.244:62390"
+  },
+  "observed_flow_samples": {
+    "client": {
+      "192.168.31.6:62390-39.71.45.66:4605": 2800,
+      "192.168.31.6:62611-39.71.45.66:4605": 1,
+      "192.168.31.6:62812-39.71.45.66:4605": 1,
+      "192.168.31.6:63059-39.71.45.66:4605": 1,
+      "192.168.31.6:63700-39.71.45.66:4605": 1
+    },
+    "source": {
+      "10.0.0.90:4605-39.82.198.244:62390": 2975,
+      "10.0.0.90:4605-39.82.198.244:62812": 1,
+      "10.0.0.90:4605-39.82.198.244:63059": 1,
+      "10.0.0.90:4605-39.82.198.244:63275": 1,
+      "10.0.0.90:4605-39.82.198.244:63700": 1
+    }
+  },
+  "totals": {
+    "client": {
+      "valid_samples": 2800,
+      "error_samples": 0,
+      "deltas": {
+        "fast_retrans": 39,
+        "timeouts": 0,
+        "retrans_bytes": 26749,
+        "dup_acks_in": 906,
+        "sacks_received": 0,
+        "send_stalls": 0,
+        "receive_dup_acks": 1372
+      },
+      "max_send_application_queue": 0,
+      "max_receive_application_queue": 0,
+      "max_receive_reassembly_queue": 61079,
+      "max_smoothed_rtt_ms": 89
+    },
+    "source": {
+      "valid_samples": 2975,
+      "error_samples": 0,
+      "deltas": {
+        "fast_retrans": 19,
+        "timeouts": 0,
+        "retrans_bytes": 2665022,
+        "dup_acks_in": 1388,
+        "sacks_received": 0,
+        "send_stalls": 0,
+        "receive_dup_acks": 1077
+      },
+      "max_send_application_queue": 0,
+      "max_receive_application_queue": 0,
+      "max_receive_reassembly_queue": 405,
+      "max_smoothed_rtt_ms": 126
+    }
+  },
+  "video_gaps": [
+    {
+      "frame": 9203,
+      "local_time": "2026-10-11 23:59:42.360",
+      "gap_ms": 129.2,
+      "client": [
+        {
+          "timestamp": 1791734382.15535,
+          "previous_timestamp": 1791734382.048838,
+          "flow": "192.168.31.6:62390-39.71.45.66:4605",
+          "metrics": {
+            "fast_retrans": 21,
+            "timeouts": 0,
+            "retrans_bytes": 10261,
+            "dup_acks_in": 483,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 727
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 0,
+            "dup_acks_in": 2,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 97,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 6,
+          "rto_ms": 300
+        },
+        {
+          "timestamp": 1791734382.261547,
+          "previous_timestamp": 1791734382.15535,
+          "flow": "192.168.31.6:62390-39.71.45.66:4605",
+          "metrics": {
+            "fast_retrans": 21,
+            "timeouts": 0,
+            "retrans_bytes": 10261,
+            "dup_acks_in": 483,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 739
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 0,
+            "dup_acks_in": 0,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 12
+          },
+          "send_retrans_queue": 455,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 38384,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 22,
+          "rto_ms": 300
+        },
+        {
+          "timestamp": 1791734382.369581,
+          "previous_timestamp": 1791734382.261547,
+          "flow": "192.168.31.6:62390-39.71.45.66:4605",
+          "metrics": {
+            "fast_retrans": 21,
+            "timeouts": 0,
+            "retrans_bytes": 10261,
+            "dup_acks_in": 483,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 770
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 0,
+            "dup_acks_in": 0,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 31
+          },
+          "send_retrans_queue": 211,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 26,
+          "rto_ms": 300
+        },
+        {
+          "timestamp": 1791734382.476217,
+          "previous_timestamp": 1791734382.369581,
+          "flow": "192.168.31.6:62390-39.71.45.66:4605",
+          "metrics": {
+            "fast_retrans": 21,
+            "timeouts": 0,
+            "retrans_bytes": 10261,
+            "dup_acks_in": 483,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 770
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 0,
+            "dup_acks_in": 0,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 0,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 5,
+          "rto_ms": 300
+        }
+      ],
+      "source": [
+        {
+          "timestamp": 1791734382.100392,
+          "previous_timestamp": 1791734381.999262,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 13,
+            "timeouts": 0,
+            "retrans_bytes": 1358525,
+            "dup_acks_in": 744,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 1440,
+            "dup_acks_in": 0,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 2
+          },
+          "send_retrans_queue": 29989,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 5,
+          "rto_ms": 60
+        },
+        {
+          "timestamp": 1791734382.20172,
+          "previous_timestamp": 1791734382.100392,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 14,
+            "timeouts": 0,
+            "retrans_bytes": 1379527,
+            "dup_acks_in": 751,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 1,
+            "timeouts": 0,
+            "retrans_bytes": 21002,
+            "dup_acks_in": 7,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 61303,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 28,
+          "rto_ms": 60
+        },
+        {
+          "timestamp": 1791734382.302197,
+          "previous_timestamp": 1791734382.20172,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 14,
+            "timeouts": 0,
+            "retrans_bytes": 1382696,
+            "dup_acks_in": 787,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 3169,
+            "dup_acks_in": 36,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 864,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 32,
+          "rto_ms": 135
+        },
+        {
+          "timestamp": 1791734382.403515,
+          "previous_timestamp": 1791734382.302197,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 14,
+            "timeouts": 0,
+            "retrans_bytes": 1382696,
+            "dup_acks_in": 787,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 0,
+            "dup_acks_in": 0,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 9547,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 4,
+          "rto_ms": 60
+        },
+        {
+          "timestamp": 1791734382.5047102,
+          "previous_timestamp": 1791734382.403515,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 14,
+            "timeouts": 0,
+            "retrans_bytes": 1384136,
+            "dup_acks_in": 788,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 1440,
+            "dup_acks_in": 1,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 9404,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 3,
+          "rto_ms": 60
+        },
+        {
+          "timestamp": 1791734382.605477,
+          "previous_timestamp": 1791734382.5047102,
+          "flow": "10.0.0.90:4605-39.82.198.244:62390",
+          "metrics": {
+            "fast_retrans": 14,
+            "timeouts": 0,
+            "retrans_bytes": 1385576,
+            "dup_acks_in": 789,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 577
+          },
+          "deltas": {
+            "fast_retrans": 0,
+            "timeouts": 0,
+            "retrans_bytes": 1440,
+            "dup_acks_in": 1,
+            "sacks_received": 0,
+            "send_stalls": 0,
+            "receive_dup_acks": 0
+          },
+          "send_retrans_queue": 13800,
+          "send_application_queue": 0,
+          "receive_reassembly_queue": 0,
+          "receive_application_queue": 0,
+          "smoothed_rtt_ms": 3,
+          "rto_ms": 60
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Counters are connection-scoped, not packet captures; sampled queues can miss shorter waits.",
+    "Source clock alignment has the recorded uncertainty; correlations are not exact per-packet causality.",
+    "Zero unsupported counters do not prove absence of loss; use advancing retransmission/duplicate-ACK counters."
+  ]
+}

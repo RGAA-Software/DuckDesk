@@ -1,0 +1,46 @@
+﻿{
+    "candidate":  "relay-probe-20261011",
+    "setup_sha256":  "7631CBC63AEB82AE29086FDE945740836BF72ABC05CCE231244546E37B911FAB",
+    "setup_exit":  0,
+    "manifest_sha256":  "5D1B5E0BA132062FF5E701B93241DBAAABD2FF5847D91BD7B7E58418E1AE5B8A",
+    "product_version":  "3.3.97",
+    "verified_artifacts":  314,
+    "runtime_artifacts":  [
+                              {
+                                  "path":  "px_render.exe",
+                                  "sha256":  "525EEA34BE49E067BB94CF8781D8E913441B062689D9227C024A543E672EE0E9"
+                              },
+                              {
+                                  "path":  "px_client.exe",
+                                  "sha256":  "5012A0ED22F345A99E9809C655ECB826C38A0A33EBFC0024918FEE14F14F2344"
+                              },
+                              {
+                                  "path":  "px_panel.exe",
+                                  "sha256":  "CF24A8CA4E8F4CC49F3F94E6C6B0DAFE9CA84E58173EFD70C40AD0C9D2494873"
+                              },
+                              {
+                                  "path":  "px_service.exe",
+                                  "sha256":  "EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0"
+                              }
+                          ],
+    "service":  "Running",
+    "sessions_before":  [
+                            " 用户名                会话名             ID  状态    空闲时间   登录时间",
+                            " streamtest                                1  断开      1+03:26  2026/10/10 17:29",
+                            " administrator         console             2  运行中      无     2026/10/10 17:30",
+                            " pxrdp_2c3153bd5fff41                      3  断开        18:58  2026/10/11 1:58"
+                        ],
+    "sessions_after":  [
+                           " 用户名                会话名             ID  状态    空闲时间   登录时间",
+                           " streamtest                                1  断开      1+03:26  2026/10/10 17:29",
+                           " administrator         console             2  运行中      无     2026/10/10 17:30",
+                           " pxrdp_2c3153bd5fff41                      3  断开        18:58  2026/10/11 1:58"
+                       ],
+    "processes":  [
+                      {
+                          "ProcessName":  "px_render",
+                          "Id":  30212,
+                          "Path":  "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+                      }
+                  ]
+}

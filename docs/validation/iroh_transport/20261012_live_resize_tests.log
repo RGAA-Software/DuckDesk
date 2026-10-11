@@ -1,0 +1,224 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1808 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_live_resize_refresh test_video_presentation_progress test_title_bar_maximize
+-- Pixels fast Release profile enabled (C++ O1, incremental Rust Release)
+-- Pixels product: client (CLIENT) 3.3.81 (30381)
+TARGET_TYPE: ===> Official
+-- Building Official version
+-- PROBE: PkgConfig::modplug EXISTS
+-- PROBE: PkgConfig::modplug OK
+-- PROBE: PkgConfig::srt OK
+-- PROBE: PkgConfig::dav1d OK
+-- PROBE: PkgConfig::openh264 OK
+-- PROBE: PKG_CONFIG_EXECUTABLE='C:/source/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe'
+-- PROBE: CMAKE_PREFIX_PATH='C:/source/vcpkg/installed/x64-windows-static-release;C:/source/vcpkg/installed/x64-windows-static-release/debug'
+-- PROBE: manual pkg_check_modules PROBE_MODPLUG_FOUND='1'
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found suitable version "1.3.2", minimum required is "1")  
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found version "1.3.2")  
+-- Using protobuf from vcpkg: 33.4.0
+-- Checking for module 'libusb-1.0>=1.0.16'
+--   Package 'libusb-1.0', required by 'virtual:world', not found
+-- Could NOT find LibUSB (missing: LibUSB_LIBRARY LibUSB_INCLUDE_PATH) (found version "LibUSB_VERSION-NOTFOUND")
+-- 
+-- SDL3 was configured with the following options:
+-- 
+-- Platform: Windows-10.0.19045
+-- 64-bit:   TRUE
+-- Compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe
+-- Revision: SDL-3.4.16-release-3.4.16
+-- Vendor:   
+-- 
+-- Subsystems:
+--   Audio:    ON
+--   Video:    ON
+--   GPU:      ON
+--   Render:   ON
+--   Camera:   ON
+--   Joystick: ON
+--   Haptic:   ON
+--   Hidapi:   ON
+--   Power:    ON
+--   Sensor:   ON
+--   Dialog:   ON
+--   Tray:     ON
+-- 
+-- Options:
+--   SDL_ALSA                    (Wanted: OFF): OFF
+--   SDL_ALSA_SHARED             (Wanted: OFF): OFF
+--   SDL_ALTIVEC                 (Wanted: OFF): OFF
+--   SDL_ARMNEON                 (Wanted: OFF): OFF
+--   SDL_ASAN                    (Wanted: OFF): OFF
+--   SDL_ASSEMBLY                (Wanted: ON): ON
+--   SDL_ASSERTIONS              (Wanted: auto): auto
+--   SDL_AVX                     (Wanted: ON): ON
+--   SDL_AVX2                    (Wanted: ON): ON
+--   SDL_AVX512F                 (Wanted: ON): ON
+--   SDL_BACKGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_CCACHE                  (Wanted: OFF): OFF
+--   SDL_CLANG_TIDY              (Wanted: OFF): OFF
+--   SDL_CLOCK_GETTIME           (Wanted: OFF): OFF
+--   SDL_COCOA                   (Wanted: OFF): OFF
+--   SDL_DBUS                    (Wanted: OFF): OFF
+--   SDL_DEPS_SHARED             (Wanted: ON): OFF
+--   SDL_DIRECTX                 (Wanted: ON): ON
+--   SDL_DISKAUDIO               (Wanted: ON): ON
+--   SDL_DLOPEN_NOTES            (Wanted: OFF): OFF
+--   SDL_DUMMYAUDIO              (Wanted: ON): ON
+--   SDL_DUMMYCAMERA             (Wanted: ON): ON
+--   SDL_DUMMYVIDEO              (Wanted: ON): ON
+--   SDL_EXAMPLES                (Wanted: OFF): OFF
+--   SDL_EXAMPLES_LINK_SHARED    (Wanted: OFF): OFF
+--   SDL_FOREGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_FRIBIDI                 (Wanted: OFF): OFF
+--   SDL_FRIBIDI_SHARED          (Wanted: OFF): OFF
+--   SDL_GCC_ATOMICS             (Wanted: OFF): OFF
+--   SDL_HIDAPI                  (Wanted: ON): ON
+--   SDL_HIDAPI_JOYSTICK         (Wanted: ON): ON
+--   SDL_HIDAPI_LIBUSB           (Wanted: ON): OFF
+--   SDL_HIDAPI_LIBUSB_SHARED    (Wanted: ON): OFF
+--   SDL_IBUS                    (Wanted: OFF): OFF
+--   SDL_INSTALL                 (Wanted: OFF): OFF
+--   SDL_INSTALL_TESTS           (Wanted: OFF): OFF
+--   SDL_JACK                    (Wanted: OFF): OFF
+--   SDL_JACK_SHARED             (Wanted: OFF): OFF
+--   SDL_KMSDRM                  (Wanted: OFF): OFF
+--   SDL_KMSDRM_SHARED           (Wanted: OFF): OFF
+--   SDL_LASX                    (Wanted: OFF): OFF
+--   SDL_LIBC                    (Wanted: ON): ON
+--   SDL_LIBICONV                (Wanted: OFF): OFF
+--   SDL_LIBTHAI                 (Wanted: OFF): OFF
+--   SDL_LIBTHAI_SHARED          (Wanted: OFF): OFF
+--   SDL_LIBUDEV                 (Wanted: ON): OFF
+--   SDL_LIBURING                (Wanted: OFF): OFF
+--   SDL_LSX                     (Wanted: OFF): OFF
+--   SDL_METAL                   (Wanted: OFF): OFF
+--   SDL_MMX                     (Wanted: ON): OFF
+--   SDL_OFFSCREEN               (Wanted: ON): ON
+--   SDL_OPENGL                  (Wanted: ON): ON
+--   SDL_OPENGLES                (Wanted: ON): ON
+--   SDL_OPENVR                  (Wanted: OFF): OFF
+--   SDL_OSS                     (Wanted: OFF): OFF
+--   SDL_PIPEWIRE                (Wanted: OFF): OFF
+--   SDL_PIPEWIRE_SHARED         (Wanted: OFF): OFF
+--   SDL_PTHREADS                (Wanted: OFF): OFF
+--   SDL_PTHREADS_SEM            (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO              (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO_SHARED       (Wanted: OFF): OFF
+--   SDL_RENDER_D3D              (Wanted: ON): ON
+--   SDL_RENDER_D3D11            (Wanted: ON): ON
+--   SDL_RENDER_D3D12            (Wanted: ON): ON
+--   SDL_RENDER_GPU              (Wanted: ON): ON
+--   SDL_RENDER_METAL            (Wanted: OFF): OFF
+--   SDL_RENDER_VULKAN           (Wanted: ON): ON
+--   SDL_ROCKCHIP                (Wanted: OFF): OFF
+--   SDL_RPATH                   (Wanted: OFF): OFF
+--   SDL_RPI                     (Wanted: OFF): OFF
+--   SDL_SNDIO                   (Wanted: OFF): OFF
+--   SDL_SNDIO_SHARED            (Wanted: OFF): OFF
+--   SDL_SSE                     (Wanted: ON): ON
+--   SDL_SSE2                    (Wanted: ON): ON
+--   SDL_SSE3                    (Wanted: ON): ON
+--   SDL_SSE4_1                  (Wanted: ON): ON
+--   SDL_SSE4_2                  (Wanted: ON): ON
+--   SDL_SYSTEM_ICONV            (Wanted: OFF): OFF
+--   SDL_TESTS                   (Wanted: OFF): OFF
+--   SDL_TESTS_LINK_SHARED       (Wanted: OFF): OFF
+--   SDL_UNINSTALL               (Wanted: OFF): OFF
+--   SDL_VIRTUAL_JOYSTICK        (Wanted: ON): ON
+--   SDL_VIVANTE                 (Wanted: OFF): OFF
+--   SDL_VULKAN                  (Wanted: ON): ON
+--   SDL_WASAPI                  (Wanted: ON): ON
+--   SDL_WAYLAND                 (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR        (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR_SHARED (Wanted: OFF): OFF
+--   SDL_WAYLAND_SHARED          (Wanted: OFF): OFF
+--   SDL_X11                     (Wanted: OFF): OFF
+--   SDL_X11_SHARED              (Wanted: OFF): OFF
+--   SDL_X11_XCURSOR             (Wanted: OFF): OFF
+--   SDL_X11_XDBE                (Wanted: OFF): OFF
+--   SDL_X11_XFIXES              (Wanted: OFF): OFF
+--   SDL_X11_XINPUT              (Wanted: OFF): OFF
+--   SDL_X11_XRANDR              (Wanted: OFF): OFF
+--   SDL_X11_XSCRNSAVER          (Wanted: OFF): OFF
+--   SDL_X11_XSHAPE              (Wanted: OFF): OFF
+--   SDL_X11_XSYNC               (Wanted: OFF): OFF
+--   SDL_X11_XTEST               (Wanted: OFF): OFF
+--   SDL_XINPUT                  (Wanted: ON): ON
+-- 
+--  Build Shared Library: OFF
+--  Build Static Library: ON
+-- 
+-- Enabled backends:
+--   Video drivers: dummy offscreen windows
+--   Render drivers: d3d d3d11 d3d12 gpu ogl ogl_es2 vulkan
+--   GPU drivers: d3d12 vulkan
+--   Audio drivers: disk dsound dummy wasapi
+--   Joystick drivers: dinput gameinput hidapi rawinput virtual wgi xinput
+--   Camera drivers: dummy mediafoundation
+-- 
+Protobuf of px_message.proto: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_service_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_file_transfer.pb.cc
+DETOURS_INCLUDE_DIRS--> 
+DETOURS_LIBRARY--> C:/source/vcpkg/installed/x64-windows-static-release/lib/detours.lib
+-- px_render is excluded from the client product graph
+-- Configuring done (17.2s)
+-- Generating done (1.5s)
+-- Build files have been written to: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+[0/2] Re-checking globbed directories...
+[1/9] Building CXX object src\px_desktop_shell\CMakeFiles\test_live_resize_refresh.dir\tests\test_live_resize_refresh.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/9] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\live_resize_refresh.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/9] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\live_resize_refresh.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/9] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\desktop_shell.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/9] Linking CXX static library src\px_desktop_shell\px_panel_desktop_shell.lib
+[6/9] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\desktop_shell.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[7/9] Linking CXX static library src\px_desktop_shell\px_desktop_shell.lib
+[8/9] Linking CXX executable src\px_desktop_shell\test_live_resize_refresh.exe
+[9/9] Linking CXX executable src\px_desktop_shell\test_title_bar_maximize.exe
+DONE: test_live_resize_refresh test_video_presentation_progress test_title_bar_maximize
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 65: video_presentation_progress
+1/3 Test #65: video_presentation_progress ......   Passed    0.05 sec
+    Start 66: live_resize_refresh
+2/3 Test #66: live_resize_refresh ..............   Passed    0.08 sec
+    Start 67: title_bar_maximize
+3/3 Test #67: title_bar_maximize ...............***Failed    0.61 sec
+Caption click did not maximize the window
+
+
+67% tests passed, 1 tests failed out of 3
+
+Total Test time (real) =   0.77 sec
+
+The following tests FAILED:
+	 67 - title_bar_maximize (Failed)
+Errors while running CTest

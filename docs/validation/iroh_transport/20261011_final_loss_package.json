@@ -1,0 +1,9 @@
+{
+  "candidate": "final-loss-20261011",
+  "setup": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\final-loss-20261011\\installer\\3.3.97\\PixelsCloudNode_official_3.3.97_Setup.exe",
+  "setup_size": 278612553,
+  "setup_sha256": "A298C0E967AF36943DECE83E2BCB52A00FFE094A654D2C2A67545A1F263E1D65",
+  "manifest_path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\official\\candidates\\final-loss-20261011\\installer\\3.3.97\\app\\product-manifest.json",
+  "manifest_sha256": "91B3FC5171C4F9E34743AC6DDC04A15631224F9E2C50224A8BCD12206B67ECA9",
+  "artifacts": 314
+}

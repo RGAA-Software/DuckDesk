@@ -1,0 +1,868 @@
+{
+  "capture_started": 1791723944.22785,
+  "capture_ended": 1791724042.629553,
+  "sample_started": 1791723737.3300314,
+  "sample_ended": 1791724037.341026,
+  "limitations": "96-byte NIC headers. Receiver SACK proves a TCP sequence hole; it does not identify the physical device that lost or delayed bytes.",
+  "video_gaps": [
+    {
+      "ended": 1791723950.381,
+      "local_time": "2026-10-11 21:05:50.381",
+      "frame": 12945,
+      "gap_ms": 169.0
+    },
+    {
+      "ended": 1791723951.95,
+      "local_time": "2026-10-11 21:05:51.950",
+      "frame": 13038,
+      "gap_ms": 196.5
+    },
+    {
+      "ended": 1791723952.102,
+      "local_time": "2026-10-11 21:05:52.102",
+      "frame": 13058,
+      "gap_ms": 106.3
+    },
+    {
+      "ended": 1791723953.733,
+      "local_time": "2026-10-11 21:05:53.733",
+      "frame": 13149,
+      "gap_ms": 136.8
+    },
+    {
+      "ended": 1791723953.858,
+      "local_time": "2026-10-11 21:05:53.858",
+      "frame": 13151,
+      "gap_ms": 124.1
+    },
+    {
+      "ended": 1791723954.219,
+      "local_time": "2026-10-11 21:05:54.219",
+      "frame": 13179,
+      "gap_ms": 106.1
+    },
+    {
+      "ended": 1791723954.446,
+      "local_time": "2026-10-11 21:05:54.446",
+      "frame": 13195,
+      "gap_ms": 120.5
+    },
+    {
+      "ended": 1791723954.568,
+      "local_time": "2026-10-11 21:05:54.568",
+      "frame": 13202,
+      "gap_ms": 121.7
+    },
+    {
+      "ended": 1791723954.915,
+      "local_time": "2026-10-11 21:05:54.915",
+      "frame": 13221,
+      "gap_ms": 166.4
+    },
+    {
+      "ended": 1791723961.313,
+      "local_time": "2026-10-11 21:06:01.313",
+      "frame": 13605,
+      "gap_ms": 106.0
+    },
+    {
+      "ended": 1791723961.493,
+      "local_time": "2026-10-11 21:06:01.493",
+      "frame": 13610,
+      "gap_ms": 105.2
+    },
+    {
+      "ended": 1791723961.796,
+      "local_time": "2026-10-11 21:06:01.796",
+      "frame": 13635,
+      "gap_ms": 166.4
+    },
+    {
+      "ended": 1791723962.008,
+      "local_time": "2026-10-11 21:06:02.008",
+      "frame": 13647,
+      "gap_ms": 105.9
+    },
+    {
+      "ended": 1791723963.623,
+      "local_time": "2026-10-11 21:06:03.623",
+      "frame": 13738,
+      "gap_ms": 197.0
+    },
+    {
+      "ended": 1791723964.017,
+      "local_time": "2026-10-11 21:06:04.017",
+      "frame": 13766,
+      "gap_ms": 122.3
+    },
+    {
+      "ended": 1791723964.154,
+      "local_time": "2026-10-11 21:06:04.154",
+      "frame": 13767,
+      "gap_ms": 137.5
+    },
+    {
+      "ended": 1791723964.337,
+      "local_time": "2026-10-11 21:06:04.337",
+      "frame": 13792,
+      "gap_ms": 123.0
+    },
+    {
+      "ended": 1791723969.64,
+      "local_time": "2026-10-11 21:06:09.640",
+      "frame": 14103,
+      "gap_ms": 122.8
+    },
+    {
+      "ended": 1791723970.999,
+      "local_time": "2026-10-11 21:06:10.999",
+      "frame": 14180,
+      "gap_ms": 181.2
+    },
+    {
+      "ended": 1791723971.199,
+      "local_time": "2026-10-11 21:06:11.199",
+      "frame": 14193,
+      "gap_ms": 153.3
+    },
+    {
+      "ended": 1791723971.319,
+      "local_time": "2026-10-11 21:06:11.319",
+      "frame": 14204,
+      "gap_ms": 120.1
+    },
+    {
+      "ended": 1791723977.958,
+      "local_time": "2026-10-11 21:06:17.958",
+      "frame": 14599,
+      "gap_ms": 135.7
+    },
+    {
+      "ended": 1791723978.756,
+      "local_time": "2026-10-11 21:06:18.756",
+      "frame": 14655,
+      "gap_ms": 118.3
+    },
+    {
+      "ended": 1791723979.271,
+      "local_time": "2026-10-11 21:06:19.271",
+      "frame": 14682,
+      "gap_ms": 120.3
+    },
+    {
+      "ended": 1791723981.418,
+      "local_time": "2026-10-11 21:06:21.418",
+      "frame": 14809,
+      "gap_ms": 121.6
+    },
+    {
+      "ended": 1791723987.614,
+      "local_time": "2026-10-11 21:06:27.614",
+      "frame": 15182,
+      "gap_ms": 183.4
+    },
+    {
+      "ended": 1791723987.915,
+      "local_time": "2026-10-11 21:06:27.915",
+      "frame": 15201,
+      "gap_ms": 120.8
+    },
+    {
+      "ended": 1791723988.297,
+      "local_time": "2026-10-11 21:06:28.297",
+      "frame": 15225,
+      "gap_ms": 228.6
+    },
+    {
+      "ended": 1791723997.14,
+      "local_time": "2026-10-11 21:06:37.140",
+      "frame": 15755,
+      "gap_ms": 106.2
+    },
+    {
+      "ended": 1791723998.748,
+      "local_time": "2026-10-11 21:06:38.748",
+      "frame": 15850,
+      "gap_ms": 110.8
+    },
+    {
+      "ended": 1791724016.67,
+      "local_time": "2026-10-11 21:06:56.670",
+      "frame": 16932,
+      "gap_ms": 106.0
+    },
+    {
+      "ended": 1791724017.236,
+      "local_time": "2026-10-11 21:06:57.236",
+      "frame": 16959,
+      "gap_ms": 151.8
+    },
+    {
+      "ended": 1791724019.176,
+      "local_time": "2026-10-11 21:06:59.176",
+      "frame": 17081,
+      "gap_ms": 140.6
+    },
+    {
+      "ended": 1791724032.348,
+      "local_time": "2026-10-11 21:07:12.348",
+      "frame": 17867,
+      "gap_ms": 104.8
+    },
+    {
+      "ended": 1791724032.515,
+      "local_time": "2026-10-11 21:07:12.515",
+      "frame": 17871,
+      "gap_ms": 104.6
+    },
+    {
+      "ended": 1791724033.517,
+      "local_time": "2026-10-11 21:07:13.517",
+      "frame": 17932,
+      "gap_ms": 239.5
+    }
+  ],
+  "flows": {
+    "39.71.45.66:4605-local:44179": {
+      "packets": 101564,
+      "receive_bytes": 26416021,
+      "sack_events": [
+        {
+          "started": 1791723981.326882,
+          "ack": 171132284,
+          "first_sack_start": 171143571,
+          "first_sack_end": 171143595,
+          "missing_bytes": 11287,
+          "resumed": 1791723981.447887,
+          "duration_ms": 121.00505828857422
+        },
+        {
+          "started": 1791723981.462832,
+          "ack": 171155741,
+          "first_sack_start": 171170546,
+          "first_sack_end": 171170660,
+          "missing_bytes": 14805,
+          "resumed": 1791723981.477726,
+          "duration_ms": 14.89400863647461
+        },
+        {
+          "started": 1791723987.280272,
+          "ack": 172624296,
+          "first_sack_start": 172649035,
+          "first_sack_end": 172649127,
+          "missing_bytes": 24739,
+          "resumed": 1791723987.385248,
+          "duration_ms": 104.97593879699707
+        },
+        {
+          "started": 1791723987.512738,
+          "ack": 172669681,
+          "first_sack_start": 172688148,
+          "first_sack_end": 172688172,
+          "missing_bytes": 18467,
+          "resumed": 1791723987.629898,
+          "duration_ms": 117.16008186340332
+        },
+        {
+          "started": 1791723987.674539,
+          "ack": 172708365,
+          "first_sack_start": 172714162,
+          "first_sack_end": 172714276,
+          "missing_bytes": 5797,
+          "resumed": 1791723987.794472,
+          "duration_ms": 119.93288993835449
+        },
+        {
+          "started": 1791723987.824713,
+          "ack": 172734600,
+          "first_sack_start": 172757591,
+          "first_sack_end": 172757617,
+          "missing_bytes": 22991,
+          "resumed": 1791723988.038232,
+          "duration_ms": 213.51909637451172
+        },
+        {
+          "started": 1791723988.038232,
+          "ack": 172781770,
+          "first_sack_start": 172786386,
+          "first_sack_end": 172800509,
+          "missing_bytes": 4616,
+          "resumed": 1791723988.068393,
+          "duration_ms": 30.160903930664062
+        },
+        {
+          "started": 1791723988.220477,
+          "ack": 172810805,
+          "first_sack_start": 172831166,
+          "first_sack_end": 172831190,
+          "missing_bytes": 20361,
+          "resumed": 1791723988.356819,
+          "duration_ms": 136.34181022644043
+        },
+        {
+          "started": 1791723988.387457,
+          "ack": 172848816,
+          "first_sack_start": 172865553,
+          "first_sack_end": 172865579,
+          "missing_bytes": 16737,
+          "resumed": 1791723988.483036,
+          "duration_ms": 95.57914733886719
+        },
+        {
+          "started": 1791723989.36155,
+          "ack": 173274469,
+          "first_sack_start": 173274493,
+          "first_sack_end": 173274607,
+          "missing_bytes": 24,
+          "resumed": 1791723989.361571,
+          "duration_ms": 0.0209808349609375
+        },
+        {
+          "started": 1791723990.035972,
+          "ack": 173429907,
+          "first_sack_start": 173465520,
+          "first_sack_end": 173465611,
+          "missing_bytes": 35613,
+          "resumed": 1791723990.075457,
+          "duration_ms": 39.48497772216797
+        },
+        {
+          "started": 1791723991.520593,
+          "ack": 174055126,
+          "first_sack_start": 174076367,
+          "first_sack_end": 174079247,
+          "missing_bytes": 21241,
+          "resumed": 1791723991.643489,
+          "duration_ms": 122.89595603942871
+        },
+        {
+          "started": 1791723991.643489,
+          "ack": 174102770,
+          "first_sack_start": 174149726,
+          "first_sack_end": 174160566,
+          "missing_bytes": 46956,
+          "resumed": 1791723991.657043,
+          "duration_ms": 13.554096221923828
+        },
+        {
+          "started": 1791723997.064212,
+          "ack": 176414008,
+          "first_sack_start": 176452472,
+          "first_sack_end": 176452586,
+          "missing_bytes": 38464,
+          "resumed": 1791723997.292711,
+          "duration_ms": 228.4989356994629
+        },
+        {
+          "started": 1791723997.292711,
+          "ack": 176487045,
+          "first_sack_start": 176536853,
+          "first_sack_end": 176557692,
+          "missing_bytes": 49808,
+          "resumed": 1791723997.415541,
+          "duration_ms": 122.82991409301758
+        },
+        {
+          "started": 1791723997.415541,
+          "ack": 176558643,
+          "first_sack_start": 176562142,
+          "first_sack_end": 176563795,
+          "missing_bytes": 3499,
+          "resumed": 1791723997.415556,
+          "duration_ms": 0.015020370483398438
+        },
+        {
+          "started": 1791723998.655235,
+          "ack": 177012575,
+          "first_sack_start": 177051052,
+          "first_sack_end": 177051078,
+          "missing_bytes": 38477,
+          "resumed": 1791723998.867606,
+          "duration_ms": 212.3708724975586
+        },
+        {
+          "started": 1791723998.867606,
+          "ack": 177094468,
+          "first_sack_start": 177136489,
+          "first_sack_end": 177138156,
+          "missing_bytes": 42021,
+          "resumed": 1791723998.922068,
+          "duration_ms": 54.46219444274902
+        },
+        {
+          "started": 1791723998.922068,
+          "ack": 177142715,
+          "first_sack_start": 177143238,
+          "first_sack_end": 177143369,
+          "missing_bytes": 523,
+          "resumed": 1791723998.922076,
+          "duration_ms": 0.007867813110351562
+        },
+        {
+          "started": 1791724001.796912,
+          "ack": 178341890,
+          "first_sack_start": 178341914,
+          "first_sack_end": 178342005,
+          "missing_bytes": 24,
+          "resumed": 1791724001.796924,
+          "duration_ms": 0.012159347534179688
+        },
+        {
+          "started": 1791724007.387219,
+          "ack": 180792069,
+          "first_sack_start": 180798436,
+          "first_sack_end": 180798550,
+          "missing_bytes": 6367,
+          "resumed": 1791724007.399804,
+          "duration_ms": 12.585163116455078
+        },
+        {
+          "started": 1791724007.747998,
+          "ack": 180888570,
+          "first_sack_start": 180917105,
+          "first_sack_end": 180917131,
+          "missing_bytes": 28535,
+          "resumed": 1791724007.803906,
+          "duration_ms": 55.9079647064209
+        },
+        {
+          "started": 1791724008.6709,
+          "ack": 181315747,
+          "first_sack_start": 181356155,
+          "first_sack_end": 181356181,
+          "missing_bytes": 40408,
+          "resumed": 1791724008.678028,
+          "duration_ms": 7.128000259399414
+        },
+        {
+          "started": 1791724016.251414,
+          "ack": 184862166,
+          "first_sack_start": 184900316,
+          "first_sack_end": 184900340,
+          "missing_bytes": 38150,
+          "resumed": 1791724016.402805,
+          "duration_ms": 151.39102935791016
+        },
+        {
+          "started": 1791724016.441841,
+          "ack": 184915358,
+          "first_sack_start": 184925268,
+          "first_sack_end": 184925292,
+          "missing_bytes": 9910,
+          "resumed": 1791724016.534054,
+          "duration_ms": 92.21315383911133
+        },
+        {
+          "started": 1791724016.838108,
+          "ack": 184997993,
+          "first_sack_start": 185028774,
+          "first_sack_end": 185028800,
+          "missing_bytes": 30781,
+          "resumed": 1791724017.001025,
+          "duration_ms": 162.916898727417
+        },
+        {
+          "started": 1791724017.128847,
+          "ack": 185064599,
+          "first_sack_start": 185085853,
+          "first_sack_end": 185085877,
+          "missing_bytes": 21254,
+          "resumed": 1791724017.237036,
+          "duration_ms": 108.18910598754883
+        },
+        {
+          "started": 1791724017.240336,
+          "ack": 185115841,
+          "first_sack_start": 185117401,
+          "first_sack_end": 185117425,
+          "missing_bytes": 1560,
+          "resumed": 1791724017.24349,
+          "duration_ms": 3.1540393829345703
+        },
+        {
+          "started": 1791724017.951333,
+          "ack": 185402181,
+          "first_sack_start": 185430599,
+          "first_sack_end": 185430623,
+          "missing_bytes": 28418,
+          "resumed": 1791724017.972907,
+          "duration_ms": 21.574020385742188
+        },
+        {
+          "started": 1791724020.333618,
+          "ack": 186632372,
+          "first_sack_start": 186633812,
+          "first_sack_end": 186634066,
+          "missing_bytes": 1440,
+          "resumed": 1791724020.333643,
+          "duration_ms": 0.025033950805664062
+        },
+        {
+          "started": 1791724032.257014,
+          "ack": 192341281,
+          "first_sack_start": 192373900,
+          "first_sack_end": 192373924,
+          "missing_bytes": 32619,
+          "resumed": 1791724032.514796,
+          "duration_ms": 257.781982421875
+        },
+        {
+          "started": 1791724032.514796,
+          "ack": 192408724,
+          "first_sack_start": 192468013,
+          "first_sack_end": 192497907,
+          "missing_bytes": 59289,
+          "resumed": 1791724032.715334,
+          "duration_ms": 200.53791999816895
+        },
+        {
+          "started": 1791724032.715334,
+          "ack": 192505457,
+          "first_sack_start": 192551464,
+          "first_sack_end": 192566294,
+          "missing_bytes": 46007,
+          "resumed": 1791724032.827794,
+          "duration_ms": 112.46013641357422
+        },
+        {
+          "started": 1791724032.827794,
+          "ack": 192566294,
+          "first_sack_start": 192570063,
+          "first_sack_end": 192571572,
+          "missing_bytes": 3769,
+          "resumed": 1791724032.827831,
+          "duration_ms": 0.03695487976074219
+        },
+        {
+          "started": 1791724032.959295,
+          "ack": 192598548,
+          "first_sack_start": 192632363,
+          "first_sack_end": 192632387,
+          "missing_bytes": 33815,
+          "resumed": 1791724033.112013,
+          "duration_ms": 152.71806716918945
+        },
+        {
+          "started": 1791724033.141981,
+          "ack": 192666937,
+          "first_sack_start": 192668713,
+          "first_sack_end": 192668737,
+          "missing_bytes": 1776,
+          "resumed": 1791724033.217241,
+          "duration_ms": 75.26016235351562
+        },
+        {
+          "started": 1791724033.322739,
+          "ack": 192715274,
+          "first_sack_start": 192718797,
+          "first_sack_end": 192718823,
+          "missing_bytes": 3523,
+          "resumed": 1791724033.503752,
+          "duration_ms": 181.0131072998047
+        },
+        {
+          "started": 1791724033.518732,
+          "ack": 192775896,
+          "first_sack_start": 192821516,
+          "first_sack_end": 192831527,
+          "missing_bytes": 45620,
+          "resumed": 1791724033.57912,
+          "duration_ms": 60.38784980773926
+        },
+        {
+          "started": 1791724033.866866,
+          "ack": 192930197,
+          "first_sack_start": 192968753,
+          "first_sack_end": 192968779,
+          "missing_bytes": 38556,
+          "resumed": 1791724034.003153,
+          "duration_ms": 136.28697395324707
+        },
+        {
+          "started": 1791724034.18534,
+          "ack": 193028429,
+          "first_sack_start": 193085010,
+          "first_sack_end": 193085036,
+          "missing_bytes": 56581,
+          "resumed": 1791724034.322173,
+          "duration_ms": 136.83319091796875
+        },
+        {
+          "started": 1791724034.583294,
+          "ack": 193148059,
+          "first_sack_start": 193184455,
+          "first_sack_end": 193184481,
+          "missing_bytes": 36396,
+          "resumed": 1791724034.702961,
+          "duration_ms": 119.66705322265625
+        },
+        {
+          "started": 1791724035.05091,
+          "ack": 193360240,
+          "first_sack_start": 193378827,
+          "first_sack_end": 193383147,
+          "missing_bytes": 18587,
+          "resumed": 1791724035.142213,
+          "duration_ms": 91.30311012268066
+        },
+        {
+          "started": 1791724035.384344,
+          "ack": 193489547,
+          "first_sack_start": 193508267,
+          "first_sack_end": 193514027,
+          "missing_bytes": 18720,
+          "resumed": 1791724035.430376,
+          "duration_ms": 46.031951904296875
+        },
+        {
+          "started": 1791724036.2928,
+          "ack": 193927721,
+          "first_sack_start": 193947609,
+          "first_sack_end": 193947980,
+          "missing_bytes": 19888,
+          "resumed": 1791724036.321959,
+          "duration_ms": 29.159069061279297
+        }
+      ],
+      "pending_sack": null,
+      "correlations": [
+        {
+          "gap": {
+            "ended": 1791723981.418,
+            "local_time": "2026-10-11 21:06:21.418",
+            "frame": 14809,
+            "gap_ms": 121.6
+          },
+          "sack_events": [
+            {
+              "started": 1791723981.326882,
+              "ack": 171132284,
+              "first_sack_start": 171143571,
+              "first_sack_end": 171143595,
+              "missing_bytes": 11287,
+              "resumed": 1791723981.447887,
+              "duration_ms": 121.00505828857422
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791723987.614,
+            "local_time": "2026-10-11 21:06:27.614",
+            "frame": 15182,
+            "gap_ms": 183.4
+          },
+          "sack_events": [
+            {
+              "started": 1791723987.512738,
+              "ack": 172669681,
+              "first_sack_start": 172688148,
+              "first_sack_end": 172688172,
+              "missing_bytes": 18467,
+              "resumed": 1791723987.629898,
+              "duration_ms": 117.16008186340332
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791723987.915,
+            "local_time": "2026-10-11 21:06:27.915",
+            "frame": 15201,
+            "gap_ms": 120.8
+          },
+          "sack_events": [
+            {
+              "started": 1791723987.674539,
+              "ack": 172708365,
+              "first_sack_start": 172714162,
+              "first_sack_end": 172714276,
+              "missing_bytes": 5797,
+              "resumed": 1791723987.794472,
+              "duration_ms": 119.93288993835449
+            },
+            {
+              "started": 1791723987.824713,
+              "ack": 172734600,
+              "first_sack_start": 172757591,
+              "first_sack_end": 172757617,
+              "missing_bytes": 22991,
+              "resumed": 1791723988.038232,
+              "duration_ms": 213.51909637451172
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791723988.297,
+            "local_time": "2026-10-11 21:06:28.297",
+            "frame": 15225,
+            "gap_ms": 228.6
+          },
+          "sack_events": [
+            {
+              "started": 1791723988.220477,
+              "ack": 172810805,
+              "first_sack_start": 172831166,
+              "first_sack_end": 172831190,
+              "missing_bytes": 20361,
+              "resumed": 1791723988.356819,
+              "duration_ms": 136.34181022644043
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791723997.14,
+            "local_time": "2026-10-11 21:06:37.140",
+            "frame": 15755,
+            "gap_ms": 106.2
+          },
+          "sack_events": [
+            {
+              "started": 1791723997.064212,
+              "ack": 176414008,
+              "first_sack_start": 176452472,
+              "first_sack_end": 176452586,
+              "missing_bytes": 38464,
+              "resumed": 1791723997.292711,
+              "duration_ms": 228.4989356994629
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791723998.748,
+            "local_time": "2026-10-11 21:06:38.748",
+            "frame": 15850,
+            "gap_ms": 110.8
+          },
+          "sack_events": [
+            {
+              "started": 1791723998.655235,
+              "ack": 177012575,
+              "first_sack_start": 177051052,
+              "first_sack_end": 177051078,
+              "missing_bytes": 38477,
+              "resumed": 1791723998.867606,
+              "duration_ms": 212.3708724975586
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791724017.236,
+            "local_time": "2026-10-11 21:06:57.236",
+            "frame": 16959,
+            "gap_ms": 151.8
+          },
+          "sack_events": [
+            {
+              "started": 1791724017.128847,
+              "ack": 185064599,
+              "first_sack_start": 185085853,
+              "first_sack_end": 185085877,
+              "missing_bytes": 21254,
+              "resumed": 1791724017.237036,
+              "duration_ms": 108.18910598754883
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791724032.348,
+            "local_time": "2026-10-11 21:07:12.348",
+            "frame": 17867,
+            "gap_ms": 104.8
+          },
+          "sack_events": [
+            {
+              "started": 1791724032.257014,
+              "ack": 192341281,
+              "first_sack_start": 192373900,
+              "first_sack_end": 192373924,
+              "missing_bytes": 32619,
+              "resumed": 1791724032.514796,
+              "duration_ms": 257.781982421875
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791724032.515,
+            "local_time": "2026-10-11 21:07:12.515",
+            "frame": 17871,
+            "gap_ms": 104.6
+          },
+          "sack_events": [
+            {
+              "started": 1791724032.257014,
+              "ack": 192341281,
+              "first_sack_start": 192373900,
+              "first_sack_end": 192373924,
+              "missing_bytes": 32619,
+              "resumed": 1791724032.514796,
+              "duration_ms": 257.781982421875
+            },
+            {
+              "started": 1791724032.514796,
+              "ack": 192408724,
+              "first_sack_start": 192468013,
+              "first_sack_end": 192497907,
+              "missing_bytes": 59289,
+              "resumed": 1791724032.715334,
+              "duration_ms": 200.53791999816895
+            }
+          ]
+        },
+        {
+          "gap": {
+            "ended": 1791724033.517,
+            "local_time": "2026-10-11 21:07:13.517",
+            "frame": 17932,
+            "gap_ms": 239.5
+          },
+          "sack_events": [
+            {
+              "started": 1791724033.322739,
+              "ack": 192715274,
+              "first_sack_start": 192718797,
+              "first_sack_end": 192718823,
+              "missing_bytes": 3523,
+              "resumed": 1791724033.503752,
+              "duration_ms": 181.0131072998047
+            }
+          ]
+        }
+      ]
+    },
+    "39.71.45.66:4605-local:45201": {
+      "packets": 20,
+      "receive_bytes": 772,
+      "sack_events": [],
+      "pending_sack": null,
+      "correlations": []
+    },
+    "39.71.45.66:4605-local:45202": {
+      "packets": 3,
+      "receive_bytes": 0,
+      "sack_events": [],
+      "pending_sack": null,
+      "correlations": []
+    },
+    "39.71.45.66:4605-local:45203": {
+      "packets": 3,
+      "receive_bytes": 0,
+      "sack_events": [],
+      "pending_sack": null,
+      "correlations": []
+    },
+    "39.71.45.66:4605-local:45409": {
+      "packets": 19,
+      "receive_bytes": 772,
+      "sack_events": [],
+      "pending_sack": null,
+      "correlations": []
+    }
+  }
+}

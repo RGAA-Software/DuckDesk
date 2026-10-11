@@ -6,6 +6,186 @@
 
 ## 最新实机接续：2026-10-11，Windows 应用 iroh
 
+### 连续实施：回程反馈额度修复（2026-10-11）
+
+- 2026-10-12 04:05 统一卡帧任务S1–S4本轮工程验收通过：direct/90/BJ各3×5分钟共45分钟，59.963–60.020FPS，完整约290秒窗口P99≤50ms；无实际no_output/errors/上传拒绝/日志overrun/秒级新图空档。全部>100ms分类：direct启动137.3ms、direct到达/缺片114.4ms（参考修复17.273ms）、BJ到达102.2ms（source16.044ms/queue22µs/send47µs/收齐2.733ms/Feed11µs/呈现102.321ms）；不作NIC或TCP重传无证据归因。BJ源38397行gzip1947102，压缩00C10B3C…/原文B59547DD…双SHA核对。补真实SDK接收/视频队列decoder注入集成回归，04:00:26.854 frame6观察持续无输出Release、一次IDR、完整配置门禁/第二decoder重新产图，11项SDK通过11.02s；仅测试改动，产品无新变化，修复后物理GPU分支未复现的边界保留。Client408717B2…/Panel8ACEB454…最终build/dist相等，client development40文件验证；90完整Node3.3.97/314文件候选Setup56D2ECAF…/manifestA5497FDF…/Render6F9A2D19…/NodeClient0C9B2695…运行。应用10000/revision19/10秒宽限，其余spec及双Relay原disabled/draining配置保持；316业务sessions全closed，本机无测试Client/Panel。报告20261012_decoder_recovery_acceptance.md/JSON及20261012_mainline_progress.md。主线第0.9节Windows/Linux A–F功能原已交付，本轮补媒体性能；下一未完成检查点为真实NAT/三段十分钟及长期稳定性/规模容量证据缺口，Android仍排除，停止的NIC/饱和混传不重开。提交/push结果以收尾Git核对为准。
+
+
+- 03:29 S3/强制90 Relay三段五分钟通过：60.017/59.963/60.008FPS，完整290.562/290.509/290.493秒P99≤50ms，0次>100ms交付/呈现、无实际解码无输出/错误/上传拒绝/数秒空档。每段实际selected Relay https://39.71.45.66:4605/，connected/480输入/宽限停止，原desired_draining及disabled标志finally恢复；同PID TCP统计三份CSV已gzip存档，不能从零字段反推物理无丢包。源38437行gzip1939516，压缩C09BBBF3…/原文1287999C…双SHA核对。产品和10000/revision19没有新修改，本机Client408717B2…/90完整包NodeClient0C9B2695…/Render6F9A2D19…保持。现在BJ三段五分钟（source collect bj-1）运行；只剩这条正常路径与最终证据/交付收尾，本任务仍未结项，新无输出分支实机未触发的限制仍保留，不称已观察该分支。
+
+- 03:10 S3/direct三段五分钟指标通过：60.016/59.991/59.998FPS，完整有效交付290.496/290.552/290.573秒、P99≤50ms均通过，无真实解码无输出/错误/上传拒绝/数秒空档。初90秒数值P99 31.748/31.568/31.204ms单列。第二段初显后164ms发生137.3ms交付（首次GPU上传86.336ms、无对应长呈现），第三段114.4ms迟到伴7059缺片/7065修复17.273ms；源7065请求后10.993ms生成、准入35µs/全部12片本地接受4.529ms，相邻窗口max_send5.116ms/max_queue80µs，未将迟到延长成数秒，具体链路节点不作网卡归因。详细分类20261012_decoder_recovery_acceptance_direct.md。源38430行gzip1664846，压缩2909E108…/原文012DC44F…双SHA验证；全部connected/480输入/各实例宽限退出。SDK生命周期套件在样本后18 jobs构建通过10.75秒；产品无新修改、预算10000/revision19不变。本机Client408717B2…，90Render6F9A2D19…/已装314文件完整包；安装结果CED1D924…SHA验证。现在运行强制90 Relay三段五分钟并采同PID TCP ESTATS（source collect90-1）；双Relay标志每段finally恢复，尚未完成S3/S4，下一步90异常分类/源压缩核对，再BJ。
+
+- 02:50 decoder-output-recovery候选完整安装90成功：Setup56D2ECAF6FC1A37D7631A69615B41AD57754B225189C9F752DE587B617BAD293，manifestA5497FDF…，3.3.97/314文件全SHA验证，ServiceRunning，Windows会话1/2/3保留。工作区D:\112233\decoder-output-recovery-20261012；Render6F9A2D19…未变，NodeClient0C9B2695…包含新SDK恢复，本机developmentClient408717B2…/Panel8ACEB454…构建/dist匹配。新增3项恢复回归及encoded_video_delivery通过，所有权/命名通过。修复后第6/7段短丢包未再发生数秒空档（最大呈现167.681/162.878ms），但均未触发no_output持续状态，不能声称观察了实机重建分支；源码策略及限制详见20261012_decoder_output_recovery.md。第7段60×40ms、1718报文丢失/路径127.0.0.1:58908；源gzip8F1C8BE4…/原文BF344CB0…核对；应用已恢复10000/revision19/其余spec保持。307个业务session均closed/双Relay fresh原标志。正在S3三条路径各3×5分钟正常采样，首先direct batch（source collect Case direct-1）；只有指标及每个异常分类通过才进入S4结项和主线进度分析。
+
+- 02:33 第5段频繁丢包已复现并定位旧长空档：75秒owned UDP测试一直走127.0.0.1:61647，实际丢包与窗口数见20261012_controlled_loss_proxy_5.json（不再被路径迁移绕过）。02:30:51.138真实解码frames93/attempts271/no_output178/errors0，02:30:56.149为frames239/attempts300/no_output61/errors0；连续239次已接受输入但没有图像，02:30:52.177呈现gap4264365us。完整帧交付最大120.3ms，上传无拒绝，54.78FPS不通过。这次有直接产出证据，确认持续无输出的解码状态延长了网络丢包后的停顿；不是显示线程4秒阻塞。源11332行gzip666034，压缩545DA734…/原文DAAC03E7…双SHA核对；临时revision14/20000已恢复revision15/10000，connected并停止owned流程。正在实施DecoderOutputProgress：持续接受≥4输入且100ms无图像才重建解码器并立即请求带配置IDR；单次EAGAIN和网络无输入不触发，门禁在请求后限频，按monitor及重建/断线清理状态。下一步18 jobs编译/测试及dist哈希，同一故障再次验收；不能在修复实测前宣称成功，S3/S4仍未通过。
+
+- 02:29 decoder_output/direct第4段原20000kbps五分钟完成：60.00FPS、0次交付/新图呈现>100ms、初90秒P99 32.261ms，无真实解码无输出/错误/上传拒绝，未复现旧4秒空档。resource0e03ed89…/instanceb43125aa…/Client46612，connected/480输入/宽限11.82秒停止；revision12临时20已恢复10000/revision13，全部其他spec保持。源12798行gzip582986，压缩8A648F96…/原文791A56F0…双SHA核对。继续第5段75秒频繁短丢包诊断：仅owned启动描述本地副本bind_address=127.0.0.1:0，避免自动迁移绕过proxy；不改机器/产品持久地址或业务鉴权。实际selected127.0.0.1:61647前三次采样持续，暂未结束，不算验收通过。下一步核对实际丢包计数和真实产出/完整恢复分片，必要时再定位旧长空档，S3/S4未通过。
+
+- 2026-10-12 02:21 接续：paired owned UDP 故障第2段确实丢159个报文，最大交付202.1ms/呈现203.931ms，59.66FPS，真实解码无无输出/错误/上传拒绝，未复现4秒空档；源gzip 0E8544E5…/原文7A1A83C7…核对。第3段尝试频繁短丢包，但路径在约第10秒从127.0.0.1:50974迁移39.71.45.66:4613，proxy只转发6203下行/3352上行、实际丢包0；因此60.06FPS/0次>100ms只能算正常对照，不能作为故障验收。源gzip6EFE3C28…/原文A35F21E7…双SHA核对；临时20000/revision10已恢复10000/revision11，其余spec保持，connected/宽限14.58秒退出。身份仍Client11C05AB3…/Render6F9A2D19…，未编译/改网卡或Relay。下一步直接以原20000预算做一段五分钟真实产出诊断（probe4自动恢复10000，读预览后启动），复现旧4秒故障并核对解码产出/上传/呈现阶段；S3/S4尚未通过。
+
+- 有界20Mbps产出诊断120秒通过但未复现旧问题：0次>100ms/60.03FPS、真实产出=attempts/no_output0/errors0，已恢复应用10000kbps/revision9（临时20为revision8）。首次配置切换立即start得到503且未创建实例，已留失败记录/revision6→7恢复；第二次读预览等待deployment_revision_mismatch消失后启动，不修业务模块。源12643行gzip977834bytes，压缩EB84FEAE…/原文1835BF28…双SHA核对。随后仅owned连接的本地UDP转发器75秒实测：实际selected Ip127.0.0.1:58107，53010下行/28265上行，三次40ms窗口丢>=900bytes的13/17/12个加密报文，确实触发三次RFI，参考等待44.975/27.593/18.281ms，真实解码产出均有/无上传拒绝，未复现4秒空档；一次109.1ms交付对应第一次人为40ms丢包，不算常态性能门槛。退出宽限14.52秒后proxy记录WSAECONNRESET（UDP上游端口关闭通知），测试已connected完成/worker及双socket关闭；后续工具明确记录这种通知并继续，不静默当成功。源11201行gzip493461bytes，压缩73FEAB4A…/原文F89AD5A3…SHA核对。身份Client11C05AB3…/90 Render6F9A2D19…/两Relay配置保持，无新编译或NIC更改。下一步同隔离连接成对40ms丢包、第二次针对首个恢复帧，核对恢复帧再次丢失和实际画面产出；S3/S4仍未通过，不能将未复现冒称4秒已修复。
+
+- decoder_output direct/10000kbps五分钟完成（01:45:45.254–01:50:45.255）：本机Client11C05AB385077168FADDD6C0E8F9AED6D77E3849D6751E001B13F34BE1552362/Panel8ACEB454…build/dist核对，90仍stutter-unified完整包Render6F9A2D19…。真实解码frames=attempts/无输出和错误0，未有上传拒绝；59.95FPS、两次交付151.3/105.7ms及对应呈现，未复现长显示空档。connected/480输入/宽限11.23秒停止；初90秒P99 33.113ms，完整聚合以summary为准。源12778行gzip549140bytes，压缩9155FAC6…/原文2D3CCDA9…双SHA核对。这是10Mbps对照，不能冒称20Mbps故障已修复，当前仅本机增加解码统计/上传拒绝日志，Node自带Client尚未补诊断。下一步有限120秒20Mbps复现4秒空档并自动恢复原10000spec，借真实产出与上传判定环节；不改网卡/双Relay，不重开饱和混传。S3/S4未完成。
+
+- stutter_unified direct第一段（01:34:16.387–01:39:16.387）失败：同候选0759A9A0…/Render6F9A2D19…/原20000kbps，5次交付176.6/164.7/213.5/171.9/155.3ms；另两次实际新帧呈现4.336/4.283秒空档，窗口flags0且无相应UI调度/原生阻塞或swapchain_acquire事件。聚合呈现56.74FPS不通过，完整290.517秒16916交付间隔中142个>50ms（0.84%，完整区P99≤50ms）；初90秒P99 53.053ms单列，不能混用。原生caption924ms未导致对应显示暂停。核对ThunderSdk发现旧LAT-decode.frames其实统计Decode调用（无输出TRError(0)也计数），先前“解码正常”结论无真实产出证据，正式修正；新增真实产出/attempts/no_output/errors及有界上传拒绝诊断，18 jobs本机发布中。源13474行gzip616177bytes，压缩4A3CBB2E…/原文BC522D9D…双SHA核对，connected/宽限11.43秒退出。按用户90约10Mbps方向，测试应用8ebdbd8e…从20000改10000/revision4→5，其余spec及access_revision完全保持，记录20261012_stutter_application_budget.json；这是持久的单应用配置变化，未改全局、WebView或网卡。下一步同10Mbps直连诊断实际解码产出与上传，不盲目扩大缓冲、不将网络诊断计数当帧显示；S3/S4未完成。
+
+- stutter-unified完整安装90成功：Setup710967A1…/manifest34936783…、Cloud Node3.3.97/314文件SHA核验/Service Running，Windows用户会话1/2/3及工作区保持。已安装Render6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E、NodeClient20F6088A1FCD6EEB4A9C1A38647D8674FE67CD70383C5C284DFF8191F589878F、NodePanel4FA73690…、ServiceEE2CFCC7…；本机Client0759A9A0…/Panel8ACEB454…开发dist/SHA相符。安装任务17513182…succeeded/0，结果下载SHA7D82318E…核对。297业务会话全部closed/双Relay fresh/原标记保持，应用20000kbps。当前开始最终候选direct第一段五分钟（series stutter_unified），完整源gzip与双SHA沿用；不与编译/传输重叠。原4秒显示空档仍无已证明原因，不能仅凭SUBOPTIMAL修复结项，接续三路径稳定性及窗口状态证据。S3/S4未完成。
+
+- stutter-unified完整候选已18 jobs串行构建：五份development build/dist SHA相符，本机Client0759A9A0F5CD9DF4F4BD250A0D9D8AFEAE254F64BAA271C859CB0D07E6361C76/Panel8ACEB454…；Setup710967A1F2B84E262B40D3BA82A53636B857E429DBB48AB40D7EF50127355AC2、manifest34936783784ACA5C0DBEA49BBEE57AE0278F33D3818B71B698C5B9168E7E383D，候选Render6F9A2D19…与recovery-audit相同（发布配置无媒体算法变更）。包含原生移动/缩放持续绘制、SUBOPTIMAL图像消费修复及接收五秒完整聚合>50ms计数；三UI回归/所有权及命名通过。安装前297业务会话全部closed，双Relay fresh/原标记保持；应用20000kbps不变。正在上传D:\112233\stutter-unified-20261012，尚未完整安装或通过S3/S4。下一步安装后最终运行身份与三路径验收；不重复未改媒体模块已通过58项。
+
+- recovery_audit 90 Relay第二段五分钟完成（01:17:40.681–01:22:40.694）：59.99FPS、3次交付129.2/103.5/200.4ms；对应TCP重组队列6221/6221/31480bytes、重复ACK3566→3622/3622→3669/4932→4992，应用接收队列均0/统计API错误0，source RTP间隔17.355/16.366/16.644ms，组帧11/23/15us及上传年龄146/640/151us。这三处明确为TCP连续字节到达前等待，不是组帧/显示额外暂停；第四呈现100.724ms对应交付99.838ms（边界），没有4秒独立显示空档。480输入/connected/宽限12.35秒停止/原双Relay标记恢复；初90秒P99 26.260ms，overruns0。源12805行gzip491557bytes，压缩BE5E2E74…/原文2E24E7CD…SHA核对；Client仍29A13FD1…/90 Render6F9A2D19…/应用20000kbps不变。只读固定ImGui SDL3 Vulkan示例明确SUBOPTIMAL仍须提交已取得图像，项目原提前return形成实现缺陷，现修复并加入有界重建原因日志；不冒称已证明它导致旧4秒空档。18 jobs Client/Panel已发布/标题栏及三UI回归通过，准备全部运行身份与最终候选同步。接续完整包及同候选三路径/窗口验证，S3/S4未完成。
+
+- recovery_audit direct第二段五分钟完成（01:10:04.840–01:15:04.841）：Client29A13FD16156D433E4601D59E970CFCA024FE8AFE2E4DAEF3401B60F228A79EA/Panel8ACEB454… build/dist SHA相符，90 Render仍6F9A2D19…完整诊断包。0次>100ms交付/呈现、新帧聚合59.98FPS、初始详细区P99 41.770ms、overruns0；480游戏输入/connected/宽限12.33秒停止。窗口flags仅启动hidden→visible，未复现4秒空档，不能宣称额外窗口状态日志修好了它。四分钟内丢片后首张恢复10177：源request_age13.306ms、发送本地11.202ms、客户端23片数据齐后Feed22us/参考等待56.613ms恢复，全部28片收齐，首次RFI本地29us。源12827行gzip1021244bytes，压缩C6633992…/原文FD2019F9…双SHA核对。应用20000kbps/双Relay持久标记不变；接续同候选90 Relay正常五分钟及显示空档状态定位。S3/S4未完成，保留前段失败，不用单段通过结项。
+
+- recovery_audit direct90秒完成（00:59:09.255–01:00:39.262）：ClientE4F04795…/90 Render6F9A2D19…、实际Ip39.71:4613，480游戏输入加0.94秒原生caption拖动/connected/宽限11.76秒停止。SC_MOVE|HTCAPTION调用919ms期间对应呈现窗口最大44.720ms，证实live-resize已避免该窗口操作停止绘制。整段仍未通过：2次交付185.7/113.8ms，另4.280秒纯呈现空档，接收和解码正常；没有WM_SIZE记录或慢UI调用对应，缺窗口状态，不能宣称是最小化。含显示空档聚合57.10FPS，P99早期交付32.414ms，overruns0。wire3924/encoder4114只看到4/5data+1parity中的4片，缺data4及parity，RFI即时发出，恢复帧4120在12.207ms生成、客户端参考等待19.030ms后恢复，不能把113.8ms全归于本地组帧。源日志12586行gzip590482bytes，压缩0AFABF11…/原文131A51A2…双SHA核对。新增SDL实际visibility flags及UI迭代间隔诊断，18 jobs本机发布中；尚未更新完整Node包，源Render身份保持。接续4秒显示空档的实际窗口状态与五分钟恢复帧证据，S3/S4未完成。
+
+- live-resize本机Client/Panel已18 jobs构建、dist发布/SHA相符：ClientE4F047959CA4DC208FD08D44252B4AD266401F4B926E2CBF447A1F13EDE7FAE9，Panel0E2610E88523A79F2406824B16F5ACE12C9934AD1A6C8CE5856681C374EA08FA。回调线程过滤、重入、派发中注销/销毁、三次注册生命周期及呈现计数、标题栏最终三项通过；原全局SendInput标题栏失败和复测均保留，改owned消息后稳定通过。90保持recovery-audit完整安装Render6F9A2D19…，Node自带Client尚为诊断包，未安装live-resize产品包。90秒direct（series recovery_audit/segment1）正在进行有限原生标题拖动；已确认message274 parameter61458=SC_MOVE|HTCAPTION、161 parameter2，原生调用919ms但对应呈现窗口最大间隔44.720ms，视频没有随调用停止，尚不代替整段/长稳验收。应用20000kbps/双Relay/网卡配置未改，没有编译或大传输与采样并行。下一步结束采样、90源gzip双SHA核对后做恢复帧全程对齐；S3/S4未通过。
+
+- recovery-audit完整候选已安装90：Cloud Node3.3.97/314文件核验/Service Running，Windows三组会话及ID保留。Setup45BF296958845895FDF59E225CFC1A678C8DC147CC2511FEE24A09DBD3CCD3E2、manifestD5B606330EDE0F8B2587A5A31A42C7F0D3FC4A21615D4E6B2BDBAFAB3E521318、安装Render6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E；本机诊断ClientBD3DF0FA…/PanelA1E4A93A…，五development build/dist SHA相符。第一次上传因远端目录未建立确认失败，安装脚本未找到而未运行Setup；建D:\112233\recovery-audit-20261012后从原失败操作续传成功，Setup完整安装succeeded/0。安装结果下载SHA00BB76F8…核对，294业务会话closed/双Relay fresh。另根据只读SDL_OnWindowLiveResizeUpdate核对具体窗口机制，项目新增UI线程live-resize expose重绘及弱引用/RAII注销，正在18 jobs专项构建，尚未发布/实测；诊断Node安装不包含该显示修复。应用20000kbps/双Relay及网卡配置保持。下一步显示回调安全回归及本机Client发布后，在直连正常视频中追踪恢复帧并做有限原生拖动检查；S3/S4未通过。
+
+- 2026-10-12 用户授权统一实施直到验收成功，完成后再分析主线推进。当前补齐90秒以后的恢复帧证据：发送端非预测帧保留offer/逐片本地接受，接收端有界64帧元数据/分片覆盖，完整正常帧在初始诊断期后不逐帧输出；恢复/未完成帧给出编码号、kind、缺失data片、完成/交付结果，first shard缺失时不编造身份。每20ms最多清理一次历史；新增三项覆盖四分钟后恢复/重复片、缺描述头后FEC身份补齐、容量边界/重复shutdown。58媒体及标题栏回归通过；标题栏增加wParam和WM_SIZE状态定位显示空档。仅诊断改动，18 jobs串行构建development五运行文件及recovery-audit完整Node候选，尚未安装/宣称性能修复。原Render93183AF1…/应用20000kbps/双Relay配置不变。下一步完整Setup部署后核对首张恢复帧交付，S3/S4未完成。
+
+- 2026-10-12 UDP direct第二段完成（00:15:04.583–00:20:04.589）：两端实际Ip39.71.45.66:4613/39.82.198.244:58649，480输入/connected/宽限11.87秒停止，294业务会话全部closed/双Relay fresh及原标记保持。普通接收59个五秒窗口平均59.70FPS，7次>100ms交付（120.1/101.2/136.0/251.7/193.7/162.9/108.0ms），本段失败，不能沿用首段0次宣称已稳定。另有4.250秒纯呈现空档，同窗接收/解码仍60FPS，无慢UI调用对应；可能涉及最小化跳过绘制但缺窗口状态日志，尚未定因。含该空档聚合呈现58.84FPS，不能作为UDP接收FPS；log_overruns=0。最大251.7ms中参考等待135.682ms、首次RFI立即发出，源恢复帧15699在28.396ms生成，但客户端后来收到15705才恢复；该链仍需核对恢复帧本身的交付，不盲改RFI定时器。源日志12849行5939844bytes先gzip928892bytes，压缩A0B3B147…/原文4CFA82F6…SHA均核对。身份仍Render93183AF1…/本机ClientA32733C0…，应用20000kbps/网络配置不变，无编译、采样或传输残留。证据20261011_direct_continuity_direct_2_*及20261012_direct_continuity_render_direct_2.log.gz；下一未完成项为对齐本段两类停顿和15699恢复帧传输，不继续重复跑一段期待偶然通过，S3/S4未完成。
+
+- 2026-10-12 接续汇报：UDP direct 最新 final_loss 五分钟为 59.98FPS、0 次 >100ms 交付/呈现空档；上一 media_logging direct 五分钟仍有 8 次/max241.7ms，失败证据保留。直连改善但三段长稳门槛未通过，不把 Relay TCP 故障混算为 direct。当前应用仍 20000kbps，无新增带宽/网卡/Relay 持久配置变更，后续编译固定最多18 jobs。
+
+- tcp_path 90 Relay 五分钟（23:57:11.283–次日00:02:11.294）完成：480输入/connected/宽限11.34秒/双Relay标记恢复，59.68FPS，1次129.156ms交付空档、3次呈现空档。frame9203源RTP间隔16.655ms/组帧25us；客户端同一时钟42.261秒TCP重组队列38384bytes、应用接收队列0、重复ACK727→739→770，42.369重组队列清空，明确为TCP连续字节交付前等待。源主要连接同期快速重传13→14/重传bytes增加，跨机时钟估计+6965±123ms，只作关联，不冒称逐包精确因果或网卡归因。两端主要连接2800/2975有效ESTATS样本、API错误0；临时EnableCollection均恢复。部分零计数可能不支持，不能推导无丢包。两次独立原生消息WM_SYSCOMMAND(274)/WM_NCLBUTTONDOWN(161)嵌套688/889ms解释纯显示空档，尚未记录wParam，不宣称具体系统命令已证明。源日志gzip850396bytes/源CSVgzip68855bytes先压缩下载，压缩及原文SHA均核对。无采集/编译仍运行。
+
+- 当前身份：90仍final-loss完整Cloud Node3.3.97/314文件，Setup A298C0E9…/Render93183AF1…；本机native-message development Client A32733C0…/PanelDDD320AD…，build/dist SHA一致。新增只读TCP统计/原生消息诊断，无新媒体算法交付。下一未完成项：对照Sunshine及只读iroh Relay实现检查发送批次/节奏，并继续当前候选UDP direct有效长段；S3/S4未完成，不以最近低故障时段掩盖此前90 Relay88次失败。
+
+- native-message诊断Client/Panel已经18 jobs focused构建与dist发布：Client SHA A32733C073353200053351354C18D5ADB5ECDAD5E8C0400ED30356AA93809368，Panel DDD320AD811F5D150C70FC4B280BBAFBA08142A40963C013ADBD3BF11DF9F446，build/dist均相符，标题栏回归通过/所有权与命名检查通过。无新Node安装，Render仍93183AF1…，未开启Rust trace；正执行90秒普通90 Relay视频定位半秒原生事件等待，源日志仍在90 gzip后下载。只新增耗时日志，尚未宣称修复。
+
+- Relay actor只读诊断一分钟（23:37:42.290–23:38:42.298）完成：相同final-loss Node/20000kbps，实际90 Relay，480输入/connected/宽限11.18秒/双Relay标记恢复；0次>100ms视频交付，但3次纯呈现空档504.715/487.786/506.419ms，阶段日志确认SDL事件等待实际503.113/470.540/505.415ms，而请求等待仅16ms；composition402–662us/draw604–1024us，不能归为网络或Vulkan绘制等待。34,259条actor消息/5.15MB trace，trace同步写入故仅诊断、不计稳定性验收；源9135行先gzip604229bytes，压缩CC03DB34…/原文15C27C1C…SHA均核对。新增项目WndProc范围的慢原生消息日志，正在18 jobs focused Client/Panel构建及标题栏回归；Node完整安装仍A298C0E9…/Render93183AF1…未变。下一步核对SDL事件泵内的具体Windows消息调用，再继续Relay数据到达前等待；S3/S4均未完成。
+
+- 接收头记录有效性已纠正：final_loss 90第二段SACK分析显式标注receive_data_observed=false，不能以0 SACK推出无丢包；三个极小HTTP探测也只有Tx。新的memory抓包命令被自动审批拒绝，仅返回blocked by policy，未执行；继续用现有捕获和应用内日志，不改变网卡/驱动/VPN。90当前10.0.0.90，Render到本机公网Relay连接经39.71.45.66，Relay看到Render源39.71.45.66及Client源39.82.198.244；这证明公网回环路径存在，尚未证明它导致卡顿。
+
+- final_loss 90 Relay第二段（23:03:45.902–23:08:45.909）失败：480输入/connected/宽限11.97秒/双Relay原标记恢复；88次>100ms交付/max274.6ms、87呈现空档、平均呈现57.22FPS、初90秒P99 88.634ms、log_overruns=0。两端Snapshot均Relay90。同步TCP4605/96字节NIC记录31445包/ETW无lost，但解析确认仅见本机→90，**没有接收方向**；TCP ACK号实际前进约103MB，不能把0个SACK报告当作双向捕获或无丢包证据。pktmon已停/过滤器清除，ETL/pcapng在.cache；正在用IP过滤的少量HTTP只读请求检查采集点/过滤行为，不改网卡或驱动、不做压力。源12692行gzip453869bytes，压缩8FCBC79F…/原文7D8F4A0B…SHA均核对。当前候选/应用20000kbps不变，S3未通过，接续真正双向TCP证据和源端转运定位。
+
+- final_loss BJ强制Relay第一段完成（22:54:42.260–22:59:42.261）：实际49.232.233.61:4605/480输入/connected/宽限11.25秒/双Relay原标记恢复，0次>100ms交付或呈现，新帧呈现59.98FPS、初90秒P99 39.540ms、log_overruns=0；首次upload89.082ms，无运行中纯UI停顿。源12792行先gzip520809bytes，压缩278118CF…/原文E170F4CC…SHA核对。三路径各首段完成，尚不是三段长稳；90五次101–137ms转运空档下一段加入本机TCP4605/96字节被动NIC头记录，核对SACK与空档，网卡/驱动/预算不变，不重开压力专项。候选及运行身份同上。
+
+- final_loss 90强制Relay第一段完成（22:44:41.626–22:49:41.626）：480输入/connected/宽限12.31秒/双Relay原标记恢复；5次>100ms交付和对应呈现，max136.8ms，新帧呈现59.91FPS、初90秒P99 24.350ms，log_overruns=0，无RFI。五次source RTP gap16–17ms、Feed20–40us、upload_age<1ms，均为分片到达前转运等待；首例wire2579整帧17片在76us内集中到达，此段没有TCP头记录，不能把旧SACK证据当作这五次的物理丢包定论。首次UI upload1963.540ms单独保留，不掩入常态FPS。源日志12895行/5825491bytes先gzip895276bytes，压缩C1F271C0…及原文EF836AEB…SHA均核对；同final-loss安装/应用20000kbps。接续同候选BJ Relay，S3尚未完成。
+
+- final_loss direct第一段五分钟完成（22:36:30.650–22:41:30.651）：480输入/connected/宽限12.37秒停止，实际Ip39.71.45.66:4613（源选39.82.198.244:54545），0次>100ms交付或呈现空档，新帧呈现59.98FPS、初90秒P99 32.151ms，log_overruns=0；唯一UI慢操作首次upload154.902ms。没有RFI，不能证明丢包恢复改善或用不同公网时段宣称因果。源日志12815行/4761506bytes先gzip597013bytes，压缩SHA D77340E3…与原文8FFBB6FB…均核对；本段通过但三段/路径门槛尚未达标，90/Client安装身份同上，应用20000kbps/两个Relay未改。接续90强制Relay第一段。
+
+- final-loss完整安装90成功：Cloud Node3.3.97/314文件SHA核对/Service Running，三组Windows会话及ID保持；Setup A298C0E9…/manifest91B3FC51…，安装Render93183AF144C7F7702040E8DB013539AD9D6BDC842C4C914934B2C895BE00B76A，NodeClient512782ED…/Panel76875724…/ServiceEE2CFCC7…未变。local Client A1278F07…，开发五文件SHA相符。首段五分钟direct（series final_loss）开始，包含480拖动输入；全部编译/上传/安装完成，当前无编译或大型传输。Setup完整安装任务c5fbc88f… succeeded/0，结果文件下载SHA675DDD7F…核对；来源日志待段结束后在90gzip/双SHA收集。应用20000kbps/Relay配置未变，S3仍未通过。
+
+- final-loss构建完成：23交付/恢复、Moonlight oracle、55媒体通过，命名/所有权通过1454变更行；五份development build/dist SHA相符，local Client A1278F07BBD8BABF1F9432798CD02EE60FFBD53AC0EEDAFC2A20730B25C48A43，NodeRender E50135C5…/NodeClient E953BA74…，两Panel未变。完整候选3.3.97/314文件，Setup SHA A298C0E967AF36943DECE83E2BCB52A00FFE094A654D2C2A67545A1F263E1D65，manifest SHA91B3FC5171C4F9E34743AC6DDC04A15631224F9E2C50224A8BCD12206B67ECA9；正在上传D:\112233\final-loss-20261011，90仍media-logging旧完整安装。所有编译明确18 jobs；没有并行性能采样。安装前286业务会话closed/两个Relay fresh/未排空，应用20000kbps不变；后续完整Setup安装再做direct。
+
+- 真实到达记录回放5218帧/29不完整块，未发现下一帧之后仍能救回的旧块，暂排除扩组帧队列。对比当前Moonlight core e95feaf…确认项目在不可恢复后仍等待下一完整帧才发RFI，两例多等15.095/15.552ms；新增独立final_frame_loss覆盖预测telemetry省略最终通知的遗漏，保留FEC预测可恢复行为。两处旧失败及FEC测试配置初失败已保存；交付/恢复23项通过，正在核对upstream oracle。尚未交付或实网宣称修复，90仍media-logging完整安装/Client E03B514D…，双Relay/应用20000kbps不变。后续编译明确18 jobs已写AGENTS及当前helpers，gzip双SHA收集不变。接续focused构建及真实direct对照。
+
+- `media_logging` direct五分钟第二段完成（21:58:15.488–22:03:15.489）：480输入、connected/宽限11.83秒停止；8次>100ms交付/max241.7ms，新帧API呈现59.08FPS，初90秒P99 45.059ms，log_overruns=0。首次上传153.312ms（启动阶段），另UI wait79.259ms；没有再现444ms纯显示冻结。头几十秒接收45–51FPS，后多数窗口60FPS；源端实际编码约7.8Mbps/媒体包约10.3Mbps，并非达到配置13Mbps编码上限，发生RTT增长和连续QUIC loss后自适应降至4.26Mbps，再恢复。不能把时间上的恢复冒称为日志修复的效果。源码/安装身份同上批，双Relay配置不变；源日志12629行gzip878753bytes，压缩及原文SHA均核对，证据prefix20261011_media_logging_direct_2与render_direct_2。继续对齐八次空档的未发送等待/丢片/参考修复；S3仍未完成。
+
+- `media-logging-20261011`完整安装90成功：Cloud Node3.3.97/314文件SHA核对、Service Running、三组Windows会话/ID均保持。Setup SHADE1A1E13DC054480437BC249CE1238073D7B2E1490DEA20260FCD18C97937E00，manifest SHA5E7340B279645EFDD60C4E63FCAD68A1919E749BBDFFA97AC5B02CAC15E28FF1，安装Render SHA581E0B9BEDBC7598DFB24B16E908A4F658FAD697C7A7E1E35D2326A458A4632F，NodeClient SHAC4322A5F…/Panel SHA76875724…/Service EE2CFCC7…未变。五份development build/dist SHA相符，local Client E03B514D3DBE10C6F29D375C083333468187E46641FF94F4F9B40EAA434CD452，包含clipboard/snapshot/upload/toolbar慢阶段日志。3日志阻塞/排空/重启、55媒体、19交付/恢复通过；安装前285业务会话closed/双Relay fresh，应用20000kbps/Relay软件/网卡配置不变。当前direct第二段五分钟（series media_logging）开始，全部编译与包传输已完成；不与性能采样重叠。日志后续在90先gzip再下载。当前仍未S3通过，不把日志风险修复等同于原始链路问题解决。
+
+- 媒体日志阻塞复现与候选修复：实际Logger注入阻塞sink时，旧同步写入导致producer在100ms检查点仍未返回；Client/Render改用spdlog已有有界8192异步非阻塞队列，文件worker停住且16384条日志将队列填满时，producer仍在500ms门槛内完成（队列溢出计数非零）。三项回归包括旧行为、队列饱和、shutdown排空和三次重启均通过，命名/所有权通过。五秒源端/路径/新帧呈现记录加入log_overruns，不能将丢诊断视作完整证据。仅媒体进程启用异步模式，其余日志保持原初始化；原文件及未提交内容已归档backup/media_logging_20261011。当前进行focused Release development dist及完整media-logging候选构建，尚未安装90/实测，不能据此认定之前444ms的真实根因。
+
+- BJ `relay_repair` segment2完成（21:17:26.984–21:22:26.985）：480输入、connected、宽限12.31秒停止/双Relay原标记恢复；26次>100ms交付/max242.3ms，聚合新帧API呈现59.04FPS、初90秒P99 45.704ms，仍未达到稳定性门槛。UI阶段慢记录只有首次纹理上传78.917ms，本段未复现此前444ms纯显示空档，不能宣称其已修复。源端日志12741行先gzip后下载501101bytes，压缩SHA9A4AF746…/解压原文SHA4A35EE1D…均核对。接续核实共享同步日志写入/每条fflush能否阻塞媒体线程；这是具体实现风险，尚未作为实网停顿根因。
+
+- `relay_repair` 五分钟90强制Relay结果失败（21:02:17.330–21:07:17.341）：480拖动输入、保持connected、113次>100ms交付/max576.6ms、新帧API呈现55.26FPS，初90秒交付P99 79.014ms。短分片误发RFI已消除，不能因此宣称性能通过。Client仍为46F83A86…，90仍为relay-probe完整安装，应用20000kbps未变。末段仅TCP4605/96字节NIC头记录中，主连接有44个接收SACK序号缺口，最长补齐约258ms；存在与视频空档重合的明确TCP等待，尚不能指认物理设备或解释全部停顿。pktmon已停止/专属过滤器移除，无WPR/Rust trace运行；双Relay原标记恢复，owned实例按宽限11.89秒停止。接续BJ对照（segment2）用于定位已观察到的纯UI停顿，远端收集器现已改为先gzip并返回双SHA再下载；不重复相同90性能失败。
+
+- Relay分片短暂停顿修复已通过19项交付/恢复、55项媒体测试；按实际selected path每250ms更新部分帧idle恢复策略，Relay保留真实参考失效和4秒静态watchdog、direct保留100ms；路径恢复切换回归通过。local Client已同步dist/hash46F83A86053894A60805BCA045409D40ADF56EA16C2EF97F7620F5AB5D00723A，90保持relay-probe完整安装身份，双Relay软件/应用20000kbps不变。本次五分钟90强制Relay（series relay_repair）开始，含UI慢阶段记录；没有并发编译、WPR、pktmon或Rust trace，阶段修复尚未宣称实机通过。
+
+- `relay-probe-20261011`完整安装90成功：Cloud Node3.3.97/314文件SHA/Service Running、Windows会话保持。Setup SHA7631CBC63AEB82AE29086FDE945740836BF72ABC05CCE231244546E37B911FAB，manifest SHA5D1B5E0BA132062FF5E701B93241DBAAABD2FF5847D91BD7B7E58418E1AE5B8A，Render SHA525EEA34BE49E067BB94CF8781D8E913441B062689D9227C024A543E672EE0E9。安装前283会话closed/双Relay fresh。源码又推进了有证据关联的修复但尚未交付：90 Relay 615ms空档的ETW接收线程最大Ready等待69us、正常10–13ms轮询；解码线程614903us等待与接收空档一致，非该事件CPU饥饿。另确认partial idle 100ms的RFI invalid723在原723完整/参考有效到达前83ms误发，源端后生成740恢复帧24955字节；42次恢复请求可能放大队列。正在取消Relay短分片停顿的猜测性修复，保留实际参考缺失与4秒watchdog，direct100ms机制保留，另加路径切换回归。随后实测本机UI阶段日志及90 Relay。
+
+- 同候选五分钟BJ Relay第一段完成（20:35:47.630–20:40:47.631）：真实BJ路径/480拖动输入、交付2次>100ms(max117.1ms)、初90秒P99 25.228ms、聚合新帧呈现59.92FPS。另1次纯显示443.650ms空档，同窗接收60FPS/max27.1ms、解码max1085us，不能归因网络。已加UI wait/events/composition/draw和纹理upload慢调用日志，local Client已增量构建同步dist并SHA相符9f854727efddf0f19234e0afed1bcb785379e31f8087541de0c2126629bfd3c6；节点仍为原partial-repair-final候选。复现Relay队列恢复后两秒25%码率探测、短新压力仍再次探测的旧失败保留；统一近期loss/queue/backpressure恢复为5秒后10%探测，健康高RTT/配置上限变化保留正常恢复，55媒体测试通过。新源码尚未部署；接续UI阻塞定位和更新节点后Relay对照。ETW无lost事件，但CPU.Light没有DPC/ISR，不能据此排除驱动停顿。
+
+- 最终候选五分钟90 Relay第一段完成（20:27:15.813–20:32:15.814，480拖动输入）：路径真实选择https://39.71.45.66:4605/，153次>100ms交付/呈现空档，交付max615.2ms、初90秒P99 91.879ms、聚合新帧呈现53.60FPS，明确失败。源端持续出现前向增长150–482ms、QUIC队列空但捕获暂停117–250ms，以及码率2.13–13Mbps来回变化；新增repair_credit已实触发，未解决余下路径问题。CPU.Light临时跟踪在20:28后开始（第一批失败先于跟踪），20:32:32开始收尾、20:35前完成，WPR已恢复无记录；后处理ETL暂不与下一段视频抢CPU。双Relay维护标记恢复；当前BJ Relay第一段对照将使用同一候选与20000kbps应用设置。
+
+- 最终候选五分钟direct第一段完成（20:19:27.580–20:24:27.581，480拖动输入）：新帧API呈现聚合59.90FPS，初90秒交付P99 31.090ms；有效窗口1次268.1ms交付空档、6次111–222ms呈现空档，尚未通过。客户端同时出现ReceiveDatagram等待267828us（设置10ms超时）、控制派发排队264274us、解码max162763us；无参考丢失/恢复请求，源端同段五秒提交max5110us且QUIC tx_lost=0，反馈生成313826us/到达316031us。不能归结纯UDP或网卡，也不能把多线程同时迟到当作已证实全系统停顿；下一段90 Relay正在采样并加本机CPU.Light调度跟踪。源端时间比客户端约快6.7秒，按编码frame/反馈对齐，不能直接按相同墙钟截取。
+
+- 追加五分钟有效采样：direct有4次>100ms，max379.7ms，初段交付P99 38.544ms；源端末次暂停261ms/165ms，QUIC缓存已空但真实前向进度落后200–272ms且额度缩到101200字节，仍需处理。90 Relay有57次交付>100ms、max470.2ms，初段P99 51.479ms，性能不通过，实际选择90路径证据保留在源端send_path；这段开始时尚无可见窗口，未执行拖动，不算拖动覆盖。
+- 新增低开销实际呈现统计：只在新视频纹理经DXGI/Vulkan接受呈现后计帧，旧纹理重绘不计；5秒聚合与>100ms慢呈现记录，测试覆盖失败/重复/替换上传/停顿。90 Relay有效聚合呈现45.30FPS，健康接收约60FPS窗口呈现39–55FPS，查明UI固定绘制后再等待16ms、解码不唤醒UI的问题。参考Moonlight Qt帧就绪SDL事件，已加弱引用/合并通知，Client development dist SHA与build tree相符 `E5D575CDF0762BAEA945F886792703491FE312B90F04D131AC73F73E1E925C91`；唤醒/销毁回归通过，当前做针对性呈现对照，不宣称实网已通过。
+- iroh路径接口核对：默认把IP列Primary、Relay列Backup，跨类不按RTT择优；公开custom-selector仅在路径生命周期时触发，不能仅加selector就声称运行中自适应切换。未改第三方路径策略。两个Relay维护标记已恢复，Machine trace为空、无pktmon运行；节点仍为loss-feedback完整安装身份。
+- 唤醒后针对性90 Relay一分钟：拖动480条输入执行、交付P99 24.358ms、无>100ms交付或呈现空档，聚合新帧呈现60.10FPS；不是长稳通过。复现“已有参考、最后一帧只有部分分片、无后续完整帧”时旧策略迟迟不发RFI，旧失败已保存。修复为最后有效部分分片停止进展100ms后请求一次RFI；持续接片不触发、FEC补齐取消、无进展重试仍稀疏，未知初始参考保留原watchdog。Source对同一恢复请求仅放行一次额外捕获，仍检查QUIC未发送额度、两帧流水线、历史/字节债务和deadline，不给正常帧无限额度。
+- 已通过17项Encoded delivery/recovery、53项媒体测试，呈现/弱唤醒回归通过；命名/所有权检查通过。初次媒体三项失败保留：取消测试短信用在Start前已过期；反馈测试只等待任意报告却断言完整确认；大帧本地deadline在该批602ms越限。修复前两项测试的确定性条件，构建负载结束后复测媒体通过。新增持续700ms正常接片测试发现了过早IDR升级，已将升级起点改为部分分片最后进展。早期partial-repair候选没有安装，最终候选partial-repair-final正在构建，不作为已交付身份。
+- 最终候选`partial-repair-final-20261011`已完整安装90：Cloud Node3.3.97/314文件SHA核验/Service Running，Windows会话保留。Setup SHA `464F94BE2EC808376E3A2C78BF078B83EB7726A151DB5817C4DFD3E3937AB133`、Render SHA `52353D6D1BEABFC68C9E327C240D7B896FD34A55D34E3240708D26075571D95E`、manifest SHA `001C907D4A8C10F327C79C20ABF4608C0D1F372333D21BC6907A11A7197664F0`。六development运行文件SHA相符，Client dist `08CEE246E2DB28F57D20A06EF395AC410B81064C8C25D61372DC862454840D81`。安装前280会话均closed/双Relay fresh，应用20000kbps及Relay软件不变。当前执行第一段五分钟direct含实际呈现；未宣称卡帧解决。
+
+- 用户再次要求连续完成卡帧任务，后续实施不以阶段汇报作为停止点。当前仍为 Windows/Linux 媒体传输范围，继续使用90工作区 `D:\112233`。
+- 已新增并保留旧实现失败的确定性复现：前向接收50ms内前进，但报告额外迟到210ms、实际未确认271700字节时，固定256KiB额度错误暂停捕获。新实现按应用预算、基线RTT和实测回程延迟计算健康额度，最多1MiB/64帧；重复旧状态不能放宽，真实前向延迟仍收紧32–256KiB，QUIC64KiB缓存和按预算未发送准入保持原值。
+- 50项媒体测试通过，命名/所有权检查通过687行变更；已构建并完整安装 `feedback-lag-20261011`，Cloud Node 3.3.97/314文件SHA核验、Service Running，Windows会话保持。Setup SHA `1B847091FBC91A8DB9DB1B445836D1ACF5E5B0D6CC8AB2583F8DDE5F167BB312`，Render SHA `00080A1D7A8A0B901D7C47AF33BDAE9BBBDFD978328A595F9EE481B4ED997411`；六份development dist与build tree SHA相符。仍未宣称实网卡帧修复。
+- 临时诊断：首批Service Environment未传给CreateEnvironmentBlock(false)的用户Render，已恢复；TCP定位批改用两个Machine诊断变量，原空值备份并已恢复。只抓TCP4605/96字节头，pktmon已停、专属过滤器已移除。应用预算、网卡和Relay软件未变。
+- 原20Mbps一分钟实测：direct49.47FPS/P99122.38ms/max338.561ms/34次>100，出现丢片与RFI恢复，性能未通过；90 Relay59.87FPS/P9927.026ms/max253.616ms/1次>100。Relay源间隔17.451ms/客户端分片206.529ms，Relay actor接收空档191.696ms，组帧21µs。结果全部保留，不用重跑好结果替代失败。
+- TCP诊断批的一分钟有效窗口没有>100ms完整帧空档；日志收集期间连接仍在，窗口结束后出现5次完整帧空档与TCP序号缺口/后到数据。这些是定位证据，不计入一分钟性能失败或成功。会话与宽限停止完成。已回放direct前两个500ms真实采样（74/0→564/100→856/109，RTT11083→92586→83070µs）：旧控制在连续丢包且RTT回落时仍维持13Mbps，复现失败已保存。按500ms增量识别连续丢包，逐步降码率，近期丢包后5秒再做10%恢复探测；孤立丢包、静态场景、历史计数/重置/切换Relay不降码率。53媒体测试通过；命名/所有权检查通过780行。已完整安装loss-feedback候选，Cloud Node3.3.97/314文件核验/Service Running，Setup SHA `C75F3D5B2530F5646D29429B33792179E1CB5E53A53D4519C7C2F63E0E297E5A`，Render SHA `25968F176012CC4FA42926EBC343F6B472B9CC9114CC9EF0BB403FC1405B856E`；六development运行文件SHA相符。当前接续：原20Mbps/无Rust trace的五分钟直连采样正在执行（含8秒快速拖动），随后实际选择90/BJ Relay。未宣称性能通过。
+
+### 当前实施：清空在途帧后的拥塞状态重置（2026-10-11）
+
+- 用户要求立即实施；旧自动目标暂停不阻止当前已授权开发/安装/验证。已回放 Relay 反馈：encoder 473 的确认释放五帧、pending=0 时，旧 forward delay 仍为 135332µs；下一批仍沿用旧缩小额度，造成新的准入等待。
+- 已先保留旧实现失败的复现测试（新批仍受 32768 额度和 300000µs 历史延迟影响），再修改 `VideoFlightWindow::Observe`：只在真实累计确认清空全部 pending 时恢复正常有界额度、重建时序基线并清空该批吞吐采样；部分确认/不前进反馈不清债务，第二次真实拥塞仍收紧额度。
+- 47 项媒体测试通过，命名/所有权检查通过。首次全测两个新/调整用例未满足 250ms 采样周期或已到稀疏探测期，已按有效时间线修正并保留初始结果；不得把探测准入当成无限额度。
+- 已完整安装 `flight-drain-20261011` 到 90，Cloud Node 3.3.97/314 文件核验、Service Running；Setup SHA `924909B2C6BB8958EED522FDCA31D3D4EFFB91936B56E23F46D03C773FACEAAE`，Render SHA `4BD3D2A46997FB3F9A7DF98BCA33B7B0362627DC40421159AE29420BB7315216`。六份 development dist SHA 相符。Server/两 Relay/20000kbps 应用配置未变。
+- 各一分钟游戏完整帧交付：direct 59.30FPS/P99 45.578ms/max 130.440ms，两次 >100ms；强制 90 Relay 59.22FPS/P99 51.329ms/max 512.826ms，一次 >100ms。Relay 客户端日志轮转已恢复首段 1129 条，同路径首段缺失的初始统计作废。**尚未性能通过**，没有旧实现同环境对照，不能宣称改进。两个短 WebView 连接/宽限停止成功，非持续 60FPS 源。
+- direct 现存空档：反馈到达间隔 211/227ms、生成约 50ms；正常 262144 额度被真实未确认字节 271700/265100 消耗，捕获暂停，组帧 22/24µs。Relay wire 1437：源端 8.290ms 内本地提交，但接收分片跨 390.913ms，组帧 68µs；没有 receive_worker 超时记录，仍需区分 iroh 内部与 Relay 链路。不能归咎网卡或把本地提交当实际发送。
+- 清理后 272 会话均 closed，两 Relay fresh/ready，90 只剩桌面 Render 27448/session 2，Windows 会话保留。完整结果见 `20261011_flight_drain.md`。
+- 接续预算对照：仅临时将测试游戏 Console 预算20000→10000，同版本各一分钟 direct 59.88FPS/P99 37.247ms/max89.439ms、90 Relay60.02FPS/P99 44.500ms/max59.963ms，两段均无>100ms；源端确认10Mbps预算/19200字节队列。已恢复原20000、revision4，274会话均closed/两Relay fresh。首次配置同步期间503、后续预览eligible后成功的记录已保留。不同公网时段不能建立唯一因果，更不能替代长稳/显示验收。
+- **下一步**：回放 direct 正常额度被迟到反馈消耗的边界，并对齐 Relay wire 1437 的实际发送/接收/转发，定位 391ms 分片空档；不先扩大额度，不重做已通过的安装/媒体测试。
+
+### 当前长任务：直到卡帧问题解决（2026-10-11）
+
+- 用户明确要求规划一个长任务直到解决卡帧。当前入口为 `docs/video_stutter_resolution_task_20261011.md`：S1 可重复时间线/复现 → S2 发送与反馈额外暂停修复 → S3 direct/90 Relay/BJ Relay 实际验收 → S4 诊断清理与交付。Android、独立业务、短期 token、已叫停网卡/饱和混传专项仍排除。
+- 不以单次短测或本轮队列上限完成结项。目标持续更新 60FPS 源，在足够带宽下无未解释的反复 >100ms 停顿，并验证受控阻塞解除后没有本地额外积压；三路径分段稳定性门槛详见新计划，均未宣告通过。
+- wire 270–290 中清空全部 pending 后历史拥塞残留的复现与修复已完成，当前实机候选及下一步以上方最新实施批次为准；显示链与剩余实网停顿尚未结项。
+- 目标工具状态：旧 P0–P7 目标仍 paused，创建本次目标返回 unfinished goal；新自动目标未激活，旧目标未冒标完成。该工具状态不阻止当前已授权的开发、安装和验证，实施按本页最新批次继续。
+
+### 当前：QUIC 未发送队列准入（2026-10-11）
+
+- 接续 ACK 停顿证据，新增按应用媒体预算约 16ms 的未发送队列额度（最小 4 片、最大 32KiB），在每批视频分片提交前检查 QUIC 可用缓存并通过 1ms 异步定时器等待；不更改拥塞控制或第三方源码。编码准入改为最多两帧流水线，并检查未发送队列余量；已编码帧不任意丢片，现有帧 deadline 和接收端参考恢复保留。
+- 本地 45 项媒体测试及 UDP failure、iroh Frontend 通过；新增 160ms 模拟阻塞验证队列界限、控制任务可执行、分片顺序保留、等待超时/停止只完成一次，实际 QUIC 端点验证 64KiB 缓存契约和编码准入。命名/所有权检查通过。
+- 修改前 20 秒游戏基线已保存（原 20000kbps 配置），接收窗口约 60FPS/最大间隔 50.3ms，无 >100ms 停顿；不把未复现当成已修复。工作区 `D:\112233\queue-admission-20261011`，无网卡/捕获/业务配置变化。
+- 已完整安装候选 `queue-admission-20261011`，Cloud Node 3.3.97/314 文件核验；Setup SHA `96B9A92EF0D81CC1A43E7FC99BAF8D9E86CDB9BDA8B0299E8776757B418E7310`，Render SHA `99B8EEDF75F50ABD661DB7728382C8DD1E9DF9C259EE99FC4F57C3696CCA63ED`。Server/两 Relay 软件及应用预算未变，六个 development dist 运行文件 SHA 相符。
+- direct 游戏有效 20 秒：59.30FPS/P99 44.126ms/max 57.270ms，无 >100ms；基线 60.02FPS/P99 37.020ms/max 50.339ms。候选有 QUIC 丢包/参考恢复，已接收范围内 1206 帧全部本地提交成功；不能称为实网性能提升。WebView 连接和宽限停止通过，加载期间长间隔对应编码源输出间隔，未发现这段由提交失败/准入排队造成。
+- 强制 90 Relay 有效 10 秒：54.45FPS/P99 91.306ms/max 198.132ms，五次 >100ms，**性能未通过**。wire 280 等待 146.242ms 时队列峰值 30633 字节，低于 32768 额度且完整提交；后续存在队列已空、远端接收进度额度仍暂停编码的事件。未证明是错误反馈/物理网卡，继续按上方 S1 对齐。
+- 清理后 268 会话均 closed，90 只保留桌面 Render 7580/session 2，Service Running，双 Relay fresh/ready，trace 变量为空。Relay 日志发生轮转，已合并 `.1.log` 和当前文件保存，未重新跑连接。见 `20261011_queue_admission.md` 及同前缀证据。本批源码未提交/push。
+
+### 当前：按应用配置媒体带宽（2026-10-11）
+
+- 用户指定“每个应用分别配置”。复用 Console 应用 `launch.video.bitrate_kbps` 的持久化/下发链路，新增应用默认 10000，已有配置保持；90 当前三个游戏/WebView 应用均保存 20000kbps。Web 中英文明确每路媒体预算、预留开销和新启动实例生效。
+- 移除 iroh 诊断候选的固定 6.5/9.6Mbps 上限，按应用配置派生编码/发送预算；Service 通过 `--app_media_bandwidth_kbps` 精确传递 kbps，避免整数 Mbps 取整。不同 Session 使用独立预算对象。
+- 31 Web 测试、28 Service 应用测试、Render 前端配置贯通及 UDP 测试通过。媒体 41 项首次并行构建期间有一大帧 deadline 超时，停止构建负载后原样复测全部通过；初始失败与复测记录均保留。6 个 development dist 运行文件 SHA 一致，命名/所有权检查通过。
+- 90 已完整更新 Server 1.0.56（35 文件），Setup SHA `26a8a0258d33ed26dd0fac24327b2e96ca1a649d292151c791c5f46e666004a8`，线上 Web 资源 SHA 与构建相同；schema/配置未改。工作区 `D:\112233\app-bandwidth-20261011`。
+- 90 已完整安装最终节点候选 `app-bandwidth-final-20261011`，Cloud Node 3.3.97/314 文件核验，Setup SHA `061926482674A522DC8FB4BEC17FFAE53DFF8B5EF2C0B7EFC4A9F7D8797021F0`；Render SHA `4E339940E8EA0334076DB2714801E27922384899F32C20FA8CF984923ABC49CE`，Service SHA `EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0`。首个 `app-bandwidth-20261011` 节点包未包含新 Service，未安装，不作为交付物。
+- 游戏/WebView 各 5 秒正常连接通过：两次 Render 日志均为 total=20000000、video_wire=19200000、encoder_ceiling=13000000；游戏启动参数亦确认精确传入 20000kbps。已有应用值未修改，新建默认 10000。此为配置贯通检查，不是性能/长期稳定性结论。
+- 清理后 264 会话均关闭，90 仅桌面 Render 18116/session 2，Service Running，双 Relay fresh/ready（generation 91/16，control_epoch 70）。Windows 会话保留，trace 变量为空，无抓包、网卡或 BJ 安装变更。证据见 `20261011_app_bandwidth.md` 及同前缀文件。
+- **下一未完成项**：回到上次 ACK 停顿定位，评估 QUIC 视频排队额度/期限和按帧依赖恢复；不把可配置带宽当作原始回程延迟已修复。真实 NAT/规模/长期稳定性仍未验收。
+
+### 最新离线定位：161ms 停顿的 ACK/拥塞等待链（2026-10-11）
+
+- 用户要求先查；本批只分析已有预算候选的 trace 与 NIC 指纹，无新测试/部署/配置变化。
+- 已明确 pn 89/90 等 ACK 在客户端及时构造（ACK delay 6–14µs），回程 NIC 记录相对延迟增长约 160ms；90 在途 24561 / 窗口 25909 字节，持续约 147.492ms 拥塞阻塞、两次 PTO。ACK 到达后 46µs 恢复发送，恢复帧组帧仅 48µs，形成 wire 11→12 的 161.357ms 间隔。
+- 等待期间后续视频继续进入 64KiB QUIC FIFO，接近满后 `send_datagram_wait` 才向应用传播背压；可用缓存降至 2568 字节、后续帧应用排队约 70ms。该积压是可优化的恢复负担，不冒称它造成 NIC 之间的原始回程延迟。
+- 本事件未发现 ACK 生成延迟、ACK 后唤醒迟滞或组帧慢；尚不能区分网卡/驱动以下/中间网络。重新核对 Sunshine 只读 UDP 发包路径，其没有这层 QUIC ACK 窗口门槛，不能照搬组帧解决此问题。
+- 证据及复现：`20261011_ack_stall.md`、`20261011_ack_stall.json`、`analyze_ack_stall.py`。运行身份、262 已关闭会话和清理状态保持下节预算候选。
+- **下一未完成项**：评估视频进入 QUIC 的排队时长/额度和按帧依赖恢复，避免等待确认时累积过期视频；进一步定位回程物理位置需要外侧观测/路径对照，不重复相同抓包或盲改拥塞窗口/FEC。
+
+### 当前：系统收发边界与约 10Mbps 预算候选（2026-10-11）
+
+- 新增一次有界纯视频双端 NIC/TCPIP Pktmon；无混传、限速注入或网卡配置改动。正常 19 秒窗口正向 27030 包有 176 包未到对端 NIC，反向 4727/4727 匹配；两机内部 NIC/TCPIP 包集合一致，无 ETW 事件丢失。匹配正向包最大相对延迟增长 202.68ms。不能指认具体物理网卡或中间设备。
+- 对齐 127/135ms 两次交付停顿；后者约 90ms 的成批缺包后，参考恢复只占约 14ms。两端无接收缓存丢弃日志或新 NDIS 重置。旧脚本 20 秒后的截图/关闭阶段已排除性能统计，后续测试移除截图。
+- 测试已清理：261 会话均关闭，90 只保留桌面 Render 27888，两端 Pktmon 停止且筛选器为空，90 trace 变量恢复为空；运行身份仍为此前完整诊断包。详见 `20261011_socket_boundary.md` 及 SHA/四层捕获证据。
+- 用户明确 90 上行约 20Mbps、希望控制约 10Mbps。基线 UDP 负载平均约 11Mbps、1ms 最大约 40KiB，不能只限制编码平均码率；已开始跨帧共享的应用提交节奏候选，4 片/批，估算视频线速 9.6Mbps、编码上限 6.5Mbps，保留 QUIC 拥塞控制并预留 FEC/协议/音频空间。
+- 候选已完成：40 项媒体 + 3 项原 UDP 发送测试通过，development dist SHA 一致；90 完整安装 Cloud Node 3.3.97/314 文件，Setup SHA `5553251DC3AD997ECF0702B8C275582C4C165E4182B6A2DBB8911BC48FAA5D61`，Render SHA `0E4458CB5F2ED398D5927F9FE99E7FFD9BB480EB0DF1A035F00DDFFA762458AF`。Server/BJ 未变。
+- 无截图纯视频 direct 对比：正常 19 秒约 59.74 FPS、最大间隔 60.53ms，UDP 负载 7.84Mbps、加线层开销估算 8.41Mbps；正向 20476 包缺 15（0.073%），此前 27030 缺 176（0.65%）。1ms 最大突发 40644→19508 bytes、100ms 峰值 17.99→9.96Mbps。两轮公网条件不同，只称本轮改善，不宣称因果或长期稳定。
+- 初始连接仍有 wire 11→12 的 161ms 停顿，发生在正式采样前；同时间客户端 NIC 已发送的反向包在 90 NIC 约晚 142–160ms 成批出现，同时发送侧背压。正常窗口反向也有约 214ms 延迟增长。没有硬件归因，也未发现足够分片无法组帧。
+- 清理后 262 资源会话均关闭，90 仅桌面 Render 14844/session 2；双 Relay fresh/ready，两端捕获/筛选器清理，90 Machine trace 变量恢复为空。持久变化为约 10Mbps 固定视频预算候选包和本机 dist，无网卡/Relay/宽限配置变更。详见 `20261011_socket_budget.md` 及同前缀证据。
+- **当前下一步**：通过正常使用复现剩余短停顿，对齐反向到达和 QUIC 发送停滞；详细诊断暂留，不重新进行饱和混传/网卡专项，不把单轮短测称为全面稳定。
+
+### 当前：QUIC 包号边界定位（2026-10-11）
+
+- 接续逐帧诊断，用已有底层 trace 做一次约 20 秒纯视频 direct；未修改源码/二进制/发送策略，完整安装身份仍为下节诊断包。未恢复混传、抓包或网卡专项。
+- 新增证据：发送端构造的 pn 24452–24455、24472–24488 共 21 个 QUIC 包，对端接收 trace 缺失且 ACK 跳过相同范围，发送端 lost=4+17。包括 16 个视频 DATAGRAM、4 个 STREAM 和 1 个 ACK；可靠字节随后重传并确认收到。双方接收缓存丢弃日志为零，缺失不在上层组帧/FEC。
+- 本轮 wire 1012 缺片、1013 等参考、1014 恢复；交付间隔约 19.5ms。四窗口 59.6–60.6 FPS/最大 66.4ms，未复现此前 118/124ms，不能称为修复。原始 trace 有同步写盘开销。
+- 90 临时两个 Machine trace 变量已核对并恢复为空，未改服务环境/重启服务。本机无测试 Client，90 仅桌面 Render 27888，应用宽限停止。原始四份日志、SHA、离线重建脚本及限制在 `20261011_quic_boundary.md`。
+- **下一步**：补 QUIC 构造之后的系统 socket 收发边界，区分发送栈、接收栈与链路；当前 `wrote packet` 不等于网卡发出成功。没有证据指认网卡硬件故障。上轮无新增丢包的 124ms 背压事件仍独立未解决，不盲调媒体恢复参数。
+
+### 当前：视频逐帧诊断（2026-10-11，用户要求增加日志定位）
+
+- 重新核对 Sunshine `3cba9bae` 的批次/FEC 耗时和 Moonlight common `e95feaf4` 的每帧 FEC/缺片状态。原参考仓库未改。
+- 新增编码帧号/传输帧号映射、每片写入等待及接收次序、完整/参考等待结果、准入暂停和逐次反馈，限制每连接首 90 秒。发送/FEC/恢复策略未改。
+- 37 项媒体测试通过；本机 Client、Cloud Node Client/Render development dist SHA 匹配。90 已用完整候选 `iroh-video-diagnostics-20261011` 安装 Cloud Node 3.3.97，314 文件核验。Setup SHA `0F5DB88A3582C512E89F73215CDE1FB0551A3BB4F0CA5DB655C3103D2DD07625`，运行 Render SHA `C14E2CB439E87F052E3C1A338A1B95F2DC2A530E33655B66E455519CEFAF4E4E`。工作区 `D:\112233\iroh-video-diagnostics-20261011`；Server 1.0.56/schema 40、BJ 安装和网络配置不变。
+- 两轮约 20 秒纯视频完成：direct 58.2–60.4 FPS，最大交付间隔约 124ms；Relay 59.8–60.4 FPS，最大约 78ms。此前持续 29–32 FPS 本轮未复现；未改策略，不能据此称为修复。
+- direct 同帧双端对齐发现：wire 522–524 的 53 个连续分片本地 QUIC 已接受、接收侧未观测到，超过 FEC 恢复能力；发送提交每帧不足 0.2ms，QUIC lost 0→61，随后六个完整帧因参考缺失未交付，恢复帧到达后结束约 118ms 停顿。另一约 124ms 停顿分片齐全，但出现发送计数停滞、缓存减少及约 40ms 写入背压。没有发现“足够分片已到却无法组帧”的实例。具体底层丢失/延迟位置仍未确认，不能归为网卡硬件故障。
+- 已清理测试：259 会话均终态；node generation=435，Relay generation=90/15，control_epoch=69，均 fresh/ready。持久变化仅诊断产品包；临时首 90 秒详细日志保留，未更改发送/FEC/恢复策略或网卡设置。原始双端日志压缩保存并记录 SHA。
+- 下一步：区分 QUIC 接受之后的发送排队、UDP 发送及接收交付边界，解释上述两种停顿；依据证据选择修复，不盲调恢复定时器。用户此前叫停的饱和混传/网卡专项不恢复。详细数据、限制及证据见 `20261011_video_diagnostics.md`。
+
 ### Windows/Linux 本次功能交付完成并已推送（2026-10-11）
 
 - A：BJ 新完整 Linux 镜像部署入口升级通过，配置 SHA 未变；强制 BJ 协议检查 120/120 datagrams、6,291,520 bytes 可靠流通过。Windows Relay 随本轮新 Server 完整 Setup 安装通过。

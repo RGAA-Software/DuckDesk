@@ -1,0 +1,14 @@
+{
+    "trace_file":  null,
+    "trace_filter":  null,
+    "service":  "Running",
+    "renders":  [
+                    {
+                        "Id":  14844,
+                        "SessionId":  2
+                    }
+                ],
+    "resets":  [
+
+               ]
+}

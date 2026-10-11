@@ -1,0 +1,32 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+Note: Google Test filter = IrohVideoFlight.DrainedFlightWindowDoesNotCarryOldCongestionIntoTheNextBurst:IrohVideoFlight.PartialProgressKeepsCongestionDebtAndASecondStallStillConstrainsCapture
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from IrohVideoFlight
+[ RUN      ] IrohVideoFlight.DrainedFlightWindowDoesNotCarryOldCongestionIntoTheNextBurst
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(903): error: Value of: flight.CanSend(0, 0, started + std::chrono::milliseconds(602))
+  Actual: false
+Expected: true
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(904): error: Expected equality of these values:
+  flight.Inspect(0, started + std::chrono::milliseconds(602)).budget_bytes
+    Which is: 32768
+  262144
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(905): error: Expected equality of these values:
+  flight.Inspect(0, started + std::chrono::milliseconds(602)).forward_delay_growth_us
+    Which is: 300000
+  0
+
+[  FAILED  ] IrohVideoFlight.DrainedFlightWindowDoesNotCarryOldCongestionIntoTheNextBurst (0 ms)
+[ RUN      ] IrohVideoFlight.PartialProgressKeepsCongestionDebtAndASecondStallStillConstrainsCapture
+[       OK ] IrohVideoFlight.PartialProgressKeepsCongestionDebtAndASecondStallStillConstrainsCapture (0 ms)
+[----------] 2 tests from IrohVideoFlight (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 1 test.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohVideoFlight.DrainedFlightWindowDoesNotCarryOldCongestionIntoTheNextBurst
+
+ 1 FAILED TEST

@@ -1,0 +1,21 @@
+{
+  "route": "direct",
+  "segment": "1",
+  "series": "final_loss",
+  "requested_seconds": 300,
+  "evidence": ".cache\\iroh-native-live-20261011-223625-auto",
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "instance_id": "8fc0732f-4dba-484e-bd6f-2da3f4b809ad",
+  "client_pid": 77980,
+  "session_id": "183392ce-80ec-4eb4-afa9-e867a0666ef9",
+  "sample_started_epoch": 1791729390.6502318,
+  "drag": {
+    "window_found": true,
+    "posted_mouse_messages": 480,
+    "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+  },
+  "sample_ended_epoch": 1791729690.6508663,
+  "state": "connected",
+  "grace_stopped_seconds": 12.37,
+  "grace_stopped": true
+}

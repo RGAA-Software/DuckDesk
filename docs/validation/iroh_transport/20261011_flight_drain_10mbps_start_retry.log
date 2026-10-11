@@ -1,0 +1,12 @@
+EVIDENCE .cache\iroh-native-live-20261011-180406-relay
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\.cache\test_flight_10mbps_live.py", line 21, in <module>
+    instance = helpers['start'](application)
+  File ".cache\test_application_grace_live.py", line 42, in start
+    instance = request('POST', '/api/console/instances', {
+        'request_id': str(uuid.uuid4()), 'application_id': application['id'], 'deployment_id': None})
+  File ".cache\test_bj_application_live.py", line 38, in request
+    response = original_request(method, route, payload)
+  File ".cache\test_application_grace_live.py", line 36, in request
+    raise RuntimeError(f'{method} {route}: HTTP {failure.code} code={failure_payload.get("code", failure_payload.get("error"))}') from None
+RuntimeError: POST /api/console/instances: HTTP 503 code=unavailable

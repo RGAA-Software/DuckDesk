@@ -295,7 +295,8 @@ TEST_F(IrohFrontendTest, RenderModuleRoutesEncoderAndFileOutputToNetClient) {
                                .instance_name = "iroh-module-test",
                                .base_data_path = (std::filesystem::temp_directory_path() / "pixels-iroh-frontend-test").wstring(),
                                .iroh_endpoint_configuration = transport::testing::EndpointConfiguration(),
-                               .device_id = "iroh-test-device"}));
+                               .device_id = "iroh-test-device",
+                               .udp_media_budget_bps = 12'345'000}));
     const auto address = module->Address();
     ASSERT_TRUE(address);
     const auto notifier = std::make_shared<MessageNotifier>(MessageNotifierOptions{.runtime = runtime_});
@@ -325,6 +326,7 @@ TEST_F(IrohFrontendTest, RenderModuleRoutesEncoderAndFileOutputToNetClient) {
     }
     EXPECT_EQ(module->ConnectedClientCount(), 1);
     EXPECT_TRUE(module->HasVideoClient());
+    EXPECT_EQ(module->VideoEncodingBitrate(20'000'000), 8'024'250);
     const EncodedVideoFrameEvent encoded{.type_ = EncodedVideoType::kH264,
                                          .data_ = Data::From(std::string(9000, 0x41)),
                                          .frame_width_ = 640,

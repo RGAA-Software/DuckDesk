@@ -1,0 +1,7 @@
+{
+  "capture": ".cache\\feedback-lag-tcp-capture",
+  "filter_name": "PixelsFeedbackTcp20261011",
+  "acceptance_exit_code": 0,
+  "capture_stop": "Flushing logs...\nMerging metadata...\nLog file: D:\\GoCloud\\GammaRayPremium\\.cache\\feedback-lag-tcp-capture\\relay.etl (No events lost)\n",
+  "filter_cleanup": "Removed all filters.\n"
+}

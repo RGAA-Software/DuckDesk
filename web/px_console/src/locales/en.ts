@@ -186,7 +186,9 @@ export default {
         disconnectGrace: "Disconnect grace (seconds)",
         disconnectGraceHelp:
             "Wait this long after the last client disconnects before stopping the instance. Reconnecting cancels exit. Default: 10 seconds; range: 1–3600. Changes apply to newly started instances. RDP preserves the Windows session and its applications.",
-        bitrate: "Bitrate (kbps)",
+        bitrate: "Media bandwidth budget per connection (kbps)",
+        bandwidthHelp:
+            "10000 kbps = 10 Mbps. Each connection has its own budget, with room reserved for audio, error correction and protocol overhead. The bitrate adapts downward to network conditions. Changes apply to newly started application instances.",
         catalogTitle: "Application catalog",
         codec: "Codec",
         create: "Create application",

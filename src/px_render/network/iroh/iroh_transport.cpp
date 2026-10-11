@@ -83,7 +83,8 @@ bool IrohTransport::UpdateRelays(const std::string& relays_json) {
 }
 
 bool IrohTransport::Accept(AcceptedIrohFrontend accepted) {
-    const auto session = std::make_shared<IrohSession>(std::move(accepted), MakeImmediateEventDispatcher());
+    const auto session = std::make_shared<IrohSession>(std::move(accepted), MakeImmediateEventDispatcher(),
+                                                     transport::VideoSendBudget{configuration_.udp_media_budget_bps});
     if (!session->Start(runtime_->Executor(PxAsyncLane::kWorker), configuration_.rdp_proxy_port)) return false;
     std::lock_guard lock(mutex_);
     if (!running_ || !IsEnabled()) return false;
@@ -147,7 +148,7 @@ bool IrohTransport::CanEncodeVideo(const std::string& monitor) const {
     }
     bool ready{true};
     for (const auto& session : Sessions()) {
-        if (session->HasVideo() && !session->CanEncodeVideo(stream)) ready = false;
+        if (session->HasVideo() && !session->CanEncodeVideo(stream, monitor)) ready = false;
     }
     return ready;
 }

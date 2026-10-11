@@ -1,0 +1,16 @@
+{
+  "evidence": ".cache\\iroh-native-live-20261011-180454-relay",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "instance_id": "a2e3461f-341b-4587-b51c-416c09bfd202",
+      "session_id": "9d8722ca-0599-4f9c-a65c-8da6a8b3cce8",
+      "state": "connected",
+      "client_pid": 32516,
+      "capture_exit": null,
+      "sample_started_epoch": 1791713099.131822,
+      "sample_ended_epoch": 1791713159.13233,
+      "grace_stopped": true
+    }
+  ]
+}

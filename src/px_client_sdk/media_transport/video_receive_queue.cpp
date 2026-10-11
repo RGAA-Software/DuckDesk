@@ -72,14 +72,16 @@ VideoQueueOutput VideoReceiveQueue::Feed(std::span<const std::uint8_t> packet, s
     }
 
     if (!block_ || frame != frame_index_ || current_block != next_block_) {
-        if (observed_frame_ && frame != frame_index_)
+        if (observed_frame_ && frame != frame_index_) {
             statistics_.unrecoverable_frames += static_cast<std::uint32_t>(frame - frame_index_);
+            output.final_frame_loss = true;
+        }
         observed_frame_ = true;
         const auto expected_block = frame == frame_index_ ? next_block_ : 0;
         if (current_block != expected_block) {
             ++statistics_.unrecoverable_frames;
-            if (!reported_loss_)
-                Lose(output, frame_index_, false);
+            output.final_frame_loss = true;
+            if (!reported_loss_) Lose(output, frame_index_, false);
             frame_index_ = frame + 1;
             next_block_ = 0;
             block_.reset();
@@ -88,8 +90,7 @@ VideoQueueOutput VideoReceiveQueue::Feed(std::span<const std::uint8_t> packet, s
             return output;
         }
         if (frame != frame_index_) {
-            if (frame_index_ + 1 != frame || !reported_loss_)
-                Lose(output, frame - 1, false);
+            if (frame_index_ + 1 != frame || !reported_loss_) Lose(output, frame - 1, false);
             staged_.clear();
         }
         frame_index_ = frame;

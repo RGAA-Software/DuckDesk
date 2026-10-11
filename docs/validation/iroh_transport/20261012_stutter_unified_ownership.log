@@ -1,0 +1,15 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 150 characters.

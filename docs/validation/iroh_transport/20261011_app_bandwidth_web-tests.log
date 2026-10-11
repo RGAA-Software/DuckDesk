@@ -1,0 +1,16 @@
+
+> pixels-console@0.0.0 test:unit
+> vitest --run src/views/apps/ApplicationCatalogCard.test.ts src/locales/catalog_parity.test.ts src/util/application_validation.test.ts
+
+
+ RUN  v3.2.4 D:/GoCloud/GammaRayPremium/web/px_console
+
+ ✓ src/locales/catalog_parity.test.ts (2 tests) 5ms
+ ✓ src/util/application_validation.test.ts (26 tests) 9ms
+ ✓ src/views/apps/ApplicationCatalogCard.test.ts (3 tests) 100ms
+
+ Test Files  3 passed (3)
+      Tests  31 passed (31)
+   Start at  12:32:41
+   Duration  16.61s (transform 1.18s, setup 0ms, collect 4.06s, tests 114ms, environment 41.00s, prepare 1.33s)
+

@@ -16,15 +16,15 @@ bool ExerciseCaptionClick(const HWND nativeWindow, const bool expectedMaximized)
     if (!GetClientRect(nativeWindow, &bounds)) return false;
     const UINT dpi{GetDpiForWindow(nativeWindow)};
     const int buttonWidth{MulDiv(px::desktop::kCaptionButtonLogicalWidth, static_cast<int>(dpi), USER_DEFAULT_SCREEN_DPI)};
-    POINT clickPosition{bounds.right - buttonWidth * 3 / 2, buttonWidth / 2};
-    if (!ClientToScreen(nativeWindow, &clickPosition)) return false;
-    SetCursorPos(clickPosition.x, clickPosition.y);
-    std::array<INPUT, 2> click{};
-    click[0].type = INPUT_MOUSE;
-    click[0].mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
-    click[1].type = INPUT_MOUSE;
-    click[1].mi.dwFlags = MOUSEEVENTF_LEFTUP;
-    if (SendInput(static_cast<UINT>(click.size()), click.data(), sizeof(INPUT)) != click.size()) return false;
+    const POINT client_position{bounds.right - buttonWidth * 3 / 2, buttonWidth / 2};
+    POINT screen_position{client_position};
+    if (!ClientToScreen(nativeWindow, &screen_position)) return false;
+    // Exercise the real hit-test/capture/release messages on this owned window.
+    // Global SendInput can land on a foreground window changed by the operator.
+    const LPARAM hit_position{MAKELPARAM(screen_position.x, screen_position.y)};
+    if (SendMessageW(nativeWindow, WM_NCHITTEST, 0, hit_position) != HTMAXBUTTON) return false;
+    static_cast<void>(SendMessageW(nativeWindow, WM_NCLBUTTONDOWN, HTMAXBUTTON, hit_position));
+    static_cast<void>(SendMessageW(nativeWindow, WM_LBUTTONUP, 0, MAKELPARAM(client_position.x, client_position.y)));
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds{400};
     do {
         SDL_Event event{};

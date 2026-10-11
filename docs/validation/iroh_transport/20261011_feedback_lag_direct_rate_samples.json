@@ -1,0 +1,933 @@
+[
+  {
+    "offset_us": 0,
+    "origin_us": 91341464661,
+    "rtt_us": 11083,
+    "sent_packets": 74,
+    "lost_packets": 0
+  },
+  {
+    "offset_us": 514290,
+    "origin_us": 91341978951,
+    "rtt_us": 92586,
+    "sent_packets": 564,
+    "lost_packets": 100
+  },
+  {
+    "offset_us": 1057183,
+    "origin_us": 91342521844,
+    "rtt_us": 83070,
+    "sent_packets": 856,
+    "lost_packets": 109
+  },
+  {
+    "offset_us": 1565027,
+    "origin_us": 91343029688,
+    "rtt_us": 67420,
+    "sent_packets": 1268,
+    "lost_packets": 109
+  },
+  {
+    "offset_us": 2079974,
+    "origin_us": 91343544635,
+    "rtt_us": 16679,
+    "sent_packets": 1839,
+    "lost_packets": 144
+  },
+  {
+    "offset_us": 2589822,
+    "origin_us": 91344054483,
+    "rtt_us": 5628,
+    "sent_packets": 2489,
+    "lost_packets": 144
+  },
+  {
+    "offset_us": 3090395,
+    "origin_us": 91344555056,
+    "rtt_us": 16504,
+    "sent_packets": 3227,
+    "lost_packets": 144
+  },
+  {
+    "offset_us": 3639880,
+    "origin_us": 91345104541,
+    "rtt_us": 77156,
+    "sent_packets": 3737,
+    "lost_packets": 184
+  },
+  {
+    "offset_us": 4146124,
+    "origin_us": 91345610785,
+    "rtt_us": 52176,
+    "sent_packets": 4138,
+    "lost_packets": 197
+  },
+  {
+    "offset_us": 4656060,
+    "origin_us": 91346120721,
+    "rtt_us": 11967,
+    "sent_packets": 4848,
+    "lost_packets": 197
+  },
+  {
+    "offset_us": 5173611,
+    "origin_us": 91346638272,
+    "rtt_us": 41795,
+    "sent_packets": 5425,
+    "lost_packets": 258
+  },
+  {
+    "offset_us": 5673784,
+    "origin_us": 91347138445,
+    "rtt_us": 22829,
+    "sent_packets": 5949,
+    "lost_packets": 282
+  },
+  {
+    "offset_us": 6189346,
+    "origin_us": 91347654007,
+    "rtt_us": 85446,
+    "sent_packets": 6455,
+    "lost_packets": 282
+  },
+  {
+    "offset_us": 6689993,
+    "origin_us": 91348154654,
+    "rtt_us": 85819,
+    "sent_packets": 6911,
+    "lost_packets": 321
+  },
+  {
+    "offset_us": 7223870,
+    "origin_us": 91348688531,
+    "rtt_us": 63966,
+    "sent_packets": 7226,
+    "lost_packets": 337
+  },
+  {
+    "offset_us": 7740305,
+    "origin_us": 91349204966,
+    "rtt_us": 12576,
+    "sent_packets": 7664,
+    "lost_packets": 337
+  },
+  {
+    "offset_us": 8240593,
+    "origin_us": 91349705254,
+    "rtt_us": 4608,
+    "sent_packets": 8185,
+    "lost_packets": 337
+  },
+  {
+    "offset_us": 8756805,
+    "origin_us": 91350221466,
+    "rtt_us": 5269,
+    "sent_packets": 8720,
+    "lost_packets": 337
+  },
+  {
+    "offset_us": 9273591,
+    "origin_us": 91350738252,
+    "rtt_us": 89055,
+    "sent_packets": 9254,
+    "lost_packets": 398
+  },
+  {
+    "offset_us": 9790331,
+    "origin_us": 91351254992,
+    "rtt_us": 32598,
+    "sent_packets": 9714,
+    "lost_packets": 469
+  },
+  {
+    "offset_us": 10306077,
+    "origin_us": 91351770738,
+    "rtt_us": 6847,
+    "sent_packets": 10242,
+    "lost_packets": 469
+  },
+  {
+    "offset_us": 10806442,
+    "origin_us": 91352271103,
+    "rtt_us": 11508,
+    "sent_packets": 10810,
+    "lost_packets": 469
+  },
+  {
+    "offset_us": 11306798,
+    "origin_us": 91352771459,
+    "rtt_us": 81009,
+    "sent_packets": 11329,
+    "lost_packets": 469
+  },
+  {
+    "offset_us": 11823393,
+    "origin_us": 91353288054,
+    "rtt_us": 5917,
+    "sent_packets": 11767,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 12340149,
+    "origin_us": 91353804810,
+    "rtt_us": 6406,
+    "sent_packets": 12367,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 12845211,
+    "origin_us": 91354309872,
+    "rtt_us": 5312,
+    "sent_packets": 12941,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 13356831,
+    "origin_us": 91354821492,
+    "rtt_us": 5232,
+    "sent_packets": 13475,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 13873363,
+    "origin_us": 91355338024,
+    "rtt_us": 5055,
+    "sent_packets": 14076,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 14373428,
+    "origin_us": 91355838089,
+    "rtt_us": 17666,
+    "sent_packets": 14644,
+    "lost_packets": 562
+  },
+  {
+    "offset_us": 14879753,
+    "origin_us": 91356344414,
+    "rtt_us": 27346,
+    "sent_packets": 15163,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 15389509,
+    "origin_us": 91356854170,
+    "rtt_us": 5094,
+    "sent_packets": 15828,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 15890032,
+    "origin_us": 91357354693,
+    "rtt_us": 10973,
+    "sent_packets": 16386,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 16406142,
+    "origin_us": 91357870803,
+    "rtt_us": 4462,
+    "sent_packets": 16983,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 16911905,
+    "origin_us": 91358376566,
+    "rtt_us": 4609,
+    "sent_packets": 17654,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 17422674,
+    "origin_us": 91358887335,
+    "rtt_us": 11510,
+    "sent_packets": 18278,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 17923151,
+    "origin_us": 91359387812,
+    "rtt_us": 4068,
+    "sent_packets": 18909,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 18423204,
+    "origin_us": 91359887865,
+    "rtt_us": 6606,
+    "sent_packets": 19650,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 18928311,
+    "origin_us": 91360392972,
+    "rtt_us": 4308,
+    "sent_packets": 20263,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 19439995,
+    "origin_us": 91360904656,
+    "rtt_us": 4334,
+    "sent_packets": 20970,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 19940285,
+    "origin_us": 91361404946,
+    "rtt_us": 3784,
+    "sent_packets": 21766,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 20440286,
+    "origin_us": 91361904947,
+    "rtt_us": 7589,
+    "sent_packets": 22386,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 20945078,
+    "origin_us": 91362409739,
+    "rtt_us": 4725,
+    "sent_packets": 23083,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 21457082,
+    "origin_us": 91362921743,
+    "rtt_us": 12899,
+    "sent_packets": 23879,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 21973102,
+    "origin_us": 91363437763,
+    "rtt_us": 4564,
+    "sent_packets": 24524,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 22473749,
+    "origin_us": 91363938410,
+    "rtt_us": 8493,
+    "sent_packets": 25278,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 22978778,
+    "origin_us": 91364443439,
+    "rtt_us": 4818,
+    "sent_packets": 26132,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 23490184,
+    "origin_us": 91364954845,
+    "rtt_us": 4734,
+    "sent_packets": 26781,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 24006745,
+    "origin_us": 91365471406,
+    "rtt_us": 3881,
+    "sent_packets": 27505,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 24522528,
+    "origin_us": 91365987189,
+    "rtt_us": 6595,
+    "sent_packets": 28307,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 25023435,
+    "origin_us": 91366488096,
+    "rtt_us": 4845,
+    "sent_packets": 28923,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 25540239,
+    "origin_us": 91367004900,
+    "rtt_us": 6180,
+    "sent_packets": 29646,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 26056115,
+    "origin_us": 91367520776,
+    "rtt_us": 7327,
+    "sent_packets": 30445,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 26556333,
+    "origin_us": 91368020994,
+    "rtt_us": 4466,
+    "sent_packets": 31055,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 27056693,
+    "origin_us": 91368521354,
+    "rtt_us": 5147,
+    "sent_packets": 31757,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 27556747,
+    "origin_us": 91369021408,
+    "rtt_us": 5135,
+    "sent_packets": 32516,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 28073391,
+    "origin_us": 91369538052,
+    "rtt_us": 4051,
+    "sent_packets": 33163,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 28589946,
+    "origin_us": 91370054607,
+    "rtt_us": 4241,
+    "sent_packets": 33903,
+    "lost_packets": 586
+  },
+  {
+    "offset_us": 29105979,
+    "origin_us": 91370570640,
+    "rtt_us": 29357,
+    "sent_packets": 34677,
+    "lost_packets": 600
+  },
+  {
+    "offset_us": 29606063,
+    "origin_us": 91371070724,
+    "rtt_us": 62680,
+    "sent_packets": 35295,
+    "lost_packets": 745
+  },
+  {
+    "offset_us": 30106336,
+    "origin_us": 91371570997,
+    "rtt_us": 69267,
+    "sent_packets": 35739,
+    "lost_packets": 881
+  },
+  {
+    "offset_us": 30606610,
+    "origin_us": 91372071271,
+    "rtt_us": 26015,
+    "sent_packets": 36194,
+    "lost_packets": 1013
+  },
+  {
+    "offset_us": 31123161,
+    "origin_us": 91372587822,
+    "rtt_us": 4114,
+    "sent_packets": 36847,
+    "lost_packets": 1013
+  },
+  {
+    "offset_us": 31628073,
+    "origin_us": 91373092734,
+    "rtt_us": 13638,
+    "sent_packets": 37516,
+    "lost_packets": 1013
+  },
+  {
+    "offset_us": 32140246,
+    "origin_us": 91373604907,
+    "rtt_us": 62951,
+    "sent_packets": 38221,
+    "lost_packets": 1074
+  },
+  {
+    "offset_us": 32656074,
+    "origin_us": 91374120735,
+    "rtt_us": 90210,
+    "sent_packets": 38729,
+    "lost_packets": 1251
+  },
+  {
+    "offset_us": 33239865,
+    "origin_us": 91374704526,
+    "rtt_us": 78737,
+    "sent_packets": 39321,
+    "lost_packets": 1361
+  },
+  {
+    "offset_us": 33744680,
+    "origin_us": 91375209341,
+    "rtt_us": 6032,
+    "sent_packets": 39945,
+    "lost_packets": 1415
+  },
+  {
+    "offset_us": 34256564,
+    "origin_us": 91375721225,
+    "rtt_us": 6117,
+    "sent_packets": 40521,
+    "lost_packets": 1415
+  },
+  {
+    "offset_us": 34756889,
+    "origin_us": 91376221550,
+    "rtt_us": 29880,
+    "sent_packets": 41090,
+    "lost_packets": 1415
+  },
+  {
+    "offset_us": 35273439,
+    "origin_us": 91376738100,
+    "rtt_us": 29947,
+    "sent_packets": 41552,
+    "lost_packets": 1429
+  },
+  {
+    "offset_us": 35778572,
+    "origin_us": 91377243233,
+    "rtt_us": 22206,
+    "sent_packets": 41868,
+    "lost_packets": 1456
+  },
+  {
+    "offset_us": 36290076,
+    "origin_us": 91377754737,
+    "rtt_us": 5655,
+    "sent_packets": 42455,
+    "lost_packets": 1456
+  },
+  {
+    "offset_us": 36806882,
+    "origin_us": 91378271543,
+    "rtt_us": 68471,
+    "sent_packets": 43025,
+    "lost_packets": 1456
+  },
+  {
+    "offset_us": 37307244,
+    "origin_us": 91378771905,
+    "rtt_us": 45588,
+    "sent_packets": 43379,
+    "lost_packets": 1511
+  },
+  {
+    "offset_us": 37813659,
+    "origin_us": 91379278320,
+    "rtt_us": 26045,
+    "sent_packets": 43691,
+    "lost_packets": 1511
+  },
+  {
+    "offset_us": 38322639,
+    "origin_us": 91379787300,
+    "rtt_us": 91665,
+    "sent_packets": 44176,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 38823232,
+    "origin_us": 91380287893,
+    "rtt_us": 84258,
+    "sent_packets": 44450,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 39339687,
+    "origin_us": 91380804348,
+    "rtt_us": 18401,
+    "sent_packets": 44839,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 39840211,
+    "origin_us": 91381304872,
+    "rtt_us": 10263,
+    "sent_packets": 45296,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 40356744,
+    "origin_us": 91381821405,
+    "rtt_us": 4148,
+    "sent_packets": 45729,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 40873208,
+    "origin_us": 91382337869,
+    "rtt_us": 14788,
+    "sent_packets": 46171,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 41373451,
+    "origin_us": 91382838112,
+    "rtt_us": 79172,
+    "sent_packets": 46613,
+    "lost_packets": 1576
+  },
+  {
+    "offset_us": 41889770,
+    "origin_us": 91383354431,
+    "rtt_us": 10276,
+    "sent_packets": 47042,
+    "lost_packets": 1624
+  },
+  {
+    "offset_us": 42394519,
+    "origin_us": 91383859180,
+    "rtt_us": 6023,
+    "sent_packets": 47472,
+    "lost_packets": 1624
+  },
+  {
+    "offset_us": 42908060,
+    "origin_us": 91384372721,
+    "rtt_us": 15582,
+    "sent_packets": 47943,
+    "lost_packets": 1624
+  },
+  {
+    "offset_us": 43422756,
+    "origin_us": 91384887417,
+    "rtt_us": 22416,
+    "sent_packets": 48338,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 43939388,
+    "origin_us": 91385404049,
+    "rtt_us": 5737,
+    "sent_packets": 48809,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 44445155,
+    "origin_us": 91385909816,
+    "rtt_us": 6013,
+    "sent_packets": 49302,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 44956430,
+    "origin_us": 91386421091,
+    "rtt_us": 4956,
+    "sent_packets": 49748,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 45456884,
+    "origin_us": 91386921545,
+    "rtt_us": 35824,
+    "sent_packets": 50162,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 45973117,
+    "origin_us": 91387437778,
+    "rtt_us": 7802,
+    "sent_packets": 50601,
+    "lost_packets": 1656
+  },
+  {
+    "offset_us": 46478438,
+    "origin_us": 91387943099,
+    "rtt_us": 26933,
+    "sent_packets": 51063,
+    "lost_packets": 1728
+  },
+  {
+    "offset_us": 46990130,
+    "origin_us": 91388454791,
+    "rtt_us": 107849,
+    "sent_packets": 51466,
+    "lost_packets": 1786
+  },
+  {
+    "offset_us": 47490161,
+    "origin_us": 91388954822,
+    "rtt_us": 8496,
+    "sent_packets": 51892,
+    "lost_packets": 1810
+  },
+  {
+    "offset_us": 48072682,
+    "origin_us": 91389537343,
+    "rtt_us": 103078,
+    "sent_packets": 52332,
+    "lost_packets": 1852
+  },
+  {
+    "offset_us": 48578709,
+    "origin_us": 91390043370,
+    "rtt_us": 10014,
+    "sent_packets": 52674,
+    "lost_packets": 1852
+  },
+  {
+    "offset_us": 49089189,
+    "origin_us": 91390553850,
+    "rtt_us": 4054,
+    "sent_packets": 53193,
+    "lost_packets": 1852
+  },
+  {
+    "offset_us": 49589782,
+    "origin_us": 91391054443,
+    "rtt_us": 5021,
+    "sent_packets": 53663,
+    "lost_packets": 1852
+  },
+  {
+    "offset_us": 50089809,
+    "origin_us": 91391554470,
+    "rtt_us": 85351,
+    "sent_packets": 54110,
+    "lost_packets": 1852
+  },
+  {
+    "offset_us": 50623395,
+    "origin_us": 91392088056,
+    "rtt_us": 90159,
+    "sent_packets": 54459,
+    "lost_packets": 1910
+  },
+  {
+    "offset_us": 51139180,
+    "origin_us": 91392603841,
+    "rtt_us": 29855,
+    "sent_packets": 54875,
+    "lost_packets": 1937
+  },
+  {
+    "offset_us": 51639308,
+    "origin_us": 91393103969,
+    "rtt_us": 5526,
+    "sent_packets": 55355,
+    "lost_packets": 1937
+  },
+  {
+    "offset_us": 52139720,
+    "origin_us": 91393604381,
+    "rtt_us": 96665,
+    "sent_packets": 55801,
+    "lost_packets": 1982
+  },
+  {
+    "offset_us": 52639988,
+    "origin_us": 91394104649,
+    "rtt_us": 89215,
+    "sent_packets": 56156,
+    "lost_packets": 2002
+  },
+  {
+    "offset_us": 53144859,
+    "origin_us": 91394609520,
+    "rtt_us": 28861,
+    "sent_packets": 56476,
+    "lost_packets": 2068
+  },
+  {
+    "offset_us": 53656650,
+    "origin_us": 91395121311,
+    "rtt_us": 7202,
+    "sent_packets": 56931,
+    "lost_packets": 2068
+  },
+  {
+    "offset_us": 54173278,
+    "origin_us": 91395637939,
+    "rtt_us": 86677,
+    "sent_packets": 57287,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 54673324,
+    "origin_us": 91396137985,
+    "rtt_us": 66179,
+    "sent_packets": 57595,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 55244939,
+    "origin_us": 91396709600,
+    "rtt_us": 69865,
+    "sent_packets": 57954,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 55756445,
+    "origin_us": 91397221106,
+    "rtt_us": 5684,
+    "sent_packets": 58434,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 56256507,
+    "origin_us": 91397721168,
+    "rtt_us": 8318,
+    "sent_packets": 58858,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 56772904,
+    "origin_us": 91398237565,
+    "rtt_us": 4633,
+    "sent_packets": 59335,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 57289801,
+    "origin_us": 91398754462,
+    "rtt_us": 4083,
+    "sent_packets": 59772,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 57805924,
+    "origin_us": 91399270585,
+    "rtt_us": 5498,
+    "sent_packets": 60231,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 58306135,
+    "origin_us": 91399770796,
+    "rtt_us": 5267,
+    "sent_packets": 60734,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 58806428,
+    "origin_us": 91400271089,
+    "rtt_us": 5702,
+    "sent_packets": 61198,
+    "lost_packets": 2076
+  },
+  {
+    "offset_us": 59323142,
+    "origin_us": 91400787803,
+    "rtt_us": 3701,
+    "sent_packets": 61676,
+    "lost_packets": 2088
+  },
+  {
+    "offset_us": 59823240,
+    "origin_us": 91401287901,
+    "rtt_us": 5374,
+    "sent_packets": 62219,
+    "lost_packets": 2088
+  },
+  {
+    "offset_us": 60339128,
+    "origin_us": 91401803789,
+    "rtt_us": 11008,
+    "sent_packets": 62757,
+    "lost_packets": 2088
+  },
+  {
+    "offset_us": 60839856,
+    "origin_us": 91402304517,
+    "rtt_us": 5222,
+    "sent_packets": 63284,
+    "lost_packets": 2088
+  },
+  {
+    "offset_us": 61340115,
+    "origin_us": 91402804776,
+    "rtt_us": 4693,
+    "sent_packets": 63858,
+    "lost_packets": 2088
+  },
+  {
+    "offset_us": 61844688,
+    "origin_us": 91403309349,
+    "rtt_us": 17252,
+    "sent_packets": 64402,
+    "lost_packets": 2091
+  },
+  {
+    "offset_us": 62356146,
+    "origin_us": 91403820807,
+    "rtt_us": 11477,
+    "sent_packets": 64988,
+    "lost_packets": 2091
+  },
+  {
+    "offset_us": 62873313,
+    "origin_us": 91404337974,
+    "rtt_us": 4252,
+    "sent_packets": 65645,
+    "lost_packets": 2106
+  },
+  {
+    "offset_us": 63389300,
+    "origin_us": 91404853961,
+    "rtt_us": 4477,
+    "sent_packets": 66220,
+    "lost_packets": 2106
+  },
+  {
+    "offset_us": 63895836,
+    "origin_us": 91405360497,
+    "rtt_us": 4552,
+    "sent_packets": 66826,
+    "lost_packets": 2128
+  },
+  {
+    "offset_us": 64406275,
+    "origin_us": 91405870936,
+    "rtt_us": 4524,
+    "sent_packets": 67578,
+    "lost_packets": 2128
+  },
+  {
+    "offset_us": 64906664,
+    "origin_us": 91406371325,
+    "rtt_us": 7332,
+    "sent_packets": 68192,
+    "lost_packets": 2128
+  },
+  {
+    "offset_us": 65423077,
+    "origin_us": 91406887738,
+    "rtt_us": 6437,
+    "sent_packets": 68899,
+    "lost_packets": 2128
+  },
+  {
+    "offset_us": 65928113,
+    "origin_us": 91407392774,
+    "rtt_us": 4059,
+    "sent_packets": 69739,
+    "lost_packets": 2128
+  },
+  {
+    "offset_us": 66440526,
+    "origin_us": 91407905187,
+    "rtt_us": 10428,
+    "sent_packets": 70377,
+    "lost_packets": 2193
+  },
+  {
+    "offset_us": 66956184,
+    "origin_us": 91408420845,
+    "rtt_us": 4103,
+    "sent_packets": 71094,
+    "lost_packets": 2193
+  },
+  {
+    "offset_us": 67456919,
+    "origin_us": 91408921580,
+    "rtt_us": 20329,
+    "sent_packets": 71876,
+    "lost_packets": 2193
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "filter_add": "Filter added.\n",
+  "capture_start": "\nLogger Parameters:\n    Logger name:        PktMon\n    Logging mode:       Multi-File\n    Log file:           D:\\GoCloud\\GammaRayPremium\\.cache\\socket-boundary-20261011\\local%d.etl\n    Max file size:      512 MB\n    Memory used:        768 MB\n\nCollected Data:\n    Packet counters, packet capture\n\nCapture Type:\n    All packets\n\nMonitored Components:\n     Id Driver       Name                                 \n     -- ------       ----                                 \n    142 rt640x64.sys Realtek Gaming GbE Family Controller \n    146 tcpip.sys    TCPIP                                \n\nPacket Filters:\n     # Name                 Protocol Port \n     - ----                 -------- ---- \n     1 PixelsSocketBoundary UDP      4613 \n",
+  "test_exit": 0,
+  "capture_stop": "Flushing logs...\nMerging metadata...\nLog file: D:\\GoCloud\\GammaRayPremium\\.cache\\socket-boundary-20261011\\local1.etl (No events lost)\n",
+  "filter_remove": "Removed all filters.\n",
+  "nic_local1": "Processing...\n\nPackets total:       79606\nPacket drop count:   0\nPackets formatted:   39803\nFormatted file:      .cache\\socket-boundary-20261011\\local1-nic.pcapng\n",
+  "tcpip_local1": "Processing...\n\nPackets total:       79606\nPacket drop count:   0\nPackets formatted:   39803\nFormatted file:      .cache\\socket-boundary-20261011\\local1-tcpip.pcapng\n"
+}

@@ -1,0 +1,63 @@
+{
+  "route": "direct",
+  "started_epoch": 1791744711.977295,
+  "samples": [
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_1",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "weighted_present_fps": 60.01557792858011,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.748,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.496232,
+      "passed_performance": true
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_2",
+      "receive_gaps": 1,
+      "maximum_receive_gap_ms": 137.3,
+      "present_gaps": 0,
+      "weighted_present_fps": 59.9907528017514,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.568,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.551638,
+      "passed_performance": true
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_3",
+      "receive_gaps": 1,
+      "maximum_receive_gap_ms": 114.4,
+      "present_gaps": 1,
+      "weighted_present_fps": 59.99840466552357,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.204,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.573279,
+      "passed_performance": true
+    }
+  ],
+  "complete": true,
+  "ended_epoch": 1791745689.186038,
+  "note": "Performance metrics only. Every >100ms gap still needs source/path classification; this does not mark the task complete."
+}

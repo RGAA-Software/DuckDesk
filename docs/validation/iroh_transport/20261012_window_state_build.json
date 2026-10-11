@@ -1,0 +1,12 @@
+{
+  "px_client": {
+    "sha256": "29A13FD16156D433E4601D59E970CFCA024FE8AFE2E4DAEF3401B60F228A79EA",
+    "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe"
+  },
+  "px_panel": {
+    "sha256": "8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F",
+    "build": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe"
+  }
+}

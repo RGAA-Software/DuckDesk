@@ -1,0 +1,16 @@
+[
+  {
+    "kind": "game_hook",
+    "state": "connected",
+    "grace_stopped": true,
+    "sample_seconds": 10.000452280044556,
+    "delivered_frames": 544,
+    "fps_between_deliveries": 54.45448191975816,
+    "max_gap_ms": 198.132,
+    "p99_gap_ms": 91.306,
+    "gaps_over_100ms": 5,
+    "receive_windows": [
+      "[2026-10-11 15:02:39.058][thread 43292][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=281, fps=55.4, max_gap_ms=197.9, gaps_gt_100ms=2, idr=0, rfi=0"
+    ]
+  }
+]

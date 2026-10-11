@@ -1,0 +1,1289 @@
+{
+  "capture": ".cache\\feedback-lag-tcp-capture\\relay.pcapng",
+  "captured_packets": 92136,
+  "limitations": "NIC capture uses offload and 96-byte truncation. Overlap can be reordering, duplicate capture or retransmission; no TLS decryption. TCP gaps alone do not distinguish host scheduling from upstream network.",
+  "flows": [
+    {
+      "flow": "49.232.233.61:4605-local:14599",
+      "packets": 19,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1223,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 187,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "39.71.45.66:4605-local:14598",
+      "packets": 15,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1264,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 24,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "39.71.45.66:4605-local:14602",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "49.232.233.61:4605-local:14603",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "39.71.45.66:4605-local:14604",
+      "packets": 92051,
+      "directions": {
+        "receive": {
+          "payload_bytes": 34758683,
+          "overlap_count": 886,
+          "overlap_samples": [
+            {
+              "time": 1791716393.763356,
+              "direction": "receive",
+              "seq": 1688015993,
+              "ack": 4292162273,
+              "window": 8195,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716393.94718,
+              "direction": "receive",
+              "seq": 1688178169,
+              "ack": 4292169630,
+              "window": 8190,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.32847,
+              "direction": "receive",
+              "seq": 1688686573,
+              "ack": 4292183540,
+              "window": 8190,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.408227,
+              "direction": "receive",
+              "seq": 1688806188,
+              "ack": 4292187636,
+              "window": 8191,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.800915,
+              "direction": "receive",
+              "seq": 1689153229,
+              "ack": 4292202831,
+              "window": 8190,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.947942,
+              "direction": "receive",
+              "seq": 1689297937,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.947942,
+              "direction": "receive",
+              "seq": 1689299377,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.948009,
+              "direction": "receive",
+              "seq": 1689300817,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.948009,
+              "direction": "receive",
+              "seq": 1689302257,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.94801,
+              "direction": "receive",
+              "seq": 1689303697,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 24
+            },
+            {
+              "time": 1791716394.94801,
+              "direction": "receive",
+              "seq": 1689303721,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716394.948011,
+              "direction": "receive",
+              "seq": 1689305161,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 90
+            },
+            {
+              "time": 1791716394.948011,
+              "direction": "receive",
+              "seq": 1689305251,
+              "ack": 4292206903,
+              "window": 8192,
+              "flags": 16,
+              "payload_bytes": 1220
+            },
+            {
+              "time": 1791716395.15675,
+              "direction": "receive",
+              "seq": 1689581890,
+              "ack": 4292212943,
+              "window": 8193,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216283,
+              "direction": "receive",
+              "seq": 1689644466,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216403,
+              "direction": "receive",
+              "seq": 1689645906,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216404,
+              "direction": "receive",
+              "seq": 1689647346,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216446,
+              "direction": "receive",
+              "seq": 1689648786,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 16,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216501,
+              "direction": "receive",
+              "seq": 1689650226,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716395.216594,
+              "direction": "receive",
+              "seq": 1689651666,
+              "ack": 4292214570,
+              "window": 8193,
+              "flags": 16,
+              "payload_bytes": 1440
+            }
+          ],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 1994828,
+          "overlap_count": 7,
+          "overlap_samples": [
+            {
+              "time": 1791716407.890315,
+              "direction": "send",
+              "seq": 4292681017,
+              "ack": 1704058260,
+              "window": 2058,
+              "flags": 24,
+              "payload_bytes": 308
+            },
+            {
+              "time": 1791716408.071002,
+              "direction": "send",
+              "seq": 4292688471,
+              "ack": 1704311164,
+              "window": 2057,
+              "flags": 24,
+              "payload_bytes": 936
+            },
+            {
+              "time": 1791716408.363132,
+              "direction": "send",
+              "seq": 4292699211,
+              "ack": 1704633316,
+              "window": 2058,
+              "flags": 24,
+              "payload_bytes": 617
+            },
+            {
+              "time": 1791716419.658089,
+              "direction": "send",
+              "seq": 4293095549,
+              "ack": 1717305752,
+              "window": 2058,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716419.665626,
+              "direction": "send",
+              "seq": 4293099366,
+              "ack": 1717336034,
+              "window": 2054,
+              "flags": 24,
+              "payload_bytes": 436
+            },
+            {
+              "time": 1791716420.168807,
+              "direction": "send",
+              "seq": 4293106523,
+              "ack": 1717553190,
+              "window": 2058,
+              "flags": 24,
+              "payload_bytes": 1440
+            },
+            {
+              "time": 1791716426.014783,
+              "direction": "send",
+              "seq": 4293243880,
+              "ack": 1721597856,
+              "window": 4113,
+              "flags": 24,
+              "payload_bytes": 1440
+            }
+          ],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {
+            "0": {
+              "receive_bytes": 9200,
+              "send_bytes": 98,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "10": {
+              "receive_bytes": 7875,
+              "send_bytes": 211,
+              "receive_packets": 19,
+              "send_packets": 4
+            },
+            "20": {
+              "receive_bytes": 0,
+              "send_bytes": 342,
+              "receive_packets": 0,
+              "send_packets": 4
+            },
+            "30": {
+              "receive_bytes": 9200,
+              "send_bytes": 98,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "40": {
+              "receive_bytes": 7078,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 0
+            },
+            "50": {
+              "receive_bytes": 0,
+              "send_bytes": 211,
+              "receive_packets": 0,
+              "send_packets": 3
+            },
+            "60": {
+              "receive_bytes": 4993,
+              "send_bytes": 212,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "70": {
+              "receive_bytes": 0,
+              "send_bytes": 130,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "80": {
+              "receive_bytes": 4870,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "90": {
+              "receive_bytes": 6156,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "100": {
+              "receive_bytes": 1714,
+              "send_bytes": 0,
+              "receive_packets": 7,
+              "send_packets": 6
+            },
+            "110": {
+              "receive_bytes": 7850,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 8
+            },
+            "120": {
+              "receive_bytes": 9133,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 6
+            },
+            "130": {
+              "receive_bytes": 0,
+              "send_bytes": 130,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "140": {
+              "receive_bytes": 9208,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 6
+            },
+            "150": {
+              "receive_bytes": 71094,
+              "send_bytes": 788,
+              "receive_packets": 145,
+              "send_packets": 124
+            },
+            "170": {
+              "receive_bytes": 19509,
+              "send_bytes": 230,
+              "receive_packets": 20,
+              "send_packets": 17
+            },
+            "180": {
+              "receive_bytes": 0,
+              "send_bytes": 230,
+              "receive_packets": 0,
+              "send_packets": 2
+            },
+            "190": {
+              "receive_bytes": 10446,
+              "send_bytes": 476,
+              "receive_packets": 8,
+              "send_packets": 8
+            },
+            "200": {
+              "receive_bytes": 11884,
+              "send_bytes": 270,
+              "receive_packets": 10,
+              "send_packets": 7
+            }
+          }
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {
+            "0": {
+              "receive_bytes": 4846,
+              "send_bytes": 211,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "20": {
+              "receive_bytes": 8071,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "30": {
+              "receive_bytes": 3129,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "40": {
+              "receive_bytes": 41136,
+              "send_bytes": 918,
+              "receive_packets": 68,
+              "send_packets": 18
+            },
+            "50": {
+              "receive_bytes": 3856,
+              "send_bytes": 408,
+              "receive_packets": 17,
+              "send_packets": 7
+            },
+            "60": {
+              "receive_bytes": 476,
+              "send_bytes": 98,
+              "receive_packets": 7,
+              "send_packets": 2
+            },
+            "70": {
+              "receive_bytes": 0,
+              "send_bytes": 567,
+              "receive_packets": 0,
+              "send_packets": 5
+            },
+            "80": {
+              "receive_bytes": 410,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "90": {
+              "receive_bytes": 901,
+              "send_bytes": 368,
+              "receive_packets": 8,
+              "send_packets": 5
+            },
+            "100": {
+              "receive_bytes": 1083,
+              "send_bytes": 606,
+              "receive_packets": 17,
+              "send_packets": 9
+            },
+            "110": {
+              "receive_bytes": 1892,
+              "send_bytes": 2136,
+              "receive_packets": 32,
+              "send_packets": 14
+            },
+            "120": {
+              "receive_bytes": 7644,
+              "send_bytes": 97,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "130": {
+              "receive_bytes": 0,
+              "send_bytes": 113,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "140": {
+              "receive_bytes": 7842,
+              "send_bytes": 97,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "160": {
+              "receive_bytes": 11669,
+              "send_bytes": 705,
+              "receive_packets": 36,
+              "send_packets": 12
+            },
+            "170": {
+              "receive_bytes": 32417,
+              "send_bytes": 195,
+              "receive_packets": 63,
+              "send_packets": 10
+            },
+            "180": {
+              "receive_bytes": 18764,
+              "send_bytes": 746,
+              "receive_packets": 41,
+              "send_packets": 12
+            },
+            "210": {
+              "receive_bytes": 1248,
+              "send_bytes": 97,
+              "receive_packets": 9,
+              "send_packets": 2
+            }
+          }
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {
+            "0": {
+              "receive_bytes": 0,
+              "send_bytes": 113,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "10": {
+              "receive_bytes": 7842,
+              "send_bytes": 97,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "20": {
+              "receive_bytes": 7760,
+              "send_bytes": 97,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "30": {
+              "receive_bytes": 3909,
+              "send_bytes": 608,
+              "receive_packets": 27,
+              "send_packets": 10
+            },
+            "40": {
+              "receive_bytes": 50469,
+              "send_bytes": 390,
+              "receive_packets": 92,
+              "send_packets": 16
+            },
+            "50": {
+              "receive_bytes": 712,
+              "send_bytes": 551,
+              "receive_packets": 12,
+              "send_packets": 6
+            },
+            "80": {
+              "receive_bytes": 1758,
+              "send_bytes": 496,
+              "receive_packets": 14,
+              "send_packets": 6
+            },
+            "100": {
+              "receive_bytes": 270,
+              "send_bytes": 114,
+              "receive_packets": 6,
+              "send_packets": 2
+            },
+            "110": {
+              "receive_bytes": 9060,
+              "send_bytes": 97,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "120": {
+              "receive_bytes": 7760,
+              "send_bytes": 210,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "130": {
+              "receive_bytes": 6402,
+              "send_bytes": 97,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "140": {
+              "receive_bytes": 4316,
+              "send_bytes": 130,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "150": {
+              "receive_bytes": 0,
+              "send_bytes": 97,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "160": {
+              "receive_bytes": 9200,
+              "send_bytes": 229,
+              "receive_packets": 10,
+              "send_packets": 3
+            },
+            "170": {
+              "receive_bytes": 7760,
+              "send_bytes": 97,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "190": {
+              "receive_bytes": 1799,
+              "send_bytes": 324,
+              "receive_packets": 10,
+              "send_packets": 4
+            }
+          }
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {
+            "0": {
+              "receive_bytes": 4927,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 3
+            },
+            "10": {
+              "receive_bytes": 8946,
+              "send_bytes": 360,
+              "receive_packets": 9,
+              "send_packets": 4
+            },
+            "30": {
+              "receive_bytes": 6547,
+              "send_bytes": 98,
+              "receive_packets": 10,
+              "send_packets": 2
+            },
+            "40": {
+              "receive_bytes": 4614,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 1
+            },
+            "50": {
+              "receive_bytes": 0,
+              "send_bytes": 230,
+              "receive_packets": 0,
+              "send_packets": 2
+            },
+            "60": {
+              "receive_bytes": 4823,
+              "send_bytes": 98,
+              "receive_packets": 9,
+              "send_packets": 2
+            },
+            "70": {
+              "receive_bytes": 9174,
+              "send_bytes": 574,
+              "receive_packets": 9,
+              "send_packets": 6
+            },
+            "80": {
+              "receive_bytes": 34016,
+              "send_bytes": 98,
+              "receive_packets": 48,
+              "send_packets": 33
+            },
+            "90": {
+              "receive_bytes": 8184,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 7
+            },
+            "100": {
+              "receive_bytes": 7768,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 6
+            },
+            "120": {
+              "receive_bytes": 2029,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 8
+            },
+            "130": {
+              "receive_bytes": 7625,
+              "send_bytes": 130,
+              "receive_packets": 9,
+              "send_packets": 7
+            },
+            "140": {
+              "receive_bytes": 23574,
+              "send_bytes": 0,
+              "receive_packets": 44,
+              "send_packets": 36
+            },
+            "150": {
+              "receive_bytes": 163,
+              "send_bytes": 0,
+              "receive_packets": 3,
+              "send_packets": 3
+            },
+            "160": {
+              "receive_bytes": 586,
+              "send_bytes": 0,
+              "receive_packets": 8,
+              "send_packets": 7
+            },
+            "180": {
+              "receive_bytes": 813,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 8
+            },
+            "190": {
+              "receive_bytes": 0,
+              "send_bytes": 130,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "200": {
+              "receive_bytes": 10212,
+              "send_bytes": 230,
+              "receive_packets": 9,
+              "send_packets": 6
+            },
+            "210": {
+              "receive_bytes": 9125,
+              "send_bytes": 230,
+              "receive_packets": 10,
+              "send_packets": 11
+            },
+            "220": {
+              "receive_bytes": 10364,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 5
+            },
+            "230": {
+              "receive_bytes": 30390,
+              "send_bytes": 196,
+              "receive_packets": 30,
+              "send_packets": 22
+            },
+            "240": {
+              "receive_bytes": 2576,
+              "send_bytes": 130,
+              "receive_packets": 9,
+              "send_packets": 10
+            }
+          }
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {
+            "0": {
+              "receive_bytes": 586,
+              "send_bytes": 0,
+              "receive_packets": 8,
+              "send_packets": 7
+            },
+            "10": {
+              "receive_bytes": 813,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 8
+            },
+            "20": {
+              "receive_bytes": 0,
+              "send_bytes": 130,
+              "receive_packets": 0,
+              "send_packets": 1
+            },
+            "30": {
+              "receive_bytes": 10212,
+              "send_bytes": 230,
+              "receive_packets": 9,
+              "send_packets": 6
+            },
+            "50": {
+              "receive_bytes": 9125,
+              "send_bytes": 230,
+              "receive_packets": 10,
+              "send_packets": 11
+            },
+            "60": {
+              "receive_bytes": 40754,
+              "send_bytes": 196,
+              "receive_packets": 39,
+              "send_packets": 27
+            },
+            "80": {
+              "receive_bytes": 2576,
+              "send_bytes": 130,
+              "receive_packets": 9,
+              "send_packets": 10
+            },
+            "90": {
+              "receive_bytes": 10622,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 6
+            },
+            "110": {
+              "receive_bytes": 7316,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 8
+            },
+            "120": {
+              "receive_bytes": 702,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 9
+            },
+            "140": {
+              "receive_bytes": 865,
+              "send_bytes": 130,
+              "receive_packets": 8,
+              "send_packets": 9
+            },
+            "150": {
+              "receive_bytes": 597,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 8
+            },
+            "170": {
+              "receive_bytes": 476,
+              "send_bytes": 0,
+              "receive_packets": 7,
+              "send_packets": 6
+            },
+            "180": {
+              "receive_bytes": 6943,
+              "send_bytes": 98,
+              "receive_packets": 10,
+              "send_packets": 8
+            },
+            "200": {
+              "receive_bytes": 850,
+              "send_bytes": 339,
+              "receive_packets": 9,
+              "send_packets": 11
+            },
+            "210": {
+              "receive_bytes": 711,
+              "send_bytes": 0,
+              "receive_packets": 9,
+              "send_packets": 9
+            },
+            "230": {
+              "receive_bytes": 9032,
+              "send_bytes": 0,
+              "receive_packets": 10,
+              "send_packets": 7
+            }
+          }
+        }
+      ]
+    },
+    {
+      "flow": "49.232.233.61:4605-local:14783",
+      "packets": 19,
+      "directions": {
+        "receive": {
+          "payload_bytes": 772,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 496,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "39.71.45.66:4605-local:14784",
+      "packets": 20,
+      "directions": {
+        "receive": {
+          "payload_bytes": 1301,
+          "overlap_count": 2,
+          "overlap_samples": [
+            {
+              "time": 1791716401.099861,
+              "direction": "receive",
+              "seq": 1424258910,
+              "ack": 1229858985,
+              "window": 8193,
+              "flags": 24,
+              "payload_bytes": 529
+            },
+            {
+              "time": 1791716401.099862,
+              "direction": "receive",
+              "seq": 1424259094,
+              "ack": 1229858985,
+              "window": 8193,
+              "flags": 24,
+              "payload_bytes": 345
+            }
+          ],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 470,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "39.71.45.66:4605-local:14785",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    },
+    {
+      "flow": "49.232.233.61:4605-local:14786",
+      "packets": 3,
+      "directions": {
+        "receive": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        },
+        "send": {
+          "payload_bytes": 0,
+          "overlap_count": 0,
+          "overlap_samples": [],
+          "zero_window_count": 0,
+          "gaps_over_80ms": []
+        }
+      },
+      "stutter_windows": [
+        {
+          "local_time": "2026-10-11 19:00:19.553",
+          "start": 1791716419.398678,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.219",
+          "start": 1791716420.0524461,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.333",
+          "start": 1791716420.182999,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.757",
+          "start": 1791716420.555051,
+          "bins_10ms": {}
+        },
+        {
+          "local_time": "2026-10-11 19:00:20.907",
+          "start": 1791716420.720591,
+          "bins_10ms": {}
+        }
+      ]
+    }
+  ],
+  "stutters": [
+    {
+      "time": 1791716419.553,
+      "local_time": "2026-10-11 19:00:19.553",
+      "receive_gap_us": 104322,
+      "client_log": "[2026-10-11 19:00:19.553][thread 23912][media_datagrams.cpp:440][info] : event=iroh.frame_transit stream=0 frame=3839 source_gap_us=16622 receive_gap_us=104322 excess_us=319047 assembly_call_us=40 reference_ready=true"
+    },
+    {
+      "time": 1791716420.219,
+      "local_time": "2026-10-11 19:00:20.219",
+      "receive_gap_us": 116554,
+      "client_log": "[2026-10-11 19:00:20.219][thread 23912][media_datagrams.cpp:440][info] : event=iroh.frame_transit stream=0 frame=3892 source_gap_us=177822 receive_gap_us=116554 excess_us=101583 assembly_call_us=33 reference_ready=true"
+    },
+    {
+      "time": 1791716420.333,
+      "local_time": "2026-10-11 19:00:20.333",
+      "receive_gap_us": 100001,
+      "client_log": "[2026-10-11 19:00:20.333][thread 23912][media_datagrams.cpp:440][info] : event=iroh.frame_transit stream=0 frame=3902 source_gap_us=83488 receive_gap_us=100001 excess_us=48984 assembly_call_us=33 reference_ready=true"
+    },
+    {
+      "time": 1791716420.757,
+      "local_time": "2026-10-11 19:00:20.757",
+      "receive_gap_us": 151949,
+      "client_log": "[2026-10-11 19:00:20.757][thread 23912][media_datagrams.cpp:440][info] : event=iroh.frame_transit stream=0 frame=3908 source_gap_us=16211 receive_gap_us=151949 excess_us=372814 assembly_call_us=41 reference_ready=true"
+    },
+    {
+      "time": 1791716420.907,
+      "local_time": "2026-10-11 19:00:20.907",
+      "receive_gap_us": 136409,
+      "client_log": "[2026-10-11 19:00:20.907][thread 23912][media_datagrams.cpp:440][info] : event=iroh.frame_transit stream=0 frame=3910 source_gap_us=16666 receive_gap_us=136409 excess_us=489903 assembly_call_us=33 reference_ready=true"
+    }
+  ]
+}

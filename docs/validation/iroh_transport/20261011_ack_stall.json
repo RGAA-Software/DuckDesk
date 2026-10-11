@@ -1,0 +1,156 @@
+{
+  "scope": "Offline analysis only; existing single media connection, Data space/path 0",
+  "clock_offset_plus_minimum_reverse_transit_seconds": 6.2612669467926025,
+  "ack_pairs": [
+    {
+      "packet_number": 88,
+      "sent": "2026-10-11T03:23:39.010339Z TRACE send{space=Data pn=88 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [194..195,196..206] delay: 78µs",
+      "received": "2026-10-11T03:23:45.272260Z TRACE pkt{path_id=0}:recv{space=Data pn=88}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [194..195,196..206] delay: 78µs",
+      "relative_trace_delay_ms": 0.6539821624755859
+    },
+    {
+      "packet_number": 89,
+      "sent": "2026-10-11T03:23:39.010583Z TRACE send{space=Data pn=89 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [194..195,196..209] delay: 7µs",
+      "received": "2026-10-11T03:23:45.432261Z TRACE pkt{path_id=0}:recv{space=Data pn=89}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [194..195,196..209] delay: 7µs",
+      "relative_trace_delay_ms": 160.41111946105957
+    },
+    {
+      "packet_number": 90,
+      "sent": "2026-10-11T03:23:39.010744Z TRACE send{space=Data pn=90 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [194..195,196..215] delay: 6µs",
+      "received": "2026-10-11T03:23:45.432278Z TRACE pkt{path_id=0}:recv{space=Data pn=90}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [194..195,196..215] delay: 6µs",
+      "relative_trace_delay_ms": 160.26687622070312
+    },
+    {
+      "packet_number": 92,
+      "sent": "2026-10-11T03:23:39.013608Z TRACE send{space=Data pn=92 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [194..195,196..219] delay: 6µs",
+      "received": "2026-10-11T03:23:45.432453Z TRACE pkt{path_id=0}:recv{space=Data pn=92}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [194..195,196..219] delay: 6µs",
+      "relative_trace_delay_ms": 157.5779914855957
+    },
+    {
+      "packet_number": 93,
+      "sent": "2026-10-11T03:23:39.017833Z TRACE send{space=Data pn=93 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [206..222] delay: 6µs",
+      "received": "2026-10-11T03:23:45.432461Z TRACE pkt{path_id=0}:recv{space=Data pn=93}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [206..222] delay: 6µs",
+      "relative_trace_delay_ms": 153.36108207702637
+    },
+    {
+      "packet_number": 95,
+      "sent": "2026-10-11T03:23:39.028060Z TRACE send{space=Data pn=95 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [206..232] delay: 11µs",
+      "received": "2026-10-11T03:23:45.432472Z TRACE pkt{path_id=0}:recv{space=Data pn=95}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [206..232] delay: 11µs",
+      "relative_trace_delay_ms": 143.14508438110352
+    },
+    {
+      "packet_number": 98,
+      "sent": "2026-10-11T03:23:39.063418Z TRACE send{space=Data pn=98 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [206..232,236..237] delay: 14µs",
+      "received": "2026-10-11T03:23:45.432485Z TRACE pkt{path_id=0}:recv{space=Data pn=98}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [206..232,236..237] delay: 14µs",
+      "relative_trace_delay_ms": 107.80024528503418
+    },
+    {
+      "packet_number": 100,
+      "sent": "2026-10-11T03:23:39.064741Z TRACE send{space=Data pn=100 path_id=0}: noq_proto::connection::packet_builder: frame=PATH_ACK_ECN path_id: 0 ranges: [206..232,236..238] delay: 6µs",
+      "received": "2026-10-11T03:23:45.432494Z TRACE pkt{path_id=0}:recv{space=Data pn=100}: noq_proto::connection: got frame PATH_ACK_ECN path_id: 0 ranges: [206..232,236..238] delay: 6µs",
+      "relative_trace_delay_ms": 106.48608207702637
+    }
+  ],
+  "delayed_reverse_nic_batch": [
+    {
+      "fingerprint": "fa93f7a4bb38a9fefbbbdd03c20f48fe913b39e06fb4ee75dd95be8eb44e279c",
+      "sent": 1791689019.010614,
+      "received": 1791689025.432111,
+      "bytes": 39,
+      "relative_delay_ms": 160.23015975952148
+    },
+    {
+      "fingerprint": "5e6bef43bec6a3a3989d8efaed2c9a15842f2fa214f1dd9cfc10e996fbdab788",
+      "sent": 1791689019.01077,
+      "received": 1791689025.432112,
+      "bytes": 39,
+      "relative_delay_ms": 160.07494926452637
+    },
+    {
+      "fingerprint": "d1c325fce6574576f7d8cd40d47d3046421476124353b508c9a543b70d7df93c",
+      "sent": 1791689019.010974,
+      "received": 1791689025.432192,
+      "bytes": 50,
+      "relative_delay_ms": 159.95121002197266
+    },
+    {
+      "fingerprint": "5de17c9f86981fbc86efdc79941aab39d037a87dab784c2f41c8ff010b020df2",
+      "sent": 1791689019.013654,
+      "received": 1791689025.432192,
+      "bytes": 39,
+      "relative_delay_ms": 157.271146774292
+    },
+    {
+      "fingerprint": "7b0b3ebe20208d529b127ebf86f4b5887a06f8570611d924efad95b437fccc31",
+      "sent": 1791689019.017876,
+      "received": 1791689025.432192,
+      "bytes": 37,
+      "relative_delay_ms": 153.04923057556152
+    },
+    {
+      "fingerprint": "0fd71d1cdf238efb86c5924022fac6cab8b93a96d248318dc6906a730181f83f",
+      "sent": 1791689019.018082,
+      "received": 1791689025.432192,
+      "bytes": 49,
+      "relative_delay_ms": 152.84323692321777
+    },
+    {
+      "fingerprint": "529ba1b71fdff57d73934fc3f8726a619642ead10d79df250e13c340f1c605a3",
+      "sent": 1791689019.028101,
+      "received": 1791689025.432193,
+      "bytes": 37,
+      "relative_delay_ms": 142.82512664794922
+    },
+    {
+      "fingerprint": "592aac300993e10a381640529fd2d109e11c7d9eacb3b103d07469bd051823a9",
+      "sent": 1791689019.028337,
+      "received": 1791689025.432193,
+      "bytes": 50,
+      "relative_delay_ms": 142.58909225463867
+    },
+    {
+      "fingerprint": "be67e46d0968c4ddeff3c4bf4da4b00b8ceae9725ff6a13c66102284367e7e45",
+      "sent": 1791689019.063491,
+      "received": 1791689025.432193,
+      "bytes": 81,
+      "relative_delay_ms": 107.43498802185059
+    },
+    {
+      "fingerprint": "0ce95235826497c6b25b1626883b4a910be76f5dac19e0ecf66abc8d9826657d",
+      "sent": 1791689019.063707,
+      "received": 1791689025.432268,
+      "bytes": 68,
+      "relative_delay_ms": 107.29384422302246
+    },
+    {
+      "fingerprint": "d464ebb461dce01364ac0e0c11183654fcd2903b8c0e4fd8e8656f51abdeef2c",
+      "sent": 1791689019.06478,
+      "received": 1791689025.432194,
+      "bytes": 39,
+      "relative_delay_ms": 106.14705085754395
+    },
+    {
+      "fingerprint": "76725bdb88073f5291c2819ebef6b0d7afb81d9ac94f3ae60e589de9a58cfe78",
+      "sent": 1791689019.064917,
+      "received": 1791689025.432268,
+      "bytes": 68,
+      "relative_delay_ms": 106.08386993408203
+    }
+  ],
+  "first_congestion_block": "2026-10-11T03:23:45.284769Z TRACE noq_proto::connection: blocked by congestion control space_id=Data path_id=0 in_flight=24561 congestion_window=25909",
+  "block_observations_before_ack": 55,
+  "block_to_ack_ms": 147.4919319152832,
+  "resumed_packet": "2026-10-11T03:23:45.432290Z TRACE send{space=Data pn=240 path_id=0}: noq_proto::connection::packet_builder: frame=DATAGRAM len: 1100",
+  "resumed_send": "2026-10-11T03:23:45.432307Z TRACE noq_proto::connection: sending 2475 bytes in 2 datagrams segment_size=1346 last_datagram_len=1129 network_path=(local: 10.0.0.90, remote: [::ffff:39.82.198.244]:58507)",
+  "ack_to_packet_construction_us": 29.087066650390625,
+  "ack_to_send_trace_us": 46.01478576660156,
+  "probe_timeouts": [
+    "2026-10-11T03:23:45.320929Z TRACE timer_fired{scope=\"path\" path_id=0 timer=LossDetection}: noq_proto::connection: PTO fired in_flight=24561 count=0 space=Data path_id=0",
+    "2026-10-11T03:23:45.396472Z TRACE timer_fired{scope=\"path\" path_id=0 timer=LossDetection}: noq_proto::connection: PTO fired in_flight=26928 count=1 space=Data path_id=0"
+  ],
+  "previous_video_frame": "[2026-10-11 11:23:39.013][thread 41064][media_datagrams.cpp:378][info] : event=iroh.diag_rx_result trace=1077062647000 stream=0 wire_frame=11 timestamp=1504315625 sequence=126 encoder_frame=224 complete=true deliver=true invalid_reference=0 needs_idr=false malformed=false recovered=0 mono_us=1077062878490 feed_us=40 late=23 reordered=0 duplicates=0 losses=",
+  "resumed_video_frame": "[2026-10-11 11:23:39.175][thread 41064][media_datagrams.cpp:378][info] : event=iroh.diag_rx_result trace=1077062647000 stream=0 wire_frame=12 timestamp=1504317057 sequence=142 encoder_frame=225 complete=true deliver=true invalid_reference=0 needs_idr=false malformed=false recovered=0 mono_us=1077063039847 feed_us=48 late=26 reordered=0 duplicates=0 losses=",
+  "delivery_gap_ms": 161.357,
+  "resumed_assembly_feed_us": 48,
+  "limitation": "Endpoint PN/ACK traces and NIC hash matches corroborate timing; NIC packets were not decrypted or assigned protocol packet numbers."
+}

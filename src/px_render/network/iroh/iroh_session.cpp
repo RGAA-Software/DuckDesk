@@ -23,7 +23,8 @@ ResourceChannelCloseOutcome CloseOutcome(rdp::BridgeCloseReason reason) {
 }
 }  // namespace
 
-IrohSession::IrohSession(AcceptedIrohFrontend accepted, RenderEventCallback events) : accepted_(std::move(accepted)), events_(std::move(events)) {}
+IrohSession::IrohSession(AcceptedIrohFrontend accepted, RenderEventCallback events, transport::VideoSendBudget video_budget)
+    : accepted_(std::move(accepted)), events_(std::move(events)), video_budget_(video_budget) {}
 
 IrohSession::~IrohSession() { Close(); }
 
@@ -59,7 +60,9 @@ bool IrohSession::Start(asio::any_io_executor executor, std::uint16_t rdp_proxy_
         };
         messages_ = std::make_shared<transport::MessageSession>(accepted_.connection, accepted_.channels, std::move(callbacks));
         messages = messages_;
-        if (rdp_proxy_port == 0) media_sender_ = std::make_shared<transport::MediaDatagramSender>(accepted_.connection, executor);
+        if (rdp_proxy_port == 0)
+            media_sender_ = std::make_shared<transport::MediaDatagramSender>(accepted_.connection, executor,
+                                                                             transport::MediaSendOptions{.video_budget = video_budget_});
         if (rdp_proxy_port != 0) {
             rdp_bridge_ = rdp::RdpTcpBridge::Create(
                 std::move(executor), binding,
@@ -160,6 +163,10 @@ bool IrohSession::IsAlive() const { return !closed_ && accepted_.frontend && !ac
 
 std::uint64_t IrohSession::VideoEncodingBitrate(std::uint64_t ceiling_bps) const {
     std::lock_guard lock(rate_mutex_);
+    // Encoder bytes are only part of the uplink budget: direct video also carries
+    // FEC, packet metadata and QUIC/IP overhead. Do not generate a persistent queue
+    // by capping the sender below the encoder's sustained output.
+    ceiling_bps = std::min(ceiling_bps, video_budget_.EncoderBitsPerSecond());
     const auto now = std::chrono::steady_clock::now();
     if (now >= next_rate_sample_) {
         rate_snapshot_ = accepted_.connection->Snapshot();
@@ -183,9 +190,11 @@ std::uint64_t IrohSession::VideoEncodingBitrate(std::uint64_t ceiling_bps) const
         last_frame_rate_ = admitted_fps;
     }
     if (rate != last_rate_bps_) {
-        LOGI("event=iroh.encoder_budget ceiling_bps={} video_bps={} rtt_us={} path={} media_backpressure={} receiver_stalled={} received_bps={}",
-             ceiling_bps, rate, rate_snapshot_.rtt_us, static_cast<std::uint32_t>(rate_snapshot_.path), sampled_media_backpressure_, receiver_stalled,
-             received_bps);
+        LOGI(
+            "event=iroh.encoder_budget ceiling_bps={} video_bps={} rtt_us={} path={} media_backpressure={} receiver_stalled={} received_bps={} "
+            "loss_pressure={} tx_packets={} tx_lost={}",
+            ceiling_bps, rate, rate_snapshot_.rtt_us, static_cast<std::uint32_t>(rate_snapshot_.path), sampled_media_backpressure_, receiver_stalled,
+            received_bps, rate_control_.LossPressure(), rate_snapshot_.sent_packets, rate_snapshot_.lost_packets);
         last_rate_bps_ = rate;
     }
     return rate;
@@ -196,14 +205,19 @@ int IrohSession::VideoFrameRate(int requested_fps) const {
     return frame_rate_.Limit(requested_fps);
 }
 
-bool IrohSession::CanEncodeVideo(std::uint8_t stream) {
+bool IrohSession::CanEncodeVideo(std::uint8_t stream, const std::string& monitor) {
     std::shared_ptr<transport::MediaDatagramSender> sender{};
+    std::optional<std::chrono::steady_clock::time_point> recovery_request{};
     {
         std::lock_guard lock(mutex_);
         sender = media_sender_;
+        for (const auto& [requested_monitor, requested_at] : video_recovery_requests_) {
+            if ((requested_monitor.empty() || requested_monitor == monitor) && (!recovery_request || requested_at > *recovery_request))
+                recovery_request = requested_at;
+        }
     }
     if (closed_ || !sender) return false;
-    const bool ready = sender->CanEncodeVideo(stream);
+    const bool ready = sender->CanEncodeVideo(stream, recovery_request);
     if (!ready) ++skipped_capture_frames_;
     return ready;
 }
@@ -241,9 +255,8 @@ bool IrohSession::SendVideo(const media::VideoFrame& frame) {
             // Do not clear a newer request received while enqueueing this repair.
             if (pending == video_recovery_requests_.end() || pending->second != requested_at) continue;
             video_recovery_requests_.erase(pending);
-            LOGI("event=iroh.recovery_frame stream={} monitor={} frame={} kind={} request_age_us={}", StreamId(), frame.monitor,
-                 frame.frame_index, static_cast<int>(frame.kind),
-                 std::chrono::duration_cast<std::chrono::microseconds>(repaired_at - requested_at).count());
+            LOGI("event=iroh.recovery_frame stream={} monitor={} frame={} kind={} request_age_us={}", StreamId(), frame.monitor, frame.frame_index,
+                 static_cast<int>(frame.kind), std::chrono::duration_cast<std::chrono::microseconds>(repaired_at - requested_at).count());
         }
     }
     return accepted;

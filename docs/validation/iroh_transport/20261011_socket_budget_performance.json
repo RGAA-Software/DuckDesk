@@ -1,0 +1,97 @@
+{
+  "window_seconds": 19.0,
+  "delivered_frames": 1135,
+  "fps": 59.73684210526316,
+  "largest_gaps": [
+    {
+      "gap_ms": 60.533,
+      "previous": 469,
+      "current": 470,
+      "time": 1791689026.793
+    },
+    {
+      "gap_ms": 58.613,
+      "previous": 938,
+      "current": 939,
+      "time": 1791689034.616
+    },
+    {
+      "gap_ms": 57.025,
+      "previous": 363,
+      "current": 364,
+      "time": 1791689025.033
+    },
+    {
+      "gap_ms": 45.044,
+      "previous": 235,
+      "current": 236,
+      "time": 1791689022.952
+    },
+    {
+      "gap_ms": 40.613,
+      "previous": 220,
+      "current": 221,
+      "time": 1791689022.618
+    },
+    {
+      "gap_ms": 39.186,
+      "previous": 141,
+      "current": 142,
+      "time": 1791689021.297
+    },
+    {
+      "gap_ms": 38.614,
+      "previous": 205,
+      "current": 206,
+      "time": 1791689022.363
+    },
+    {
+      "gap_ms": 36.94,
+      "previous": 940,
+      "current": 941,
+      "time": 1791689034.653
+    },
+    {
+      "gap_ms": 36.163,
+      "previous": 241,
+      "current": 245,
+      "time": 1791689023.0
+    },
+    {
+      "gap_ms": 35.784,
+      "previous": 207,
+      "current": 208,
+      "time": 1791689022.408
+    }
+  ],
+  "udp_payload_mbps": 7.840217263157895,
+  "udp_payload_plus_66_byte_wire_estimate_mbps": 8.409234526315789,
+  "maximum_sliding_bursts_ms": {
+    "1": {
+      "bytes": 19508,
+      "mbps": 156.064
+    },
+    "5": {
+      "bytes": 22942,
+      "mbps": 36.7072
+    },
+    "10": {
+      "bytes": 28748,
+      "mbps": 22.9984
+    },
+    "50": {
+      "bytes": 68823,
+      "mbps": 11.01168
+    },
+    "100": {
+      "bytes": 124465,
+      "mbps": 9.9572
+    }
+  },
+  "receive_windows": [
+    "[2026-10-11 11:23:43.874][thread 41064][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=295, fps=58.9, max_gap_ms=161.4, gaps_gt_100ms=1, idr=0, rfi=1",
+    "[2026-10-11 11:23:48.880][thread 41064][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=59.9, max_gap_ms=60.5, gaps_gt_100ms=0, idr=0, rfi=0",
+    "[2026-10-11 11:23:53.896][thread 41064][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=59.8, max_gap_ms=34.5, gaps_gt_100ms=0, idr=0, rfi=0",
+    "[2026-10-11 11:23:58.909][thread 41064][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=299, fps=59.6, max_gap_ms=58.6, gaps_gt_100ms=0, idr=0, rfi=0"
+  ]
+}

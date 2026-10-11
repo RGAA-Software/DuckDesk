@@ -1,0 +1,318 @@
+{
+  "sample_minutes": 45,
+  "samples": [
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_1",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17734,
+        "attempts": 17734,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.01557792858011,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.748,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "direct",
+      "segment": 1,
+      "full_window_coverage_seconds": 290.496232,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 48.116,
+      "maximum_receive_window_gap_ms": 47.1
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_2",
+      "receive_gaps": 1,
+      "maximum_receive_gap_ms": 137.3,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17727,
+        "attempts": 17727,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 59.9907528017514,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.568,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "direct",
+      "segment": 2,
+      "full_window_coverage_seconds": 290.551638,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 96.261,
+      "maximum_receive_window_gap_ms": 137.3
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_direct_3",
+      "receive_gaps": 1,
+      "maximum_receive_gap_ms": 114.4,
+      "present_gaps": 1,
+      "maximum_present_gap_ms": 114.246,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17730,
+        "attempts": 17730,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 59.99840466552357,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 31.204,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "direct",
+      "segment": 3,
+      "full_window_coverage_seconds": 290.573279,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 114.246,
+      "maximum_receive_window_gap_ms": 114.4
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_1",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17736,
+        "attempts": 17736,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.01741807570843,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 36.219,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "90",
+      "segment": 1,
+      "full_window_coverage_seconds": 290.56193,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 57.449,
+      "maximum_receive_window_gap_ms": 57.3
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_2",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17719,
+        "attempts": 17719,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 59.96264593102746,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 23.255,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "90",
+      "segment": 2,
+      "full_window_coverage_seconds": 290.509108,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 90.181,
+      "maximum_receive_window_gap_ms": 90.0
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_3",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17729,
+        "attempts": 17729,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.00763460354039,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 23.93,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "90",
+      "segment": 3,
+      "full_window_coverage_seconds": 290.492868,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 51.573,
+      "maximum_receive_window_gap_ms": 51.4
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_bj_1",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17736,
+        "attempts": 17736,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.02030883946163,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 23.057,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "bj",
+      "segment": 1,
+      "full_window_coverage_seconds": 290.543574,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 73.05,
+      "maximum_receive_window_gap_ms": 72.7
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_bj_2",
+      "receive_gaps": 1,
+      "maximum_receive_gap_ms": 102.2,
+      "present_gaps": 1,
+      "maximum_present_gap_ms": 102.321,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17736,
+        "attempts": 17736,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.01126002884384,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 35.172,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "bj",
+      "segment": 2,
+      "full_window_coverage_seconds": 290.584979,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 102.321,
+      "maximum_receive_window_gap_ms": 102.2
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_bj_3",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17726,
+        "attempts": 17726,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.00526535798272,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 22.89,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "route": "bj",
+      "segment": 3,
+      "full_window_coverage_seconds": 290.595707,
+      "full_window_p99_at_most_50ms": true,
+      "maximum_present_window_gap_ms": 69.077,
+      "maximum_receive_window_gap_ms": 98.6
+    }
+  ],
+  "local_artifacts": [
+    {
+      "artifact": "px_client.exe",
+      "build_sha256": "408717B231B55A13E4BEB6787774E1ACCD99DBCE33FD794ECB497B43CD93919A",
+      "dist_sha256": "408717B231B55A13E4BEB6787774E1ACCD99DBCE33FD794ECB497B43CD93919A"
+    },
+    {
+      "artifact": "px_panel.exe",
+      "build_sha256": "8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F",
+      "dist_sha256": "8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F"
+    }
+  ],
+  "scope": "new-frame API acceptance, not physical scanout; no mixed-file saturation or NIC changes",
+  "normal_paths_passed": true,
+  "sdk_recovery_integration": {
+    "passed": true,
+    "suite_tests": 11,
+    "event": "video.decoder_output_stalled",
+    "observed_at": "2026-10-12 04:00:26.854",
+    "frame": 6,
+    "scope": "Injected decoder results through real SDK network receive and video queue; not physical GPU fault reproduction",
+    "evidence": "20261012_decoder_output_recovery_integration_execution.log"
+  },
+  "classified_gaps": [
+    {
+      "sample": "direct_2",
+      "receive_ms": 137.3,
+      "classification": "startup/initial GPU upload; no >100ms new-image presentation gap"
+    },
+    {
+      "sample": "direct_3",
+      "receive_ms": 114.4,
+      "present_ms": 114.246,
+      "classification": "upstream delivery delay/loss followed by bounded reference repair; physical path stage unproven"
+    },
+    {
+      "sample": "bj_2",
+      "receive_ms": 102.2,
+      "present_ms": 102.321,
+      "classification": "upstream packet arrival delay; source interval16.044ms, sender queue22us/send47us, receiver first-to-last2.733ms/feed11us, present upload age149us; no same-PID TCP retransmission evidence"
+    }
+  ],
+  "acceptance": "Passed the bounded S1-S4 stutter-task criteria; not a guarantee of zero jitter, hardware watchdog activation or overall NAT/capacity/long-term stability"
+}

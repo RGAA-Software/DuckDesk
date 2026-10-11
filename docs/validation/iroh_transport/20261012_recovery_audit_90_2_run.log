@@ -1,0 +1,7 @@
+PINNED 90
+EVIDENCE .cache\iroh-native-live-20261012-011736-relay
+RUNNING game_hook instance=a407b5bb-52de-4e77-b752-7c6905e6114e
+DESCRIPTOR_READY seconds=1.077
+CONNECTED game_hook visit=loss-feedback
+{"route": "90", "segment": "2", "series": "recovery_audit", "requested_seconds": 300, "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9", "instance_id": "a407b5bb-52de-4e77-b752-7c6905e6114e", "client_pid": 85784, "session_id": "75846ba3-4ba7-4a51-82dc-c8b8e2804542", "sample_started_epoch": 1791739060.6806996, "tcp_statistics": "D:\\GoCloud\\GammaRayPremium\\.cache\\20261011_recovery_audit_90_2_tcp.csv", "drag": {"window_found": true, "posted_mouse_messages": 480, "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"}, "sample_ended_epoch": 1791739360.6936972, "state": "connected", "grace_stopped_seconds": 12.35, "grace_stopped": true}
+RESTORED original Relay allocation flags

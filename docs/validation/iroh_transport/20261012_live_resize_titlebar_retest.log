@@ -1,0 +1,8 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 67: title_bar_maximize
+1/1 Test #67: title_bar_maximize ...............   Passed    0.96 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.97 sec

@@ -1,0 +1,228 @@
+[
+  {
+    "upstream": [
+      "39.71.45.66",
+      4613
+    ],
+    "ingress": [
+      "127.0.0.1",
+      63860
+    ],
+    "started_epoch": 1791743877.6923647,
+    "forwarded_downlink": 55763,
+    "forwarded_uplink": 32805,
+    "dropped_large_downlink": 635,
+    "drop_windows": [
+      {
+        "window": 20.0,
+        "first_epoch": 1791743897.6979141,
+        "count": 19
+      },
+      {
+        "window": 20.5,
+        "first_epoch": 1791743898.1983948,
+        "count": 19
+      },
+      {
+        "window": 21.0,
+        "first_epoch": 1791743898.6976936,
+        "count": 27
+      },
+      {
+        "window": 21.5,
+        "first_epoch": 1791743899.1953204,
+        "count": 19
+      },
+      {
+        "window": 22.0,
+        "first_epoch": 1791743899.6941948,
+        "count": 27
+      },
+      {
+        "window": 22.5,
+        "first_epoch": 1791743900.1936376,
+        "count": 31
+      },
+      {
+        "window": 23.0,
+        "first_epoch": 1791743900.6924088,
+        "count": 26
+      },
+      {
+        "window": 23.5,
+        "first_epoch": 1791743901.2010918,
+        "count": 20
+      },
+      {
+        "window": 24.0,
+        "first_epoch": 1791743901.6967628,
+        "count": 19
+      },
+      {
+        "window": 24.5,
+        "first_epoch": 1791743902.1943474,
+        "count": 18
+      },
+      {
+        "window": 25.0,
+        "first_epoch": 1791743902.698123,
+        "count": 19
+      },
+      {
+        "window": 25.5,
+        "first_epoch": 1791743903.1945162,
+        "count": 28
+      },
+      {
+        "window": 26.0,
+        "first_epoch": 1791743903.699375,
+        "count": 17
+      },
+      {
+        "window": 26.5,
+        "first_epoch": 1791743904.2007565,
+        "count": 24
+      },
+      {
+        "window": 27.0,
+        "first_epoch": 1791743904.6981099,
+        "count": 18
+      },
+      {
+        "window": 27.5,
+        "first_epoch": 1791743905.1982415,
+        "count": 18
+      },
+      {
+        "window": 28.0,
+        "first_epoch": 1791743905.695571,
+        "count": 17
+      },
+      {
+        "window": 28.5,
+        "first_epoch": 1791743906.1954277,
+        "count": 21
+      },
+      {
+        "window": 29.0,
+        "first_epoch": 1791743906.702571,
+        "count": 13
+      },
+      {
+        "window": 29.5,
+        "first_epoch": 1791743907.1936965,
+        "count": 18
+      },
+      {
+        "window": 45.0,
+        "first_epoch": 1791743922.69983,
+        "count": 24
+      },
+      {
+        "window": 45.5,
+        "first_epoch": 1791743923.1945894,
+        "count": 19
+      },
+      {
+        "window": 46.0,
+        "first_epoch": 1791743923.6983883,
+        "count": 21
+      },
+      {
+        "window": 46.5,
+        "first_epoch": 1791743924.1955874,
+        "count": 21
+      },
+      {
+        "window": 47.0,
+        "first_epoch": 1791743924.7064188,
+        "count": 19
+      },
+      {
+        "window": 47.5,
+        "first_epoch": 1791743925.1979017,
+        "count": 21
+      },
+      {
+        "window": 48.0,
+        "first_epoch": 1791743925.6944401,
+        "count": 23
+      },
+      {
+        "window": 48.5,
+        "first_epoch": 1791743926.1949015,
+        "count": 28
+      },
+      {
+        "window": 49.0,
+        "first_epoch": 1791743926.692445,
+        "count": 21
+      },
+      {
+        "window": 49.5,
+        "first_epoch": 1791743927.1957598,
+        "count": 20
+      }
+    ],
+    "failure": null,
+    "reset_notifications": [
+      {
+        "epoch": 1791743959.543532,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743959.553276,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743959.691026,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743959.6913178,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743959.989865,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743959.9899077,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743960.5712917,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743960.5713344,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743961.7421765,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743961.7436237,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743963.9163375,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743963.9163835,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743967.086741,
+        "socket": "ingress"
+      },
+      {
+        "epoch": 1791743967.087302,
+        "socket": "ingress"
+      }
+    ],
+    "scope": "Only this owned UDP connection; 30 bounded 40ms drops across two short bursts (1.2s total). Not a normal-path FPS gate."
+  }
+]

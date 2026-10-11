@@ -26,6 +26,9 @@ struct VideoQueueOutput final {
     std::vector<Packet> data_packets{};
     std::vector<VideoLoss> losses{};
     std::size_t recovered_data{};
+    // Distinct from speculative telemetry: true when this call irrevocably
+    // retires a missing/incomplete frame, even if prediction was reported earlier.
+    bool final_frame_loss{};
     bool rejected{};
     bool malformed{};
 };

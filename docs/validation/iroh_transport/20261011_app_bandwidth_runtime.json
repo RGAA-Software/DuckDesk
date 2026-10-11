@@ -1,0 +1,14 @@
+﻿{
+    "budget_log":  [
+                       "[2026-10-11 12:47:43.178][thread 10456][media_datagrams.cpp:20][info] : event=iroh.media_pacing total_budget_bps=20000000 video_wire_bps=19200000 encoder_ceiling_bps=13000000 packet_overhead=128 packets_per_burst=4 fec_percent=20",
+                       "[2026-10-11 12:48:17.874][thread 30396][media_datagrams.cpp:20][info] : event=iroh.media_pacing total_budget_bps=20000000 video_wire_bps=19200000 encoder_ceiling_bps=13000000 packet_overhead=128 packets_per_burst=4 fec_percent=20"
+                   ],
+    "service":  "Running",
+    "renders":  [
+                    {
+                        "Id":  18116,
+                        "SessionId":  2
+                    }
+                ],
+    "trace_file":  null
+}

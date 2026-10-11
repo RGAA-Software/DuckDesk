@@ -1,0 +1,49 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1619 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_iroh_media_datagrams test_title_bar_maximize
+[0/2] Re-checking globbed directories...
+[1/12] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\windows_title_bar_behavior.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/12] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\video_diagnostics.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/12] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\voice_datagram.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/12] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/12] Building CXX object src\px_transport\CMakeFiles\test_iroh_media_datagrams.dir\tests\test_media_datagrams.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[6/12] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[7/12] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\media_datagrams.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[8/12] Linking CXX static library src\px_transport\px_transport_cpp.lib
+[9/12] Linking CXX static library src\px_client_sdk\px_sdk.lib
+[10/12] Linking CXX static library src\px_desktop_shell\px_desktop_shell.lib
+[11/12] Linking CXX executable src\px_desktop_shell\test_title_bar_maximize.exe
+[12/12] Linking CXX executable src\px_transport\test_iroh_media_datagrams.exe
+DONE: test_iroh_media_datagrams test_title_bar_maximize
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 62: iroh_media_datagrams
+1/2 Test #62: iroh_media_datagrams .............   Passed    2.10 sec
+    Start 66: title_bar_maximize
+2/2 Test #66: title_bar_maximize ...............   Passed    1.04 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   3.30 sec

@@ -1,0 +1,261 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1309 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 6
+Targets: test_media_logging
+-- Pixels fast Release profile enabled (C++ O1, incremental Rust Release)
+-- Pixels product: client (CLIENT) 3.3.81 (30381)
+-- Building Official version
+TARGET_TYPE: ===> Official
+-- PROBE: PkgConfig::modplug EXISTS
+-- PROBE: PkgConfig::modplug OK
+-- PROBE: PkgConfig::srt OK
+-- PROBE: PkgConfig::dav1d OK
+-- PROBE: PkgConfig::openh264 OK
+-- PROBE: PKG_CONFIG_EXECUTABLE='C:/source/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe'
+-- PROBE: CMAKE_PREFIX_PATH='C:/source/vcpkg/installed/x64-windows-static-release;C:/source/vcpkg/installed/x64-windows-static-release/debug'
+-- PROBE: manual pkg_check_modules PROBE_MODPLUG_FOUND='1'
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found suitable version "1.3.2", minimum required is "1")  
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found version "1.3.2")  
+-- Using protobuf from vcpkg: 33.4.0
+-- Checking for module 'libusb-1.0>=1.0.16'
+--   Package 'libusb-1.0', required by 'virtual:world', not found
+-- Could NOT find LibUSB (missing: LibUSB_LIBRARY LibUSB_INCLUDE_PATH) (found version "LibUSB_VERSION-NOTFOUND")
+-- 
+-- SDL3 was configured with the following options:
+-- 
+-- Platform: Windows-10.0.19045
+-- 64-bit:   TRUE
+-- Compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe
+-- Revision: SDL-3.4.16-release-3.4.16
+-- Vendor:   
+-- 
+-- Subsystems:
+--   Audio:    ON
+--   Video:    ON
+--   GPU:      ON
+--   Render:   ON
+--   Camera:   ON
+--   Joystick: ON
+--   Haptic:   ON
+--   Hidapi:   ON
+--   Power:    ON
+--   Sensor:   ON
+--   Dialog:   ON
+--   Tray:     ON
+-- 
+-- Options:
+--   SDL_ALSA                    (Wanted: OFF): OFF
+--   SDL_ALSA_SHARED             (Wanted: OFF): OFF
+--   SDL_ALTIVEC                 (Wanted: OFF): OFF
+--   SDL_ARMNEON                 (Wanted: OFF): OFF
+--   SDL_ASAN                    (Wanted: OFF): OFF
+--   SDL_ASSEMBLY                (Wanted: ON): ON
+--   SDL_ASSERTIONS              (Wanted: auto): auto
+--   SDL_AVX                     (Wanted: ON): ON
+--   SDL_AVX2                    (Wanted: ON): ON
+--   SDL_AVX512F                 (Wanted: ON): ON
+--   SDL_BACKGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_CCACHE                  (Wanted: OFF): OFF
+--   SDL_CLANG_TIDY              (Wanted: OFF): OFF
+--   SDL_CLOCK_GETTIME           (Wanted: OFF): OFF
+--   SDL_COCOA                   (Wanted: OFF): OFF
+--   SDL_DBUS                    (Wanted: OFF): OFF
+--   SDL_DEPS_SHARED             (Wanted: ON): OFF
+--   SDL_DIRECTX                 (Wanted: ON): ON
+--   SDL_DISKAUDIO               (Wanted: ON): ON
+--   SDL_DLOPEN_NOTES            (Wanted: OFF): OFF
+--   SDL_DUMMYAUDIO              (Wanted: ON): ON
+--   SDL_DUMMYCAMERA             (Wanted: ON): ON
+--   SDL_DUMMYVIDEO              (Wanted: ON): ON
+--   SDL_EXAMPLES                (Wanted: OFF): OFF
+--   SDL_EXAMPLES_LINK_SHARED    (Wanted: OFF): OFF
+--   SDL_FOREGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_FRIBIDI                 (Wanted: OFF): OFF
+--   SDL_FRIBIDI_SHARED          (Wanted: OFF): OFF
+--   SDL_GCC_ATOMICS             (Wanted: OFF): OFF
+--   SDL_HIDAPI                  (Wanted: ON): ON
+--   SDL_HIDAPI_JOYSTICK         (Wanted: ON): ON
+--   SDL_HIDAPI_LIBUSB           (Wanted: ON): OFF
+--   SDL_HIDAPI_LIBUSB_SHARED    (Wanted: ON): OFF
+--   SDL_IBUS                    (Wanted: OFF): OFF
+--   SDL_INSTALL                 (Wanted: OFF): OFF
+--   SDL_INSTALL_TESTS           (Wanted: OFF): OFF
+--   SDL_JACK                    (Wanted: OFF): OFF
+--   SDL_JACK_SHARED             (Wanted: OFF): OFF
+--   SDL_KMSDRM                  (Wanted: OFF): OFF
+--   SDL_KMSDRM_SHARED           (Wanted: OFF): OFF
+--   SDL_LASX                    (Wanted: OFF): OFF
+--   SDL_LIBC                    (Wanted: ON): ON
+--   SDL_LIBICONV                (Wanted: OFF): OFF
+--   SDL_LIBTHAI                 (Wanted: OFF): OFF
+--   SDL_LIBTHAI_SHARED          (Wanted: OFF): OFF
+--   SDL_LIBUDEV                 (Wanted: ON): OFF
+--   SDL_LIBURING                (Wanted: OFF): OFF
+--   SDL_LSX                     (Wanted: OFF): OFF
+--   SDL_METAL                   (Wanted: OFF): OFF
+--   SDL_MMX                     (Wanted: ON): OFF
+--   SDL_OFFSCREEN               (Wanted: ON): ON
+--   SDL_OPENGL                  (Wanted: ON): ON
+--   SDL_OPENGLES                (Wanted: ON): ON
+--   SDL_OPENVR                  (Wanted: OFF): OFF
+--   SDL_OSS                     (Wanted: OFF): OFF
+--   SDL_PIPEWIRE                (Wanted: OFF): OFF
+--   SDL_PIPEWIRE_SHARED         (Wanted: OFF): OFF
+--   SDL_PTHREADS                (Wanted: OFF): OFF
+--   SDL_PTHREADS_SEM            (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO              (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO_SHARED       (Wanted: OFF): OFF
+--   SDL_RENDER_D3D              (Wanted: ON): ON
+--   SDL_RENDER_D3D11            (Wanted: ON): ON
+--   SDL_RENDER_D3D12            (Wanted: ON): ON
+--   SDL_RENDER_GPU              (Wanted: ON): ON
+--   SDL_RENDER_METAL            (Wanted: OFF): OFF
+--   SDL_RENDER_VULKAN           (Wanted: ON): ON
+--   SDL_ROCKCHIP                (Wanted: OFF): OFF
+--   SDL_RPATH                   (Wanted: OFF): OFF
+--   SDL_RPI                     (Wanted: OFF): OFF
+--   SDL_SNDIO                   (Wanted: OFF): OFF
+--   SDL_SNDIO_SHARED            (Wanted: OFF): OFF
+--   SDL_SSE                     (Wanted: ON): ON
+--   SDL_SSE2                    (Wanted: ON): ON
+--   SDL_SSE3                    (Wanted: ON): ON
+--   SDL_SSE4_1                  (Wanted: ON): ON
+--   SDL_SSE4_2                  (Wanted: ON): ON
+--   SDL_SYSTEM_ICONV            (Wanted: OFF): OFF
+--   SDL_TESTS                   (Wanted: OFF): OFF
+--   SDL_TESTS_LINK_SHARED       (Wanted: OFF): OFF
+--   SDL_UNINSTALL               (Wanted: OFF): OFF
+--   SDL_VIRTUAL_JOYSTICK        (Wanted: ON): ON
+--   SDL_VIVANTE                 (Wanted: OFF): OFF
+--   SDL_VULKAN                  (Wanted: ON): ON
+--   SDL_WASAPI                  (Wanted: ON): ON
+--   SDL_WAYLAND                 (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR        (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR_SHARED (Wanted: OFF): OFF
+--   SDL_WAYLAND_SHARED          (Wanted: OFF): OFF
+--   SDL_X11                     (Wanted: OFF): OFF
+--   SDL_X11_SHARED              (Wanted: OFF): OFF
+--   SDL_X11_XCURSOR             (Wanted: OFF): OFF
+--   SDL_X11_XDBE                (Wanted: OFF): OFF
+--   SDL_X11_XFIXES              (Wanted: OFF): OFF
+--   SDL_X11_XINPUT              (Wanted: OFF): OFF
+--   SDL_X11_XRANDR              (Wanted: OFF): OFF
+--   SDL_X11_XSCRNSAVER          (Wanted: OFF): OFF
+--   SDL_X11_XSHAPE              (Wanted: OFF): OFF
+--   SDL_X11_XSYNC               (Wanted: OFF): OFF
+--   SDL_X11_XTEST               (Wanted: OFF): OFF
+--   SDL_XINPUT                  (Wanted: ON): ON
+-- 
+--  Build Shared Library: OFF
+--  Build Static Library: ON
+-- 
+-- Enabled backends:
+--   Video drivers: dummy offscreen windows
+--   Render drivers: d3d d3d11 d3d12 gpu ogl ogl_es2 vulkan
+--   GPU drivers: d3d12 vulkan
+--   Audio drivers: disk dsound dummy wasapi
+--   Joystick drivers: dinput gameinput hidapi rawinput virtual wgi xinput
+--   Camera drivers: dummy mediafoundation
+-- 
+Protobuf of px_message.proto: D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_service_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/cmake/src/px_deps/px_message//px_file_transfer.pb.cc
+DETOURS_INCLUDE_DIRS--> 
+DETOURS_LIBRARY--> C:/source/vcpkg/installed/x64-windows-static-release/lib/detours.lib
+-- px_render is excluded from the client product graph
+-- Configuring done (16.8s)
+-- Generating done (1.5s)
+-- Build files have been written to: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+[0/2] Re-checking globbed directories...
+[1/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_crypto.dir\px_aes.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_core.dir\time_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_storage.dir\shared_preference.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\dump_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_net.dir\http_base_op.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[6/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_core.dir\image.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[7/36] Linking CXX static library src\px_deps\px_common\px_common_core.lib
+[8/36] Linking CXX static library src\px_deps\px_common\px_common_crypto.lib
+[9/36] Linking CXX static library src\px_deps\px_common\px_common_storage.lib
+[10/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\file.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[11/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\thread.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[12/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\reconnect_supervisor.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[13/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\file_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[14/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_net.dir\http_client.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[15/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\memory_stat.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[16/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\qrcode\qr_generator.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[17/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\clipboard\clipboard_file_builder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[18/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\folder_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[19/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\audio_device_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[20/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\message_notifier.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[21/36] Linking CXX static library src\px_deps\px_common\px_common_async.lib
+[22/36] Linking CXX static library src\px_deps\px_common\px_common_file.lib
+[23/36] Linking CXX static library src\px_deps\px_common\px_common_net.lib
+[24/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\win_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[25/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\clipboard\win\clipboard_platform_win.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[26/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\dxgi_mon_detector.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[27/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\process_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[28/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\firewall_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[29/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\auto_start.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[30/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\hardware.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[31/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\ip_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[32/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\d3d_debug_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[33/36] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\process_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[34/36] Linking CXX static library src\px_deps\px_common\px_common_win.lib
+[35/36] Building CXX object src\px_deps\px_common\tests\CMakeFiles\test_media_logging.dir\test_media_logging.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[36/36] Linking CXX executable src\px_deps\px_common\tests\test_media_logging.exe
+DONE: test_media_logging
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 16: common_media_logging
+1/1 Test #16: common_media_logging .............   Passed    0.27 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.30 sec

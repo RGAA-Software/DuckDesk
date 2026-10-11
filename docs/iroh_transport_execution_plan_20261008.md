@@ -1,5 +1,8 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-12 最新结果：卡帧统一任务S1–S4本轮工程验收通过，见 [验收报告](validation/iroh_transport/20261012_decoder_recovery_acceptance.md) 与 [主线推进分析](validation/iroh_transport/20261012_mainline_progress.md)。真实NAT/规模/长期稳定性未整体验收，Android排除。2026-10-11用户任务及阶段约定见 [卡帧问题持续解决任务](video_stutter_resolution_task_20261011.md)。
+先定位/修复/验证 direct 与 Relay 画面停顿，不重复已经交付的网络功能，也不扩大到 Android 或独立业务验收。
+
 初稿：2026-10-08；整体重排及网络范围纠偏：2026-10-10。2026-10-11 当前任务收敛为 Windows/Linux 完整交付，Android 排除，执行第 0.9 节；实际进度见
 [执行状态](validation/iroh_transport/status.md)。
 
@@ -180,7 +183,7 @@ Relay 必须支持 Windows 和 Linux，复用 Windows Service、Linux systemd/�
 
 执行结果（2026-10-11）：A–F 本次功能交付已完成，实现及证据 `bf5ebc03a` 已推送；详细身份和证据见
 [本轮报告](validation/iroh_transport/20261011_windows_completion.md)。追加修复独立文件入口仍占控制席的 409，
-Server schema 40 / 1.0.56 与 Cloud Node 3.3.97 已安装。**direct 画面仍低帧率和频繁恢复，性能未通过**；
+Server schema 40 / 1.0.56 与 Cloud Node 3.3.97 已安装。**该日direct画面低帧率和频繁恢复；2026-10-12追加修复后direct/90/BJ各3×5分钟有界验收通过，完整指标与剩余范围见本计划顶部报告**；
 真实 NAT、规模、长期稳定性保持未验收。Android 排除、已叫停专项保持停止。下文为本次执行约定。
 
 

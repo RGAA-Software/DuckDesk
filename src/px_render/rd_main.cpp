@@ -88,6 +88,7 @@ DEFINE_bool(relay_enabled, true, "");
 DEFINE_int32(language, 0, "");
 
 DEFINE_int32(app_disconnect_grace_seconds, 10, "Application last-client disconnect grace in seconds (1-3600)");
+DEFINE_int32(app_media_bandwidth_kbps, 0, "Application per-connection media bandwidth budget in kbps (128-200000; 0 uses encoder setting)");
 DEFINE_string(app_mode, "", "desktop | game-hook | webview | rdp; empty => settings.toml application.mode");
 DEFINE_string(app_instance_id, "", "Console application instance id");
 DEFINE_string(gpu_stable_key, "", "Console-selected physical GPU stable key");
@@ -253,6 +254,11 @@ bool UpdateSettings(RdSettings& settings) {
         return false;
     }
     settings.application_disconnect_grace_seconds_ = FLAGS_app_disconnect_grace_seconds;
+    if (FLAGS_app_media_bandwidth_kbps != 0 && (FLAGS_app_media_bandwidth_kbps < 128 || FLAGS_app_media_bandwidth_kbps > 200000)) {
+        LOGE("Application media bandwidth must be between 128 and 200000 kbps");
+        return false;
+    }
+    settings.application_media_bandwidth_kbps_ = static_cast<std::uint32_t>(FLAGS_app_media_bandwidth_kbps);
     settings.gpu_stable_key_ = FLAGS_gpu_stable_key;
     settings.webview_width_ = std::clamp(FLAGS_webview_width, 320, 7680);
     settings.webview_height_ = std::clamp(FLAGS_webview_height, 240, 4320);
@@ -364,7 +370,7 @@ int main(int argc, char** argv) {
     px::ProcessUtil::PinToPerformanceCores();
 
     auto log_file_path = std::format(L"{}/px_logs/pixels_render_{}.log", FolderUtil::GetProgramDataPath(), settings.transmission_.listening_port_);
-    Logger::InitLog(log_file_path, FLAGS_logfile);
+    Logger::InitLog(log_file_path, FLAGS_logfile, true);
 
     // Install crash handling only after product-mode admission. Unsupported
     // modes must fail without competing with a running Render's dump handler.

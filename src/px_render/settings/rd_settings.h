@@ -170,6 +170,7 @@ public:
 public:
     Description desc_;
     Encoder encoder_{};
+    std::uint32_t application_media_bandwidth_kbps_{};
     Capture capture_{};
     Transmission transmission_{};
     std::string iroh_endpoint_configuration_{};

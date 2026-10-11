@@ -1,0 +1,12 @@
+[
+    {
+        "pid":  18116,
+        "bandwidth_kbps":  "",
+        "instance":  ""
+    },
+    {
+        "pid":  29312,
+        "bandwidth_kbps":  "20000",
+        "instance":  "f8ee98a0-0d74-4fbd-beb1-f4543e941ff2"
+    }
+]

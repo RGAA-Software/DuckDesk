@@ -60,13 +60,18 @@ std::string VoiceStatusText(const px::VoiceCallStatus& status) {
 
 }  // namespace
 
-std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources) {
-    auto result = std::make_shared<ClientSession>(std::move(config), std::move(videoResources));
+std::shared_ptr<ClientSession> ClientSession::Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources,
+                                                     std::function<void()> video_frame_ready) {
+    auto result = std::make_shared<ClientSession>(std::move(config), std::move(videoResources), std::move(video_frame_ready));
     return result->Initialize() ? result : std::shared_ptr<ClientSession>{};
 }
 
-ClientSession::ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources)
-    : config_{std::move(config)}, videoResources_{std::move(videoResources)}, audio_{std::make_unique<ClientAudioOutput>()} {}
+ClientSession::ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources,
+                             std::function<void()> video_frame_ready)
+    : config_{std::move(config)},
+      video_frame_ready_{std::move(video_frame_ready)},
+      videoResources_{std::move(videoResources)},
+      audio_{std::make_unique<ClientAudioOutput>()} {}
 ClientSession::~ClientSession() { Stop(); }
 
 void ClientSession::BindIrohFailureListener() {
@@ -371,23 +376,26 @@ bool ClientSession::Initialize() {
         if (!converted) {
             return;
         }
-        const std::scoped_lock lock{self->mutex_};
-        self->latestFrame_ = std::move(converted);
-        ++self->decodedFrames_;
-        const auto now = std::chrono::steady_clock::now();
-        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - self->statisticsStarted_).count();
-        if (elapsed >= 1'000) {
-            self->framesPerSecond_ = static_cast<int>((self->decodedFrames_ * 1'000) / elapsed);
-            const auto received = self->statistics_ ? self->statistics_->recv_data_size_.load() : 0;
-            const auto delta = std::max<std::int64_t>(0, received - self->lastReceivedBytes_);
-            self->bitrateKbps_ = static_cast<int>((delta * 8) / elapsed);
-            self->lastReceivedBytes_ = received;
-            self->decodedFrames_ = 0;
-            self->statisticsStarted_ = now;
+        {
+            const std::scoped_lock lock{self->mutex_};
+            self->latestFrame_ = std::move(converted);
+            ++self->decodedFrames_;
+            const auto now = std::chrono::steady_clock::now();
+            const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - self->statisticsStarted_).count();
+            if (elapsed >= 1'000) {
+                self->framesPerSecond_ = static_cast<int>((self->decodedFrames_ * 1'000) / elapsed);
+                const auto received = self->statistics_ ? self->statistics_->recv_data_size_.load() : 0;
+                const auto delta = std::max<std::int64_t>(0, received - self->lastReceivedBytes_);
+                self->bitrateKbps_ = static_cast<int>((delta * 8) / elapsed);
+                self->lastReceivedBytes_ = received;
+                self->decodedFrames_ = 0;
+                self->statisticsStarted_ = now;
+            }
+            if (!info.mon_name_.empty()) {
+                self->monitorName_ = info.mon_name_;
+            }
         }
-        if (!info.mon_name_.empty()) {
-            self->monitorName_ = info.mon_name_;
-        }
+        if (self->video_frame_ready_) self->video_frame_ready_();
     });
     sdk_->SetOnCursorInfoCallback([weakSelf](const std::shared_ptr<px::Message>& message) {
         const auto self = weakSelf.lock();

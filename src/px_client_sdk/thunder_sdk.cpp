@@ -35,6 +35,9 @@ std::atomic<uint64_t> g_last_mouse_send_us{0};
 namespace {
 // [LAT-decode] 客户端解码耗时统计(D3D11VA 硬解,含 GPU 等待)
 std::atomic<uint64_t> g_decode_frames{0};
+std::atomic<uint64_t> g_decode_attempts{0};
+std::atomic<uint64_t> g_decode_without_output{0};
+std::atomic<uint64_t> g_decode_errors{0};
 std::atomic<uint64_t> g_decode_us_sum{0};
 std::atomic<uint64_t> g_decode_us_max{0};
 
@@ -49,10 +52,13 @@ void DumpDecodeLatencyIfDue() {
         return;
     }
     const auto decoded_frame_count = g_decode_frames.exchange(0);
+    const auto decode_attempt_count = g_decode_attempts.exchange(0);
+    const auto no_output_count = g_decode_without_output.exchange(0);
+    const auto error_count = g_decode_errors.exchange(0);
     const auto total_decode_time_us = g_decode_us_sum.exchange(0);
     const auto maximum_decode_time_us = g_decode_us_max.exchange(0);
-    LOGI("[LAT-decode] frames={} avg_us={} max_us={}", decoded_frame_count,
-         decoded_frame_count > 0 ? (total_decode_time_us / decoded_frame_count) : 0, maximum_decode_time_us);
+    LOGI("[LAT-decode] frames={} attempts={} no_output={} errors={} avg_us={} max_us={}", decoded_frame_count, decode_attempt_count, no_output_count,
+         error_count, decode_attempt_count > 0 ? (total_decode_time_us / decode_attempt_count) : 0, maximum_decode_time_us);
 }
 
 // [LAT-roundtrip] 操作往返延迟:最近一次鼠标发送 -> 本帧解码完成(含输入+DWM 垂直同步+视频链路)
@@ -249,17 +255,19 @@ void ThunderSdk::Start() {
                     gate.RequireKeyFrame();
                 }
                 self->last_frame_indices_.clear();
+                self->decoder_output_progress_.clear();
             }
 
             const auto current_frame_index = frame.frame_index();
             const auto previous = self->last_frame_indices_.find(monitor_name);
-            const auto previous_frame_index = previous == self->last_frame_indices_.end() ? std::optional<std::uint64_t>{}
-                                                                                        : std::optional<std::uint64_t>{previous->second};
+            const auto previous_frame_index =
+                previous == self->last_frame_indices_.end() ? std::optional<std::uint64_t>{} : std::optional<std::uint64_t>{previous->second};
             const bool stream_discontinuity = RequiresVideoReferenceReset(frame, previous_frame_index, dependency);
             if (stream_discontinuity) {
-                LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index, previous->second,
-                     frame.extra());
+                LOGI("Video frame discontinuity, mon: [{}], index: {}, last: {}, extra: [{}]", monitor_name, current_frame_index,
+                     previous_frame_index.value_or(0), frame.extra());
                 self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
+                self->decoder_output_progress_[monitor_name].Reset();
                 if (const auto decoder = video_decoders_.find(monitor_name); decoder != video_decoders_.end()) {
                     decoder->second->Release();
                     video_decoders_.erase(decoder);
@@ -276,6 +284,7 @@ void ThunderSdk::Start() {
                     video_decoders_.erase(monitor_name);
                     video_decoder = nullptr;
                     self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
+                    self->decoder_output_progress_[monitor_name].Reset();
                     LOGI("Rebuild video decoder, type: {}, {}x{}, image_format: {}", (int)frame.type(), frame.frame_width(), frame.frame_height(),
                          (int)frame.image_format());
                 }
@@ -296,6 +305,7 @@ void ThunderSdk::Start() {
                         self->decoder_startup_gates_[name].RequireKeyFrame();
                     }
                     video_decoders_.clear();
+                    self->decoder_output_progress_.clear();
                 }
                 auto created = self->decoder_factory_->Create(self, frame, self->IsDisabledHardwareDecoder(monitor_name));
                 if (created.disable_hardware) self->DisableHardwareDecoder(monitor_name);
@@ -349,7 +359,14 @@ void ThunderSdk::Start() {
                 self->decoder_startup_gates_[monitor_name].RequireKeyFrame();
             }
             const auto decode_duration_us = TimeUtil::GetCurrentTimePointUS() - decode_start_time_us;
-            ++g_decode_frames;
+            ++g_decode_attempts;
+            if (decode_result.has_value() && decode_result.value()) {
+                ++g_decode_frames;
+            } else if (!decode_result.has_value() && decode_result.error() == 0) {
+                ++g_decode_without_output;
+            } else {
+                ++g_decode_errors;
+            }
             g_decode_us_sum += decode_duration_us;
             {
                 auto previous_maximum_decode_time_us = g_decode_us_max.load();
@@ -358,6 +375,22 @@ void ThunderSdk::Start() {
                 }
             }
             DumpDecodeLatencyIfDue();
+            const auto decode_finished_at = DecoderOutputProgress::Clock::now();
+            auto& output_progress = self->decoder_output_progress_[monitor_name];
+            const bool accepted_without_error = decode_result.has_value() || decode_result.error() == 0;
+            if (accepted_without_error &&
+                output_progress.Observe(decode_result.has_value() && static_cast<bool>(decode_result.value()), decode_finished_at)) {
+                LOGW("event=video.decoder_output_stalled monitor={} frame={} deadline_ms=100 action=recreate_and_request_idr", monitor_name,
+                     current_frame_index);
+                video_decoder->Release();
+                video_decoders_.erase(monitor_name);
+                self->last_frame_indices_.erase(monitor_name);
+                output_progress.Reset();
+                self->decoder_startup_gates_[monitor_name].RequireKeyFrame(decode_finished_at);
+                self->RequestIFrame();
+                return;
+            }
+            if (!accepted_without_error) output_progress.Reset();
             if (!decode_result.has_value() && decode_result.error() != 0) {
                 self->IncreaseDecodeFailedCount(frame.mon_name());
                 if (self->GetDecodeFailedCount(frame.mon_name()) > 60) {

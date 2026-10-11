@@ -1,0 +1,90 @@
+{
+  "relay_endpoint": "https://39.71.45.66:4605/",
+  "gaps": [
+    {
+      "gap_ms": 197.89,
+      "previous": {
+        "wire_frame": 270,
+        "encoder_frame": 428,
+        "mono_us": 1090202437916,
+        "feed_us": 19
+      },
+      "current": {
+        "wire_frame": 271,
+        "encoder_frame": 429,
+        "mono_us": 1090202635806,
+        "feed_us": 36
+      }
+    },
+    {
+      "gap_ms": 165.94,
+      "previous": {
+        "wire_frame": 280,
+        "encoder_frame": 438,
+        "mono_us": 1090202757545,
+        "feed_us": 25
+      },
+      "current": {
+        "wire_frame": 281,
+        "encoder_frame": 448,
+        "mono_us": 1090202923485,
+        "feed_us": 37
+      }
+    },
+    {
+      "gap_ms": 154.028,
+      "previous": {
+        "wire_frame": 282,
+        "encoder_frame": 453,
+        "mono_us": 1090203014791,
+        "feed_us": 30
+      },
+      "current": {
+        "wire_frame": 283,
+        "encoder_frame": 454,
+        "mono_us": 1090203168819,
+        "feed_us": 28
+      }
+    },
+    {
+      "gap_ms": 198.132,
+      "previous": {
+        "wire_frame": 287,
+        "encoder_frame": 473,
+        "mono_us": 1090203183643,
+        "feed_us": 8
+      },
+      "current": {
+        "wire_frame": 288,
+        "encoder_frame": 483,
+        "mono_us": 1090203381775,
+        "feed_us": 38
+      }
+    },
+    {
+      "gap_ms": 136.975,
+      "previous": {
+        "wire_frame": 289,
+        "encoder_frame": 484,
+        "mono_us": 1090203427093,
+        "feed_us": 20
+      },
+      "current": {
+        "wire_frame": 290,
+        "encoder_frame": 485,
+        "mono_us": 1090203564068,
+        "feed_us": 45
+      }
+    }
+  ],
+  "queue_wait": [
+    "[2026-10-11 15:02:45.225][thread 26428][media_datagrams.cpp:203][info] : event=iroh.queue_wait stream=0 wire_frame=280 encoder_frame=438 wait_us=146242 peak_bytes=30633 budget_bytes=32768 accepted=true"
+  ],
+  "receipt_wait_with_empty_quic": [
+    "[2026-10-11 15:02:45.468][thread 29824][media_datagrams.cpp:314][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=113013 cwnd_bytes=230766 datagram_space=65536 congestion_events=0 progress_age_us=107925 budget_bytes=110000 forward_delay_growth_us=272809 queue_ready=true queue_budget_bytes=32768",
+    "[2026-10-11 15:02:45.634][thread 29824][media_datagrams.cpp:314][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=200296 cwnd_bytes=230766 datagram_space=65536 congestion_events=0 progress_age_us=111051 budget_bytes=92400 forward_delay_growth_us=268505 queue_ready=true queue_budget_bytes=32768",
+    "[2026-10-11 15:02:45.751][thread 29824][media_datagrams.cpp:314][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=224881 cwnd_bytes=230766 datagram_space=65536 congestion_events=0 progress_age_us=107758 budget_bytes=92400 forward_delay_growth_us=307368 queue_ready=true queue_budget_bytes=32768",
+    "[2026-10-11 15:02:45.968][thread 29824][media_datagrams.cpp:314][info] : event=iroh.capture_transport phase=blocked stream=0 rtt_us=119682 cwnd_bytes=230766 datagram_space=65536 congestion_events=0 progress_age_us=139013 budget_bytes=66000 forward_delay_growth_us=135345 queue_ready=true queue_budget_bytes=32768"
+  ],
+  "limitation": "No counterfactual Relay baseline; this proves bounded unsent queue and remaining delivery/receipt pauses, not performance improvement or physical root cause."
+}

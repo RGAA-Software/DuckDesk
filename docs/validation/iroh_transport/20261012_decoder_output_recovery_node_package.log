@@ -1,0 +1,406 @@
+Verified cloud_node 3.3.97: 314 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Validated installer input: cloud_node/official 3.3.97 (D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\dist)
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/decoder_startup_gate.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/thunder_sdk.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/thunder_sdk.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1976 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\cloud_node\official\cmake, jobs: 18
+Targets: px_render px_panel px_client
+[0/2] Re-checking globbed directories...
+[1/17] Building CXX object src\px_client\CMakeFiles\px_client.dir\ui_imgui\client_main.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\sdk_video_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_soft_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\platform\windows\windows_decoder_factory.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_window.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[6/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_vulkan_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[7/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_input.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[8/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[9/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_display.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[10/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_features.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[11/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[12/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_lifecycle.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[13/17] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_rdp.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[14/17] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\thunder_sdk.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[15/17] Linking CXX static library src\px_client_sdk\px_sdk.lib
+[16/17] Linking CXX static library src\px_client\px_client_imgui_runtime.lib
+[17/17] Linking CXX executable src\px_deps\px_client.exe
+DONE: px_render px_panel px_client
+  + px_panel.exe
+  + px_client.exe
+  + px_osinfo.exe
+  + libplacebo-349.dll
+  + vulkan-1.dll
+  + px_voice_apm.dll
+  + resources/fonts/Roboto-Regular.ttf
+  + resources/fonts/Roboto-Medium.ttf
+  + resources/icons/brand/px_icon-150.png
+  + resources/icons/brand/px_icon-200.png
+  + resources/icons/brand/px_icon.png
+  + resources/icons/platform/android-150.png
+  + resources/icons/platform/android-200.png
+  + resources/icons/platform/android.png
+  + resources/icons/platform/ios-150.png
+  + resources/icons/platform/ios-200.png
+  + resources/icons/platform/ios.png
+  + resources/icons/platform/macos-150.png
+  + resources/icons/platform/macos-200.png
+  + resources/icons/platform/macos.png
+  + resources/icons/platform/windows-150.png
+  + resources/icons/platform/windows-200.png
+  + resources/icons/platform/windows.png
+  + resources/language/english.json
+  + resources/language/simple_cn.json
+  + resources/language/traditional_cn.json
+  + resources/licenses/FreeType.txt
+  + resources/licenses/Lucide.txt
+  + resources/licenses/Tabler.txt
+  + rdp/px_rdp_sdk.json
+  + cjson.dll
+  + legacy.dll
+  + libcrypto-3-x64.dll
+  + libssl-3-x64.dll
+  + libusb-1.0.dll
+  + openh264-6.dll
+  + px_rdp_client.dll
+  + px_rdp_core.dll
+  + px_rdp_winpr.dll
+  + zlib1.dll
+  + px_service.exe
+  + px_service_manager.exe
+  + px_function.exe
+  + px_service.toml
+  + px_display.exe
+  + px_display.exe.config
+  + px_joystick.exe
+  + vdd/nefconw.exe
+  + vdd/SOURCE.md
+  + vdd/SHA256SUMS.txt
+  + vdd/driver/mm.cat
+  + vdd/driver/mm.dll
+  + vdd/driver/mm.inf
+  + rdp/cjson.dll
+  + rdp/legacy.dll
+  + rdp/libcrypto-3-x64.dll
+  + rdp/libssl-3-x64.dll
+  + rdp/libusb-1.0.dll
+  + rdp/openh264-6.dll
+  + rdp/px_rdp_client.dll
+  + rdp/px_rdp_core.dll
+  + rdp/px_rdp_proxy.exe
+  + rdp/px_rdp_server.dll
+  + rdp/px_rdp_server_proxy.dll
+  + rdp/px_rdp_winpr.dll
+  + rdp/zlib1.dll
+  + rdp/proxy/px_rdp_policy.dll
+  + rdp/px_rdp_sdk.json
+  + px_render.exe
+  + settings.toml
+  + resources/render/frame_carrier/ic_logo_point.png
+  + px_render_rtc.dll
+  + web_client/assets/index-BgagotYm.js
+  + web_client/assets/index-Dlx27ol6.css
+  + web_client/favicon.png
+  + web_client/index.html
+  + chrome_100_percent.pak
+  + chrome_200_percent.pak
+  + chrome_elf.dll
+  + d3dcompiler_47.dll
+  + dxcompiler.dll
+  + dxil.dll
+  + icudtl.dat
+  + libEGL.dll
+  + libGLESv2.dll
+  + libcef.dll
+  + resources.pak
+  + v8_context_snapshot.bin
+  + vk_swiftshader.dll
+  + vk_swiftshader_icd.json
+  + vulkan-1.dll
+  + locales/af.pak
+  + locales/af_FEMININE.pak
+  + locales/af_MASCULINE.pak
+  + locales/af_NEUTER.pak
+  + locales/am.pak
+  + locales/am_FEMININE.pak
+  + locales/am_MASCULINE.pak
+  + locales/am_NEUTER.pak
+  + locales/ar.pak
+  + locales/ar_FEMININE.pak
+  + locales/ar_MASCULINE.pak
+  + locales/ar_NEUTER.pak
+  + locales/bg.pak
+  + locales/bg_FEMININE.pak
+  + locales/bg_MASCULINE.pak
+  + locales/bg_NEUTER.pak
+  + locales/bn.pak
+  + locales/bn_FEMININE.pak
+  + locales/bn_MASCULINE.pak
+  + locales/bn_NEUTER.pak
+  + locales/ca.pak
+  + locales/ca_FEMININE.pak
+  + locales/ca_MASCULINE.pak
+  + locales/ca_NEUTER.pak
+  + locales/cs.pak
+  + locales/cs_FEMININE.pak
+  + locales/cs_MASCULINE.pak
+  + locales/cs_NEUTER.pak
+  + locales/da.pak
+  + locales/da_FEMININE.pak
+  + locales/da_MASCULINE.pak
+  + locales/da_NEUTER.pak
+  + locales/de.pak
+  + locales/de_FEMININE.pak
+  + locales/de_MASCULINE.pak
+  + locales/de_NEUTER.pak
+  + locales/el.pak
+  + locales/el_FEMININE.pak
+  + locales/el_MASCULINE.pak
+  + locales/el_NEUTER.pak
+  + locales/en-GB.pak
+  + locales/en-GB_FEMININE.pak
+  + locales/en-GB_MASCULINE.pak
+  + locales/en-GB_NEUTER.pak
+  + locales/en-US.pak
+  + locales/en-US_FEMININE.pak
+  + locales/en-US_MASCULINE.pak
+  + locales/en-US_NEUTER.pak
+  + locales/es-419.pak
+  + locales/es-419_FEMININE.pak
+  + locales/es-419_MASCULINE.pak
+  + locales/es-419_NEUTER.pak
+  + locales/es.pak
+  + locales/es_FEMININE.pak
+  + locales/es_MASCULINE.pak
+  + locales/es_NEUTER.pak
+  + locales/et.pak
+  + locales/et_FEMININE.pak
+  + locales/et_MASCULINE.pak
+  + locales/et_NEUTER.pak
+  + locales/fa.pak
+  + locales/fa_FEMININE.pak
+  + locales/fa_MASCULINE.pak
+  + locales/fa_NEUTER.pak
+  + locales/fi.pak
+  + locales/fi_FEMININE.pak
+  + locales/fi_MASCULINE.pak
+  + locales/fi_NEUTER.pak
+  + locales/fil.pak
+  + locales/fil_FEMININE.pak
+  + locales/fil_MASCULINE.pak
+  + locales/fil_NEUTER.pak
+  + locales/fr.pak
+  + locales/fr_FEMININE.pak
+  + locales/fr_MASCULINE.pak
+  + locales/fr_NEUTER.pak
+  + locales/gu.pak
+  + locales/gu_FEMININE.pak
+  + locales/gu_MASCULINE.pak
+  + locales/gu_NEUTER.pak
+  + locales/he.pak
+  + locales/he_FEMININE.pak
+  + locales/he_MASCULINE.pak
+  + locales/he_NEUTER.pak
+  + locales/hi.pak
+  + locales/hi_FEMININE.pak
+  + locales/hi_MASCULINE.pak
+  + locales/hi_NEUTER.pak
+  + locales/hr.pak
+  + locales/hr_FEMININE.pak
+  + locales/hr_MASCULINE.pak
+  + locales/hr_NEUTER.pak
+  + locales/hu.pak
+  + locales/hu_FEMININE.pak
+  + locales/hu_MASCULINE.pak
+  + locales/hu_NEUTER.pak
+  + locales/id.pak
+  + locales/id_FEMININE.pak
+  + locales/id_MASCULINE.pak
+  + locales/id_NEUTER.pak
+  + locales/it.pak
+  + locales/it_FEMININE.pak
+  + locales/it_MASCULINE.pak
+  + locales/it_NEUTER.pak
+  + locales/ja.pak
+  + locales/ja_FEMININE.pak
+  + locales/ja_MASCULINE.pak
+  + locales/ja_NEUTER.pak
+  + locales/kn.pak
+  + locales/kn_FEMININE.pak
+  + locales/kn_MASCULINE.pak
+  + locales/kn_NEUTER.pak
+  + locales/ko.pak
+  + locales/ko_FEMININE.pak
+  + locales/ko_MASCULINE.pak
+  + locales/ko_NEUTER.pak
+  + locales/lt.pak
+  + locales/lt_FEMININE.pak
+  + locales/lt_MASCULINE.pak
+  + locales/lt_NEUTER.pak
+  + locales/lv.pak
+  + locales/lv_FEMININE.pak
+  + locales/lv_MASCULINE.pak
+  + locales/lv_NEUTER.pak
+  + locales/ml.pak
+  + locales/ml_FEMININE.pak
+  + locales/ml_MASCULINE.pak
+  + locales/ml_NEUTER.pak
+  + locales/mr.pak
+  + locales/mr_FEMININE.pak
+  + locales/mr_MASCULINE.pak
+  + locales/mr_NEUTER.pak
+  + locales/ms.pak
+  + locales/ms_FEMININE.pak
+  + locales/ms_MASCULINE.pak
+  + locales/ms_NEUTER.pak
+  + locales/nb.pak
+  + locales/nb_FEMININE.pak
+  + locales/nb_MASCULINE.pak
+  + locales/nb_NEUTER.pak
+  + locales/nl.pak
+  + locales/nl_FEMININE.pak
+  + locales/nl_MASCULINE.pak
+  + locales/nl_NEUTER.pak
+  + locales/pl.pak
+  + locales/pl_FEMININE.pak
+  + locales/pl_MASCULINE.pak
+  + locales/pl_NEUTER.pak
+  + locales/pt-BR.pak
+  + locales/pt-BR_FEMININE.pak
+  + locales/pt-BR_MASCULINE.pak
+  + locales/pt-BR_NEUTER.pak
+  + locales/pt-PT.pak
+  + locales/pt-PT_FEMININE.pak
+  + locales/pt-PT_MASCULINE.pak
+  + locales/pt-PT_NEUTER.pak
+  + locales/ro.pak
+  + locales/ro_FEMININE.pak
+  + locales/ro_MASCULINE.pak
+  + locales/ro_NEUTER.pak
+  + locales/ru.pak
+  + locales/ru_FEMININE.pak
+  + locales/ru_MASCULINE.pak
+  + locales/ru_NEUTER.pak
+  + locales/sk.pak
+  + locales/sk_FEMININE.pak
+  + locales/sk_MASCULINE.pak
+  + locales/sk_NEUTER.pak
+  + locales/sl.pak
+  + locales/sl_FEMININE.pak
+  + locales/sl_MASCULINE.pak
+  + locales/sl_NEUTER.pak
+  + locales/sr.pak
+  + locales/sr_FEMININE.pak
+  + locales/sr_MASCULINE.pak
+  + locales/sr_NEUTER.pak
+  + locales/sv.pak
+  + locales/sv_FEMININE.pak
+  + locales/sv_MASCULINE.pak
+  + locales/sv_NEUTER.pak
+  + locales/sw.pak
+  + locales/sw_FEMININE.pak
+  + locales/sw_MASCULINE.pak
+  + locales/sw_NEUTER.pak
+  + locales/ta.pak
+  + locales/ta_FEMININE.pak
+  + locales/ta_MASCULINE.pak
+  + locales/ta_NEUTER.pak
+  + locales/te.pak
+  + locales/te_FEMININE.pak
+  + locales/te_MASCULINE.pak
+  + locales/te_NEUTER.pak
+  + locales/th.pak
+  + locales/th_FEMININE.pak
+  + locales/th_MASCULINE.pak
+  + locales/th_NEUTER.pak
+  + locales/tr.pak
+  + locales/tr_FEMININE.pak
+  + locales/tr_MASCULINE.pak
+  + locales/tr_NEUTER.pak
+  + locales/uk.pak
+  + locales/uk_FEMININE.pak
+  + locales/uk_MASCULINE.pak
+  + locales/uk_NEUTER.pak
+  + locales/ur.pak
+  + locales/ur_FEMININE.pak
+  + locales/ur_MASCULINE.pak
+  + locales/ur_NEUTER.pak
+  + locales/vi.pak
+  + locales/vi_FEMININE.pak
+  + locales/vi_MASCULINE.pak
+  + locales/vi_NEUTER.pak
+  + locales/zh-CN.pak
+  + locales/zh-CN_FEMININE.pak
+  + locales/zh-CN_MASCULINE.pak
+  + locales/zh-CN_NEUTER.pak
+  + locales/zh-TW.pak
+  + locales/zh-TW_FEMININE.pak
+  + locales/zh-TW_MASCULINE.pak
+  + locales/zh-TW_NEUTER.pak
+  + layers/pixels-vulkan64.json
+  + px_gh.dll
+  + px_gh_injector.exe
+  + px_gh_address.exe
+  + resources/update/root.json
+Done: cloud_node distribution published to D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\dist
+Verified cloud_node 3.3.97: 314 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Verified cloud_node 3.3.97: 314 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Command line defined: "OUTPUT_DIR=D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\decoder-output-recovery-20261012\installer\.cloud_node-installer-rvnsjl9y"
+Command line defined: "PRODUCT_ID=cloud_node"
+Command line defined: "DISTRIBUTION=official"
+Command line defined: "RELEASE_NAMESPACE=pixels.official"
+Command line defined: "OEM_ID="
+Command line defined: "PRODUCT_VERSION=3.3.97"
+Command line defined: "PRODUCT_VERSION_CODE=30397"
+Command line defined: "COMPANY=Pixels"
+Command line defined: "PUBLISHER_NAME=Pixels"
+Processing config: D:\GoCloud\GammaRayPremium\tools\nsis\nsisconf.nsh
+Processing script file: "D:\GoCloud\GammaRayPremium\setup\make_setup.nsi" (UTF8)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\decoder-output-recovery-20261012\installer\.cloud_node-installer-rvnsjl9y\PixelsCloudNode_official_3.3.97_Setup.exe"
+Install: 4 pages (256 bytes), 1 section (2072 bytes), 1174 instructions (32872 bytes), 702 strings (27130 bytes), 2 language tables (636 bytes).
+Uninstall: 3 pages (256 bytes), 1 section (2072 bytes), 450 instructions (12600 bytes), 269 strings (9860 bytes), 2 language tables (572 bytes).
+Datablock optimizer saved 4257 KiB (~1.5%).
+
+Using zlib compression.
+
+EXE header size:              236032 / 39936 bytes
+Install code:                  12136 / 63430 bytes
+Install data:              278331651 / 676765470 bytes
+Uninstall code+data:           46431 / 218602 bytes
+CRC (0xA8A6DA37):                  4 / 4 bytes
+
+Total size:                278626254 / 677087442 bytes (41.1%)
+Published installer atomically: D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\decoder-output-recovery-20261012\installer\3.3.97

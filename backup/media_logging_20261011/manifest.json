@@ -1,0 +1,23 @@
+[
+  {
+    "original_path": "src/px_deps/px_common/log.h",
+    "base_revision": "c449357a3fe7a860a3db42923531479a94a5e6c2",
+    "locally_modified": false,
+    "sha256": "7e0764388775b7dfae4361778f3a080d773a75726b13361ee656def4594a684d",
+    "reason": "Preserve exact synchronous media-log initialization before moving Client/Render file writes off media workers."
+  },
+  {
+    "original_path": "src/px_client/ui_imgui/client_main.cpp",
+    "base_revision": "c449357a3fe7a860a3db42923531479a94a5e6c2",
+    "locally_modified": true,
+    "sha256": "d0cf9709285077779a6441154722bac1953d3d7db15c85b33b30ec2fedb12c10",
+    "reason": "Preserve exact synchronous media-log initialization before moving Client/Render file writes off media workers."
+  },
+  {
+    "original_path": "src/px_render/rd_main.cpp",
+    "base_revision": "c449357a3fe7a860a3db42923531479a94a5e6c2",
+    "locally_modified": true,
+    "sha256": "e5f4178414e146f6192bbce5095175459144afb68a45a0371c6f8c6dccd7c0eb",
+    "reason": "Preserve exact synchronous media-log initialization before moving Client/Render file writes off media workers."
+  }
+]

@@ -1,0 +1,227 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/decoder_startup_gate.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_sdk_decoder_factory.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/thunder_sdk.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/thunder_sdk.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 2105 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_sdk_decoder_factory
+[0/2] Re-checking globbed directories...
+[1/2] Building CXX object src\px_client_sdk\CMakeFiles\test_sdk_decoder_factory.dir\tests\test_sdk_decoder_factory.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/2] Linking CXX executable src\px_client_sdk\test_sdk_decoder_factory.exe
+DONE: test_sdk_decoder_factory
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 76: sdk_decoder_factory
+1/1 Test #76: sdk_decoder_factory ..............***Failed   13.86 sec
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 11 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 11 tests from SdkDecoderFactory
+[ RUN      ] SdkDecoderFactory.HostIdentityIsPreservedWithoutDesktopDiscovery
+[2026-10-12 03:59:09.971] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:09.972] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.HostIdentityIsPreservedWithoutDesktopDiscovery (1 ms)
+[ RUN      ] SdkDecoderFactory.RequiresInjectedFactoryAndRejectsReinitialization
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:09.972] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:09.972] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.RequiresInjectedFactoryAndRejectsReinitialization (0 ms)
+[ RUN      ] SdkDecoderFactory.OutputRefreshBeforeStartCompletesAndExitReleasesFactory
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:09.973] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:09.973] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.OutputRefreshBeforeStartCompletesAndExitReleasesFactory (0 ms)
+[ RUN      ] SdkDecoderFactory.OutputCallbackCanStopAndDestroySessionRepeatedly
+[2026-10-12 03:59:09.973] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:9
+[2026-10-12 03:59:09.973] [info] [sdk_net_client.cpp:287] Native media transport: UDP/FEC
+[2026-10-12 03:59:09.973] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:09.974] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:09.974] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:09.979] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:12.031] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:12.031] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:12.031] [warning] [thread.cpp:151] Thread video requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-12 03:59:12.031] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:12.031] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:12.031] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:12.031] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:12.031] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:12.031] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[2026-10-12 03:59:12.031] [info] [thread.cpp:223] Ok, thread exit: video
+[2026-10-12 03:59:12.047] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:9
+[2026-10-12 03:59:12.047] [info] [sdk_net_client.cpp:287] Native media transport: UDP/FEC
+[2026-10-12 03:59:12.047] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:12.048] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:12.048] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:12.061] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:14.095] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:14.095] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:14.095] [warning] [thread.cpp:151] Thread video requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-12 03:59:14.095] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:14.095] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:14.095] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:14.095] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:14.096] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:14.096] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[2026-10-12 03:59:14.096] [info] [thread.cpp:223] Ok, thread exit: video
+[2026-10-12 03:59:14.111] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:9
+[2026-10-12 03:59:14.111] [info] [sdk_net_client.cpp:287] Native media transport: UDP/FEC
+[2026-10-12 03:59:14.111] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:14.111] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:14.111] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:14.125] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:16.161] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:16.161] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:16.161] [warning] [thread.cpp:151] Thread video requested Exit from itself; lifetime-safe reaping is deferred.
+[2026-10-12 03:59:16.161] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:16.161] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:16.161] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:16.161] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:16.161] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:16.161] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[2026-10-12 03:59:16.161] [info] [thread.cpp:223] Ok, thread exit: video
+[       OK ] SdkDecoderFactory.OutputCallbackCanStopAndDestroySessionRepeatedly (6203 ms)
+[ RUN      ] SdkDecoderFactory.ShutdownDiscardsQueuedOutputOwnerAfterWorkerStops
+[2026-10-12 03:59:16.176] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:9
+[2026-10-12 03:59:16.176] [info] [sdk_net_client.cpp:287] Native media transport: UDP/FEC
+[2026-10-12 03:59:16.177] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:16.177] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:16.177] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:16.192] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:18.225] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:18.225] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:18.226] [info] [thread.cpp:223] Ok, thread exit: video
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:18.226] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:18.226] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.ShutdownDiscardsQueuedOutputOwnerAfterWorkerStops (2049 ms)
+[ RUN      ] SdkDecoderFactory.WindowsFactoryIsConcreteAndRejectsMissingSession
+[       OK ] SdkDecoderFactory.WindowsFactoryIsConcreteAndRejectsMissingSession (0 ms)
+[ RUN      ] SdkDecoderFactory.RealDecoderCleanupIsSafeBeforeInitAndAfterUnsupportedCodec
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:18.226] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:18.226] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.RealDecoderCleanupIsSafeBeforeInitAndAfterUnsupportedCodec (0 ms)
+[ RUN      ] SdkDecoderFactory.WindowsFactoryRetainsResourcesUntilSessionStops
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:18.227] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:18.227] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.WindowsFactoryRetainsResourcesUntilSessionStops (0 ms)
+[ RUN      ] SdkDecoderFactory.BufferSnapshotKeepsBackingResourceAlive
+[       OK ] SdkDecoderFactory.BufferSnapshotKeepsBackingResourceAlive (0 ms)
+[ RUN      ] SdkDecoderFactory.DetachedOutputDropsDisplayWorkAndConfigurePrecedesCompletion
+[2026-10-12 03:59:18.227] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:9
+[2026-10-12 03:59:18.227] [info] [sdk_net_client.cpp:287] Native media transport: UDP/FEC
+[2026-10-12 03:59:18.227] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:18.272] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:18.272] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:18.288] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:20.299] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:20.299] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:20.299] [info] [thread.cpp:223] Ok, thread exit: video
+[2026-10-12 03:59:20.299] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:20.299] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:20.299] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:20.299] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:20.299] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:20.299] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[       OK ] SdkDecoderFactory.DetachedOutputDropsDisplayWorkAndConfigurePrecedesCompletion (2072 ms)
+[ RUN      ] SdkDecoderFactory.SustainedAcceptedInputsRecoverThroughRealVideoQueueAndConfiguredIdr
+[2026-10-12 03:59:20.303] [info] [sdk_net_client.cpp:286] Start native connection mode=0, route=0, control=127.0.0.1:8840
+[2026-10-12 03:59:20.303] [info] [sdk_net_client.cpp:287] Native media transport: WebSocket/TCP
+[2026-10-12 03:59:20.303] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 03:59:20.304] [info] [reconnect_supervisor.cpp:143] event=transport.connection_ready component=sdk_ws generation=1 latency_ms=1
+[2026-10-12 03:59:20.304] [info] [ws_connection.cpp:103] event=transport.tcp_connected component=sdk_ws local_address=127.0.0.1 local_port=8841
+[2026-10-12 03:59:20.314] [warning] [ws_connection.cpp:107] SDK websocket disconnected: error=30, reason=The WebSocket frame payload was not valid utf8
+[2026-10-12 03:59:20.315] [warning] [reconnect_supervisor.cpp:63] event=transport.connection_lost component=sdk_ws generation=1 stage=sdk-ws.disconnect code=SERVICE_NOT_CONNECTED operation=supervise outcome=failed recoverable=true suppressed=0 attempts=1 successes=1 reconnect_waits=1 consecutive_failures=1 reason=SDK websocket disconnected
+[2026-10-12 03:59:20.330] [info] [reconnect_supervisor.cpp:171] event=transport.reconnect_wait component=sdk_ws generation=1 attempt=1 delay_ms=250 outcome=waiting
+[2026-10-12 03:59:20.594] [info] [ws_connection.cpp:103] event=transport.tcp_connected component=sdk_ws local_address=127.0.0.1 local_port=8842
+[2026-10-12 03:59:20.594] [info] [reconnect_supervisor.cpp:143] event=transport.connection_ready component=sdk_ws generation=2 latency_ms=1
+D:\GoCloud\GammaRayPremium\src\px_client_sdk\tests\test_sdk_decoder_factory.cpp(330): error: Value of: WaitFor([observations] { return observations->images == 1; })
+  Actual: false
+Expected: true
+
+[2026-10-12 03:59:23.319] [info] [thunder_sdk.cpp:779] ThunderSdk start exiting.
+[2026-10-12 03:59:23.319] [info] [thunder_sdk.cpp:786] Will exit app timer.
+[2026-10-12 03:59:23.334] [info] [thunder_sdk.cpp:791] Will exit ws client.
+[2026-10-12 03:59:23.334] [info] [sdk_net_client.cpp:429] Queued message count: 0
+[2026-10-12 03:59:23.350] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 03:59:23.350] [info] [thunder_sdk.cpp:796] Will exit video thread.
+[2026-10-12 03:59:23.350] [info] [thread.cpp:223] Ok, thread exit: video
+[2026-10-12 03:59:23.351] [info] [thunder_sdk.cpp:800] Will exit audio thread.
+[2026-10-12 03:59:23.351] [info] [thread.cpp:223] Ok, thread exit: audio
+[2026-10-12 03:59:23.351] [info] [thunder_sdk.cpp:804] Will exit audio_spectrum_thread thread
+[2026-10-12 03:59:23.351] [info] [thread.cpp:223] Ok, thread exit: misc
+[2026-10-12 03:59:23.351] [info] [thunder_sdk.cpp:811] will exit video decoder.
+[2026-10-12 03:59:23.351] [info] [thunder_sdk.cpp:822] ThunderSdk exited
+[  FAILED  ] SdkDecoderFactory.SustainedAcceptedInputsRecoverThroughRealVideoQueueAndConfiguredIdr (3051 ms)
+[----------] 11 tests from SdkDecoderFactory (13380 ms total)
+
+[----------] Global test environment tear-down
+[==========] 11 tests from 1 test suite ran. (13380 ms total)
+[  PASSED  ] 10 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] SdkDecoderFactory.SustainedAcceptedInputsRecoverThroughRealVideoQueueAndConfiguredIdr
+
+ 1 FAILED TEST
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =  13.87 sec
+
+The following tests FAILED:
+	 76 - sdk_decoder_factory (Failed)
+Errors while running CTest

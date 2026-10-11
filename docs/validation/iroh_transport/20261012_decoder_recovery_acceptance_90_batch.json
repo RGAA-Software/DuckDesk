@@ -1,0 +1,90 @@
+{
+  "route": "90",
+  "started_epoch": 1791745870.0638745,
+  "samples": [
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_1",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17736,
+        "attempts": 17736,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.01741807570843,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 36.219,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.56193,
+      "passed_performance": true
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_2",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17719,
+        "attempts": 17719,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 59.96264593102746,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 23.255,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.509108,
+      "passed_performance": true
+    },
+    {
+      "prefix": "20261011_decoder_recovery_acceptance_90_3",
+      "receive_gaps": 0,
+      "maximum_receive_gap_ms": 0,
+      "present_gaps": 0,
+      "maximum_present_gap_ms": 0,
+      "decoder_output_diagnostic_totals": {
+        "frames": 17729,
+        "attempts": 17729,
+        "no_output": 0,
+        "errors": 0
+      },
+      "decoder_recoveries": 0,
+      "upload_rejections": 0,
+      "weighted_present_fps": 60.00763460354039,
+      "maximum_log_overruns": 0,
+      "ui_slow_operations": 1,
+      "early_delivery_p99_ms": 23.93,
+      "drag": {
+        "window_found": true,
+        "posted_mouse_messages": 480,
+        "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+      },
+      "full_window_p99_at_most_50ms": true,
+      "full_window_coverage_seconds": 290.492868,
+      "passed_performance": true
+    }
+  ],
+  "complete": true,
+  "ended_epoch": 1791746901.2918243,
+  "note": "Performance metrics only. Every >100ms gap still needs source/path classification; this does not mark the task complete."
+}

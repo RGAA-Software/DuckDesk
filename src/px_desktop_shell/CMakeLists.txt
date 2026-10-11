@@ -6,8 +6,10 @@ set(px_desktop_shell_common_sources
     desktop_shell.cpp
     font_loader.cpp
     imgui_session.cpp
+    live_resize_refresh.cpp
     platform_icon_atlas.cpp
     title_bar.cpp
+    video_presentation_progress.cpp
     window_host.cpp
     windows_title_bar_behavior.cpp
 )
@@ -100,6 +102,13 @@ function(pixels_stage_desktop_images target)
 endfunction()
 
 if(BUILD_TESTING)
+    add_executable(test_video_presentation_progress tests/test_video_presentation_progress.cpp)
+    target_compile_features(test_video_presentation_progress PRIVATE cxx_std_23)
+    add_test(NAME video_presentation_progress COMMAND test_video_presentation_progress)
+    add_executable(test_live_resize_refresh tests/test_live_resize_refresh.cpp)
+    target_link_libraries(test_live_resize_refresh PRIVATE px_panel_desktop_shell)
+    add_test(NAME live_resize_refresh COMMAND test_live_resize_refresh)
+    set_tests_properties(live_resize_refresh PROPERTIES TIMEOUT 15)
     add_executable(test_title_bar_maximize tests/test_title_bar_maximize.cpp)
     target_link_libraries(test_title_bar_maximize PRIVATE px_desktop_shell)
     add_test(NAME title_bar_maximize COMMAND test_title_bar_maximize)

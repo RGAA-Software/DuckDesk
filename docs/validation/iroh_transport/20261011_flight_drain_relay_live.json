@@ -1,0 +1,28 @@
+{
+  "evidence": ".cache\\iroh-native-live-20261011-175257-relay",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "instance_id": "094a52b5-deb9-4265-8a15-a1a1d53c424f",
+      "session_id": "60bba468-498c-40d8-8eda-ab9eaf593fab",
+      "state": "connected",
+      "client_pid": 80852,
+      "capture_exit": null,
+      "sample_started_epoch": 1791712382.184188,
+      "sample_ended_epoch": 1791712442.1848269,
+      "grace_stopped": true
+    },
+    {
+      "kind": "webview",
+      "instance_id": "d5738763-0218-43b5-808b-902c1744bae6",
+      "session_id": "113a61e7-8708-4f46-90cf-6c27092013a1",
+      "state": "connected",
+      "client_pid": 16596,
+      "capture_exit": null,
+      "sample_started_epoch": 1791712470.269746,
+      "sample_ended_epoch": 1791712475.270544,
+      "grace_stopped": true
+    }
+  ],
+  "client_log_rotation_recovered_lines": 1129
+}

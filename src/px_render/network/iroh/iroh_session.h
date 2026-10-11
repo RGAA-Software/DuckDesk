@@ -12,7 +12,7 @@ namespace px {
 // Owns business routing for one admitted frontend; mode and loopback port come from Render configuration.
 class IrohSession final : public std::enable_shared_from_this<IrohSession> {
 public:
-    IrohSession(AcceptedIrohFrontend accepted, RenderEventCallback events);
+    IrohSession(AcceptedIrohFrontend accepted, RenderEventCallback events, transport::VideoSendBudget video_budget = transport::VideoSendBudget{});
     ~IrohSession();
     [[nodiscard]] bool Start(asio::any_io_executor executor, std::uint16_t rdp_proxy_port = 0);
     void Close(ResourceChannelCloseOutcome outcome = ResourceChannelCloseOutcome::kUserStopped);
@@ -27,7 +27,7 @@ public:
     [[nodiscard]] bool IsAlive() const;
     [[nodiscard]] std::uint64_t VideoEncodingBitrate(std::uint64_t ceiling_bps) const;
     [[nodiscard]] int VideoFrameRate(int requested_fps) const;
-    [[nodiscard]] bool CanEncodeVideo(std::uint8_t stream);
+    [[nodiscard]] bool CanEncodeVideo(std::uint8_t stream, const std::string& monitor);
     [[nodiscard]] const std::string& StreamId() const { return accepted_.frontend->StreamId(); }
     [[nodiscard]] const std::string& BindingId() const { return accepted_.frontend->BindingId(); }
 
@@ -40,6 +40,7 @@ private:
     void Publish(RenderEvent event);
     AcceptedIrohFrontend accepted_{};
     RenderEventCallback events_{};
+    transport::VideoSendBudget video_budget_{};
     std::mutex mutex_{};
     std::shared_ptr<transport::MessageSession> messages_{};
     std::shared_ptr<rdp::RdpTcpBridge> rdp_bridge_{};

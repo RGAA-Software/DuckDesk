@@ -1,0 +1,23 @@
+{
+  "route": "90",
+  "segment": "1",
+  "series": "decoder_recovery_acceptance",
+  "requested_seconds": 300,
+  "evidence": ".cache\\iroh-native-live-20261012-031131-relay",
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "instance_id": "855255c3-c9b0-4a8c-86c0-1d8bf2d69bcb",
+  "client_pid": 21628,
+  "session_id": "70debfd0-a368-402b-896a-8f3dfbf59fa3",
+  "sample_started_epoch": 1791745896.031052,
+  "tcp_statistics": "D:\\GoCloud\\GammaRayPremium\\.cache\\20261011_decoder_recovery_acceptance_90_1_tcp.csv",
+  "drag": {
+    "window_found": true,
+    "posted_mouse_messages": 480,
+    "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+  },
+  "sample_ended_epoch": 1791746196.045706,
+  "state": "connected",
+  "grace_stopped_seconds": 11.3,
+  "grace_stopped": true,
+  "tcp_monitor_exit": 0
+}

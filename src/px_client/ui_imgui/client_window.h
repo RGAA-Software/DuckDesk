@@ -26,6 +26,7 @@ public:
     void HandleInput(const px::desktop::DesktopInputEvent& event);
 
 private:
+    std::uint64_t consecutiveRejectedUploads_{};
     [[nodiscard]] bool InVideo(float x, float y) const noexcept;
     void ReleasePressedInput();
     void SynchronizeClipboard();

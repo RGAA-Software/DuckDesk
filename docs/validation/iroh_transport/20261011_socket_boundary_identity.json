@@ -1,0 +1,51 @@
+[
+  {
+    "path": ".cache\\socket-boundary-20261011\\local1.etl",
+    "bytes": 61201714,
+    "sha256": "b2bb9497bc369781b4db43272c381395bfc7e75f79b280761fee7432806c6b75"
+  },
+  {
+    "path": ".cache\\socket-boundary-20261011\\local1-nic.pcapng",
+    "bytes": 34565984,
+    "sha256": "bf9d04591337f1ef90c15b0f3897036688019a06c8f781f11652ff87ac74b969"
+  },
+  {
+    "path": ".cache\\socket-boundary-20261011\\local1-tcpip.pcapng",
+    "bytes": 34565984,
+    "sha256": "47035c5fd16e22834014b404c7306a1c175e5ef9f8ae4a59f65acf094da1e25c"
+  },
+  {
+    "path": ".cache\\socket-boundary-20261011\\remote1-10.pcapng.gz",
+    "bytes": 32268608,
+    "sha256": "6489316d7dc74d34d73e0d579b309335a9f7d73c7bd2c675b7a31970f910c8f9"
+  },
+  {
+    "path": ".cache\\socket-boundary-20261011\\remote1-51.pcapng.gz",
+    "bytes": 32268845,
+    "sha256": "a9fd1cbfff5541fbf6a50fa6ca525842000c60d33a14e8f5d8138b6075724090"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_boundary_client_trace.log.gz",
+    "bytes": 17690048,
+    "sha256": "b60b6b10f5b51f46421265f48e6555cd9867749d4313e86ffc1b416509292102",
+    "gzip_sha256": "0390de0f9810d2cee683c47e869ae8c5b84c283d9f78cf8bcd0cfb5c6bb823bd"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_boundary_server_trace.log.gz",
+    "bytes": 25514651,
+    "sha256": "e08cc065a143e90f4ac32cd65e2f66937f703d8326ac2a681be608fc34e19530",
+    "gzip_sha256": "d7442c95c03927f830843d5b737cad324632333272b66b03f925e00557067c31"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_boundary_client_media.log.gz",
+    "bytes": 1364261,
+    "sha256": "8e5360e52be145151031a85d50fcfe5c7c5a65680588f42b443fc555eec61765",
+    "gzip_sha256": "fd744757f70e138498322f49b2e2caaa01a050ae64fd94c34a4888effb774248"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_boundary_server_media.log.gz",
+    "bytes": 1826779,
+    "sha256": "1a4d73a2841d8aa9000402b7e0b2dbc152cfc80cc1595c4b57a186e5e66eb478",
+    "gzip_sha256": "362c7e15d954ddfbd184bca96966c0d1dc3837ef0ef0eff477c66b532b5c3e4d"
+  }
+]

@@ -1,0 +1,43 @@
+   Compiling px_node_protocol v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_node_protocol)
+   Compiling service_core v3.3.67 (D:\GoCloud\GammaRayPremium\rust_client\px_service\service_core)
+    Finished `release` profile [optimized] target(s) in 20.50s
+     Running unittests src\lib.rs (D:\GoCloud\GammaRayPremium\build_official\cloud_node\cargo\target\release\deps\service_core-1567ae58ab8f7499.exe)
+
+running 28 tests
+test app_instance::tests::application_media_budget_preserves_console_kilobits_for_both_capture_modes ... ok
+test app_instance::tests::console_kilobit_bitrate_is_converted_once_for_render_megabit_flag ... ok
+test app_instance::tests::every_application_mode_passes_custom_disconnect_grace_to_render ... ok
+test app_instance::tests::failed_start_releases_port ... ok
+test app_instance::tests::finished_record_rejects_stale_state_transitions ... ok
+test app_instance::tests::launch_spec_carries_view_path_and_game_args ... ok
+test app_instance::tests::launch_spec_is_game_hook_with_b64_path_and_port ... ok
+test app_instance::tests::listen_port_token_boundary ... ok
+test app_instance::tests::non_ue_launch_args_pass_through_unchanged ... ok
+test app_instance::tests::observed_exit_classifies_idle_crash_and_unknown_without_conflating_them ... ok
+test app_instance::tests::pid_identity_check_before_kill ... ok
+test app_instance::tests::port_bindable_detects_v4_and_v6_occupancy ... ok
+test app_instance::tests::port_pool_exhaustion ... ok
+test app_instance::tests::preferred_port_out_of_range_rejected ... ok
+test app_instance::tests::prune_finished_removes_aged_records ... ok
+test app_instance::tests::rdp_launch_contains_binding_but_never_credentials_capture_or_live_push ... ok
+test app_instance::tests::rdp_workspace_is_exclusive_and_process_identity_is_not_just_a_pid_or_port ... ok
+test app_instance::tests::registry_allocates_ports_and_blocks_duplicates ... ok
+test app_instance::tests::registry_multi_instance_same_app_different_ports ... ok
+test app_instance::tests::relay_arguments_are_all_or_nothing ... ok
+test app_instance::tests::resolve_game_path_preserves_absolute ... ok
+test app_instance::tests::resolve_rejects_relative_paths_and_parent_components ... ok
+test app_instance::tests::should_not_treat_desktop_as_game_hook_kill_target ... ok
+test app_instance::tests::stop_releases_port_for_reuse ... ok
+test app_instance::tests::summaries_only_report_active_states ... ok
+test app_instance::tests::web_client_url_includes_device_and_instance ... ok
+test app_instance::tests::webview_launch_uses_base64url_without_exposing_plain_url ... ok
+test app_instance::tests::webview_url_rejects_bad_encoding_credentials_and_non_http_schemes ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 69 filtered out; finished in 0.84s
+
+   Compiling service_core v3.3.67 (D:\GoCloud\GammaRayPremium\rust_client\px_service\service_core)
+   Compiling px_service v3.3.67 (D:\GoCloud\GammaRayPremium\rust_client\px_service)
+    Finished `release` profile [optimized] target(s) in 32.10s
+HASH OK  D:\GoCloud\GammaRayPremium\build_official\cloud_node\cargo\stage\px_service.exe  EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0
+HASH OK  D:\GoCloud\GammaRayPremium\build_official\cloud_node\dist\px_service.exe  EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0
+Refreshed development distribution manifest: D:\GoCloud\GammaRayPremium\build_official\cloud_node\dist (277 artifacts).

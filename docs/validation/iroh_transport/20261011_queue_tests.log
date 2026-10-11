@@ -1,0 +1,12 @@
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/cloud_node/cmake
+    Start  61: iroh_media_datagrams
+1/3 Test  #61: iroh_media_datagrams .............   Passed    2.11 sec
+    Start  77: udp_media_failure
+2/3 Test  #77: udp_media_failure ................   Passed   14.70 sec
+    Start 103: iroh_frontend
+3/3 Test #103: iroh_frontend ....................   Passed    9.17 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =  26.28 sec

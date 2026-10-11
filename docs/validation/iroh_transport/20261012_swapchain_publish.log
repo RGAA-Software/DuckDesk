@@ -1,0 +1,152 @@
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1857 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: px_client
+[0/2] Re-checking globbed directories...
+[1/6] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\vulkan_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/6] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/6] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/6] Linking CXX static library src\px_client_sdk\px_sdk.lib
+[5/6] Linking CXX static library src\px_desktop_shell\px_desktop_shell.lib
+[6/6] Linking CXX executable src\px_deps\px_client.exe
+DONE: px_client
+HASH OK  px_client.exe  0759A9A0F5CD9DF4F4BD250A0D9D8AFEAE254F64BAA271C859CB0D07E6361C76
+HASH OK  px_rdp_client.dll  21A1A9C3CADB02FD183337AD500CF1CA8B687F58B9DAA5AD2340A6FC9533C3A8
+HASH OK  px_rdp_core.dll  580DA115AAF104AB3FA9AE668B6EF0AD8DC1061FC2AE878F1CC6CEC1F7B065C9
+HASH OK  px_rdp_winpr.dll  463155B960A9C5A45579C6C97EB53A039262C8A131921D7E4AA3689759F9F352
+HASH OK  libusb-1.0.dll  CF0D2AB5C25B1E3414378E92C160DC7EB0386326736F812A97B61C915E6A43B1
+HASH OK  libssl-3-x64.dll  3B9486E25861A358DCCDD36BC6524B7554E94D00703704AC2037F34F34C67E1E
+HASH OK  libcrypto-3-x64.dll  D10718A1EE7A51ACF20D4DF5DAB191E249E715F7AC437BD0637D5D860818D336
+HASH OK  zlib1.dll  885404E26514F02BFC68983183542062E459A324292CAF281785507180EE2CBD
+HASH OK  cjson.dll  D2F1C0EF73D50CBA70294F947E34BA9B63C9949A8C352DD77E557F55D9B57DC0
+HASH OK  legacy.dll  2D0A349C883F50CBF776C0054EF1B37E24C4D266315C3437362DDE1B774412DF
+HASH OK  openh264-6.dll  ECBF31FD2691179D5E616F9659D6D72EBA0F8392980158F69567E93FE4C40159
+HASH OK  vulkan-1.dll  2302CECC9A056083A0E080DFDFDEA035C2480857168FD6EA52D4499B094256B6
+HASH OK  libplacebo-349.dll  D81222CA387BCE5475FD1F0D7515E8B6959DAF1846AAD9C6DF71312E044191A1
+HASH OK  rdp\px_rdp_sdk.json  5A1695FE30104CFD53B2AFAA836B1EC9D5DD01019FC0BBF07BA0830011CA4136
+HASH OK  px_voice_apm.dll  3F320BB096B1B52CF8C2D0E4A55450FCD96FA9C128B9CD4823DC22A2098039FD
+HASH OK  resources\fonts\Roboto-Medium.ttf  8559132C89AD51D8A2BA5B171887A44A7BA93776E205F553573DE228E64B45F8
+HASH OK  resources\icons\brand\px_icon.png  5CC1F93725D87065E2CFC68BF3B0B807CF3193A24CEDA8B4745545B0A5B1E87B
+HASH OK  resources\icons\brand\px_icon-150.png  CB70AE1856FC85755A75135108DE14925D216067C17A0A31367DBF4656A7B1EA
+HASH OK  resources\icons\brand\px_icon-200.png  C7F7A2B4A187C4D95F0D7C24C0ED353A26F0C5FF9E51001507F701D2F9E4F349
+HASH OK  resources\licenses\FreeType.txt  B70F0E349EFA97C835FAF3A82C4A641036537BA94C1DEDE77FF8BF3CEC6AAC30
+HASH OK  resources\icons\platform\windows.png  C82BA6C2316D9C4A2BC1D07B263387FC6F6C5CDE9E0F6AB508FB225908F00A63
+HASH OK  resources\icons\platform\windows-150.png  6595AF00D0AB9E8BBFD820CE67DE5DBF4DD4DA17B34727D564029B39D5514188
+HASH OK  resources\icons\platform\windows-200.png  D587ACA49C7EA1C97D4C94A12E7A44ADDC53BCF268183DF3F5D141C6EFF661A7
+HASH OK  resources\icons\platform\macos.png  9962E7BB5475BBA83B30131D6D24BC34D27999468BA845723BF4AF9D0B0A3A09
+HASH OK  resources\icons\platform\macos-150.png  EDEED6DE366D97EE1D2ACE6D59741307BE7CC5BF72E6958EC19B62916AA2E0DA
+HASH OK  resources\icons\platform\macos-200.png  288150377F43C64496ADE6B16A556F9A9E3BA72EC9AEEA41686BA47EA76D5527
+HASH OK  resources\icons\platform\android.png  2BA28FC5AC84A6CDB346590C10AB7DDF71D434169BC3A45F93C8E6142EDD89AD
+HASH OK  resources\icons\platform\android-150.png  EE86EB8D6AFCBCF50BC4F4BF71F5896C58804169E546DF903165CD4CDB4E73C6
+HASH OK  resources\icons\platform\android-200.png  C805460793FBCDEB05EFB201345BCCAEF0D6EA012450F1EFC76DD1EF9FA57492
+HASH OK  resources\icons\platform\ios.png  473DD687639D24B21455693D4EBBB659B1FB7D3239757E5A5ED68D99B047ABA0
+HASH OK  resources\icons\platform\ios-150.png  B7C6622F2A2643BD0E4413227862ED338454CE84BBAB8F1060AA4C05278F28FD
+HASH OK  resources\icons\platform\ios-200.png  4990CBC79CAA3C964C8BDB46F2604146A9E4EE498F341F725CC5F84BBAC8556A
+HASH OK  resources\licenses\Tabler.txt  D5A3F948AE5CB95BFC4D2F767EF2BF6A778815B0DDB2D1C48037744CF636518E
+HASH OK  resources\language\english.json  102E2530672C2B8A0866AEA26697C81618F2E74176AEE883590B2378C9F6315D
+HASH OK  resources\language\simple_cn.json  6138A11E5AA7CE0F37D620C16B1D8A5D73595EBE4BD744E5027A40A919BD31AB
+HASH OK  resources\language\traditional_cn.json  CF09C174CD07199EE28CD0981CF9EDEE7FE81A2E103B350E65DB43F8C49FC6A8
+Refreshed development distribution manifest: D:\GoCloud\GammaRayPremium\build_official\client\dist (40 artifacts).
+ZERO-QT OK  px_panel.exe
+ZERO-QT OK  px_client.exe
+ZERO-QT OK  px_osinfo.exe
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1857 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: px_panel
+[0/2] Re-checking globbed directories...
+ninja: no work to do.
+DONE: px_panel
+HASH OK  px_panel.exe  8ACEB454AB5A9382AA3EDF184E2D840386EB2CCDC2E3455432F7F1A34EEEB91F
+HASH OK  vulkan-1.dll  2302CECC9A056083A0E080DFDFDEA035C2480857168FD6EA52D4499B094256B6
+HASH OK  libplacebo-349.dll  D81222CA387BCE5475FD1F0D7515E8B6959DAF1846AAD9C6DF71312E044191A1
+HASH OK  resources\fonts\Roboto-Regular.ttf  79E851404657DAC2106B3D22AD256D47824A9A5765458EDB72C9102A45816D95
+HASH OK  resources\licenses\Lucide.txt  49277A4F5E2EDFD01BD02B1A7181B20590C203998E5434E490436F861CDCBCFB
+HASH OK  resources\fonts\Roboto-Medium.ttf  8559132C89AD51D8A2BA5B171887A44A7BA93776E205F553573DE228E64B45F8
+HASH OK  resources\icons\brand\px_icon.png  5CC1F93725D87065E2CFC68BF3B0B807CF3193A24CEDA8B4745545B0A5B1E87B
+HASH OK  resources\icons\brand\px_icon-150.png  CB70AE1856FC85755A75135108DE14925D216067C17A0A31367DBF4656A7B1EA
+HASH OK  resources\icons\brand\px_icon-200.png  C7F7A2B4A187C4D95F0D7C24C0ED353A26F0C5FF9E51001507F701D2F9E4F349
+HASH OK  resources\licenses\FreeType.txt  B70F0E349EFA97C835FAF3A82C4A641036537BA94C1DEDE77FF8BF3CEC6AAC30
+HASH OK  resources\icons\platform\windows.png  C82BA6C2316D9C4A2BC1D07B263387FC6F6C5CDE9E0F6AB508FB225908F00A63
+HASH OK  resources\icons\platform\windows-150.png  6595AF00D0AB9E8BBFD820CE67DE5DBF4DD4DA17B34727D564029B39D5514188
+HASH OK  resources\icons\platform\windows-200.png  D587ACA49C7EA1C97D4C94A12E7A44ADDC53BCF268183DF3F5D141C6EFF661A7
+HASH OK  resources\icons\platform\macos.png  9962E7BB5475BBA83B30131D6D24BC34D27999468BA845723BF4AF9D0B0A3A09
+HASH OK  resources\icons\platform\macos-150.png  EDEED6DE366D97EE1D2ACE6D59741307BE7CC5BF72E6958EC19B62916AA2E0DA
+HASH OK  resources\icons\platform\macos-200.png  288150377F43C64496ADE6B16A556F9A9E3BA72EC9AEEA41686BA47EA76D5527
+HASH OK  resources\icons\platform\android.png  2BA28FC5AC84A6CDB346590C10AB7DDF71D434169BC3A45F93C8E6142EDD89AD
+HASH OK  resources\icons\platform\android-150.png  EE86EB8D6AFCBCF50BC4F4BF71F5896C58804169E546DF903165CD4CDB4E73C6
+HASH OK  resources\icons\platform\android-200.png  C805460793FBCDEB05EFB201345BCCAEF0D6EA012450F1EFC76DD1EF9FA57492
+HASH OK  resources\icons\platform\ios.png  473DD687639D24B21455693D4EBBB659B1FB7D3239757E5A5ED68D99B047ABA0
+HASH OK  resources\icons\platform\ios-150.png  B7C6622F2A2643BD0E4413227862ED338454CE84BBAB8F1060AA4C05278F28FD
+HASH OK  resources\icons\platform\ios-200.png  4990CBC79CAA3C964C8BDB46F2604146A9E4EE498F341F725CC5F84BBAC8556A
+HASH OK  resources\licenses\Tabler.txt  D5A3F948AE5CB95BFC4D2F767EF2BF6A778815B0DDB2D1C48037744CF636518E
+HASH OK  resources\language\english.json  102E2530672C2B8A0866AEA26697C81618F2E74176AEE883590B2378C9F6315D
+HASH OK  resources\language\simple_cn.json  6138A11E5AA7CE0F37D620C16B1D8A5D73595EBE4BD744E5027A40A919BD31AB
+HASH OK  resources\language\traditional_cn.json  CF09C174CD07199EE28CD0981CF9EDEE7FE81A2E103B350E65DB43F8C49FC6A8
+Refreshed development distribution manifest: D:\GoCloud\GammaRayPremium\build_official\client\dist (40 artifacts).
+ZERO-QT OK  px_panel.exe
+ZERO-QT OK  px_client.exe
+ZERO-QT OK  px_osinfo.exe
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client/ui_imgui/client_session.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_receive_queue.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_recovery_policy.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/media_transport/video_stream.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_client_sdk/tests/test_encoded_video_delivery.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/d3d11_renderer.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/include/px_desktop_shell/desktop_shell.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_desktop_shell/tests/test_title_bar_maximize.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/CMakeLists.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_flight_window.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_rate_control.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 1857 changed code lines against c449357a3fe7a860a3db42923531479a94a5e6c2.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_title_bar_maximize
+[0/2] Re-checking globbed directories...
+[1/1] Linking CXX executable src\px_desktop_shell\test_title_bar_maximize.exe
+DONE: test_title_bar_maximize
+Internal ctest changing into directory: D:/GoCloud/GammaRayPremium/build_official/client/cmake
+Test project D:/GoCloud/GammaRayPremium/build_official/client/cmake
+    Start 67: title_bar_maximize
+1/1 Test #67: title_bar_maximize ...............   Passed    1.06 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   1.07 sec

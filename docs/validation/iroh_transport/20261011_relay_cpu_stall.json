@@ -1,0 +1,101 @@
+{
+  "trace_window_us": [
+    114000000,
+    119000000
+  ],
+  "threads": {
+    "receive": {
+      "maximum_ready_delay_us": 69,
+      "samples": 876,
+      "longest_waits": [
+        {
+          "duration_us": 12975,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117333202
+        },
+        {
+          "duration_us": 12940,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 118599142
+        },
+        {
+          "duration_us": 12753,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117271969
+        },
+        {
+          "duration_us": 12671,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 116777101
+        },
+        {
+          "duration_us": 12615,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117910809
+        }
+      ]
+    },
+    "ui": {
+      "maximum_ready_delay_us": 37,
+      "samples": 1571,
+      "longest_waits": [
+        {
+          "duration_us": 15962,
+          "reason": "UserRequest",
+          "resume_trace_us": 117613671
+        },
+        {
+          "duration_us": 15960,
+          "reason": "UserRequest",
+          "resume_trace_us": 114568929
+        },
+        {
+          "duration_us": 15860,
+          "reason": "UserRequest",
+          "resume_trace_us": 114101765
+        },
+        {
+          "duration_us": 15851,
+          "reason": "UserRequest",
+          "resume_trace_us": 114068793
+        },
+        {
+          "duration_us": 15817,
+          "reason": "UserRequest",
+          "resume_trace_us": 116556463
+        }
+      ]
+    },
+    "decode": {
+      "maximum_ready_delay_us": 50,
+      "samples": 277,
+      "longest_waits": [
+        {
+          "duration_us": 614903,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117230674
+        },
+        {
+          "duration_us": 333555,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 115845416
+        },
+        {
+          "duration_us": 327255,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117878372
+        },
+        {
+          "duration_us": 195238,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 118138842
+        },
+        {
+          "duration_us": 169232,
+          "reason": "WrAlertByThreadId",
+          "resume_trace_us": 117459867
+        }
+      ]
+    }
+  }
+}

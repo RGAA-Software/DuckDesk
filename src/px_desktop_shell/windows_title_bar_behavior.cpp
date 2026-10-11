@@ -8,9 +8,11 @@
 #include <dwmapi.h>
 #include <windowsx.h>
 
+#include <chrono>
 #include <memory>
 #include <utility>
 
+#include "px_common/log.h"
 #include "title_bar.h"
 
 namespace px::desktop {
@@ -23,6 +25,24 @@ constexpr int kMinimumWindowHeight{600};
 constexpr UINT_PTR kSubclassId{0x50584D42};
 constexpr DWORD_PTR kAllowTitleBarMaximize{1};
 constexpr DWORD_PTR kMaximizeButtonPressed{2};
+
+// SDL's event wait also dispatches native messages. Measure that dispatch rather
+// than treating its requested wait timeout as an actual bound on native calls.
+class NativeMessageTrace final {
+public:
+    NativeMessageTrace(UINT message, WPARAM parameter) : message_(message), parameter_(parameter) {}
+
+    ~NativeMessageTrace() {
+        const auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started_).count();
+        if (duration_us >= 50000)
+            LOGI("event=video.native_message phase=slow message={} parameter={} duration_us={}", message_, parameter_, duration_us);
+    }
+
+private:
+    UINT message_{};
+    WPARAM parameter_{};
+    std::chrono::steady_clock::time_point started_{std::chrono::steady_clock::now()};
+};
 
 bool IsMaximizeButton(const HWND window, const LPARAM position) {
     RECT clientBounds{};
@@ -44,6 +64,11 @@ bool IsMaximizeButton(const HWND window, const LPARAM position) {
 
 LRESULT CALLBACK TitleBarSubclass(const HWND window, const UINT message, const WPARAM wParam, const LPARAM lParam, const UINT_PTR,
                                   const DWORD_PTR behaviorFlags) {
+    const NativeMessageTrace message_trace{message, wParam};
+    if (message == WM_SIZE) {
+        LOGI("event=video.window_visibility state={} width={} height={}", wParam == SIZE_MINIMIZED ? "minimized" : "visible", LOWORD(lParam),
+             HIWORD(lParam));
+    }
     if (message == kShowAndRaiseWindowMessage) {
         static_cast<void>(ShowWindow(window, SW_RESTORE));
         static_cast<void>(BringWindowToTop(window));

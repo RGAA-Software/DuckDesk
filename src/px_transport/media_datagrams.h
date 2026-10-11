@@ -10,8 +10,11 @@
 #include "media_transport/audio_stream.h"
 #include "media_transport/video_recovery_policy.h"
 #include "transport.h"
+#include "video_diagnostics.h"
 #include "video_flight_window.h"
+#include "video_queue_admission.h"
 #include "video_receive_feedback.h"
+#include "video_send_pacing.h"
 #include "video_transit_timing.h"
 #include "voice_datagram.h"
 
@@ -28,6 +31,7 @@ inline constexpr std::uint16_t kMediaDatagramBytes{1100};
 struct MediaSendOptions final {
     std::chrono::milliseconds frame_deadline{250};
     std::uint8_t fec_percent{20};
+    VideoSendBudget video_budget{};
 };
 
 class MediaDatagramSender final : public std::enable_shared_from_this<MediaDatagramSender> {
@@ -37,7 +41,8 @@ public:
     // False means no work was accepted. An accepted frame invokes completion once, including cancellation.
     [[nodiscard]] bool SendVideo(const media::VideoFrame& frame, std::function<void(bool)> completion);
     [[nodiscard]] bool SendAudio(std::span<const std::uint8_t> opus);
-    [[nodiscard]] bool CanEncodeVideo(std::uint8_t stream);
+    [[nodiscard]] bool CanEncodeVideo(std::uint8_t stream,
+                                     std::optional<std::chrono::steady_clock::time_point> recovery_request = std::nullopt);
     void ObserveFeedback(const VideoReceiveFeedback& report);
     void Stop();
 
@@ -50,6 +55,8 @@ private:
         std::function<void(bool)> completion{};
         std::uint8_t stream{};
         std::uint64_t frame{};
+        std::uint32_t wire_frame{};
+        media::VideoFrameKind kind{media::VideoFrameKind::kPredicted};
     };
     // PacedMediaBatch serializes its callbacks. Measures admission to QUIC, not NIC transmission.
     struct VideoWriteTrace final {
@@ -58,6 +65,10 @@ private:
         std::size_t maximum_burst_bytes{};
         std::size_t accepted_packets{};
         std::optional<Error> error{};
+        std::string packet_writes{};
+        std::optional<std::chrono::steady_clock::time_point> queue_blocked_since{};
+        std::uint64_t queue_wait_us{};
+        std::uint64_t maximum_quic_queued_bytes{};
     };
     void StartNextVideo();
     struct VideoSequence final {
@@ -74,12 +85,15 @@ private:
     MediaTimerResolution timer_resolution_{};
     asio::any_io_executor executor_{};
     MediaSendOptions options_{};
+    std::shared_ptr<VideoSendPacing> video_pacing_{};
+    VideoQueueAdmission queue_admission_{};
     std::mutex video_mutex_{};
     std::mutex audio_mutex_{};
     std::map<std::uint8_t, VideoSequence> sequences_{};
     std::map<std::uint8_t, std::chrono::steady_clock::time_point> last_encoded_frame_{};
     VideoFlightWindow flight_{};
     std::map<std::uint8_t, FeedbackTrace> feedback_traces_{};
+    std::map<std::uint8_t, std::chrono::steady_clock::time_point> admitted_recovery_requests_{};
     media::AudioPacketizer audio_{};
     std::atomic_bool stopped_{};
     std::deque<PendingVideo> pending_video_{};
@@ -103,6 +117,7 @@ private:
     std::uint64_t maximum_write_us_{};
     std::size_t maximum_burst_bytes_{};
     std::chrono::steady_clock::time_point next_slow_send_log_{};
+    const std::uint64_t diagnostic_started_us_{media::MediaSteadyMicros()};
 };
 
 struct MediaReceiveCallbacks final {
@@ -136,12 +151,14 @@ private:
     media::VideoStreamReceiver video_{};
     media::AudioReceiveQueue audio_{};
     media::VideoRecoveryPolicy recovery_{};
+    std::uint64_t recovery_path_sample_us_{};
     VideoReceiveProgress receive_progress_{};
     std::map<std::uint8_t, std::uint64_t> statistics_logged_us_{};
     std::map<std::uint8_t, std::uint64_t> feedback_elapsed_us_{};
     std::map<std::uint8_t, VideoTransitTiming> transit_timing_{};
     std::map<std::uint8_t, std::uint64_t> transit_logged_us_{};
     std::map<std::uint8_t, ReferenceWaitTrace> reference_wait_traces_{};
+    VideoReceiveDiagnostics diagnostics_{};
     std::mutex mutex_{};
     std::shared_ptr<Thread> worker_{};
     std::atomic_bool stopped_{true};

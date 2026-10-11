@@ -35,7 +35,7 @@ void InitializeClientLog() {
     const auto logDirectory = basePath / "px_logs";
     std::error_code error{};
     std::filesystem::create_directories(logDirectory, error);
-    static_cast<void>(px::Logger::InitLog((logDirectory / "px_client.log").wstring(), true));
+    static_cast<void>(px::Logger::InitLog((logDirectory / "px_client.log").wstring(), true, true));
 }
 
 struct AcceptanceModes final {
@@ -133,7 +133,7 @@ int main() {
     }
     const bool darkTheme{!config->lightTheme};
     static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
-    auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder));
+    auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder), shell.VideoFrameReadyCallback());
     if (!session) {
         panelReporter.ReportInitializationFailure();
         static_cast<void>(px::client::imgui::ShowStartupDialog(

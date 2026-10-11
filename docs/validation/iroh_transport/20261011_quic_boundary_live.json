@@ -1,0 +1,46 @@
+{
+  "evidence": ".cache\\iroh-native-live-20261011-104522-auto",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "instance_id": "fd925a3c-bfcb-4983-8ea5-bccbce23ff8a",
+      "session_id": "ef4fffbc-a366-4750-921b-0970a7fc5ad1",
+      "state": "connected",
+      "client_pid": 10640,
+      "capture_exit": 0,
+      "samples": [
+        "[2026-10-11 10:45:26.446][thread 34496][iroh_dialer.cpp:158][info] : event=iroh.connect outcome=accepted reconnect=false",
+        "[2026-10-11 10:45:26.446][thread 61416][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=157 queued_bytes=157 max_queue_us=74 max_write_us=25 slow_writes=0 path=2 rtt_us=6416 cwnd_bytes=12000 tx_lost=0 error=0",
+        "[2026-10-11 10:45:26.491][thread 86376][message_session.cpp:257][info] : event=iroh.reliable_send kind=2 local_accepted_bytes=170 queued_bytes=170 max_queue_us=15 max_write_us=41 slow_writes=0 path=1 rtt_us=6349 cwnd_bytes=12000 tx_lost=0 error=0",
+        "[2026-10-11 10:45:26.506][thread 39784][media_datagrams.cpp:408][info] : event=iroh.reassembly stream=0 data=1 parity=0 duplicate=0 late=0 reordered=0 recovered=0 complete=0 loss=0 malformed=0",
+        "[2026-10-11 10:45:26.535][thread 39784][iroh_connection.cpp:31][info] : event=iroh.received_frame phase=first stream=0 frame=133",
+        "[2026-10-11 10:45:31.456][thread 61416][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=9616 queued_bytes=14 max_queue_us=240 max_write_us=429 slow_writes=0 path=1 rtt_us=4869 cwnd_bytes=12000 tx_lost=0 error=0",
+        "[2026-10-11 10:45:31.522][thread 39784][media_datagrams.cpp:408][info] : event=iroh.reassembly stream=0 data=4904 parity=1111 duplicate=0 late=1111 reordered=0 recovered=0 complete=301 loss=0 malformed=0",
+        "[2026-10-11 10:45:31.539][thread 39784][iroh_connection.cpp:43][info] : event=iroh.path path=direct open_paths=2 rtt_us=4002 tx_packets=1839 rx_packets=7267 tx_lost=0 tx_datagrams=94 rx_datagrams=6435",
+        "[2026-10-11 10:45:31.539][thread 39784][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+        "[2026-10-11 10:45:31.539][thread 39784][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=303, fps=60.6, max_gap_ms=56.6, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 10:45:36.468][thread 61416][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=9604 queued_bytes=29 max_queue_us=361 max_write_us=584 slow_writes=0 path=1 rtt_us=4437 cwnd_bytes=12000 tx_lost=0 error=0",
+        "[2026-10-11 10:45:36.528][thread 39784][media_datagrams.cpp:408][info] : event=iroh.reassembly stream=0 data=9947 parity=2238 duplicate=0 late=2238 reordered=0 recovered=0 complete=601 loss=0 malformed=0",
+        "[2026-10-11 10:45:36.544][thread 39784][iroh_connection.cpp:43][info] : event=iroh.path path=direct open_paths=2 rtt_us=7250 tx_packets=3625 rx_packets=14581 tx_lost=0 tx_datagrams=187 rx_datagrams=12986",
+        "[2026-10-11 10:45:36.544][thread 39784][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+        "[2026-10-11 10:45:36.544][thread 39784][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=299, fps=59.7, max_gap_ms=66.4, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 10:45:41.487][thread 61416][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=9574 queued_bytes=29 max_queue_us=441 max_write_us=608 slow_writes=0 path=1 rtt_us=4029 cwnd_bytes=12000 tx_lost=1 error=0",
+        "[2026-10-11 10:45:41.532][thread 39784][media_datagrams.cpp:408][info] : event=iroh.reassembly stream=0 data=14863 parity=3342 duplicate=0 late=3342 reordered=0 recovered=0 complete=899 loss=0 malformed=0",
+        "[2026-10-11 10:45:41.547][thread 39784][iroh_connection.cpp:43][info] : event=iroh.path path=direct open_paths=2 rtt_us=9594 tx_packets=5457 rx_packets=21723 tx_lost=1 tx_datagrams=279 rx_datagrams=19349",
+        "[2026-10-11 10:45:41.547][thread 39784][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+        "[2026-10-11 10:45:41.547][thread 39784][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=298, fps=59.6, max_gap_ms=63.9, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 10:45:43.364][thread 39784][media_datagrams.cpp:397][info] : event=iroh.frame_transit stream=0 frame=1145 source_gap_us=16644 receive_gap_us=30814 excess_us=82680 assembly_call_us=25 reference_ready=true",
+        "[2026-10-11 10:45:43.366][thread 39784][media_datagrams.cpp:382][info] : event=iroh.reference_wait phase=start stream=0 complete_frame=1150 invalid_reference=1149 needs_idr=false",
+        "[2026-10-11 10:45:43.366][thread 39784][iroh_connection.cpp:124][info] : event=iroh.recovery_request stream=0 kind=rfi invalid_reference=1149 recovery_age_us=852",
+        "[2026-10-11 10:45:43.366][thread 61416][iroh_connection.cpp:129][info] : event=iroh.recovery_send stream=0 delivered=true local_send_us=118",
+        "[2026-10-11 10:45:43.385][thread 39784][media_datagrams.cpp:387][info] : event=iroh.reference_wait phase=resume stream=0 frame=1151 wait_us=18556 withheld_complete_frames=1 kind=5",
+        "[2026-10-11 10:45:46.492][thread 61416][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=9684 queued_bytes=15 max_queue_us=281 max_write_us=319 slow_writes=0 path=1 rtt_us=4173 cwnd_bytes=12000 tx_lost=2 error=0",
+        "[2026-10-11 10:45:46.533][thread 39784][media_datagrams.cpp:408][info] : event=iroh.reassembly stream=0 data=19941 parity=4474 duplicate=0 late=4474 reordered=0 recovered=0 complete=1201 loss=1 malformed=0",
+        "[2026-10-11 10:45:46.552][thread 39784][iroh_connection.cpp:43][info] : event=iroh.path path=direct open_paths=2 rtt_us=3977 tx_packets=7244 rx_packets=29102 tx_lost=2 tx_datagrams=372 rx_datagrams=25943",
+        "[2026-10-11 10:45:46.552][thread 39784][iroh_connection.cpp:46][info] : event=iroh.path_detail selected={\"Ip\":\"39.71.45.66:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0",
+        "[2026-10-11 10:45:46.552][thread 39784][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=302, fps=60.3, max_gap_ms=56.0, gaps_gt_100ms=0, idr=0, rfi=1"
+      ],
+      "grace_stopped": true
+    }
+  ]
+}

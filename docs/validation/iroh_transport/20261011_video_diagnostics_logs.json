@@ -1,0 +1,34 @@
+[
+  {
+    "case": "direct",
+    "side": "client",
+    "path": "20261011_video_diagnostics_client_direct.log.gz",
+    "uncompressed_sha256": "0be362d6748c4512712253c14c088b38d2647f7a0881778d26e27d6036145522",
+    "bytes": 1261454,
+    "gzip_sha256": "a1e1d7685f142c7a7519d75c8f6e49f19be4626bdd0c61eafccaeab572d3977b"
+  },
+  {
+    "case": "direct",
+    "side": "server",
+    "path": "20261011_video_diagnostics_server_direct.log.gz",
+    "uncompressed_sha256": "adf3762dc5f9fe8d9b2d87c0c5d1d0a69abd1dd9217f5b18b397c200a878d56a",
+    "bytes": 1878387,
+    "gzip_sha256": "61235754b688c91dd05e2092300c291c4d6494342558a3d80e6570beca5a5b52"
+  },
+  {
+    "case": "relay",
+    "side": "client",
+    "path": "20261011_video_diagnostics_client_relay.log.gz",
+    "uncompressed_sha256": "94999faebdf961bf7bad6099a4de82c6389d3211df3e5cc52a2395cef3b8b57c",
+    "bytes": 1146900,
+    "gzip_sha256": "1cd04b85f9c5b486d985400995d5f79da4d95b8525b72026e132a5969fc726c1"
+  },
+  {
+    "case": "relay",
+    "side": "server",
+    "path": "20261011_video_diagnostics_server_relay.log.gz",
+    "uncompressed_sha256": "3fa0ccd0cc3a875a206d6bf373a84345adc795e886175e4aa1f2c17da2f16b29",
+    "bytes": 1710469,
+    "gzip_sha256": "4acd92dab8f22fbc79fc27fe3113d4c4a75d6f6fdedf72a8938a9209b44d5d6e"
+  }
+]

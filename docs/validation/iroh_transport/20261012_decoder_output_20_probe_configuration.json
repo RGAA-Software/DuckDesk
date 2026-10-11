@@ -1,0 +1,71 @@
+{
+  "before": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 5,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 10000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  },
+  "seconds": 120,
+  "purpose": "Bounded reproduction with actual decoder-output diagnostics",
+  "probe": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 6,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 20000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  },
+  "sample_exit": 1,
+  "restored": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 7,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 10000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  }
+}

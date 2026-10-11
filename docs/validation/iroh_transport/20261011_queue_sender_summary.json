@@ -1,0 +1,26 @@
+[
+  {
+    "kind": "game_hook",
+    "trace": "77437547698",
+    "received_wire_range": [
+      1,
+      1206
+    ],
+    "server_frames": 1206,
+    "server_failed_frames": 0,
+    "maximum_local_submit_us": 16276,
+    "queue_wait_records_before_last_received": []
+  },
+  {
+    "kind": "webview",
+    "trace": "77482740716",
+    "received_wire_range": [
+      1,
+      145
+    ],
+    "server_frames": 145,
+    "server_failed_frames": 0,
+    "maximum_local_submit_us": 8650,
+    "queue_wait_records_before_last_received": []
+  }
+]

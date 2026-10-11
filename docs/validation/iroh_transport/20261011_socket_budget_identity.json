@@ -1,0 +1,82 @@
+[
+  {
+    "path": ".cache\\socket-budget-20261011\\capture-stop.txt",
+    "bytes": 160,
+    "sha256": "6884840333ce7123241e6c278b81aaad1d5f349a3fd772f4c8c19e4548446f6a"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\forward-matched.json",
+    "bytes": 3220677,
+    "sha256": "1a6b8d8eb6f8ff4555b520f5b6b55f8f4e1bb451ce6f713f568b34b7f2b6aadf"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\forward-missing.json",
+    "bytes": 2243,
+    "sha256": "4a524949a7bae913a887147edd684ecc947bee333c21fda15a76a76902a57d51"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\local1-nic.pcapng",
+    "bytes": 28650660,
+    "sha256": "ca7bb17207aa426f5e7312108245d587f1ce5c0cf36a03efaba5906fcd3716c1"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\local1-tcpip.pcapng",
+    "bytes": 28650660,
+    "sha256": "25cc2ab486614ac2e6c7b0cb4f01b5f48ae40d981aa742c9241c446c352972a7"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\local1.etl",
+    "bytes": 38803042,
+    "sha256": "14e9559ee735cbd07eff22eca2414860ff2f8ceed9eaeab136c1ea886d31ef50"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\remote1-10.pcapng.gz",
+    "bytes": 26232114,
+    "sha256": "6ffe83021389c6cbd5c5c7e3ab65004bd301142530dd469ddc3336f3f68d70d2"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\remote1-51.pcapng.gz",
+    "bytes": 26233186,
+    "sha256": "afa08b8799f49a45af42d073684ff137a64893b927f4a83b8504d1335dddd372"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\reverse-matched.json",
+    "bytes": 1286457,
+    "sha256": "6deb2d6a046958fb013837da049672d4ce0002eb97949d279469091d94d6a32d"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\reverse-missing.json",
+    "bytes": 2,
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\server-media.log.gz",
+    "bytes": 246316,
+    "sha256": "6926438f9ef74df5abd163d461bfbb77e226d3dc550c3828ffd4b560cc520728"
+  },
+  {
+    "path": ".cache\\socket-budget-20261011\\server-trace.log.gz",
+    "bytes": 1366320,
+    "sha256": "fb1f90d8225976062a169073485a6bfcd16b1c2737d4a79456d0a8bdc959f7c7"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_budget_client_media.log.gz",
+    "bytes": 166206,
+    "sha256": "05cc968073be03d25189a8553c58a02eb9b739a443ec1404e08fe580b027f5f3"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_budget_client_trace.log.gz",
+    "bytes": 989836,
+    "sha256": "6e437799982f139c1992fc7526c5385d14a7cccdb4066c438de92bc63594c1ef"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_budget_server_media.log.gz",
+    "bytes": 246316,
+    "sha256": "6926438f9ef74df5abd163d461bfbb77e226d3dc550c3828ffd4b560cc520728"
+  },
+  {
+    "path": "docs\\validation\\iroh_transport\\20261011_socket_budget_server_trace.log.gz",
+    "bytes": 1366320,
+    "sha256": "fb1f90d8225976062a169073485a6bfcd16b1c2737d4a79456d0a8bdc959f7c7"
+  }
+]

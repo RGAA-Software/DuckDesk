@@ -1,0 +1,4 @@
+warning: in the working copy of 'src/px_render/network/iroh/iroh_session.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/network/iroh/iroh_transport.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_render/rd_main.cpp', LF will be replaced by CRLF the next time Git touches it
+C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 150 characters.

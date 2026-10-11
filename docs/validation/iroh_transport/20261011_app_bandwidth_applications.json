@@ -1,0 +1,35 @@
+[
+  {
+    "id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+    "name": "water webview",
+    "kind": "webview",
+    "video": {
+      "bitrate_kbps": 20000,
+      "codec": "h264"
+    }
+  },
+  {
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "name": "心脏医学动态展示",
+    "kind": "game_hook",
+    "video": {
+      "bitrate_kbps": 20000,
+      "codec": "h264"
+    }
+  },
+  {
+    "id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "name": "RDP 桌面",
+    "kind": "rdp",
+    "video": null
+  },
+  {
+    "id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+    "name": "2dadventure",
+    "kind": "game_hook",
+    "video": {
+      "bitrate_kbps": 20000,
+      "codec": "h264"
+    }
+  }
+]

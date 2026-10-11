@@ -1,0 +1,40 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+Note: Google Test filter = IrohVideoRateControl.RelayQueueRecoveryWaitsBeforeSmallProbeAndNewPressureRestartsTheWait
+[==========] Running 1 test from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 1 test from IrohVideoRateControl
+[ RUN      ] IrohVideoRateControl.RelayQueueRecoveryWaitsBeforeSmallProbeAndNewPressureRestartsTheWait
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(310): error: Expected equality of these values:
+  control.Update(13'000'000, path, started + std::chrono::seconds(3))
+    Which is: 8125000
+  6'500'000
+    Which is: 6500000
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(311): error: Expected equality of these values:
+  control.Update(13'000'000, path, started + std::chrono::seconds(4), true)
+    Which is: 8125000
+  6'500'000
+    Which is: 6500000
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(312): error: Expected equality of these values:
+  control.Update(13'000'000, path, started + std::chrono::seconds(6))
+    Which is: 10156250
+  6'500'000
+    Which is: 6500000
+
+D:\GoCloud\GammaRayPremium\src\px_transport\tests\test_media_datagrams.cpp(313): error: Expected equality of these values:
+  control.Update(13'000'000, path, started + std::chrono::seconds(9))
+    Which is: 12695312
+  7'150'000
+    Which is: 7150000
+
+[  FAILED  ] IrohVideoRateControl.RelayQueueRecoveryWaitsBeforeSmallProbeAndNewPressureRestartsTheWait (0 ms)
+[----------] 1 test from IrohVideoRateControl (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 1 test from 1 test suite ran. (0 ms total)
+[  PASSED  ] 0 tests.
+[  FAILED  ] 1 test, listed below:
+[  FAILED  ] IrohVideoRateControl.RelayQueueRecoveryWaitsBeforeSmallProbeAndNewPressureRestartsTheWait
+
+ 1 FAILED TEST

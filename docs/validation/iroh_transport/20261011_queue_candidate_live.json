@@ -1,0 +1,29 @@
+{
+  "evidence": ".cache\\iroh-native-live-20261011-150014-auto",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "instance_id": "95ed0865-fd10-4049-8b5c-af54d6726b45",
+      "session_id": "f2bef5c0-17e7-4f39-91b7-17a1eeca1247",
+      "state": "connected",
+      "client_pid": 27740,
+      "capture_exit": null,
+      "sample_started_epoch": 1791702020.0672886,
+      "sample_ended_epoch": 1791702040.0679622,
+      "grace_stopped": true,
+      "media_log_sha256": "f43d96c6b54896d14e4d0917d1c7a8a7185922eedc22cdb2862265979a41aa48"
+    },
+    {
+      "kind": "webview",
+      "instance_id": "f6d4536a-2a7e-4104-8d07-caa2549591bf",
+      "session_id": "e49dc350-df7b-41ea-8741-d6f410d172ac",
+      "state": "connected",
+      "client_pid": 4436,
+      "capture_exit": null,
+      "sample_started_epoch": 1791702065.2621248,
+      "sample_ended_epoch": 1791702070.2626112,
+      "grace_stopped": true,
+      "media_log_sha256": "2ac65ecf2d6c334ca2734bad7ff93c0653247f0646117776e9f99dbb9e91eac0"
+    }
+  ]
+}

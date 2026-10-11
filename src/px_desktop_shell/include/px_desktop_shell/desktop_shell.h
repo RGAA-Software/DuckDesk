@@ -83,13 +83,15 @@ public:
     void CancelCloseRequest() noexcept;
     void RequestShowAndRaise() noexcept;
     static void PostShowAndRaiseRequest() noexcept;
+    // Safe to invoke from the decoder; expires with this shell.
+    [[nodiscard]] RenderCallback VideoFrameReadyCallback() const;
 
 private:
     struct Impl;
 
-    explicit DesktopShell(std::unique_ptr<Impl> impl) noexcept;
+    explicit DesktopShell(std::shared_ptr<Impl> impl) noexcept;
 
-    std::unique_ptr<Impl> impl_{};
+    std::shared_ptr<Impl> impl_{};
 };
 
 }  // namespace px::desktop

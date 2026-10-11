@@ -1,0 +1,290 @@
+[
+  {
+    "time": "2026-10-11 15:02:44.747",
+    "frame": 417,
+    "delay_growth_us": 10397,
+    "released": 3,
+    "pending": 1,
+    "bytes": 9900,
+    "generation_elapsed": 4316302
+  },
+  {
+    "time": "2026-10-11 15:02:44.799",
+    "frame": 420,
+    "delay_growth_us": 11247,
+    "released": 3,
+    "pending": 1,
+    "bytes": 7700,
+    "generation_elapsed": 4367155
+  },
+  {
+    "time": "2026-10-11 15:02:44.853",
+    "frame": 423,
+    "delay_growth_us": 15092,
+    "released": 3,
+    "pending": 1,
+    "bytes": 9900,
+    "generation_elapsed": 4420942
+  },
+  {
+    "time": "2026-10-11 15:02:44.911",
+    "frame": 424,
+    "delay_growth_us": 56280,
+    "released": 1,
+    "pending": 4,
+    "bytes": 45100,
+    "generation_elapsed": 4478851
+  },
+  {
+    "time": "2026-10-11 15:02:44.961",
+    "frame": 426,
+    "delay_growth_us": 73931,
+    "released": 2,
+    "pending": 5,
+    "bytes": 64900,
+    "generation_elapsed": 4529813
+  },
+  {
+    "time": "2026-10-11 15:02:45.018",
+    "frame": 427,
+    "delay_growth_us": 114463,
+    "released": 1,
+    "pending": 7,
+    "bytes": 96800,
+    "generation_elapsed": 4587095
+  },
+  {
+    "time": "2026-10-11 15:02:45.078",
+    "frame": 428,
+    "delay_growth_us": 155890,
+    "released": 1,
+    "pending": 10,
+    "bytes": 150700,
+    "generation_elapsed": 4645122
+  },
+  {
+    "time": "2026-10-11 15:02:45.251",
+    "frame": 430,
+    "delay_growth_us": 296152,
+    "released": 2,
+    "pending": 9,
+    "bytes": 151800,
+    "generation_elapsed": 4818797
+  },
+  {
+    "time": "2026-10-11 15:02:45.310",
+    "frame": 437,
+    "delay_growth_us": 238927,
+    "released": 7,
+    "pending": 2,
+    "bytes": 45100,
+    "generation_elapsed": 4878142
+  },
+  {
+    "time": "2026-10-11 15:02:45.360",
+    "frame": 438,
+    "delay_growth_us": 272808,
+    "released": 1,
+    "pending": 4,
+    "bytes": 93500,
+    "generation_elapsed": 4928696
+  },
+  {
+    "time": "2026-10-11 15:02:45.523",
+    "frame": 448,
+    "delay_growth_us": 268451,
+    "released": 1,
+    "pending": 4,
+    "bytes": 89100,
+    "generation_elapsed": 5091078
+  },
+  {
+    "time": "2026-10-11 15:02:45.644",
+    "frame": 453,
+    "delay_growth_us": 307367,
+    "released": 1,
+    "pending": 4,
+    "bytes": 91300,
+    "generation_elapsed": 5212548
+  },
+  {
+    "time": "2026-10-11 15:02:45.811",
+    "frame": 473,
+    "delay_growth_us": 135332,
+    "released": 5,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 5379592
+  },
+  {
+    "time": "2026-10-11 15:02:45.981",
+    "frame": 483,
+    "delay_growth_us": 138437,
+    "released": 1,
+    "pending": 3,
+    "bytes": 52800,
+    "generation_elapsed": 5549062
+  },
+  {
+    "time": "2026-10-11 15:02:46.030",
+    "frame": 484,
+    "delay_growth_us": 171947,
+    "released": 1,
+    "pending": 3,
+    "bytes": 64900,
+    "generation_elapsed": 5599152
+  },
+  {
+    "time": "2026-10-11 15:02:46.195",
+    "frame": 485,
+    "delay_growth_us": 318626,
+    "released": 1,
+    "pending": 3,
+    "bytes": 70400,
+    "generation_elapsed": 5762306
+  },
+  {
+    "time": "2026-10-11 15:02:46.253",
+    "frame": 507,
+    "delay_growth_us": 16573,
+    "released": 5,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 5822595
+  },
+  {
+    "time": "2026-10-11 15:02:46.312",
+    "frame": 511,
+    "delay_growth_us": 8592,
+    "released": 2,
+    "pending": 1,
+    "bytes": 8800,
+    "generation_elapsed": 5880982
+  },
+  {
+    "time": "2026-10-11 15:02:46.364",
+    "frame": 514,
+    "delay_growth_us": 9455,
+    "released": 3,
+    "pending": 1,
+    "bytes": 9900,
+    "generation_elapsed": 5932169
+  },
+  {
+    "time": "2026-10-11 15:02:46.414",
+    "frame": 517,
+    "delay_growth_us": 9779,
+    "released": 3,
+    "pending": 1,
+    "bytes": 11000,
+    "generation_elapsed": 5982203
+  },
+  {
+    "time": "2026-10-11 15:02:46.465",
+    "frame": 520,
+    "delay_growth_us": 10358,
+    "released": 3,
+    "pending": 1,
+    "bytes": 13200,
+    "generation_elapsed": 6032287
+  },
+  {
+    "time": "2026-10-11 15:02:46.515",
+    "frame": 523,
+    "delay_growth_us": 11896,
+    "released": 3,
+    "pending": 1,
+    "bytes": 14300,
+    "generation_elapsed": 6084014
+  },
+  {
+    "time": "2026-10-11 15:02:46.565",
+    "frame": 527,
+    "delay_growth_us": 0,
+    "released": 4,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 6134029
+  },
+  {
+    "time": "2026-10-11 15:02:46.615",
+    "frame": 530,
+    "delay_growth_us": 0,
+    "released": 3,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 6184090
+  },
+  {
+    "time": "2026-10-11 15:02:46.669",
+    "frame": 533,
+    "delay_growth_us": 3515,
+    "released": 3,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 6236942
+  },
+  {
+    "time": "2026-10-11 15:02:46.719",
+    "frame": 535,
+    "delay_growth_us": 21296,
+    "released": 2,
+    "pending": 1,
+    "bytes": 19800,
+    "generation_elapsed": 6288013
+  },
+  {
+    "time": "2026-10-11 15:02:46.771",
+    "frame": 538,
+    "delay_growth_us": 22106,
+    "released": 3,
+    "pending": 1,
+    "bytes": 18700,
+    "generation_elapsed": 6338960
+  },
+  {
+    "time": "2026-10-11 15:02:46.821",
+    "frame": 542,
+    "delay_growth_us": 6035,
+    "released": 4,
+    "pending": 0,
+    "bytes": 0,
+    "generation_elapsed": 6390101
+  },
+  {
+    "time": "2026-10-11 15:02:46.880",
+    "frame": 545,
+    "delay_growth_us": 13552,
+    "released": 3,
+    "pending": 1,
+    "bytes": 18700,
+    "generation_elapsed": 6448088
+  },
+  {
+    "time": "2026-10-11 15:02:46.930",
+    "frame": 548,
+    "delay_growth_us": 14373,
+    "released": 3,
+    "pending": 1,
+    "bytes": 20900,
+    "generation_elapsed": 6498189
+  },
+  {
+    "time": "2026-10-11 15:02:46.981",
+    "frame": 551,
+    "delay_growth_us": 14621,
+    "released": 3,
+    "pending": 1,
+    "bytes": 19800,
+    "generation_elapsed": 6548199
+  },
+  {
+    "time": "2026-10-11 15:02:47.031",
+    "frame": 554,
+    "delay_growth_us": 14101,
+    "released": 3,
+    "pending": 1,
+    "bytes": 17600,
+    "generation_elapsed": 6598385
+  }
+]

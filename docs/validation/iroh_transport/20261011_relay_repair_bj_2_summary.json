@@ -1,0 +1,1757 @@
+{
+  "metadata": {
+    "route": "bj",
+    "segment": "2",
+    "series": "relay_repair",
+    "requested_seconds": 300,
+    "evidence": ".cache\\iroh-native-live-20261011-211722-relay",
+    "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "instance_id": "861811f8-5964-4348-8999-8b175b4b2283",
+    "client_pid": 44680,
+    "session_id": "0879f3a4-9974-4618-8493-a701b83bae90",
+    "sample_started_epoch": 1791724646.9846616,
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 480,
+      "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+    },
+    "sample_ended_epoch": 1791724946.9855227,
+    "state": "connected",
+    "grace_stopped_seconds": 12.31,
+    "grace_stopped": true
+  },
+  "receive_windows": [
+    {
+      "timestamp": "2026-10-11 21:17:31.975",
+      "stream": "0",
+      "frames": "280",
+      "fps": "56.0",
+      "max_gap_ms": "111.6",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:36.981",
+      "stream": "0",
+      "frames": "295",
+      "fps": "58.9",
+      "max_gap_ms": "107.2",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:41.983",
+      "stream": "0",
+      "frames": "296",
+      "fps": "59.2",
+      "max_gap_ms": "85.9",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:46.985",
+      "stream": "0",
+      "frames": "300",
+      "fps": "60.0",
+      "max_gap_ms": "34.0",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:51.997",
+      "stream": "0",
+      "frames": "294",
+      "fps": "58.7",
+      "max_gap_ms": "103.8",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:57.013",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.0",
+      "max_gap_ms": "39.7",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:02.069",
+      "stream": "0",
+      "frames": "293",
+      "fps": "58.0",
+      "max_gap_ms": "101.2",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:07.088",
+      "stream": "0",
+      "frames": "297",
+      "fps": "59.2",
+      "max_gap_ms": "167.3",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:12.104",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.0",
+      "max_gap_ms": "96.3",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:17.118",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.0",
+      "max_gap_ms": "104.8",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:22.129",
+      "stream": "0",
+      "frames": "295",
+      "fps": "58.9",
+      "max_gap_ms": "76.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:27.138",
+      "stream": "0",
+      "frames": "290",
+      "fps": "57.9",
+      "max_gap_ms": "90.7",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:32.146",
+      "stream": "0",
+      "frames": "302",
+      "fps": "60.3",
+      "max_gap_ms": "37.4",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:37.162",
+      "stream": "0",
+      "frames": "299",
+      "fps": "59.6",
+      "max_gap_ms": "75.6",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:42.180",
+      "stream": "0",
+      "frames": "299",
+      "fps": "59.6",
+      "max_gap_ms": "105.9",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:47.201",
+      "stream": "0",
+      "frames": "301",
+      "fps": "59.9",
+      "max_gap_ms": "75.6",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:52.214",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.0",
+      "max_gap_ms": "39.5",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:57.226",
+      "stream": "0",
+      "frames": "290",
+      "fps": "57.9",
+      "max_gap_ms": "168.8",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:02.229",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.2",
+      "max_gap_ms": "37.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:07.237",
+      "stream": "0",
+      "frames": "282",
+      "fps": "56.3",
+      "max_gap_ms": "105.9",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:12.247",
+      "stream": "0",
+      "frames": "309",
+      "fps": "61.7",
+      "max_gap_ms": "39.9",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:17.259",
+      "stream": "0",
+      "frames": "298",
+      "fps": "59.5",
+      "max_gap_ms": "166.2",
+      "gaps_gt_100ms": "2",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:22.263",
+      "stream": "0",
+      "frames": "298",
+      "fps": "59.6",
+      "max_gap_ms": "33.1",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:27.269",
+      "stream": "0",
+      "frames": "302",
+      "fps": "60.3",
+      "max_gap_ms": "90.0",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:32.276",
+      "stream": "0",
+      "frames": "299",
+      "fps": "59.7",
+      "max_gap_ms": "39.5",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:37.278",
+      "stream": "0",
+      "frames": "302",
+      "fps": "60.4",
+      "max_gap_ms": "77.8",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:42.298",
+      "stream": "0",
+      "frames": "291",
+      "fps": "58.0",
+      "max_gap_ms": "100.4",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:47.313",
+      "stream": "0",
+      "frames": "305",
+      "fps": "60.8",
+      "max_gap_ms": "45.5",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:52.317",
+      "stream": "0",
+      "frames": "296",
+      "fps": "59.1",
+      "max_gap_ms": "91.9",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:57.329",
+      "stream": "0",
+      "frames": "305",
+      "fps": "60.9",
+      "max_gap_ms": "37.5",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:02.329",
+      "stream": "0",
+      "frames": "297",
+      "fps": "59.4",
+      "max_gap_ms": "105.6",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:07.330",
+      "stream": "0",
+      "frames": "300",
+      "fps": "60.0",
+      "max_gap_ms": "75.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:12.347",
+      "stream": "0",
+      "frames": "300",
+      "fps": "59.8",
+      "max_gap_ms": "41.6",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:17.350",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.2",
+      "max_gap_ms": "41.3",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:22.360",
+      "stream": "0",
+      "frames": "279",
+      "fps": "55.7",
+      "max_gap_ms": "112.6",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:27.402",
+      "stream": "0",
+      "frames": "297",
+      "fps": "58.9",
+      "max_gap_ms": "110.9",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:32.411",
+      "stream": "0",
+      "frames": "288",
+      "fps": "57.5",
+      "max_gap_ms": "242.3",
+      "gaps_gt_100ms": "3",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:37.437",
+      "stream": "0",
+      "frames": "299",
+      "fps": "59.5",
+      "max_gap_ms": "37.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:42.442",
+      "stream": "0",
+      "frames": "303",
+      "fps": "60.5",
+      "max_gap_ms": "44.9",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:47.456",
+      "stream": "0",
+      "frames": "288",
+      "fps": "57.4",
+      "max_gap_ms": "91.8",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:52.461",
+      "stream": "0",
+      "frames": "286",
+      "fps": "57.2",
+      "max_gap_ms": "69.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:57.462",
+      "stream": "0",
+      "frames": "298",
+      "fps": "59.6",
+      "max_gap_ms": "83.7",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:02.462",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.2",
+      "max_gap_ms": "36.3",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:07.559",
+      "stream": "0",
+      "frames": "289",
+      "fps": "56.7",
+      "max_gap_ms": "108.2",
+      "gaps_gt_100ms": "2",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:12.561",
+      "stream": "0",
+      "frames": "298",
+      "fps": "59.6",
+      "max_gap_ms": "106.4",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:17.571",
+      "stream": "0",
+      "frames": "292",
+      "fps": "58.3",
+      "max_gap_ms": "93.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:22.578",
+      "stream": "0",
+      "frames": "301",
+      "fps": "60.1",
+      "max_gap_ms": "47.1",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:27.581",
+      "stream": "0",
+      "frames": "286",
+      "fps": "57.2",
+      "max_gap_ms": "93.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:32.598",
+      "stream": "0",
+      "frames": "304",
+      "fps": "60.6",
+      "max_gap_ms": "37.7",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:37.614",
+      "stream": "0",
+      "frames": "292",
+      "fps": "58.2",
+      "max_gap_ms": "119.6",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:42.618",
+      "stream": "0",
+      "frames": "289",
+      "fps": "57.8",
+      "max_gap_ms": "74.8",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:47.626",
+      "stream": "0",
+      "frames": "281",
+      "fps": "56.1",
+      "max_gap_ms": "141.6",
+      "gaps_gt_100ms": "2",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:52.640",
+      "stream": "0",
+      "frames": "296",
+      "fps": "59.0",
+      "max_gap_ms": "40.7",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:57.643",
+      "stream": "0",
+      "frames": "293",
+      "fps": "58.6",
+      "max_gap_ms": "151.0",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:02.643",
+      "stream": "0",
+      "frames": "297",
+      "fps": "59.4",
+      "max_gap_ms": "35.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:07.661",
+      "stream": "0",
+      "frames": "294",
+      "fps": "58.6",
+      "max_gap_ms": "105.1",
+      "gaps_gt_100ms": "1",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:12.686",
+      "stream": "0",
+      "frames": "291",
+      "fps": "57.9",
+      "max_gap_ms": "75.9",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:17.694",
+      "stream": "0",
+      "frames": "304",
+      "fps": "60.7",
+      "max_gap_ms": "38.2",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:22.729",
+      "stream": "0",
+      "frames": "293",
+      "fps": "58.2",
+      "max_gap_ms": "75.5",
+      "gaps_gt_100ms": "0",
+      "idr": "0",
+      "rfi": "0"
+    }
+  ],
+  "receive_gaps": [
+    {
+      "timestamp": "2026-10-11 21:17:30.905",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "381",
+      "gap_ms": "111.6"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:32.447",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "461",
+      "gap_ms": "107.2"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:49.441",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "1481",
+      "gap_ms": "103.8"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:59.013",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "2058",
+      "gap_ms": "101.2"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:04.636",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "2397",
+      "gap_ms": "167.3"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:16.612",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "3113",
+      "gap_ms": "104.8"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:38.205",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "4418",
+      "gap_ms": "105.9"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:56.332",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "5498",
+      "gap_ms": "168.8"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:06.542",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "6118",
+      "gap_ms": "105.9"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:15.367",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "6643",
+      "gap_ms": "105.4"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:15.714",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "6657",
+      "gap_ms": "166.2"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:41.195",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "8200",
+      "gap_ms": "100.4"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:01.650",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "9417",
+      "gap_ms": "105.6"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:18.599",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "10432",
+      "gap_ms": "112.6"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:27.402",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "10965",
+      "gap_ms": "110.9"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.008",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "10990",
+      "gap_ms": "242.3"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.205",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "10998",
+      "gap_ms": "104.7"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.416",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "11013",
+      "gap_ms": "135.3"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:06.567",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "13311",
+      "gap_ms": "108.2"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:07.559",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "13370",
+      "gap_ms": "101.2"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:07.691",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "13388",
+      "gap_ms": "106.4"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:33.708",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "14949",
+      "gap_ms": "119.6"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:46.497",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "15705",
+      "gap_ms": "126.9"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:46.713",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "15722",
+      "gap_ms": "141.6"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:55.854",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "16274",
+      "gap_ms": "151.0"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:03.588",
+      "event": "iroh.received_frame",
+      "phase": "gap",
+      "stream": "0",
+      "frame": "16741",
+      "gap_ms": "105.1"
+    }
+  ],
+  "present_windows": [
+    {
+      "timestamp": "2026-10-11 21:17:32.070",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "288",
+      "elapsed_us": "5009656",
+      "fps": "57.49",
+      "maximum_gap_us": "108609",
+      "maximum_upload_age_us": "4091",
+      "maximum_render_us": "4077"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:37.093",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "290",
+      "elapsed_us": "5023230",
+      "fps": "57.73",
+      "maximum_gap_us": "106931",
+      "maximum_upload_age_us": "1288",
+      "maximum_render_us": "1183"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:42.095",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "296",
+      "elapsed_us": "5002734",
+      "fps": "59.17",
+      "maximum_gap_us": "86062",
+      "maximum_upload_age_us": "760",
+      "maximum_render_us": "730"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:47.104",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "301",
+      "elapsed_us": "5008210",
+      "fps": "60.10",
+      "maximum_gap_us": "34059",
+      "maximum_upload_age_us": "793",
+      "maximum_render_us": "765"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:52.114",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "294",
+      "elapsed_us": "5010589",
+      "fps": "58.68",
+      "maximum_gap_us": "103841",
+      "maximum_upload_age_us": "611",
+      "maximum_render_us": "595"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:57.115",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "300",
+      "elapsed_us": "5000409",
+      "fps": "60.00",
+      "maximum_gap_us": "39571",
+      "maximum_upload_age_us": "535",
+      "maximum_render_us": "508"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:02.131",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "291",
+      "elapsed_us": "5015906",
+      "fps": "58.02",
+      "maximum_gap_us": "101142",
+      "maximum_upload_age_us": "527",
+      "maximum_render_us": "511"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:07.131",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "296",
+      "elapsed_us": "5000011",
+      "fps": "59.20",
+      "maximum_gap_us": "167611",
+      "maximum_upload_age_us": "589",
+      "maximum_render_us": "566"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:12.136",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "300",
+      "elapsed_us": "5005476",
+      "fps": "59.93",
+      "maximum_gap_us": "95928",
+      "maximum_upload_age_us": "642",
+      "maximum_render_us": "612"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:17.148",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "300",
+      "elapsed_us": "5011676",
+      "fps": "59.86",
+      "maximum_gap_us": "104782",
+      "maximum_upload_age_us": "784",
+      "maximum_render_us": "767"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:22.163",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "296",
+      "elapsed_us": "5015048",
+      "fps": "59.02",
+      "maximum_gap_us": "75898",
+      "maximum_upload_age_us": "730",
+      "maximum_render_us": "697"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:27.183",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "290",
+      "elapsed_us": "5020572",
+      "fps": "57.76",
+      "maximum_gap_us": "90930",
+      "maximum_upload_age_us": "847",
+      "maximum_render_us": "830"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:32.197",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "303",
+      "elapsed_us": "5013517",
+      "fps": "60.44",
+      "maximum_gap_us": "37389",
+      "maximum_upload_age_us": "801",
+      "maximum_render_us": "781"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:37.232",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "298",
+      "elapsed_us": "5035021",
+      "fps": "59.19",
+      "maximum_gap_us": "75595",
+      "maximum_upload_age_us": "774",
+      "maximum_render_us": "719"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:42.245",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "301",
+      "elapsed_us": "5013497",
+      "fps": "60.04",
+      "maximum_gap_us": "101992",
+      "maximum_upload_age_us": "2579",
+      "maximum_render_us": "2562"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:47.252",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "299",
+      "elapsed_us": "5006748",
+      "fps": "59.72",
+      "maximum_gap_us": "75818",
+      "maximum_upload_age_us": "1595",
+      "maximum_render_us": "1577"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:52.264",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "302",
+      "elapsed_us": "5011346",
+      "fps": "60.26",
+      "maximum_gap_us": "35981",
+      "maximum_upload_age_us": "2509",
+      "maximum_render_us": "2491"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:57.276",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "291",
+      "elapsed_us": "5012178",
+      "fps": "58.06",
+      "maximum_gap_us": "168220",
+      "maximum_upload_age_us": "1814",
+      "maximum_render_us": "1765"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:02.287",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "300",
+      "elapsed_us": "5011354",
+      "fps": "59.86",
+      "maximum_gap_us": "37151",
+      "maximum_upload_age_us": "1485",
+      "maximum_render_us": "1461"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:07.299",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "289",
+      "elapsed_us": "5011880",
+      "fps": "57.66",
+      "maximum_gap_us": "106234",
+      "maximum_upload_age_us": "1646",
+      "maximum_render_us": "1627"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:12.315",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "303",
+      "elapsed_us": "5015698",
+      "fps": "60.41",
+      "maximum_gap_us": "40806",
+      "maximum_upload_age_us": "933",
+      "maximum_render_us": "911"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:17.329",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "298",
+      "elapsed_us": "5013957",
+      "fps": "59.43",
+      "maximum_gap_us": "165997",
+      "maximum_upload_age_us": "1182",
+      "maximum_render_us": "1152"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:22.357",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5028408",
+      "fps": "59.06",
+      "maximum_gap_us": "34531",
+      "maximum_upload_age_us": "1481",
+      "maximum_render_us": "1445"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:27.368",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "304",
+      "elapsed_us": "5010840",
+      "fps": "60.67",
+      "maximum_gap_us": "89615",
+      "maximum_upload_age_us": "1268",
+      "maximum_render_us": "1244"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:32.369",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5000882",
+      "fps": "59.39",
+      "maximum_gap_us": "39843",
+      "maximum_upload_age_us": "2178",
+      "maximum_render_us": "2119"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:37.379",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "304",
+      "elapsed_us": "5010377",
+      "fps": "60.67",
+      "maximum_gap_us": "77557",
+      "maximum_upload_age_us": "2490",
+      "maximum_render_us": "2470"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:42.386",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "290",
+      "elapsed_us": "5006472",
+      "fps": "57.93",
+      "maximum_gap_us": "92572",
+      "maximum_upload_age_us": "1132",
+      "maximum_render_us": "1092"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:47.397",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "305",
+      "elapsed_us": "5011913",
+      "fps": "60.86",
+      "maximum_gap_us": "44604",
+      "maximum_upload_age_us": "1099",
+      "maximum_render_us": "1078"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:52.410",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "296",
+      "elapsed_us": "5013031",
+      "fps": "59.05",
+      "maximum_gap_us": "91626",
+      "maximum_upload_age_us": "922",
+      "maximum_render_us": "901"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:57.424",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "305",
+      "elapsed_us": "5013681",
+      "fps": "60.83",
+      "maximum_gap_us": "37276",
+      "maximum_upload_age_us": "1606",
+      "maximum_render_us": "1583"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:02.449",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5025311",
+      "fps": "59.10",
+      "maximum_gap_us": "105519",
+      "maximum_upload_age_us": "1142",
+      "maximum_render_us": "1116"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:07.463",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "303",
+      "elapsed_us": "5013852",
+      "fps": "60.43",
+      "maximum_gap_us": "75629",
+      "maximum_upload_age_us": "931",
+      "maximum_render_us": "915"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:12.469",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5005471",
+      "fps": "59.34",
+      "maximum_gap_us": "42172",
+      "maximum_upload_age_us": "1006",
+      "maximum_render_us": "983"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:17.481",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "304",
+      "elapsed_us": "5011714",
+      "fps": "60.66",
+      "maximum_gap_us": "41377",
+      "maximum_upload_age_us": "591",
+      "maximum_render_us": "569"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:22.485",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "280",
+      "elapsed_us": "5004234",
+      "fps": "55.95",
+      "maximum_gap_us": "112130",
+      "maximum_upload_age_us": "601",
+      "maximum_render_us": "569"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:27.494",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "290",
+      "elapsed_us": "5008975",
+      "fps": "57.90",
+      "maximum_gap_us": "111055",
+      "maximum_upload_age_us": "925",
+      "maximum_render_us": "899"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:32.495",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "291",
+      "elapsed_us": "5001047",
+      "fps": "58.19",
+      "maximum_gap_us": "242068",
+      "maximum_upload_age_us": "636",
+      "maximum_render_us": "607"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:37.498",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5003197",
+      "fps": "59.36",
+      "maximum_gap_us": "36921",
+      "maximum_upload_age_us": "601",
+      "maximum_render_us": "577"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:42.512",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "304",
+      "elapsed_us": "5013778",
+      "fps": "60.63",
+      "maximum_gap_us": "44667",
+      "maximum_upload_age_us": "664",
+      "maximum_render_us": "640"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:47.518",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "288",
+      "elapsed_us": "5006630",
+      "fps": "57.52",
+      "maximum_gap_us": "92330",
+      "maximum_upload_age_us": "674",
+      "maximum_render_us": "648"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:52.522",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "286",
+      "elapsed_us": "5004025",
+      "fps": "57.15",
+      "maximum_gap_us": "66255",
+      "maximum_upload_age_us": "610",
+      "maximum_render_us": "578"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:57.551",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "299",
+      "elapsed_us": "5028321",
+      "fps": "59.46",
+      "maximum_gap_us": "80399",
+      "maximum_upload_age_us": "626",
+      "maximum_render_us": "601"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:02.564",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "302",
+      "elapsed_us": "5013345",
+      "fps": "60.24",
+      "maximum_gap_us": "35837",
+      "maximum_upload_age_us": "672",
+      "maximum_render_us": "658"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:07.569",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "284",
+      "elapsed_us": "5005038",
+      "fps": "56.74",
+      "maximum_gap_us": "107986",
+      "maximum_upload_age_us": "687",
+      "maximum_render_us": "666"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:12.580",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "298",
+      "elapsed_us": "5010649",
+      "fps": "59.47",
+      "maximum_gap_us": "99470",
+      "maximum_upload_age_us": "664",
+      "maximum_render_us": "645"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:17.585",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "292",
+      "elapsed_us": "5005324",
+      "fps": "58.34",
+      "maximum_gap_us": "89500",
+      "maximum_upload_age_us": "637",
+      "maximum_render_us": "600"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:22.596",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "301",
+      "elapsed_us": "5010720",
+      "fps": "60.07",
+      "maximum_gap_us": "47197",
+      "maximum_upload_age_us": "626",
+      "maximum_render_us": "595"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:27.599",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "286",
+      "elapsed_us": "5003434",
+      "fps": "57.16",
+      "maximum_gap_us": "93589",
+      "maximum_upload_age_us": "567",
+      "maximum_render_us": "546"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:32.599",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "303",
+      "elapsed_us": "5000022",
+      "fps": "60.60",
+      "maximum_gap_us": "37525",
+      "maximum_upload_age_us": "1451",
+      "maximum_render_us": "1429"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:37.614",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "292",
+      "elapsed_us": "5015080",
+      "fps": "58.22",
+      "maximum_gap_us": "113860",
+      "maximum_upload_age_us": "709",
+      "maximum_render_us": "693"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:42.618",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "289",
+      "elapsed_us": "5003911",
+      "fps": "57.75",
+      "maximum_gap_us": "74752",
+      "maximum_upload_age_us": "757",
+      "maximum_render_us": "737"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:47.627",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "281",
+      "elapsed_us": "5008723",
+      "fps": "56.10",
+      "maximum_gap_us": "139140",
+      "maximum_upload_age_us": "887",
+      "maximum_render_us": "863"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:52.642",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "296",
+      "elapsed_us": "5014588",
+      "fps": "59.03",
+      "maximum_gap_us": "40657",
+      "maximum_upload_age_us": "708",
+      "maximum_render_us": "679"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:57.644",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "293",
+      "elapsed_us": "5001932",
+      "fps": "58.58",
+      "maximum_gap_us": "142998",
+      "maximum_upload_age_us": "756",
+      "maximum_render_us": "736"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:02.644",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "297",
+      "elapsed_us": "5000671",
+      "fps": "59.39",
+      "maximum_gap_us": "35487",
+      "maximum_upload_age_us": "838",
+      "maximum_render_us": "818"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:07.662",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "294",
+      "elapsed_us": "5017394",
+      "fps": "58.60",
+      "maximum_gap_us": "105096",
+      "maximum_upload_age_us": "707",
+      "maximum_render_us": "678"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:12.687",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "291",
+      "elapsed_us": "5025638",
+      "fps": "57.90",
+      "maximum_gap_us": "76074",
+      "maximum_upload_age_us": "789",
+      "maximum_render_us": "770"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:17.694",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "304",
+      "elapsed_us": "5007204",
+      "fps": "60.71",
+      "maximum_gap_us": "37898",
+      "maximum_upload_age_us": "705",
+      "maximum_render_us": "689"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:22.730",
+      "event": "video.present",
+      "phase": "window",
+      "backend": "vulkan",
+      "frames": "293",
+      "elapsed_us": "5035741",
+      "fps": "58.18",
+      "maximum_gap_us": "75051",
+      "maximum_upload_age_us": "867",
+      "maximum_render_us": "845"
+    }
+  ],
+  "present_gaps": [
+    {
+      "timestamp": "2026-10-11 21:17:30.906",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "217",
+      "gap_us": "108609",
+      "upload_age_us": "251"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:32.448",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "297",
+      "gap_us": "106931",
+      "upload_age_us": "164"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:49.442",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "1299",
+      "gap_us": "103841",
+      "upload_age_us": "252"
+    },
+    {
+      "timestamp": "2026-10-11 21:17:59.013",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "1872",
+      "gap_us": "101142",
+      "upload_age_us": "215"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:04.637",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "2197",
+      "gap_us": "167611",
+      "upload_age_us": "237"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:16.613",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "2913",
+      "gap_us": "104782",
+      "upload_age_us": "212"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:38.206",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "4199",
+      "gap_us": "101992",
+      "upload_age_us": "332"
+    },
+    {
+      "timestamp": "2026-10-11 21:18:56.332",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "5270",
+      "gap_us": "168220",
+      "upload_age_us": "306"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:06.544",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "5879",
+      "gap_us": "106234",
+      "upload_age_us": "597"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:15.369",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "6404",
+      "gap_us": "106287",
+      "upload_age_us": "739"
+    },
+    {
+      "timestamp": "2026-10-11 21:19:15.715",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "6418",
+      "gap_us": "165997",
+      "upload_age_us": "337"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:01.651",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "9168",
+      "gap_us": "105519",
+      "upload_age_us": "282"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:18.600",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "10180",
+      "gap_us": "112130",
+      "upload_age_us": "170"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:27.402",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "10693",
+      "gap_us": "111055",
+      "upload_age_us": "197"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.009",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "10718",
+      "gap_us": "242068",
+      "upload_age_us": "430"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.206",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "10726",
+      "gap_us": "104665",
+      "upload_age_us": "163"
+    },
+    {
+      "timestamp": "2026-10-11 21:20:28.417",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "10741",
+      "gap_us": "133490",
+      "upload_age_us": "250"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:06.568",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "12991",
+      "gap_us": "107986",
+      "upload_age_us": "199"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:07.560",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "13045",
+      "gap_us": "100826",
+      "upload_age_us": "171"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:33.709",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "14582",
+      "gap_us": "113860",
+      "upload_age_us": "146"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:46.498",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "15322",
+      "gap_us": "126565",
+      "upload_age_us": "154"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:46.714",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "15329",
+      "gap_us": "139140",
+      "upload_age_us": "217"
+    },
+    {
+      "timestamp": "2026-10-11 21:21:55.856",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "15864",
+      "gap_us": "142998",
+      "upload_age_us": "515"
+    },
+    {
+      "timestamp": "2026-10-11 21:22:03.588",
+      "event": "video.present",
+      "phase": "gap",
+      "backend": "vulkan",
+      "generation": "16321",
+      "gap_us": "105096",
+      "upload_age_us": "231"
+    }
+  ],
+  "weighted_present_fps": 59.038736141378784,
+  "early_delivery_detail_seconds": 89.849336,
+  "early_delivery_p99_ms": 45.704,
+  "note": "Detail is limited to the initial diagnostic window. Aggregate presentation counts newly uploaded frames accepted by the API, not scanout."
+}

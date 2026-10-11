@@ -225,6 +225,7 @@ pub fn build_game_hook_launch_spec(
         format!("--websocket_enabled={}", req.websocket_enabled),
         format!("--encoder_fps={fps}"),
         format!("--encoder_bitrate={bitrate_megabits_per_second}"),
+        format!("--app_media_bandwidth_kbps={}", req.encoder_bitrate_kbps),
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--device_id={}", req.device_id.trim()),
@@ -286,6 +287,7 @@ pub fn build_webview_launch_spec(
         format!("--websocket_enabled={}", req.websocket_enabled),
         format!("--encoder_fps={fps}"),
         format!("--encoder_bitrate={bitrate_megabits_per_second}"),
+        format!("--app_media_bandwidth_kbps={}", req.encoder_bitrate_kbps),
         format!("--encoder_format={format}"),
         format!("--network_listen_port={listen_port}"),
         format!("--webview_instance_id={}", req.instance_id),
@@ -1112,6 +1114,24 @@ mod tests {
         assert_eq!(render_bitrate_megabits_per_second(8_000), 8);
         assert_eq!(render_bitrate_megabits_per_second(8_001), 9);
         assert_eq!(render_bitrate_megabits_per_second(0), 20);
+    }
+
+    #[test]
+    fn application_media_budget_preserves_console_kilobits_for_both_capture_modes() {
+        for bandwidth_kbps in [128, 8_001, 10_000, 20_000, 200_000] {
+            let mut request = sample_req("media-budget", 4623);
+            request.encoder_bitrate_kbps = bandwidth_kbps;
+            request.webview_url_b64 = URL_SAFE_NO_PAD.encode("https://example.test/application");
+            let game_path = resolve_game_path(&request.executable_path).unwrap();
+            let game_launch =
+                build_game_hook_launch_spec(r"D:\Pixels", &request, 4623, &game_path, None);
+            let webview_launch = build_webview_launch_spec(r"D:\Pixels", &request, 4623).unwrap();
+            for launch in [game_launch, webview_launch] {
+                assert!(launch
+                    .args
+                    .contains(&format!("--app_media_bandwidth_kbps={bandwidth_kbps}")));
+            }
+        }
     }
 
     #[test]

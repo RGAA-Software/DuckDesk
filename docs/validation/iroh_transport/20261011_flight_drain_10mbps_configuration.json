@@ -1,0 +1,7 @@
+{
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "before_kbps": 20000,
+  "test_kbps": 10000,
+  "restored_kbps": 20000,
+  "restored_revision": 4
+}

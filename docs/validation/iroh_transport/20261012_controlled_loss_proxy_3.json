@@ -1,0 +1,20 @@
+[
+  {
+    "upstream": [
+      "39.71.45.66",
+      4613
+    ],
+    "ingress": [
+      "127.0.0.1",
+      50974
+    ],
+    "started_epoch": 1791742581.931582,
+    "forwarded_downlink": 6203,
+    "forwarded_uplink": 3352,
+    "dropped_large_downlink": 0,
+    "drop_windows": [],
+    "failure": null,
+    "reset_notifications": [],
+    "scope": "Only this owned UDP connection; 30 bounded 40ms drops across two short bursts (1.2s total). Not a normal-path FPS gate."
+  }
+]

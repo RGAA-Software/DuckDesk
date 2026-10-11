@@ -23,6 +23,7 @@ void IrohConnection::ObserveVideo(const media::VideoFrame& frame) {
     if (window.previous_frame_us) {
         const auto gap_us = now_us - *window.previous_frame_us;
         window.maximum_gap_us = std::max(window.maximum_gap_us, gap_us);
+        if (gap_us > 50000) ++window.gaps_over_50ms;
         if (gap_us > 100000) {
             ++window.gaps_over_100ms;
             LOGI("event=iroh.received_frame phase=gap stream={} frame={} gap_ms={:.1f}", frame.stream, frame.frame_index, gap_us / 1000.0);
@@ -41,12 +42,14 @@ void IrohConnection::ObserveVideo(const media::VideoFrame& frame) {
     LOGI("event=iroh.path path={} open_paths={} rtt_us={} tx_packets={} rx_packets={} tx_lost={} tx_datagrams={} rx_datagrams={}", path_name,
          snapshot.open_paths, snapshot.rtt_us, snapshot.sent_packets, snapshot.received_packets, snapshot.lost_packets, snapshot.sent_datagrams,
          snapshot.received_datagrams);
-    LOGI("event=iroh.path_detail selected={} cwnd_bytes={} datagram_buffer_space={} congestion_events={}",
+    LOGI("event=iroh.path_detail selected={} cwnd_bytes={} datagram_buffer_space={} congestion_events={} log_overruns={}",
          connection_->SelectedPath().value_or("unknown"), snapshot.congestion_window_bytes, snapshot.datagram_buffer_space,
-         snapshot.congestion_events);
-    LOGI("iroh media receive window: stream={}, frames={}, fps={:.1f}, max_gap_ms={:.1f}, gaps_gt_100ms={}, idr={}, rfi={}", frame.stream,
-         window.frames, 1000000.0 * window.frames / elapsed_us, window.maximum_gap_us / 1000.0, window.gaps_over_100ms, window.key_frame_requests,
-         window.reference_requests);
+         snapshot.congestion_events, Logger::DroppedMediaLogs());
+    LOGI(
+        "iroh media receive window: stream={}, frames={}, fps={:.1f}, max_gap_ms={:.1f}, gaps_gt_100ms={}, idr={}, rfi={}, "
+        "elapsed_us={}, gaps_gt_50ms={}",
+        frame.stream, window.frames, 1000000.0 * window.frames / elapsed_us, window.maximum_gap_us / 1000.0, window.gaps_over_100ms,
+        window.key_frame_requests, window.reference_requests, elapsed_us, window.gaps_over_50ms);
     window = {.started_us = now_us, .previous_frame_us = now_us};
 }
 

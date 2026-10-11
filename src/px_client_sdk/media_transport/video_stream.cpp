@@ -1,5 +1,6 @@
 #include "video_stream.h"
 #include <algorithm>
+#include <limits>
 
 namespace px::media {
 namespace {
@@ -67,11 +68,19 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     output.recovered = queued.recovered_data;
     output.rejected = queued.malformed;
     output.incomplete_frame = (!queued.rejected && queued.data_packets.empty()) || !output.losses.empty();
-    if (queued.data_packets.empty())
-        return output;
+    // Moonlight VideoDepacketizer::notifyFrameLost requests RFI immediately for an
+    // unrecoverable frame. Our queue has already retired that frame: waiting for
+    // the successor's complete payload adds avoidable repair latency. Predictions
+    // remain telemetry only because FEC/reordering may still correct them.
+    if (queued.final_frame_loss && stream.last_encoder_frame) {
+        if (*stream.last_encoder_frame == std::numeric_limits<std::uint64_t>::max())
+            output.needs_idr = true;
+        else
+            output.invalid_reference_frame = *stream.last_encoder_frame + 1;
+    }
+    if (queued.data_packets.empty()) return output;
     Packet payload{};
-    for (const auto& packet : queued.data_packets)
-        payload.insert(payload.end(), packet.begin() + kRtpSize, packet.end());
+    for (const auto& packet : queued.data_packets) payload.insert(payload.end(), packet.begin() + kRtpSize, packet.end());
     const auto last_size = static_cast<std::size_t>(payload[4] | (static_cast<unsigned>(payload[5]) << 8));
     const auto block_payload = stream.packet_size - kRtpSize;
     if (last_size == 0 || last_size > block_payload || payload[0] != 1) {
@@ -108,12 +117,13 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     output.completed_bytes = encoded_size;
     output.completed_timestamp_90khz = static_cast<std::uint32_t>(wire::Get(first_packet, 4, 4));
     output.completed_monitor.assign(descriptor.begin() + kDescriptorSize, descriptor.begin() + kDescriptorSize + name_size);
-    // Wait for an entire subsequent frame before requesting repair. Partial loss may still recover through FEC or reordering.
+    // A complete dependent frame also detects a reference gap when earlier loss
+    // notifications were speculative. Retired frames were reported above.
     if (kind != VideoFrameKind::kIdr &&
         (!stream.last_delivered || (kind != VideoFrameKind::kReferenceRecovery && *stream.last_delivered + 1 != wire_index))) {
         // A known decoder reference can be repaired by RFI. Do not replace this with a throttled IDR on every dependent frame.
         // Retrying on subsequent complete frames also covers a lost UDP recovery request without changing the WS control channel.
-        if (stream.last_encoder_frame)
+        if (stream.last_encoder_frame && *stream.last_encoder_frame != std::numeric_limits<std::uint64_t>::max())
             output.invalid_reference_frame = *stream.last_encoder_frame + 1;
         else
             output.needs_idr = true;
@@ -134,7 +144,8 @@ VideoStreamOutput VideoStreamReceiver::Feed(const MediaDatagram& datagram, std::
     // A complete IDR/recovery can close the gap reported by this same Feed call.
     // Keep loss telemetry, but do not invalidate the newly established reference.
     output.invalid_reference_frame.reset();
+    output.needs_idr = false;
     output.frame = std::move(frame);
     return output;
 }
-} // namespace px::media
+}  // namespace px::media

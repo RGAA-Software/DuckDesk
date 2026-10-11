@@ -1,0 +1,16 @@
+{
+  "evidence": ".cache\\iroh-native-live-20261011-112333-auto",
+  "cases": [
+    {
+      "kind": "game_hook",
+      "instance_id": "7458fdd0-7984-4333-a80d-5662e2c6b438",
+      "session_id": "a8135e23-2f20-4dd7-a929-350fb5286af4",
+      "state": "connected",
+      "client_pid": 31368,
+      "capture_exit": null,
+      "sample_started_epoch": 1791689019.403645,
+      "sample_ended_epoch": 1791689039.4045706,
+      "grace_stopped": true
+    }
+  ]
+}

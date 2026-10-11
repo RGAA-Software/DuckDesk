@@ -1,0 +1,324 @@
+{
+  "before": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 15,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 10000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  },
+  "seconds": 75,
+  "purpose": "Frequent owned UDP short losses, loopback-only socket prevents route bypass",
+  "probe": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 16,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 20000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  },
+  "placement_previews": [
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:56.615777Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:57.124457Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:57.634534Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:58.144805Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:58.652981Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:59.161467Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:37:59.668237Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:38:00.176200Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:38:00.682281Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:38:01.187290Z",
+      "candidates": [
+        {
+          "rank": null,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": false,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": [
+            "deployment_revision_mismatch"
+          ]
+        }
+      ]
+    },
+    {
+      "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+      "evaluated_at": "2026-10-11T18:38:01.694Z",
+      "candidates": [
+        {
+          "rank": 1,
+          "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+          "eligible": true,
+          "dominant_pressure_per_mille": 25,
+          "average_pressure_per_mille": 11,
+          "node_slots": 4,
+          "deployment_slots": 12,
+          "gpu_memory_headroom_bytes": 25105039360,
+          "gpu_compute_headroom_per_mille": 990,
+          "gpu_encoder_headroom_per_mille": 1000,
+          "rejection_reasons": []
+        }
+      ]
+    }
+  ],
+  "sample_exit": 0,
+  "restored": {
+    "access_revision": 1,
+    "id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "revision": 17,
+    "spec": {
+      "access": "public",
+      "allow_observer": false,
+      "allow_takeover": false,
+      "disabled": false,
+      "disconnect_grace_seconds": 10,
+      "launch": {
+        "arguments": "-force-d3d11-bltblt-mode",
+        "executable_path": "D:\\software\\心脏医学可执行\\心脏医学可执行\\心脏-医学动态展示.exe",
+        "kind": "game_hook",
+        "video": {
+          "bitrate_kbps": 10000,
+          "codec": "h264"
+        }
+      },
+      "name": "心脏医学动态展示"
+    }
+  }
+}

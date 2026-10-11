@@ -1,0 +1,27 @@
+[
+  {
+    "product": "client",
+    "component": "px_client",
+    "sha256": "9f854727efddf0f19234e0afed1bcb785379e31f8087541de0c2126629bfd3c6"
+  },
+  {
+    "product": "client",
+    "component": "px_panel",
+    "sha256": "57dae963f418c68bb65ea89f62ab1a57e080c0659154788beda778e4c2e3d5fe"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_client",
+    "sha256": "fdbf3165410f6476445788f4eb201caa895adf7165e6881ac4eecdf6a887154a"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_panel",
+    "sha256": "0352fb2d26a32951784c587d2d56d1986daf643d11269452ff2bc9cc0e659c3c"
+  },
+  {
+    "product": "cloud_node",
+    "component": "px_render",
+    "sha256": "6dacdc931a6fcbae4036b771f6ebc6471719f927feac076cc707c10098237188"
+  }
+]

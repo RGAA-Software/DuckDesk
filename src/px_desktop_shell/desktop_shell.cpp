@@ -1,7 +1,10 @@
 #include "px_desktop_shell/desktop_shell.h"
 
 #include "desktop_renderer.h"
+#include "frame_refresh_signal.h"
 #include "imgui_session.h"
+#include "live_resize_refresh.h"
+#include "px_common/log.h"
 #include "px_ui/layout_metrics.h"
 #include "px_ui/product_brand.h"
 #include "title_bar.h"
@@ -18,6 +21,7 @@
 #include <imgui.h>
 
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -30,6 +34,7 @@ namespace {
 
 constexpr Uint32 kShowWindowEvent{SDL_EVENT_USER + 41};
 constexpr Uint32 kExitApplicationEvent{SDL_EVENT_USER + 42};
+constexpr Uint32 kVideoFrameReadyEvent{SDL_EVENT_USER + 43};
 
 BOOL CALLBACK RestoreCurrentProcessWindow(HWND window, LPARAM) {  // NOLINT(pixels-raw-pointer-boundary): Win32 enumeration callback ABI.
     DWORD ownerProcessId{};
@@ -84,6 +89,7 @@ SdlTray CreateTray() {
 }  // namespace
 
 struct DesktopShell::Impl final {
+    std::shared_ptr<FrameRefreshSignal> videoRefreshSignal{std::make_shared<FrameRefreshSignal>()};
     Impl(std::unique_ptr<WindowHost> windowValue, DesktopRenderer rendererValue, WindowChromeConfig chromeValue, std::string titleBarTitleValue,
          const bool minimizeToTrayValue, const bool continuousTextInputValue, const bool continuousRenderingValue, const bool edgeToEdgeContentValue)
         : window{std::move(windowValue)},
@@ -111,6 +117,74 @@ struct DesktopShell::Impl final {
     bool cancelCloseRequest{};
     WindowChromeConfig chrome{};
     std::string titleBarTitle{};
+    bool drawing_frame{};
+    int drawing_failure{};
+    int renderer_pixel_width{};
+    int renderer_pixel_height{};
+
+    bool ResizeRenderer(int pixel_width, int pixel_height) {
+        if (pixel_width <= 0 || pixel_height <= 0 || (pixel_width == renderer_pixel_width && pixel_height == renderer_pixel_height)) return true;
+        if (!renderer.Resize(pixel_width, pixel_height)) return false;
+        renderer_pixel_width = pixel_width;
+        renderer_pixel_height = pixel_height;
+        return true;
+    }
+
+    struct FrameDrawing final {
+        bool interactive{};
+        std::int64_t composition_us{};
+        std::int64_t draw_us{};
+    };
+
+    std::expected<FrameDrawing, int> DrawFrame(const RenderCallback& render, bool refresh_size = false) {
+        if (drawing_frame || !running || window->IsMinimized()) return FrameDrawing{};
+        const auto composition_started = std::chrono::steady_clock::now();
+        drawing_frame = true;
+        struct DrawingGuard final {
+            bool& drawing;
+            ~DrawingGuard() { drawing = false; }
+        };
+        const DrawingGuard drawing_guard{drawing_frame};
+        if (refresh_size) {
+            int pixel_width{};
+            int pixel_height{};
+            if (!SDL_GetWindowSizeInPixels(&window->Native(), &pixel_width, &pixel_height) || !ResizeRenderer(pixel_width, pixel_height))
+                return std::unexpected{2};
+        }
+        imgui->BeginFrame();
+        if (continuousTextInput && !SDL_TextInputActive(&window->Native())) static_cast<void>(SDL_StartTextInput(&window->Native()));
+        const ImGuiViewport& viewport = *ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport.Pos);
+        ImGui::SetNextWindowSize(viewport.Size);
+        const ImGuiWindowFlags root_flags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                                          (edgeToEdgeContent ? ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse : 0)};
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, edgeToEdgeContent ? 0.0F : ImGui::GetStyle().WindowBorderSize);
+        ImGui::Begin("PixelsRoot", nullptr, root_flags);
+        ImGui::PopStyleVar(2);
+        if (!DrawTitleBar(*window, chrome, imgui->Logo(), localizer, titleBarTitle)) {
+            SDL_Event close_event{};
+            close_event.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+            static_cast<void>(SDL_PushEvent(&close_event));
+        }
+        if (edgeToEdgeContent) {
+            const float title_bar_height{window->IsFullscreen() ? 0.0F : px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
+            ImGui::SetCursorScreenPos({viewport.Pos.x, viewport.Pos.y + title_bar_height});
+        }
+        render();
+        ImGui::End();
+        ImGui::PopStyleVar();
+        const bool interactive_frame{imgui->NeedsInteractiveRefresh()};
+        ImGui::Render();
+        const auto composition_finished = std::chrono::steady_clock::now();
+        if (!window->IsMinimized()) renderer.Render();
+        const auto draw_finished = std::chrono::steady_clock::now();
+        return FrameDrawing{
+            .interactive = interactive_frame,
+            .composition_us = std::chrono::duration_cast<std::chrono::microseconds>(composition_finished - composition_started).count(),
+            .draw_us = std::chrono::duration_cast<std::chrono::microseconds>(draw_finished - composition_finished).count()};
+    }
 };
 
 std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig& config) {
@@ -130,7 +204,7 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{rendererResult.error()};
     }
 
-    auto impl = std::make_unique<Impl>(std::move(window), std::move(rendererResult.value()), chrome, config.titleBarTitle, config.minimizeToTray,
+    auto impl = std::make_shared<Impl>(std::move(window), std::move(rendererResult.value()), chrome, config.titleBarTitle, config.minimizeToTray,
                                        config.continuousTextInput, config.continuousRendering, config.edgeToEdgeContent);
     if (config.minimizeToTray) {
         impl->tray = CreateTray();
@@ -140,23 +214,65 @@ std::expected<DesktopShell, std::string> DesktopShell::Create(const WindowConfig
         return std::unexpected{imguiResult.error()};
     }
     impl->imgui.emplace(std::move(imguiResult.value()));
+    static_cast<void>(SDL_GetWindowSizeInPixels(&impl->window->Native(), &impl->renderer_pixel_width, &impl->renderer_pixel_height));
     if (impl->continuousTextInput) static_cast<void>(SDL_StartTextInput(&impl->window->Native()));
     return DesktopShell{std::move(impl)};
 }
 
-DesktopShell::DesktopShell(std::unique_ptr<Impl> impl) noexcept : impl_{std::move(impl)} {}
+DesktopShell::DesktopShell(std::shared_ptr<Impl> impl) noexcept : impl_{std::move(impl)} {}
 DesktopShell::DesktopShell(DesktopShell&&) noexcept = default;
 DesktopShell& DesktopShell::operator=(DesktopShell&&) noexcept = default;
 DesktopShell::~DesktopShell() = default;
 
+DesktopShell::RenderCallback DesktopShell::VideoFrameReadyCallback() const {
+    return [signal = std::weak_ptr{impl_->videoRefreshSignal}] {
+        const auto refresh = signal.lock();
+        if (!refresh) return;
+        refresh->Request([] {
+            SDL_Event event{};
+            event.type = kVideoFrameReadyEvent;
+            return SDL_PushEvent(&event);
+        });
+    };
+}
+
 int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) {
+    auto live_resize = LiveResizeRefresh::Create(SDL_GetWindowID(&impl_->window->Native()), [shell = std::weak_ptr{impl_}, render] {
+        const auto active = shell.lock();
+        if (!active) return;
+        if (const auto result = active->DrawFrame(render, true); !result) {
+            active->drawing_failure = result.error();
+            active->running = false;
+        }
+    });
+    if (!live_resize) {
+        LOGE("Live-resize registration failed: {}", live_resize.error());
+        return 2;
+    }
     bool firstFrame{true};
     bool interactiveFrame{false};
+    std::optional<SDL_WindowFlags> previous_visibility{};
+    std::optional<std::chrono::steady_clock::time_point> previous_iteration{};
     while (impl_->running) {
+        const auto loop_started = std::chrono::steady_clock::now();
+        if (previous_iteration && loop_started - *previous_iteration >= std::chrono::milliseconds(100)) {
+            LOGI("event=video.ui_schedule gap_us={}",
+                 std::chrono::duration_cast<std::chrono::microseconds>(loop_started - *previous_iteration).count());
+        }
+        previous_iteration = loop_started;
+        std::chrono::steady_clock::time_point wait_finished{};
+        std::uint64_t processed_events{};
         SDL_Event event{};
         const int waitMilliseconds{firstFrame ? 0 : (impl_->continuousRendering || interactiveFrame ? 16 : 200)};
         if (SDL_WaitEventTimeout(&event, waitMilliseconds)) {
+            wait_finished = std::chrono::steady_clock::now();
             do {
+                ++processed_events;
+                const auto event_started = std::chrono::steady_clock::now();
+                if (event.type == kVideoFrameReadyEvent) {
+                    impl_->videoRefreshSignal->Consume();
+                    continue;
+                }
                 ImGui_ImplSDL3_ProcessEvent(&event);
                 if (input) {
                     DesktopInputEvent translated{.type = event.type};
@@ -197,7 +313,7 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                         impl_->running = false;
                     }
                 }
-                if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && !impl_->renderer.Resize(event.window.data1, event.window.data2)) {
+                if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED && !impl_->ResizeRenderer(event.window.data1, event.window.data2)) {
                     return 2;
                 }
                 if (event.type == SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED) {
@@ -205,56 +321,55 @@ int DesktopShell::Run(const RenderCallback& render, const InputCallback& input) 
                         return 3;
                     }
                 }
+                const auto event_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - event_started).count();
+                if (event_us >= 50000) LOGI("event=video.ui_event phase=slow type={} duration_us={}", event.type, event_us);
             } while (SDL_PollEvent(&event));
+        } else {
+            wait_finished = std::chrono::steady_clock::now();
         }
+        const auto events_finished = std::chrono::steady_clock::now();
         if (!impl_->running) {
             break;
         }
-        if (impl_->window->IsMinimized()) {
+        const auto visibility = SDL_GetWindowFlags(&impl_->window->Native()) & (SDL_WINDOW_MINIMIZED | SDL_WINDOW_HIDDEN | SDL_WINDOW_OCCLUDED);
+        if (!previous_visibility || *previous_visibility != visibility) {
+            LOGI("event=video.window_render flags={} minimized={} hidden={} occluded={}", visibility,
+                 (visibility & SDL_WINDOW_MINIMIZED) != 0, (visibility & SDL_WINDOW_HIDDEN) != 0, (visibility & SDL_WINDOW_OCCLUDED) != 0);
+            previous_visibility = visibility;
+        }
+        if ((visibility & SDL_WINDOW_MINIMIZED) != 0) {
             firstFrame = false;
             interactiveFrame = false;
             continue;
         }
 
-        impl_->imgui->BeginFrame();
-        if (impl_->continuousTextInput && !SDL_TextInputActive(&impl_->window->Native()))
-            static_cast<void>(SDL_StartTextInput(&impl_->window->Native()));
-        const ImGuiViewport& viewport = *ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(viewport.Pos);
-        ImGui::SetNextWindowSize(viewport.Size);
-        const ImGuiWindowFlags rootFlags{ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
-                                         (impl_->edgeToEdgeContent ? ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse : 0)};
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0F);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{});
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, impl_->edgeToEdgeContent ? 0.0F : ImGui::GetStyle().WindowBorderSize);
-        ImGui::Begin("PixelsRoot", nullptr, rootFlags);
-        ImGui::PopStyleVar(2);
-        if (!DrawTitleBar(*impl_->window, impl_->chrome, impl_->imgui->Logo(), impl_->localizer, impl_->titleBarTitle)) {
-            SDL_Event closeEvent{};
-            closeEvent.type = SDL_EVENT_WINDOW_CLOSE_REQUESTED;
-            static_cast<void>(SDL_PushEvent(&closeEvent));
+        const auto drawing = impl_->DrawFrame(render);
+        if (!drawing) return drawing.error();
+        interactiveFrame = drawing->interactive;
+        const auto wait_us = std::chrono::duration_cast<std::chrono::microseconds>(wait_finished - loop_started).count();
+        const auto events_us = std::chrono::duration_cast<std::chrono::microseconds>(events_finished - wait_finished).count();
+        const auto composition_us = drawing->composition_us;
+        const auto draw_us = drawing->draw_us;
+        if (wait_us > (waitMilliseconds + 50) * 1000 || events_us >= 50000 || composition_us >= 50000 || draw_us >= 50000) {
+            LOGI("event=video.ui_loop phase=slow wait_us={} allowed_wait_ms={} events={} events_us={} composition_us={} draw_us={}", wait_us,
+                 waitMilliseconds, processed_events, events_us, composition_us, draw_us);
         }
-        if (impl_->edgeToEdgeContent) {
-            const float titleBarHeight{impl_->window->IsFullscreen() ? 0.0F : px::ui::Scale(static_cast<float>(kTitleBarLogicalHeight))};
-            ImGui::SetCursorScreenPos({viewport.Pos.x, viewport.Pos.y + titleBarHeight});
-        }
-        render();
-        ImGui::End();
-        ImGui::PopStyleVar();
-
-        interactiveFrame = impl_->imgui->NeedsInteractiveRefresh();
-        ImGui::Render();
-        if (!impl_->window->IsMinimized()) impl_->renderer.Render();
         firstFrame = false;
     }
-    return 0;
+    return impl_->drawing_failure;
 }
 
 bool DesktopShell::UpdateVideoTexture(const int width, const int height, const std::span<const std::uint8_t> bgra) {
     return impl_->renderer.UpdateVideoTexture(width, height, bgra);
 }
 
-bool DesktopShell::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) { return impl_->renderer.UpdateVideoFrame(image); }
+bool DesktopShell::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
+    const auto upload_started = std::chrono::steady_clock::now();
+    const bool uploaded = impl_->renderer.UpdateVideoFrame(image);
+    const auto upload_us = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - upload_started).count();
+    if (upload_us >= 50000) LOGI("event=video.upload phase=slow duration_us={} uploaded={}", upload_us, uploaded);
+    return uploaded;
+}
 
 std::uint64_t DesktopShell::VideoTextureId() const noexcept { return impl_->renderer.VideoTextureId(); }
 

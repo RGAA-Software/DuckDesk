@@ -1,0 +1,17 @@
+EVIDENCE .cache\iroh-native-live-20261012-015244-auto
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\.cache\test_loss_feedback_live.py", line 66, in <module>
+    instance = helpers['start'](application)
+  File ".cache\test_application_grace_live.py", line 42, in start
+    instance = request('POST', '/api/console/instances', {
+        'request_id': str(uuid.uuid4()), 'application_id': application['id'], 'deployment_id': None})
+  File ".cache\test_bj_application_live.py", line 38, in request
+    response = original_request(method, route, payload)
+  File ".cache\test_application_grace_live.py", line 36, in request
+    raise RuntimeError(f'{method} {route}: HTTP {failure.code} code={failure_payload.get("code", failure_payload.get("error"))}') from None
+RuntimeError: POST /api/console/instances: HTTP 503 code=unavailable
+RESTORE {"budget_kbps": 10000}
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\.cache\run_decoder_output_20_probe.py", line 43, in <module>
+    raise RuntimeError('Probe did not complete cleanly; consult configuration evidence')
+RuntimeError: Probe did not complete cleanly; consult configuration evidence

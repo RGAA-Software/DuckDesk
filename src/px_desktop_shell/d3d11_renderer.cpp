@@ -4,6 +4,7 @@
 #include "d3d11_video_presenter.h"
 #endif
 #include "window_host.h"
+#include "video_presentation_progress.h"
 
 #if PX_DESKTOP_SHELL_MEDIA
 #include "px_common/win32/d3d11_wrapper.h"
@@ -44,6 +45,7 @@ struct D3d11Renderer::Impl final {
     std::shared_ptr<D3d11VideoPresenter> videoPresenter{};
     int videoWidth{};
     int videoHeight{};
+    VideoPresentationProgress videoProgress{};
 #endif
     bool imguiBackendInitialized{false};
     bool allowTearing{};
@@ -208,6 +210,7 @@ bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const 
                     sourceStride);
     }
     impl_->deviceContext->Unmap(impl_->videoTexture.Get(), 0);
+    impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
     return true;
 #else
     static_cast<void>(width);
@@ -219,7 +222,9 @@ bool D3d11Renderer::UpdateVideoTexture(const int width, const int height, const 
 
 bool D3d11Renderer::UpdateVideoFrame(const std::shared_ptr<RawImage>& image) {
 #if PX_DESKTOP_SHELL_MEDIA
-    return impl_->videoPresenter && impl_->videoPresenter->Present(image);
+    const bool uploaded = impl_->videoPresenter && impl_->videoPresenter->Present(image);
+    if (uploaded) impl_->videoProgress.Uploaded(VideoPresentationProgress::Clock::now());
+    return uploaded;
 #else
     static_cast<void>(image);
     return false;
@@ -244,12 +249,20 @@ std::shared_ptr<D3D11DeviceWrapper> D3d11Renderer::DeviceResources() const noexc
 }
 
 void D3d11Renderer::Render() const {
+    const auto render_started = VideoPresentationProgress::Clock::now();
     constexpr std::array clearColor{0.055F, 0.067F, 0.094F, 1.0F};
     impl_->deviceContext->OMSetRenderTargets(1, impl_->renderTarget.GetAddressOf(), nullptr);
     impl_->deviceContext->ClearRenderTargetView(impl_->renderTarget.Get(), clearColor.data());
     ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     const UINT flags{impl_->allowTearing ? DXGI_PRESENT_ALLOW_TEARING : 0U};
-    static_cast<void>(impl_->swapChain->Present(0, flags));
+    const auto result = impl_->swapChain->Present(0, flags);
+#if PX_DESKTOP_SHELL_MEDIA
+    const auto presented_at = VideoPresentationProgress::Clock::now();
+    LogVideoPresentation(impl_->videoProgress.Presented(result == S_OK, presented_at, presented_at - render_started), "d3d11");
+#else
+    static_cast<void>(result);
+    static_cast<void>(render_started);
+#endif
 }
 
 } // namespace px::desktop

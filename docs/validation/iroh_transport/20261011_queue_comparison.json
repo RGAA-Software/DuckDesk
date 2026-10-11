@@ -1,0 +1,50 @@
+{
+  "baseline": [
+    {
+      "kind": "game_hook",
+      "state": "connected",
+      "grace_stopped": true,
+      "sample_seconds": 20.000149965286255,
+      "delivered_frames": 1200,
+      "fps_between_deliveries": 60.022780622643985,
+      "max_gap_ms": 50.339,
+      "p99_gap_ms": 37.02,
+      "gaps_over_100ms": 0,
+      "receive_windows": [
+        "[2026-10-11 14:51:08.736][thread 82236][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=302, fps=60.2, max_gap_ms=50.3, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 14:51:13.743][thread 82236][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=301, fps=60.1, max_gap_ms=45.6, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 14:51:18.744][thread 82236][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=300, fps=60.0, max_gap_ms=44.0, gaps_gt_100ms=0, idr=0, rfi=0"
+      ]
+    }
+  ],
+  "candidate": [
+    {
+      "kind": "game_hook",
+      "state": "connected",
+      "grace_stopped": true,
+      "sample_seconds": 20.000673532485962,
+      "delivered_frames": 1185,
+      "fps_between_deliveries": 59.30120937403867,
+      "max_gap_ms": 57.27,
+      "p99_gap_ms": 44.126,
+      "gaps_over_100ms": 0,
+      "receive_windows": [
+        "[2026-10-11 15:00:25.081][thread 78396][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=303, fps=60.3, max_gap_ms=50.4, gaps_gt_100ms=0, idr=0, rfi=0",
+        "[2026-10-11 15:00:30.087][thread 78396][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=292, fps=58.3, max_gap_ms=49.2, gaps_gt_100ms=0, idr=0, rfi=2",
+        "[2026-10-11 15:00:35.096][thread 78396][iroh_connection.cpp:49][info] : iroh media receive window: stream=0, frames=298, fps=59.5, max_gap_ms=52.9, gaps_gt_100ms=0, idr=0, rfi=1"
+      ]
+    },
+    {
+      "kind": "webview",
+      "state": "connected",
+      "grace_stopped": true,
+      "sample_seconds": 5.000486373901367,
+      "delivered_frames": 144,
+      "fps_between_deliveries": 33.5133916466348,
+      "max_gap_ms": 642.201,
+      "p99_gap_ms": 575.329,
+      "gaps_over_100ms": 4,
+      "receive_windows": []
+    }
+  ]
+}

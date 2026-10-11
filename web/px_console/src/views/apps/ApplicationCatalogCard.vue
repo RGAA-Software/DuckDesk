@@ -41,7 +41,7 @@ const form = reactive({
     entryUrl: "",
     codec: "h264" as VideoCodec,
     disconnectGraceSeconds: 10,
-    bitrateKbps: 20_000,
+    bitrateKbps: 10_000,
     allowObserver: false,
     allowTakeover: false,
     disabled: false,
@@ -72,7 +72,7 @@ function resetForm() {
         entryUrl: "",
         codec: "h264",
         disconnectGraceSeconds: 10,
-        bitrateKbps: 20_000,
+        bitrateKbps: 10_000,
         allowObserver: false,
         allowTakeover: false,
         disabled: false,
@@ -97,7 +97,7 @@ async function edit(application: ManagedApplication) {
         arguments: launch.kind === "game_hook" ? launch.arguments : "",
         entryUrl: launch.kind === "webview" ? launch.entry_url : "",
         codec: launch.kind === "rdp" ? "h264" : launch.video.codec,
-        bitrateKbps: launch.kind === "rdp" ? 20_000 : launch.video.bitrate_kbps,
+        bitrateKbps: launch.kind === "rdp" ? 10_000 : launch.video.bitrate_kbps,
         disconnectGraceSeconds: application.spec.disconnect_grace_seconds,
         allowObserver: application.spec.allow_observer,
         allowTakeover: application.spec.allow_takeover,
@@ -283,7 +283,9 @@ useManagementRefresh(["applications"], refresh);
                                 { value: 'h265', label: 'H.265' },
                             ]" /></a-form-item></a-col
                 ><a-col :span="12"
-                    ><a-form-item :label="t('applications.bitrate')"
+                    ><a-form-item
+                        :label="t('applications.bitrate')"
+                        :extra="t('applications.bandwidthHelp')"
                         ><a-input-number
                             v-model:value="form.bitrateKbps"
                             :min="128"

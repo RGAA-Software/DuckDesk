@@ -33,6 +33,7 @@ private:
         std::optional<std::uint64_t> previous_frame_us{};
         std::uint64_t frames{};
         std::uint64_t maximum_gap_us{};
+        std::uint64_t gaps_over_50ms{};
         std::uint64_t gaps_over_100ms{};
         std::uint64_t key_frame_requests{};
         std::uint64_t reference_requests{};

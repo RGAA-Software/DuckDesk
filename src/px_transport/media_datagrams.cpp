@@ -1,5 +1,7 @@
 #include "media_datagrams.h"
 
+#include <format>
+
 #include "compact_audio_datagram.h"
 #include "media_transport/packet_timing.h"
 #include "paced_media_batch.h"
@@ -8,13 +10,26 @@
 
 namespace px::transport {
 MediaDatagramSender::MediaDatagramSender(std::shared_ptr<Connection> connection, asio::any_io_executor executor, MediaSendOptions options)
-    : connection_(std::move(connection)), executor_(std::move(executor)), options_(options) {}
+    : connection_(std::move(connection)),
+      executor_(std::move(executor)),
+      options_(options),
+      video_pacing_(std::make_shared<VideoSendPacing>(options.video_budget)),
+      queue_admission_(options.video_budget),
+      flight_(options.video_budget) {
+    LOGI(
+        "event=iroh.media_pacing total_budget_bps={} video_wire_bps={} encoder_ceiling_bps={} packet_overhead={} packets_per_burst={} fec_percent={}",
+        options_.video_budget.TotalBitsPerSecond(), options_.video_budget.VideoWireBitsPerSecond(), options_.video_budget.EncoderBitsPerSecond(),
+        VideoSendBudget::kPacketWireOverhead, VideoSendBudget::kPacketsPerBurst, options_.fec_percent);
+    LOGI("event=iroh.queue_budget unsent_bytes={} transport_capacity={} capture_frames=2", queue_admission_.BudgetBytes(),
+         VideoQueueAdmission::kTransportBufferBytes);
+}
 
 MediaDatagramSender::~MediaDatagramSender() { Stop(); }
 
 bool MediaDatagramSender::SendVideo(const media::VideoFrame& frame, std::function<void(bool)> completion) {
     if (stopped_ || !connection_ || connection_->DatagramLimit() < kMediaDatagramBytes || options_.frame_deadline.count() <= 0) return false;
     const auto started = std::chrono::steady_clock::now();
+    const bool diagnostic = media::MediaSteadyMicros() - diagnostic_started_us_ < 90'000'000 || frame.kind != media::VideoFrameKind::kPredicted;
     const auto deadline = started + options_.frame_deadline * (frame.kind == media::VideoFrameKind::kIdr ? 2 : 1);
     {
         std::lock_guard lock(video_mutex_);
@@ -44,9 +59,9 @@ bool MediaDatagramSender::SendVideo(const media::VideoFrame& frame, std::functio
                  offered_frames_, offered_idr_frames_, busy_frames_, completed_frames_.exchange(0), failed_frames_.exchange(0),
                  maximum_send_us_.exchange(0), static_cast<std::uint32_t>(snapshot.path), snapshot.rtt_us, snapshot.sent_packets,
                  snapshot.lost_packets);
-            LOGI("event=iroh.send_path selected={} cwnd_bytes={} datagram_buffer_space={} congestion_events={}",
+            LOGI("event=iroh.send_path selected={} cwnd_bytes={} datagram_buffer_space={} congestion_events={} log_overruns={}",
                  connection_->SelectedPath().value_or("unknown"), snapshot.congestion_window_bytes, snapshot.datagram_buffer_space,
-                 snapshot.congestion_events);
+                 snapshot.congestion_events, Logger::DroppedMediaLogs());
             LOGI("event=iroh.video_admission max_queue_us={} max_datagram_write_us={} max_application_burst_bytes={}",
                  std::exchange(maximum_queue_us_, 0), std::exchange(maximum_write_us_, 0), std::exchange(maximum_burst_bytes_, 0));
             window_started_ = started;
@@ -62,6 +77,13 @@ bool MediaDatagramSender::SendVideo(const media::VideoFrame& frame, std::functio
         auto& sequence = sequences_[frame.stream];
         // Count offered frames, including ones dropped by backpressure, so reference gaps remain visible.
         const auto transport_frame = sequence.frame++;
+        if (diagnostic) {
+            LOGI(
+                "event=iroh.diag_offer trace={} peer={} stream={} wire_frame={} encoder_frame={} kind={} bytes={} mono_us={} queued={} "
+                "pending_bytes={}",
+                diagnostic_started_us_, connection_->PeerId().value_or("unknown"), frame.stream, transport_frame, frame.frame_index,
+                static_cast<unsigned>(frame.kind), frame.encoded.size(), media::MediaSteadyMicros(), pending_video_.size(), pending_video_bytes_);
+        }
         constexpr std::size_t kMaximumPendingFrames{4};
         constexpr std::size_t kMaximumPendingBytes{4 * 1024 * 1024};
         if (pending_video_.size() + (video_active_ ? 1 : 0) >= kMaximumPendingFrames ||
@@ -92,7 +114,8 @@ bool MediaDatagramSender::SendVideo(const media::VideoFrame& frame, std::functio
         sequence.packet = packets->next_sequence;
         pending_video_bytes_ += packet_bytes;
         pending_video_.push_back(
-            {std::move(packets->packets), started, deadline, packet_bytes, std::move(completion), frame.stream, frame.frame_index});
+            {std::move(packets->packets), started, deadline, packet_bytes, std::move(completion), frame.stream, frame.frame_index, transport_frame,
+             frame.kind});
     }
     StartNextVideo();
     return true;
@@ -109,10 +132,13 @@ void MediaDatagramSender::StartNextVideo() {
     }
     const auto owner = weak_from_this();
     const auto trace = std::make_shared<VideoWriteTrace>();
+    const bool diagnostic = media::MediaSteadyMicros() - diagnostic_started_us_ < 90'000'000 || pending.kind != media::VideoFrameKind::kPredicted;
+    const auto diagnostic_origin = media::MediaSteadyMicros();
     const auto batch = std::make_shared<PacedMediaBatch>(
-        // QUIC owns packet pacing; the frame queue only bounds latency and memory.
+        // Bound admission bursts and carry the byte budget across frame boundaries;
+        // QUIC retains its congestion control and path-specific packet pacing.
         executor_, std::move(pending.packets), true,
-        [owner, trace, deadline = pending.deadline](std::span<const media::Packet> burst) {
+        [owner, trace, diagnostic, diagnostic_origin, deadline = pending.deadline](std::span<const media::Packet> burst) {
             const auto sender = owner.lock();
             if (!sender || sender->stopped_) return false;
             if (!trace->first_write) trace->first_write = std::chrono::steady_clock::now();
@@ -123,10 +149,21 @@ void MediaDatagramSender::StartNextVideo() {
                 const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
                 if (sender->stopped_ || remaining.count() <= 0) return false;
                 const auto write_started = std::chrono::steady_clock::now();
+                const auto write_mono_us = diagnostic ? media::MediaSteadyMicros() : 0;
                 const auto sent = sender->connection_->SendDatagram(packet, static_cast<std::uint32_t>(remaining.count()));
                 const auto write_us = static_cast<std::uint64_t>(
                     std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - write_started).count());
                 trace->maximum_write_us = std::max(trace->maximum_write_us, write_us);
+                if (diagnostic && trace->accepted_packets < 2048) {
+                    const auto envelope = media::ParseMedia(packet);
+                    const auto identity = envelope ? ReadVideoPacketIdentity(envelope->payload) : std::nullopt;
+                    if (identity) {
+                        trace->packet_writes +=
+                            std::format("{}:{}:{}:{}:{}:{}:{}:{}:{};", identity->sequence, identity->block, identity->last_block, identity->shard,
+                                        identity->data_count, identity->parity_count, write_mono_us - diagnostic_origin, write_us,
+                                        sent ? 0 : static_cast<unsigned>(sent.error()));
+                    }
+                }
                 if (!sent) {
                     trace->error = sent.error();
                     return false;
@@ -140,8 +177,8 @@ void MediaDatagramSender::StartNextVideo() {
             const auto sender = owner.lock();
             return sender && !sender->stopped_ && !sender->connection_->IsClosed() && std::chrono::steady_clock::now() < deadline;
         },
-        [owner, trace, started = pending.started, packet_bytes = pending.bytes, stream = pending.stream, frame = pending.frame,
-         completion = std::move(pending.completion)](bool delivered) {
+        [owner, trace, diagnostic, diagnostic_origin, wire_frame = pending.wire_frame, started = pending.started, packet_bytes = pending.bytes,
+         stream = pending.stream, frame = pending.frame, completion = std::move(pending.completion)](bool delivered) {
             const auto sender = owner.lock();
             if (sender) {
                 if (delivered)
@@ -149,6 +186,9 @@ void MediaDatagramSender::StartNextVideo() {
                 else
                     ++sender->failed_frames_;
                 const auto finished = std::chrono::steady_clock::now();
+                if (trace->queue_blocked_since) {
+                    trace->queue_wait_us += std::chrono::duration_cast<std::chrono::microseconds>(finished - *trace->queue_blocked_since).count();
+                }
                 const auto elapsed_us = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(finished - started).count());
                 auto maximum_us = sender->maximum_send_us_.load();
                 while (maximum_us < elapsed_us && !sender->maximum_send_us_.compare_exchange_weak(maximum_us, elapsed_us)) {
@@ -159,6 +199,21 @@ void MediaDatagramSender::StartNextVideo() {
                 sender->maximum_queue_us_ = std::max(sender->maximum_queue_us_, queue_us);
                 sender->maximum_write_us_ = std::max(sender->maximum_write_us_, trace->maximum_write_us);
                 sender->maximum_burst_bytes_ = std::max(sender->maximum_burst_bytes_, trace->maximum_burst_bytes);
+                if (trace->queue_wait_us != 0) {
+                    LOGI("event=iroh.queue_wait stream={} wire_frame={} encoder_frame={} wait_us={} peak_bytes={} budget_bytes={} accepted={}",
+                         stream, wire_frame, frame, trace->queue_wait_us, trace->maximum_quic_queued_bytes, sender->queue_admission_.BudgetBytes(),
+                         delivered);
+                }
+                if (diagnostic) {
+                    const auto snapshot = sender->connection_->Snapshot();
+                    LOGI(
+                        "event=iroh.diag_tx_frame trace={} stream={} wire_frame={} encoder_frame={} local_accepted={} origin_us={} queue_us={} "
+                        "total_us={} "
+                        "path={} rtt_us={} cwnd={} space={} tx_packets={} tx_lost={} congestion={} writes={}",
+                        sender->diagnostic_started_us_, stream, wire_frame, frame, delivered, diagnostic_origin, queue_us, elapsed_us,
+                        static_cast<unsigned>(snapshot.path), snapshot.rtt_us, snapshot.congestion_window_bytes, snapshot.datagram_buffer_space,
+                        snapshot.sent_packets, snapshot.lost_packets, snapshot.congestion_events, trace->packet_writes);
+                }
                 if ((!delivered || elapsed_us >= 50000) && finished >= sender->next_slow_send_log_) {
                     const auto snapshot = sender->connection_->Snapshot();
                     LOGI(
@@ -174,6 +229,24 @@ void MediaDatagramSender::StartNextVideo() {
             }
             if (completion) completion(delivered);
             if (sender) sender->StartNextVideo();
+        },
+        video_pacing_,
+        [owner, trace](std::span<const media::Packet> burst) {
+            const auto sender = owner.lock();
+            if (!sender || sender->stopped_) return false;
+            std::size_t burst_bytes{};
+            for (const auto& packet : burst) burst_bytes += packet.size();
+            const auto snapshot = sender->connection_->Snapshot();
+            const auto queued_bytes = VideoQueueAdmission::QueuedBytes(snapshot.datagram_buffer_space);
+            trace->maximum_quic_queued_bytes = std::max(trace->maximum_quic_queued_bytes, queued_bytes);
+            const auto now = std::chrono::steady_clock::now();
+            const bool ready = sender->queue_admission_.CanSubmit(snapshot.datagram_buffer_space, burst_bytes);
+            if (!ready && !trace->queue_blocked_since) trace->queue_blocked_since = now;
+            if (ready && trace->queue_blocked_since) {
+                trace->queue_wait_us += std::chrono::duration_cast<std::chrono::microseconds>(now - *trace->queue_blocked_since).count();
+                trace->queue_blocked_since.reset();
+            }
+            return ready;
         });
     asio::post(executor_, [batch] { batch->Start(); });
 }
@@ -203,7 +276,8 @@ void MediaDatagramSender::ObserveFeedback(const VideoReceiveFeedback& report) {
     const auto before = flight_.Inspect(report.stream, now);
     flight_.Observe(report, now);
     const auto after = flight_.Inspect(report.stream, now);
-    if (arrival_gap_us >= 100000 || (trace.block_logged && before.frames != after.frames)) {
+    if (media::MediaSteadyMicros() - diagnostic_started_us_ < 90'000'000 || arrival_gap_us >= 100000 ||
+        (trace.block_logged && before.frames != after.frames)) {
         LOGI("event=iroh.feedback_trace stream={} frame={} arrival_gap_us={} generated_gap_us={} released={} pending={} bytes={} oldest={} age_us={}",
              report.stream, report.latest_frame_index.value_or(0), arrival_gap_us, generated_gap_us, before.frames - after.frames, after.frames,
              after.bytes, after.oldest_frame, after.oldest_age_us);
@@ -212,12 +286,27 @@ void MediaDatagramSender::ObserveFeedback(const VideoReceiveFeedback& report) {
     trace.elapsed_us = std::max(trace.elapsed_us, report.elapsed_us);
 }
 
-bool MediaDatagramSender::CanEncodeVideo(std::uint8_t stream) {
+bool MediaDatagramSender::CanEncodeVideo(std::uint8_t stream, std::optional<std::chrono::steady_clock::time_point> recovery_request) {
     std::lock_guard lock(video_mutex_);
     if (stopped_) return false;
     const auto now = std::chrono::steady_clock::now();
     const auto queued_frames = pending_video_.size() + (video_active_ ? 1 : 0);
-    const bool ready = queued_frames < 4 && flight_.CanSend(stream, 0, now);
+    const auto transport_snapshot = connection_->Snapshot();
+    // Pause before encoding, keeping the prediction chain intact. Retain one
+    // frame of encoder/send overlap, instead of accumulating four encoded frames.
+    const bool queue_ready = queue_admission_.CanSubmit(transport_snapshot.datagram_buffer_space);
+    const bool flight_ready = flight_.CanSend(stream, 0, now);
+    const auto previous_recovery = admitted_recovery_requests_.find(stream);
+    const bool repair_credit = recovery_request &&
+                               (previous_recovery == admitted_recovery_requests_.end() || previous_recovery->second < *recovery_request);
+    const bool ready = queued_frames < 2 && queue_ready && (flight_ready || repair_credit);
+    if (ready && !flight_ready && repair_credit) {
+        // Reserve once for this request. Keep QUIC admission, two-frame local
+        // overlap, byte debt, deadlines and ordinary capture limits intact.
+        admitted_recovery_requests_[stream] = *recovery_request;
+        LOGI("event=iroh.repair_credit stream={} pending_bytes={} request_age_us={}", stream, flight_.Inspect(stream, now).bytes,
+             std::chrono::duration_cast<std::chrono::microseconds>(now - *recovery_request).count());
+    }
     auto& trace = feedback_traces_[stream];
     if (!ready && !trace.blocked_since) trace.blocked_since = now;
     const auto blocked_us = trace.blocked_since ? std::chrono::duration_cast<std::chrono::microseconds>(now - *trace.blocked_since).count() : 0;
@@ -230,14 +319,20 @@ bool MediaDatagramSender::CanEncodeVideo(std::uint8_t stream) {
             ready ? "resume" : "blocked", stream, blocked_us, queued_frames, snapshot.frames, snapshot.bytes, snapshot.oldest_frame,
             snapshot.newest_frame, snapshot.oldest_age_us, snapshot.probe_wait_us, feedback_age_us);
         trace.block_logged = true;
-        const auto path = connection_->Snapshot();
         LOGI(
             "event=iroh.capture_transport phase={} stream={} rtt_us={} cwnd_bytes={} datagram_space={} congestion_events={} "
-            "progress_age_us={} budget_bytes={} forward_delay_growth_us={}",
-            ready ? "resume" : "blocked", stream, path.rtt_us, path.congestion_window_bytes, path.datagram_buffer_space, path.congestion_events,
-            snapshot.progress_age_us, snapshot.budget_bytes, snapshot.forward_delay_growth_us);
+            "progress_age_us={} budget_bytes={} forward_delay_growth_us={} return_delay_growth_us={} queue_ready={} queue_budget_bytes={}",
+            ready ? "resume" : "blocked", stream, transport_snapshot.rtt_us, transport_snapshot.congestion_window_bytes,
+            transport_snapshot.datagram_buffer_space, transport_snapshot.congestion_events, snapshot.progress_age_us, snapshot.budget_bytes,
+            snapshot.forward_delay_growth_us, snapshot.return_delay_growth_us, queue_ready, queue_admission_.BudgetBytes());
     }
     if (ready) {
+        if (blocked_us >= 2000 && media::MediaSteadyMicros() - diagnostic_started_us_ < 90'000'000) {
+            const auto snapshot = flight_.Inspect(stream, now);
+            LOGI("event=iroh.diag_capture_resume trace={} stream={} blocked_us={} queued={} pending={} bytes={} oldest={} mono_us={}",
+                 diagnostic_started_us_, stream, blocked_us, queued_frames, snapshot.frames, snapshot.bytes, snapshot.oldest_frame,
+                 media::MediaSteadyMicros());
+        }
         trace.blocked_since.reset();
         trace.block_logged = false;
     }
@@ -288,7 +383,9 @@ void MediaDatagramReceiver::Receive(std::weak_ptr<MediaDatagramReceiver> owner, 
         const auto packet = connection->ReceiveDatagram(10);
         const auto received_us = media::MediaSteadyMicros();
         const auto receiver = owner.lock();
-        if (!receiver || receiver->stopped_) return;
+        if (!receiver) return;
+        receiver->diagnostics_.Flush(received_us, receiver->stopped_);
+        if (receiver->stopped_) return;
         if (packet) {
             receiver->Feed(*packet, received_us);
         } else if (packet.error() != Error::kTimeout) {
@@ -314,8 +411,29 @@ void MediaDatagramReceiver::Feed(std::span<const std::uint8_t> payload, std::uin
     const auto datagram = media::ParseMedia(expanded_audio ? std::span<const std::uint8_t>{*expanded_audio} : payload);
     if (!datagram) return;
     if (datagram->kind == media::MediaKind::kVideo) {
+        diagnostics_.Observe(*datagram, now_us);
+        const auto identity = ReadVideoPacketIdentity(datagram->payload);
         auto received = video_.Feed(*datagram, now_us);
         const auto assembled_us = media::MediaSteadyMicros();
+        if (identity &&
+            (diagnostics_.Active(now_us) || !received.losses.empty() || received.invalid_reference_frame || received.needs_idr || received.rejected ||
+             (received.frame && received.frame->kind != media::VideoFrameKind::kPredicted)) &&
+            (received.completed_frame_index || !received.losses.empty() || received.rejected)) {
+            std::string losses{};
+            for (const auto& loss : received.losses) losses += std::format("{}:{};", loss.frame_index, loss.speculative);
+            const auto statistics = received.statistics.value_or(media::VideoReceiveStatistics{});
+            LOGI(
+                "event=iroh.diag_rx_result trace={} stream={} wire_frame={} timestamp={} sequence={} encoder_frame={} complete={} deliver={} "
+                "invalid_reference={} needs_idr={} malformed={} recovered={} mono_us={} feed_us={} late={} reordered={} duplicates={} losses={}",
+                diagnostics_.Id(), datagram->stream, identity->wire_frame, identity->timestamp, identity->sequence,
+                received.completed_frame_index.value_or(0), received.completed_frame_index.has_value(), received.frame.has_value(),
+                received.invalid_reference_frame.value_or(0), received.needs_idr, received.rejected, received.recovered, now_us,
+                assembled_us - now_us, statistics.late_packets, statistics.reordered_packets, statistics.duplicates, losses);
+        }
+        if (identity && received.completed_frame_index) {
+            diagnostics_.Completed(datagram->stream, identity->wire_frame, *received.completed_frame_index,
+                                   received.frame ? std::optional{received.frame->kind} : std::nullopt, received.frame.has_value());
+        }
         if (received.completed_frame_index) {
             auto& reference_wait = reference_wait_traces_[datagram->stream];
             if (!received.frame) {
@@ -364,6 +482,10 @@ void MediaDatagramReceiver::Feed(std::span<const std::uint8_t> payload, std::uin
 }
 
 void MediaDatagramReceiver::PollRecovery(std::uint64_t now_us) {
+    if (now_us >= recovery_path_sample_us_ && now_us - recovery_path_sample_us_ >= 250000) {
+        recovery_.SetPartialIdleRepairEnabled(connection_->Snapshot().path != PathKind::kRelay);
+        recovery_path_sample_us_ = now_us;
+    }
     for (const auto& feedback : receive_progress_.Poll(now_us)) {
         if (stopped_) return;
         auto& previous_elapsed = feedback_elapsed_us_[feedback.stream];

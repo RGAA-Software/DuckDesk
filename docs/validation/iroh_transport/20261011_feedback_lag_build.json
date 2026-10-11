@@ -1,0 +1,32 @@
+[
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+    "sha256": "CA13610C5A652687306D14F30444279912ED65DB6412053B6630DDD6621E378C"
+  },
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe",
+    "sha256": "08FB84747DAFF9440E739418274D8106D5A4B359A70F434F7B68F1A1D856DDB1"
+  },
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+    "sha256": "C405231A8F21F5C4DC1580BB7229F7C41B7F497119A348F340E59B3161C389A8"
+  },
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_panel.exe",
+    "sha256": "B91BC9D7173313D6C893DCB5953FFE477161CFAEDC4F2C99A731B58E2EB76889"
+  },
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_render.exe",
+    "sha256": "15F51A896D6B351639CD36A02EFEB6F17999933E1C153BC71B4DF6BD91ADDA18"
+  },
+  {
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\px_service.exe",
+    "destination": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_service.exe",
+    "sha256": "EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0"
+  }
+]

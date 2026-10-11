@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -121,8 +122,10 @@ struct ClientFileOperationResult final {
 
 class ClientSession final : public std::enable_shared_from_this<ClientSession> {
 public:
-    static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
-    ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources);
+    static std::shared_ptr<ClientSession> Create(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources,
+                                                 std::function<void()> video_frame_ready = {});
+    ClientSession(ClientLaunchConfig config, std::shared_ptr<px::WindowsVideoResources> videoResources,
+                  std::function<void()> video_frame_ready = {});
     ~ClientSession();
     [[nodiscard]] ClientStatisticsSnapshot StatisticsSnapshot() const;
 
@@ -186,6 +189,7 @@ private:
     void SetState(ClientConnectionState state, std::string status, ClientConnectionFailure failure = ClientConnectionFailure::None);
 
     ClientLaunchConfig config_{};
+    const std::function<void()> video_frame_ready_{};
     std::shared_ptr<px::WindowsVideoResources> videoResources_{};
     std::shared_ptr<px::MessageNotifier> notifier_{};
     std::shared_ptr<px::MessageListener> listener_{};

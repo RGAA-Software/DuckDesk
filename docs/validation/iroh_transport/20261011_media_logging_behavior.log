@@ -1,0 +1,15 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 3 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 3 tests from MediaLoggingTest
+[ RUN      ] MediaLoggingTest.LegacySynchronousWriteBlocksTheCallingMediaThread
+[       OK ] MediaLoggingTest.LegacySynchronousWriteBlocksTheCallingMediaThread (110 ms)
+[ RUN      ] MediaLoggingTest.BlockedFileWorkerAndFullQueueDoNotBlockMediaProducers
+[       OK ] MediaLoggingTest.BlockedFileWorkerAndFullQueueDoNotBlockMediaProducers (71 ms)
+[ RUN      ] MediaLoggingTest.ShutdownDrainsPendingWritesAndRepeatedInitializationSucceeds
+[       OK ] MediaLoggingTest.ShutdownDrainsPendingWritesAndRepeatedInitializationSucceeds (30 ms)
+[----------] 3 tests from MediaLoggingTest (212 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 1 test suite ran. (212 ms total)
+[  PASSED  ] 3 tests.

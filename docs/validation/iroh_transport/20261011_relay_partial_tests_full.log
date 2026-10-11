@@ -1,0 +1,53 @@
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 19 tests from 3 test suites.
+[----------] Global test environment set-up.
+[----------] 9 tests from VideoRecoveryPolicy
+[ RUN      ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline
+[       OK ] VideoRecoveryPolicy.CoalescesPacketBurstAndRetriesLostRequestsBeforeKeyFrameDeadline (0 ms)
+[ RUN      ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference
+[       OK ] VideoRecoveryPolicy.CompleteFramesCancelRecoveryAndEachMonitorHasItsOwnReference (0 ms)
+[ RUN      ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle
+[       OK ] VideoRecoveryPolicy.MissingInitialReferenceRequestsKeyFrameAndHealthyStaticStreamsRemainIdle (0 ms)
+[ RUN      ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog
+[       OK ] VideoRecoveryPolicy.IncompleteFrameWaitsForProgressOrSparseStaticSourceWatchdog (0 ms)
+[ RUN      ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss
+[       OK ] VideoRecoveryPolicy.SuccessfulRepairDoesNotDelayKeyFrameForANewLoss (0 ms)
+[ RUN      ] VideoRecoveryPolicy.KnownReferenceRepairsAnIncompleteFinalFrameWithoutWaitingForAnotherCompleteFrame
+[       OK ] VideoRecoveryPolicy.KnownReferenceRepairsAnIncompleteFinalFrameWithoutWaitingForAnotherCompleteFrame (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ActivePartialDatagramsDoNotInvalidateAHealthyLargeFrame
+[       OK ] VideoRecoveryPolicy.ActivePartialDatagramsDoNotInvalidateAHealthyLargeFrame (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ReliableRelayPartialPauseWaitsForTheOriginalFrameWithoutSpeculativeRepair
+[       OK ] VideoRecoveryPolicy.ReliableRelayPartialPauseWaitsForTheOriginalFrameWithoutSpeculativeRepair (0 ms)
+[ RUN      ] VideoRecoveryPolicy.ReliableRelayStillRepairsRealReferenceLossAndDirectPathRestoresThePartialDeadline
+[       OK ] VideoRecoveryPolicy.ReliableRelayStillRepairsRealReferenceLossAndDirectPathRestoresThePartialDeadline (0 ms)
+[----------] 9 tests from VideoRecoveryPolicy (0 ms total)
+
+[----------] 9 tests from VideoDeliveryFixture
+[ RUN      ] VideoDeliveryFixture.PartialReferenceFrameHasBoundedRepairDeadlineAndLateFecCompletionCancelsIt
+[       OK ] VideoDeliveryFixture.PartialReferenceFrameHasBoundedRepairDeadlineAndLateFecCompletionCancelsIt (0 ms)
+[ RUN      ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference
+[       OK ] VideoDeliveryFixture.RecoveryAfterMissingPacketsPreservesTheDecodedReference (0 ms)
+[ RUN      ] VideoDeliveryFixture.PartialSuccessorDoesNotRequestRepairUntilItIsCompletelyAssembled
+[       OK ] VideoDeliveryFixture.PartialSuccessorDoesNotRequestRepairUntilItIsCompletelyAssembled (0 ms)
+[ RUN      ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery
+[       OK ] VideoDeliveryFixture.TrailingParityAfterCompleteFrameDoesNotArmStaticRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss
+[       OK ] VideoDeliveryFixture.EncoderIndexCanSkipWithoutAnyTransportFrameLoss (0 ms)
+[ RUN      ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery
+[       OK ] VideoDeliveryFixture.DecodeQueueDropCannotBeMistakenForSuccessfulReferenceRecovery (0 ms)
+[ RUN      ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames
+[       OK ] VideoDeliveryFixture.MissingInitialReferenceRejectsRecoveryAndPredictedFrames (0 ms)
+[ RUN      ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr
+[       OK ] VideoDeliveryFixture.RecreatedOrFailedDecoderStillWaitsForConfiguredIdr (0 ms)
+[ RUN      ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains
+[       OK ] VideoDeliveryFixture.IndependentStreamsKeepIndependentReferenceChains (0 ms)
+[----------] 9 tests from VideoDeliveryFixture (1 ms total)
+
+[----------] 1 test from VideoReferenceReset
+[ RUN      ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery
+[       OK ] VideoReferenceReset.ProtobufDebugTextCannotAuthorizeRecovery (0 ms)
+[----------] 1 test from VideoReferenceReset (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 19 tests from 3 test suites ran. (1 ms total)
+[  PASSED  ] 19 tests.

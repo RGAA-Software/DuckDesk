@@ -91,6 +91,11 @@ describe("application catalog save", () => {
         await catalog.find(".save").trigger("click");
         await flushPromises();
         expect(createManagedApplication).toHaveBeenCalledOnce();
+        expect(createManagedApplication).toHaveBeenCalledWith(
+            expect.objectContaining({
+                launch: expect.objectContaining({ video: { codec: "h264", bitrate_kbps: 10_000 } }),
+            }),
+        );
         expect(message.error).toHaveBeenCalledWith("applications.messages.invalidInput");
         expect(catalog.find(".save").exists()).toBe(true);
         catalog.unmount();

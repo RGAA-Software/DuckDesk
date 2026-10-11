@@ -8,6 +8,7 @@
 #include "compact_audio_datagram.h"
 #include "endpoint_configuration.h"
 #include "media_datagrams.h"
+#include "paced_media_batch.h"
 #include "px_common/async_runtime.h"
 #include "video_feedback_datagram.h"
 #include "video_frame_rate.h"
@@ -15,6 +16,302 @@
 
 namespace px::transport {
 namespace {
+TEST(IrohVideoDiagnostics, RecoveryMetadataAndDuplicatesRemainVisibleAfterInitialTraceExpires) {
+    VideoReceiveDiagnostics diagnostics{};
+    const auto observed_us = diagnostics.Id() + 240'000'000;
+    const media::VideoFrame recovery_frame{.kind = media::VideoFrameKind::kReferenceRecovery,
+                                           .width = 1280,
+                                           .height = 720,
+                                           .frame_index = 15699,
+                                           .monitor = "game-hook",
+                                           .encoded = media::Packet(5000, 7)};
+    const auto packets = media::PacketizeVideoFrame(recovery_frame, {.frame_index = 15518, .datagram_size = kMediaDatagramBytes});
+    ASSERT_TRUE(packets);
+    ASSERT_FALSE(diagnostics.Active(observed_us));
+    for (const auto& packet : packets->packets) {
+        const auto datagram = media::ParseMedia(packet);
+        ASSERT_TRUE(datagram);
+        diagnostics.Observe(*datagram, observed_us);
+    }
+    diagnostics.Observe(*media::ParseMedia(packets->packets.front()), observed_us + 10);
+    const auto incomplete = diagnostics.Inspect(0, 15518);
+    ASSERT_TRUE(incomplete);
+    EXPECT_EQ(incomplete->encoder_frame, 15699);
+    EXPECT_EQ(incomplete->kind, media::VideoFrameKind::kReferenceRecovery);
+    EXPECT_EQ(incomplete->unique_shards, packets->packets.size());
+    EXPECT_EQ(incomplete->duplicate_shards, 1);
+    EXPECT_FALSE(incomplete->completed);
+    diagnostics.Completed(0, 15518, 15699, media::VideoFrameKind::kReferenceRecovery, true);
+    const auto completed = diagnostics.Inspect(0, 15518);
+    ASSERT_TRUE(completed);
+    EXPECT_TRUE(completed->completed);
+    EXPECT_TRUE(completed->delivered);
+    diagnostics.Flush(observed_us + 600'000);
+    EXPECT_FALSE(diagnostics.Inspect(0, 15518));
+}
+
+TEST(IrohVideoDiagnostics, MissingDescriptorDoesNotInventEncoderIdentityAndFecCompletionCanSupplyIt) {
+    VideoReceiveDiagnostics diagnostics{};
+    const auto observed_us = diagnostics.Id() + 240'000'000;
+    const media::VideoFrame recovery_frame{
+        .kind = media::VideoFrameKind::kReferenceRecovery, .width = 1280, .height = 720, .frame_index = 15705, .encoded = media::Packet(5000, 7)};
+    const auto packets = media::PacketizeVideoFrame(recovery_frame, {.frame_index = 15524, .datagram_size = kMediaDatagramBytes});
+    ASSERT_TRUE(packets);
+    for (std::size_t packet_index{1}; packet_index < packets->packets.size(); ++packet_index) {
+        diagnostics.Observe(*media::ParseMedia(packets->packets[packet_index]), observed_us);
+    }
+    const auto incomplete = diagnostics.Inspect(0, 15524);
+    ASSERT_TRUE(incomplete);
+    EXPECT_EQ(incomplete->encoder_frame, 0);
+    EXPECT_FALSE(incomplete->kind);
+    EXPECT_EQ(incomplete->unique_shards, packets->packets.size() - 1);
+    diagnostics.Completed(0, 15524, 15705, media::VideoFrameKind::kReferenceRecovery, true);
+    const auto completed = diagnostics.Inspect(0, 15524);
+    ASSERT_TRUE(completed);
+    EXPECT_EQ(completed->encoder_frame, 15705);
+    EXPECT_EQ(completed->kind, media::VideoFrameKind::kReferenceRecovery);
+    EXPECT_TRUE(completed->delivered);
+}
+
+TEST(IrohVideoDiagnostics, IncompleteHistoryRemainsBoundedAndRepeatedShutdownFlushIsSafe) {
+    VideoReceiveDiagnostics diagnostics{};
+    const auto observed_us = diagnostics.Id() + 240'000'000;
+    const media::VideoFrame predicted_frame{.width = 1280, .height = 720, .frame_index = 1, .encoded = media::Packet(5000, 7)};
+    for (std::uint32_t wire_frame{1}; wire_frame <= 65; ++wire_frame) {
+        const auto packets = media::PacketizeVideoFrame(predicted_frame, {.frame_index = wire_frame, .datagram_size = kMediaDatagramBytes});
+        ASSERT_TRUE(packets);
+        diagnostics.Observe(*media::ParseMedia(packets->packets.front()), observed_us);
+    }
+    EXPECT_FALSE(diagnostics.Inspect(0, 1));
+    EXPECT_TRUE(diagnostics.Inspect(0, 65));
+    diagnostics.Flush(observed_us, true);
+    diagnostics.Flush(observed_us, true);
+    EXPECT_FALSE(diagnostics.Inspect(0, 65));
+}
+
+TEST(IrohVideoQueueAdmission, ConfiguredBudgetBoundsUnsentBytesWithoutUsingRttOrFeedbackAge) {
+    const VideoQueueAdmission normal{};
+    EXPECT_EQ(normal.BudgetBytes(), 19200);
+    EXPECT_TRUE(normal.CanSubmit(65536));
+    EXPECT_TRUE(normal.CanSubmit(65536 - 14800));
+    EXPECT_FALSE(normal.CanSubmit(65536 - 14801));
+    EXPECT_FALSE(normal.CanSubmit(0));
+    EXPECT_FALSE(normal.CanSubmit(65536, 19201));
+    EXPECT_EQ(VideoQueueAdmission{VideoSendBudget{128000}}.BudgetBytes(), 4400);
+    EXPECT_EQ(VideoQueueAdmission{VideoSendBudget{200000000}}.BudgetBytes(), 32768);
+    // Return-path feedback can be old while QUIC has no unsent backlog.
+    EXPECT_TRUE(normal.CanSubmit(VideoQueueAdmission::kTransportBufferBytes));
+}
+
+TEST(IrohVideoQueueAdmission, AckStallBoundsQueueYieldsToControlAndPreservesEveryAcceptedFragment) {
+    asio::io_context executor{};
+    const VideoQueueAdmission admission{};
+    struct QueueState final {
+        std::uint64_t queued_bytes{};
+        std::uint64_t peak_bytes{};
+        std::size_t blocked_checks{};
+        std::size_t completions{};
+        bool recovered{};
+        bool control_ran{};
+        std::vector<std::uint8_t> submitted{};
+    };
+    const auto state = std::make_shared<QueueState>();
+    std::vector<media::Packet> packets{};
+    for (std::uint8_t packet_index{}; packet_index < 80; ++packet_index) packets.emplace_back(1100, packet_index);
+    const auto batch = std::make_shared<PacedMediaBatch>(
+        executor.get_executor(), std::move(packets), true,
+        [state](std::span<const media::Packet> burst) {
+            for (const auto& packet : burst) {
+                state->queued_bytes += packet.size();
+                state->submitted.push_back(packet.front());
+            }
+            state->peak_bytes = std::max(state->peak_bytes, state->queued_bytes);
+            if (state->recovered) state->queued_bytes = 0;
+            return true;
+        },
+        [] { return true; },
+        [state](bool succeeded) {
+            EXPECT_TRUE(succeeded);
+            ++state->completions;
+        },
+        std::make_shared<VideoSendPacing>(),
+        [state, admission](std::span<const media::Packet> burst) {
+            std::size_t burst_bytes{};
+            for (const auto& packet : burst) burst_bytes += packet.size();
+            const bool ready = admission.CanSubmit(VideoQueueAdmission::kTransportBufferBytes - state->queued_bytes, burst_bytes);
+            if (!ready) ++state->blocked_checks;
+            return ready;
+        });
+    const auto recovery_timer = std::make_shared<asio::steady_timer>(executor, std::chrono::milliseconds(160));
+    recovery_timer->async_wait([state, recovery_timer](const asio::error_code& error) {
+        ASSERT_FALSE(error);
+        EXPECT_GT(state->blocked_checks, 0);
+        EXPECT_TRUE(state->control_ran);
+        state->queued_bytes = 0;
+        state->recovered = true;
+    });
+    batch->Start();
+    asio::post(executor, [state] { state->control_ran = true; });
+    executor.run();
+    EXPECT_EQ(state->completions, 1);
+    EXPECT_LE(state->peak_bytes, admission.BudgetBytes());
+    ASSERT_EQ(state->submitted.size(), 80);
+    for (std::size_t packet_index{}; packet_index < state->submitted.size(); ++packet_index) EXPECT_EQ(state->submitted[packet_index], packet_index);
+}
+
+TEST(IrohVideoQueueAdmission, ExpiryOrStopDuringQueueWaitCompletesOnceAndReleasesTheBatch) {
+    for (const bool stop_from_callback : {false, true}) {
+        asio::io_context executor{};
+        struct WaitState final {
+            bool stopped{};
+            std::size_t completed{};
+            std::size_t sent{};
+        };
+        const auto state = std::make_shared<WaitState>();
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(15);
+        auto batch = std::make_shared<PacedMediaBatch>(
+            executor.get_executor(), std::vector<media::Packet>(1, media::Packet(1100)), true,
+            [state](std::span<const media::Packet>) {
+                ++state->sent;
+                return true;
+            },
+            [state, deadline] { return !state->stopped && std::chrono::steady_clock::now() < deadline; },
+            [state](bool succeeded) {
+                EXPECT_FALSE(succeeded);
+                state->stopped = true;
+                ++state->completed;
+            },
+            std::make_shared<VideoSendPacing>(), [](std::span<const media::Packet>) { return false; });
+        const auto observer = std::weak_ptr<PacedMediaBatch>{batch};
+        batch->Start();
+        batch.reset();
+        if (stop_from_callback) asio::post(executor, [state] { state->stopped = true; });
+        executor.run();
+        EXPECT_TRUE(observer.expired());
+        EXPECT_EQ(state->completed, 1);
+        EXPECT_EQ(state->sent, 0);
+    }
+}
+
+TEST(IrohVideoSendPacing, ApplicationBudgetsScaleEncoderAndPacingIndependently) {
+    const auto started = VideoSendPacing::Clock::time_point{} + std::chrono::seconds(1);
+    for (const auto total_bps : {8'001'000ULL, 10'000'000ULL, 20'000'000ULL}) {
+        const VideoSendBudget budget{total_bps};
+        EXPECT_EQ(budget.TotalBitsPerSecond(), total_bps);
+        EXPECT_EQ(budget.EncoderBitsPerSecond(), total_bps * 65 / 100);
+        VideoSendPacing pacing{budget};
+        pacing.Sent(4800, started);
+        pacing.Sent(4800, started);
+        const auto expected_ns = (4800ULL * 8'000'000'000ULL + budget.VideoWireBitsPerSecond() - 1) / budget.VideoWireBitsPerSecond();
+        EXPECT_EQ(pacing.NextSendTime(), started + std::chrono::nanoseconds{expected_ns});
+    }
+    EXPECT_GT(VideoSendBudget{20'000'000}.EncoderBitsPerSecond(), 6'500'000);
+}
+
+TEST(IrohVideoSendPacing, KeepsCreditAcrossFramesAndBoundsLateExecutorCatchup) {
+    VideoSendPacing pacing{};
+    const auto started = VideoSendPacing::Clock::time_point{} + std::chrono::seconds(1);
+    pacing.Sent(4800, started);
+    pacing.Sent(4800, started);
+    EXPECT_EQ(pacing.NextSendTime(), started + std::chrono::milliseconds(4));
+    const auto after_idle = started + std::chrono::seconds(5);
+    pacing.Sent(4800, after_idle);
+    pacing.Sent(4800, after_idle);
+    EXPECT_EQ(pacing.NextSendTime(), after_idle + std::chrono::milliseconds(4));
+}
+
+TEST(IrohVideoSendPacing, SmallFramesShareBudgetAndControlRunsWhileWaiting) {
+    asio::io_context executor{};
+    const auto pacing = std::make_shared<VideoSendPacing>();
+    struct State final {
+        std::size_t sent{};
+        std::size_t completed{};
+        bool control_ran{};
+        bool video_after_control{};
+    };
+    const auto state = std::make_shared<State>();
+    const auto started = std::chrono::steady_clock::now();
+    for (std::size_t frame_index{}; frame_index < 20; ++frame_index) {
+        const auto batch = std::make_shared<PacedMediaBatch>(
+            executor.get_executor(), std::vector<media::Packet>(1, media::Packet(1100)), true,
+            [state](std::span<const media::Packet> packets) {
+                state->sent += packets.size();
+                state->video_after_control = state->video_after_control || state->control_ran;
+                return true;
+            },
+            [] { return true; },
+            [state](bool succeeded) {
+                EXPECT_TRUE(succeeded);
+                ++state->completed;
+            },
+            pacing);
+        asio::post(executor, [batch] { batch->Start(); });
+    }
+    asio::post(executor, [state] { state->control_ran = true; });
+    executor.run();
+    EXPECT_EQ(state->sent, 20);
+    EXPECT_EQ(state->completed, 20);
+    EXPECT_TRUE(state->video_after_control);
+    EXPECT_GE(std::chrono::steady_clock::now() - started, std::chrono::milliseconds(18));
+}
+
+TEST(IrohVideoSendPacing, CancelledWaitingFrameCompletesOnceAndReleasesOwner) {
+    asio::io_context executor{};
+    const auto pacing = std::make_shared<VideoSendPacing>();
+    struct State final {
+        bool cancelled{};
+        std::size_t sent{};
+        std::size_t completed{};
+        std::size_t admission_checks{};
+    };
+    const auto state = std::make_shared<State>();
+    auto batch = std::make_shared<PacedMediaBatch>(
+        executor.get_executor(), std::vector<media::Packet>(1, media::Packet(1100)), true,
+        [state](std::span<const media::Packet>) {
+            ++state->sent;
+            return true;
+        },
+        [state] { return !state->cancelled; },
+        [state](bool succeeded) {
+            EXPECT_FALSE(succeeded);
+            ++state->completed;
+        },
+        pacing, [state](std::span<const media::Packet>) {
+            ++state->admission_checks;
+            return false;
+        });
+    const auto observer = std::weak_ptr<PacedMediaBatch>{batch};
+    batch->Start();
+    batch.reset();
+    asio::post(executor, [state] { state->cancelled = true; });
+    executor.run();
+    EXPECT_EQ(state->sent, 0);
+    EXPECT_EQ(state->completed, 1);
+    EXPECT_GE(state->admission_checks, 1);
+    EXPECT_TRUE(observer.expired());
+}
+
+TEST(IrohVideoDiagnostics, PacketIdentityKeepsWireFrameSeparateFromEncoderFrameAndHandlesSequenceWrap) {
+    const media::VideoFrame frame{
+        .kind = media::VideoFrameKind::kIdr, .width = 1280, .height = 720, .frame_index = 9001, .encoded = media::Packet(6000, 0x41)};
+    const auto packets = media::PacketizeVideoFrame(
+        frame, {.frame_index = 31, .timestamp_90khz = 123456, .sequence = 65534, .datagram_size = kMediaDatagramBytes, .fec_percent = 20});
+    ASSERT_TRUE(packets);
+    ASSERT_GT(packets->packets.size(), 3);
+    for (std::size_t packet_index{}; packet_index < packets->packets.size(); ++packet_index) {
+        const auto envelope = media::ParseMedia(packets->packets[packet_index]);
+        ASSERT_TRUE(envelope);
+        const auto identity = ReadVideoPacketIdentity(envelope->payload);
+        ASSERT_TRUE(identity);
+        EXPECT_EQ(identity->wire_frame, 31);
+        EXPECT_EQ(identity->timestamp, 123456);
+        EXPECT_EQ(identity->sequence, static_cast<std::uint16_t>(65534 + packet_index));
+        EXPECT_LT(identity->shard, identity->data_count + identity->parity_count);
+    }
+    EXPECT_FALSE(ReadVideoPacketIdentity({}));
+    EXPECT_FALSE(ReadVideoPacketIdentity(media::Packet(32, 0)));
+}
+
 TEST(IrohVideoTransitTiming, SourcePausesAndClockOffsetsDoNotBecomeNetworkDelay) {
     VideoTransitTiming timing{};
     static_cast<void>(timing.Observe(90000, 50000000));
@@ -50,11 +347,12 @@ TEST(IrohVideoRateControl, SustainedRelayQueueGrowthReducesEncoderRateAndHealthy
     EXPECT_EQ(control.Update(14'000'000, path, start + std::chrono::milliseconds(1500)), 3'500'000);
     path.rtt_us = 7000;
     EXPECT_EQ(control.Update(14'000'000, path, start + std::chrono::seconds(2)), 3'500'000);
-    const auto recovered = control.Update(14'000'000, path, start + std::chrono::milliseconds(3500));
+    EXPECT_EQ(control.Update(14'000'000, path, start + std::chrono::milliseconds(3500)), 3'500'000);
+    const auto recovered = control.Update(14'000'000, path, start + std::chrono::milliseconds(6500));
     EXPECT_GT(recovered, 3'500'000);
     EXPECT_LT(recovered, 4'500'000);
-    EXPECT_EQ(control.Update(14'000'000, path, start + std::chrono::seconds(4)), recovered);
-    EXPECT_EQ(control.Update(2'000'000, path, start + std::chrono::milliseconds(4100)), 2'000'000);
+    EXPECT_EQ(control.Update(14'000'000, path, start + std::chrono::seconds(7)), recovered);
+    EXPECT_EQ(control.Update(2'000'000, path, start + std::chrono::milliseconds(7100)), 2'000'000);
 }
 
 TEST(IrohVideoRateControl, StableHighLatencyAndPathChangesDoNotMeanQueueGrowth) {
@@ -69,6 +367,96 @@ TEST(IrohVideoRateControl, StableHighLatencyAndPathChangesDoNotMeanQueueGrowth) 
     path.rtt_us = 800000;
     for (int sample_index{3}; sample_index < 12; ++sample_index)
         EXPECT_GE(control.Update(8'000'000, path, start + std::chrono::seconds(sample_index)), 250'000);
+}
+
+TEST(IrohVideoRateControl, RelayQueueRecoveryWaitsBeforeSmallProbeAndNewPressureRestartsTheWait) {
+    VideoRateControl control{};
+    const auto started = VideoRateControl::Clock::time_point{};
+    ConnectionSnapshot path{.path = PathKind::kRelay, .rtt_us = 6000};
+    EXPECT_EQ(control.Update(13'000'000, path, started), 13'000'000);
+    path.rtt_us = 340000;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(500), true), 13'000'000);
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(1), true), 6'500'000);
+    path.rtt_us = 6000;
+    // Recorded Relay batches returned to low RTT briefly, probed by 25%,
+    // and exhausted capture credit again. Queue pressure needs the same
+    // recovery hold as packet loss, without requiring a QUIC loss counter.
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(3)), 6'500'000);
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(4), true), 6'500'000);
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(6)), 6'500'000);
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(9)), 7'150'000);
+}
+
+TEST(IrohVideoRateControl, HealthyCeilingChangeKeepsNormalRecoveryWithoutInventingQueuePressure) {
+    VideoRateControl control{};
+    const auto started = VideoRateControl::Clock::time_point{};
+    const ConnectionSnapshot path{.path = PathKind::kRelay, .rtt_us = 180000};
+    EXPECT_EQ(control.Update(4'000'000, path, started), 4'000'000);
+    EXPECT_EQ(control.Update(8'000'000, path, started + std::chrono::seconds(2)), 5'000'000);
+}
+
+TEST(IrohVideoRateControl, RecordedDirectLossReducesRateBeforeCaptureBackpressure) {
+    VideoRateControl control{};
+    const auto started = VideoRateControl::Clock::time_point{};
+    ConnectionSnapshot path{.path = PathKind::kDirect, .rtt_us = 11083, .sent_packets = 74, .lost_packets = 0};
+    EXPECT_EQ(control.Update(13'000'000, path, started), 13'000'000);
+    // Actual successive snapshots from the failed 20Mbps direct connection.
+    // RTT recovers below the queue threshold while loss and reference waits continue.
+    path.rtt_us = 92586;
+    path.sent_packets = 564;
+    path.lost_packets = 100;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::microseconds(514290)), 13'000'000);
+    path.rtt_us = 83070;
+    path.sent_packets = 856;
+    path.lost_packets = 109;
+    EXPECT_LT(control.Update(13'000'000, path, started + std::chrono::microseconds(1057183)), 13'000'000);
+}
+
+TEST(IrohVideoRateControl, IsolatedLossSparseSceneAndHistoricalCountersDoNotReduceQuality) {
+    VideoRateControl control{};
+    const auto started = VideoRateControl::Clock::time_point{};
+    ConnectionSnapshot path{.path = PathKind::kDirect, .rtt_us = 6000, .sent_packets = 10000, .lost_packets = 3000};
+    EXPECT_EQ(control.Update(13'000'000, path, started), 13'000'000);
+    path.sent_packets += 500;
+    path.lost_packets += 20;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(500)), 13'000'000);
+    path.sent_packets += 500;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(1)), 13'000'000);
+    path.sent_packets += 30;
+    path.lost_packets += 20;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(1500)), 13'000'000);
+    path.sent_packets += 500;
+    path.lost_packets += 1;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(2)), 13'000'000);
+    path.sent_packets = 200;
+    path.lost_packets = 50;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(2500)), 13'000'000);
+    EXPECT_FALSE(control.LossPressure());
+    path.path = PathKind::kRelay;
+    path.sent_packets += 500;
+    path.lost_packets += 50;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::seconds(3)), 13'000'000);
+}
+
+TEST(IrohVideoRateControl, SustainedDirectLossHoldsRecoveryBeforeSmallQualityProbe) {
+    VideoRateControl control{};
+    const auto started = VideoRateControl::Clock::time_point{};
+    ConnectionSnapshot path{.path = PathKind::kDirect, .rtt_us = 6000};
+    EXPECT_EQ(control.Update(13'000'000, path, started), 13'000'000);
+    for (int sample_index{1}; sample_index <= 2; ++sample_index) {
+        path.sent_packets += 500;
+        path.lost_packets += 20;
+        static_cast<void>(control.Update(13'000'000, path, started + std::chrono::milliseconds(sample_index * 500)));
+    }
+    const auto reduced_rate = control.Update(13'000'000, path, started + std::chrono::milliseconds(1001));
+    ASSERT_EQ(reduced_rate, 10'400'000);
+    for (int sample_index{3}; sample_index <= 10; ++sample_index) {
+        path.sent_packets += 500;
+        EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(sample_index * 500)), reduced_rate);
+    }
+    path.sent_packets += 500;
+    EXPECT_EQ(control.Update(13'000'000, path, started + std::chrono::milliseconds(6000)), 11'440'000);
+    EXPECT_FALSE(control.LossPressure());
 }
 
 TEST(IrohVideoRateControl, PersistentRelayCongestionCanReduceBelowOneMegabitWithoutExceedingTheCeiling) {
@@ -94,7 +482,8 @@ TEST(IrohVideoRateControl, LowRttDoesNotHideMediaQueueBackpressure) {
         reduced_rate = control.Update(8'000'000, path, start + std::chrono::milliseconds(500 * sample_index), true);
     EXPECT_EQ(reduced_rate, 250'000);
     EXPECT_EQ(control.Update(8'000'000, path, start + std::chrono::milliseconds(20500)), reduced_rate);
-    EXPECT_GT(control.Update(8'000'000, path, start + std::chrono::seconds(22)), reduced_rate);
+    EXPECT_EQ(control.Update(8'000'000, path, start + std::chrono::seconds(22)), reduced_rate);
+    EXPECT_GT(control.Update(8'000'000, path, start + std::chrono::seconds(25)), reduced_rate);
 }
 
 TEST(IrohVideoRateControl, IntermittentRttAndCaptureCreditSpikesDoNotDestroyQuality) {
@@ -428,6 +817,26 @@ protected:
     std::shared_ptr<MediaProbe> probe_{std::make_shared<MediaProbe>()};
 };
 
+TEST_F(IrohMediaTest, QuicCapacityMatchesAdmissionAndCaptureStopsBeforeAThirdEncodedFrame) {
+    ASSERT_EQ(outgoing_->Snapshot().datagram_buffer_space, VideoQueueAdmission::kTransportBufferBytes);
+    const auto stalled = std::make_shared<asio::io_context>();
+    const auto sender = std::make_shared<MediaDatagramSender>(outgoing_, stalled->get_executor());
+    auto frame = Frame();
+    frame.encoded.resize(9000);
+    ASSERT_TRUE(sender->CanEncodeVideo(frame.stream));
+    ASSERT_TRUE(sender->SendVideo(frame, Completion()));
+    ASSERT_TRUE(sender->CanEncodeVideo(frame.stream));
+    ++frame.frame_index;
+    ASSERT_TRUE(sender->SendVideo(frame, Completion()));
+    EXPECT_FALSE(sender->CanEncodeVideo(frame.stream));
+    EXPECT_FALSE(sender->CanEncodeVideo(frame.stream, std::chrono::steady_clock::now()));
+    sender->Stop();
+    sender->Stop();
+    stalled->run();
+    EXPECT_EQ(probe_->sends_completed, 2);
+    EXPECT_EQ(probe_->sends_failed, 2);
+}
+
 TEST_F(IrohMediaTest, CumulativeDatagramsReleaseCreditDespiteSkippedReorderedReportsAndUnreadControl) {
     // Leave a reliable control record unread. Replaceable feedback has its own datagram path.
     const auto control = Channel::Open(incoming_, ChannelKind::kControl, 1000);
@@ -474,7 +883,8 @@ TEST_F(IrohMediaTest, PacedVideoAndAudioUseActualQuicDatagrams) {
     EXPECT_EQ(probe_->video.front().frame_index, frame.frame_index);
     EXPECT_EQ(probe_->audio.front(), opus);
     EXPECT_EQ(probe_->sends_failed, 0);
-    ASSERT_TRUE(probe_->changed.wait_for(lock, std::chrono::seconds(2), [probe = probe_] { return !probe->feedback.empty(); }));
+    ASSERT_TRUE(probe_->changed.wait_for(lock, std::chrono::seconds(2),
+                                         [probe = probe_] { return !probe->feedback.empty() && probe->feedback.back().complete_frames == 1; }));
     EXPECT_EQ(probe_->feedback.back().complete_frames, 1);
     EXPECT_EQ(probe_->feedback.back().complete_bytes, frame.encoded.size());
     EXPECT_EQ(probe_->feedback.back().latest_frame_index, frame.frame_index);
@@ -600,6 +1010,11 @@ TEST_F(IrohMediaTest, EncodedFrameCrossingFlightBudgetPreservesReferenceChainAnd
         frame.kind = media::VideoFrameKind::kPredicted;
     }
     EXPECT_FALSE(sender_->CanEncodeVideo(frame.stream));
+    const auto recovery_request = std::chrono::steady_clock::now();
+    EXPECT_TRUE(sender_->CanEncodeVideo(frame.stream, recovery_request));
+    EXPECT_FALSE(sender_->CanEncodeVideo(frame.stream, recovery_request));
+    EXPECT_FALSE(sender_->CanEncodeVideo(frame.stream, recovery_request - std::chrono::milliseconds(1)));
+    EXPECT_FALSE(sender_->CanEncodeVideo(frame.stream));
     sender_->ObserveFeedback({.stream = frame.stream, .elapsed_us = 50000, .complete_frames = 2, .latest_frame_index = 2});
     ASSERT_TRUE(sender_->CanEncodeVideo(frame.stream));
     frame.frame_index = 1000;
@@ -610,33 +1025,86 @@ TEST_F(IrohMediaTest, EncodedFrameCrossingFlightBudgetPreservesReferenceChainAnd
     EXPECT_EQ(probe_->sends_failed, 0);
 }
 
-TEST(IrohVideoFlight, ReceiptThroughputBoundsWeakLinkBacklogAndRecoversWithFrameSize) {
+TEST(IrohVideoFlight, ReceiptThroughputBoundsActiveWeakLinkBacklogAndDrainedPathRecovers) {
     VideoFlightWindow flight{};
     const auto started = VideoFlightWindow::Clock::time_point{};
     flight.ObserveRtt(5000);
     flight.Sent(0, 0, 1000, started);
     flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 0}, started + std::chrono::milliseconds(5));
     for (std::uint64_t frame_index{1}; frame_index <= 10; ++frame_index) flight.Sent(0, frame_index, 6000, started);
-    flight.Observe({.elapsed_us = 250000, .complete_frames = 11, .latest_frame_index = 10}, started + std::chrono::milliseconds(250));
-    for (std::uint64_t frame_index{11}; frame_index <= 16; ++frame_index) {
-        EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(251)));
-        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(251));
+    flight.Sent(0, 11, 6000, started + std::chrono::milliseconds(200));
+    flight.Observe({.elapsed_us = 300000, .complete_frames = 11, .latest_frame_index = 10}, started + std::chrono::milliseconds(300));
+    for (std::uint64_t frame_index{12}; frame_index <= 16; ++frame_index) {
+        EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(301)));
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(301));
     }
-    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(252)).budget_bytes, 32768);
-    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(252)));
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(302)).budget_bytes, 32768);
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(302)));
     flight.Observe({.elapsed_us = 500000, .complete_frames = 17, .latest_frame_index = 16}, started + std::chrono::milliseconds(500));
     EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(500)));
     flight.Sent(0, 17, 50000, started + std::chrono::milliseconds(501));
-    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(502)));
-    flight.Observe({.elapsed_us = 750000, .complete_frames = 18, .latest_frame_index = 17}, started + std::chrono::milliseconds(750));
-    flight.Sent(0, 18, 50000, started + std::chrono::milliseconds(751));
-    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(752)).budget_bytes, 200000);
-    EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(752)));
-    flight.Observe({.elapsed_us = 800000, .complete_frames = 19, .latest_frame_index = 18}, started + std::chrono::milliseconds(760));
-    flight.Sent(0, 19, 1000, started + std::chrono::milliseconds(1800));
-    flight.Observe({.elapsed_us = 1850000, .complete_frames = 20, .latest_frame_index = 19}, started + std::chrono::milliseconds(1805));
-    flight.Sent(0, 20, 1000, started + std::chrono::milliseconds(1806));
-    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(1807)).budget_bytes, 262144);
+    EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(502)));
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(502)).budget_bytes, 262144);
+    for (std::uint64_t frame_index{18}; frame_index <= 23; ++frame_index) {
+        flight.Sent(0, frame_index, 50000, started + std::chrono::milliseconds(950));
+    }
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(951)));
+    flight.Observe({.elapsed_us = 1000000, .complete_frames = 18, .latest_frame_index = 17}, started + std::chrono::milliseconds(1000));
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(1001)).budget_bytes, 200000);
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(1001)));
+    flight.Observe({.elapsed_us = 1050000, .complete_frames = 24, .latest_frame_index = 23}, started + std::chrono::milliseconds(1050));
+    flight.Sent(0, 24, 1000, started + std::chrono::milliseconds(1051));
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(1052)).budget_bytes, 262144);
+}
+
+TEST(IrohVideoFlight, DrainedFlightWindowDoesNotCarryOldCongestionIntoTheNextBurst) {
+    VideoFlightWindow flight{};
+    const auto started = VideoFlightWindow::Clock::time_point{};
+    flight.ObserveRtt(5000);
+    flight.Sent(0, 1, 6000, started);
+    flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(50));
+    flight.Sent(0, 2, 6000, started + std::chrono::milliseconds(50));
+    for (std::uint64_t frame_index{3}; frame_index <= 8; ++frame_index) {
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(250));
+    }
+    flight.Observe({.elapsed_us = 300000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(300));
+    ASSERT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(301)));
+    // All outstanding work completed. The report's generation time still
+    // includes the earlier stall; it cannot constrain a new prediction chain.
+    flight.Observe({.elapsed_us = 600000, .complete_frames = 8, .latest_frame_index = 8}, started + std::chrono::milliseconds(600));
+    ASSERT_EQ(flight.PendingBytes(), 0);
+    for (std::uint64_t frame_index{9}; frame_index <= 14; ++frame_index) {
+        ASSERT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(601)));
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(601));
+    }
+    EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(602)));
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(602)).budget_bytes, 262144);
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(602)).forward_delay_growth_us, 0);
+}
+
+TEST(IrohVideoFlight, PartialProgressKeepsCongestionDebtAndASecondStallStillConstrainsCapture) {
+    VideoFlightWindow flight{};
+    const auto started = VideoFlightWindow::Clock::time_point{};
+    flight.Sent(0, 1, 6000, started);
+    flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(50));
+    flight.Sent(0, 2, 6000, started + std::chrono::milliseconds(50));
+    for (std::uint64_t frame_index{3}; frame_index <= 8; ++frame_index) {
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(250));
+    }
+    flight.Observe({.elapsed_us = 300000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(300));
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(301)));
+    EXPECT_EQ(flight.PendingBytes(), 36000);
+    // A non-advancing periodic report must not erase debt or recover capacity.
+    flight.Observe({.elapsed_us = 350000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(350));
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(351)));
+    EXPECT_EQ(flight.PendingBytes(), 36000);
+    flight.Observe({.elapsed_us = 600000, .complete_frames = 8, .latest_frame_index = 8}, started + std::chrono::milliseconds(600));
+    flight.Sent(0, 9, 6000, started + std::chrono::milliseconds(601));
+    for (std::uint64_t frame_index{10}; frame_index <= 16; ++frame_index) {
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(1100));
+    }
+    flight.Observe({.elapsed_us = 1150000, .complete_frames = 9, .latest_frame_index = 9}, started + std::chrono::milliseconds(1150));
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(1151)));
 }
 
 TEST(IrohVideoFlight, ReverseFeedbackDelayDoesNotShrinkHealthyForwardCapacity) {
@@ -653,8 +1121,62 @@ TEST(IrohVideoFlight, ReverseFeedbackDelayDoesNotShrinkHealthyForwardCapacity) {
     // Only its return trip gained 200 ms. Outstanding video must not force
     // capture to pause against an incorrectly reduced 32 KiB window.
     flight.Observe({.elapsed_us = 300000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(500));
-    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(501)).budget_bytes, 262144);
+    EXPECT_GT(flight.Inspect(0, started + std::chrono::milliseconds(501)).budget_bytes, 262144);
     EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(501)));
+}
+
+TEST(IrohVideoFlight, DelayedReturnProgressDoesNotPauseTwentyMegabitCaptureAtTheOldFixedLimit) {
+    VideoFlightWindow flight{VideoSendBudget{20'000'000}};
+    const auto started = VideoFlightWindow::Clock::time_point{};
+    flight.ObserveRtt(5000);
+    flight.Sent(0, 1, 6000, started);
+    flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(50));
+    for (std::uint64_t frame_index{2}; frame_index <= 15; ++frame_index) {
+        flight.Sent(0, frame_index, 20900, started + std::chrono::milliseconds(50 + (frame_index - 2) * 16));
+    }
+    // The receiver advances after 50ms, but its return report takes another
+    // 210ms. Replay the live 271700-byte debt with an empty local QUIC queue.
+    flight.Observe({.elapsed_us = 100000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(310));
+    EXPECT_EQ(flight.PendingBytes(), 271700);
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(311)).forward_delay_growth_us, 0);
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(311)).return_delay_growth_us, 210000);
+    EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(311)));
+}
+
+TEST(IrohVideoFlight, DelayedReturnAllowanceRemainsBoundedAndStaleProgressCannotEnlargeIt) {
+    VideoFlightWindow flight{VideoSendBudget{200'000'000}};
+    const auto started = VideoFlightWindow::Clock::time_point{};
+    flight.ObserveRtt(600000);
+    flight.Sent(0, 1, 6000, started);
+    flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(50));
+    for (std::uint64_t frame_index{2}; frame_index <= 41; ++frame_index) {
+        flight.Sent(0, frame_index, 30000, started + std::chrono::milliseconds(60));
+    }
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(61)).budget_bytes, 1024 * 1024);
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(61)));
+    flight.Observe({.elapsed_us = 100000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(250));
+    EXPECT_EQ(flight.PendingBytes(), 1200000);
+    EXPECT_EQ(flight.Inspect(0, started + std::chrono::milliseconds(251)).return_delay_growth_us, 0);
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(251)));
+    EXPECT_TRUE(flight.CanSend(0, 0, started + std::chrono::milliseconds(310)));
+}
+
+TEST(IrohVideoFlight, ForwardCongestionStillConstrainsCaptureWithDelayedReturnFeedback) {
+    VideoFlightWindow flight{VideoSendBudget{20'000'000}};
+    const auto started = VideoFlightWindow::Clock::time_point{};
+    flight.ObserveRtt(5000);
+    flight.Sent(0, 1, 6000, started);
+    flight.Observe({.elapsed_us = 50000, .complete_frames = 1, .latest_frame_index = 1}, started + std::chrono::milliseconds(50));
+    flight.Sent(0, 2, 6000, started + std::chrono::milliseconds(50));
+    for (std::uint64_t frame_index{3}; frame_index <= 9; ++frame_index) {
+        flight.Sent(0, frame_index, 6000, started + std::chrono::milliseconds(500));
+    }
+    flight.Observe({.elapsed_us = 450000, .complete_frames = 2, .latest_frame_index = 2}, started + std::chrono::milliseconds(650));
+    const auto snapshot = flight.Inspect(0, started + std::chrono::milliseconds(651));
+    EXPECT_EQ(snapshot.return_delay_growth_us, 200000);
+    EXPECT_GT(snapshot.forward_delay_growth_us, 100000);
+    EXPECT_LE(snapshot.budget_bytes, 256 * 1024);
+    EXPECT_FALSE(flight.CanSend(0, 0, started + std::chrono::milliseconds(651)));
 }
 
 TEST(IrohVideoFlight, FeedbackSilenceDoesNotPauseBeforeBoundedCreditIsConsumed) {

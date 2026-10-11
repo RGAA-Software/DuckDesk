@@ -1,0 +1,127 @@
+{
+  "sample": {
+    "route": "90",
+    "segment": "2",
+    "series": "recovery_audit",
+    "requested_seconds": 300,
+    "evidence": ".cache\\iroh-native-live-20261012-011736-relay",
+    "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+    "instance_id": "a407b5bb-52de-4e77-b752-7c6905e6114e",
+    "client_pid": 85784,
+    "session_id": "75846ba3-4ba7-4a51-82dc-c8b8e2804542",
+    "sample_started_epoch": 1791739060.6806996,
+    "tcp_statistics": "D:\\GoCloud\\GammaRayPremium\\.cache\\20261011_recovery_audit_90_2_tcp.csv",
+    "drag": {
+      "window_found": true,
+      "posted_mouse_messages": 480,
+      "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"
+    },
+    "sample_ended_epoch": 1791739360.6936972,
+    "state": "connected",
+    "grace_stopped_seconds": 12.35,
+    "grace_stopped": true,
+    "tcp_monitor_exit": 0
+  },
+  "receive_gaps": [
+    {
+      "gap": {
+        "timestamp": "2026-10-12 01:19:28.424",
+        "event": "iroh.received_frame",
+        "phase": "gap",
+        "stream": "0",
+        "frame": "6608",
+        "gap_ms": "129.2"
+      },
+      "flow_evidence": [
+        {
+          "flow": "192.168.31.6:23972-39.71.45.66:4605",
+          "samples": 4,
+          "errors": 0,
+          "duplicate_acks_before": 3566,
+          "duplicate_acks_after": 3622,
+          "maximum_reassembly_bytes": 6221,
+          "maximum_application_bytes": 0,
+          "observations": [
+            {
+              "utc": "2026-10-11T17:19:28.5402235+00:00",
+              "reassembly": "6221",
+              "application": "0",
+              "duplicate_acks": "3622"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gap": {
+        "timestamp": "2026-10-12 01:19:28.743",
+        "event": "iroh.received_frame",
+        "phase": "gap",
+        "stream": "0",
+        "frame": "6627",
+        "gap_ms": "103.5"
+      },
+      "flow_evidence": [
+        {
+          "flow": "192.168.31.6:23972-39.71.45.66:4605",
+          "samples": 4,
+          "errors": 0,
+          "duplicate_acks_before": 3622,
+          "duplicate_acks_after": 3669,
+          "maximum_reassembly_bytes": 6221,
+          "maximum_application_bytes": 0,
+          "observations": [
+            {
+              "utc": "2026-10-11T17:19:28.5402235+00:00",
+              "reassembly": "6221",
+              "application": "0",
+              "duplicate_acks": "3622"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "gap": {
+        "timestamp": "2026-10-12 01:19:41.576",
+        "event": "iroh.received_frame",
+        "phase": "gap",
+        "stream": "0",
+        "frame": "7393",
+        "gap_ms": "200.4"
+      },
+      "flow_evidence": [
+        {
+          "flow": "192.168.31.6:23972-39.71.45.66:4605",
+          "samples": 5,
+          "errors": 0,
+          "duplicate_acks_before": 4932,
+          "duplicate_acks_after": 4992,
+          "maximum_reassembly_bytes": 31480,
+          "maximum_application_bytes": 0,
+          "observations": [
+            {
+              "utc": "2026-10-11T17:19:41.2657105+00:00",
+              "reassembly": "821",
+              "application": "0",
+              "duplicate_acks": "4932"
+            },
+            {
+              "utc": "2026-10-11T17:19:41.4794385+00:00",
+              "reassembly": "31480",
+              "application": "0",
+              "duplicate_acks": "4986"
+            },
+            {
+              "utc": "2026-10-11T17:19:41.5880841+00:00",
+              "reassembly": "15685",
+              "application": "0",
+              "duplicate_acks": "4990"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "scope": "Same Client clock; per-connection TCP observations. No physical-NIC attribution."
+}

@@ -1,0 +1,12 @@
+﻿{
+    "service":  "Running",
+    "renders":  [
+                    {
+                        "Id":  7580,
+                        "SessionId":  2
+                    }
+                ],
+    "trace_file":  null,
+    "trace_filter":  null,
+    "render_sha256":  "99B8EEDF75F50ABD661DB7728382C8DD1E9DF9C259EE99FC4F57C3696CCA63ED"
+}

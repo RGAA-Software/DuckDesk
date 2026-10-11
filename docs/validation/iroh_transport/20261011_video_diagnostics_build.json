@@ -1,0 +1,23 @@
+[
+  {
+    "product": "client",
+    "artifact": "px_client.exe",
+    "sha256": "ed60a7740e9d56ee6b71c79eed7d83c7c7f1ea4cadf79692896aa9dac51d050b",
+    "build_path": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "dist_path": "build_official\\client\\dist\\px_client.exe"
+  },
+  {
+    "product": "cloud_node",
+    "artifact": "px_client.exe",
+    "sha256": "d05b7b121ca7321e94d339e7f77172e499fc7df116e16229fcb8fd4ef8fe2221",
+    "build_path": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "dist_path": "build_official\\cloud_node\\dist\\px_client.exe"
+  },
+  {
+    "product": "cloud_node",
+    "artifact": "px_render.exe",
+    "sha256": "844da9b525fe4d7fe0beeb1640e572655ba428c99a037abe5b5d8a35d73c8372",
+    "build_path": "build_official\\cloud_node\\cmake\\src\\px_render\\px_render.exe",
+    "dist_path": "build_official\\cloud_node\\dist\\px_render.exe"
+  }
+]

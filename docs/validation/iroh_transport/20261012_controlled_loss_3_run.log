@@ -1,0 +1,8 @@
+EVIDENCE .cache\iroh-native-live-20261012-021619-auto
+RUNNING game_hook instance=56fbb56c-5f7e-4382-8b5b-85117f5ede6c
+DESCRIPTOR_READY seconds=1.167
+OWNED_UDP_PROXY {"upstream": ["39.71.45.66", 4613], "ingress": ["127.0.0.1", 50974], "started_epoch": 1791742581.931582, "forwarded_downlink": 0, "forwarded_uplink": 0, "dropped_large_downlink": 0, "drop_windows": [], "failure": null, "reset_notifications": [], "scope": "Only this owned UDP connection; 30 bounded 40ms drops across two short bursts (1.2s total). Not a normal-path FPS gate."}
+CONNECTED game_hook visit=loss-feedback
+{"route": "direct", "segment": "3", "series": "controlled_loss", "requested_seconds": 75, "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9", "instance_id": "56fbb56c-5f7e-4382-8b5b-85117f5ede6c", "client_pid": 76556, "session_id": "a17adcd1-1a73-4743-b9ce-476f15709f98", "sample_started_epoch": 1791742583.0696788, "drag": {"window_found": true, "posted_mouse_messages": 480, "method": "Cursor positioned inside owned Client window with WM button messages; check sent input logs and screenshots"}, "sample_ended_epoch": 1791742658.0771801, "state": "connected", "grace_stopped_seconds": 14.58, "grace_stopped": true}
+OWNED_UDP_PROXY_STOPPED [{"upstream": ["39.71.45.66", 4613], "ingress": ["127.0.0.1", 50974], "started_epoch": 1791742581.931582, "forwarded_downlink": 6203, "forwarded_uplink": 3352, "dropped_large_downlink": 0, "drop_windows": [], "failure": null, "reset_notifications": [], "scope": "Only this owned UDP connection; 30 bounded 40ms drops across two short bursts (1.2s total). Not a normal-path FPS gate."}]
+RESTORE {"budget_kbps": 10000}
