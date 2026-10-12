@@ -38,9 +38,11 @@ void VideoReceiveDiagnostics::Observe(const media::MediaDatagram& packet, std::u
     auto& frame = frames_[key];
     if (!frame.samples) {
         frame.first_us = now_us;
+        frame.receipt.first_packet_received_us = now_us;
         frame.timestamp = identity->timestamp;
         frame.last_block = identity->last_block;
     }
+    frame.receipt.latest_packet_received_us = now_us;
     auto& block = frame.blocks[identity->block];
     block.data_count = identity->data_count;
     block.parity_count = identity->parity_count;

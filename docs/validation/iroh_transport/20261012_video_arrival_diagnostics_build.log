@@ -1,0 +1,17 @@
+warning: in the working copy of 'src/px_transport/video_diagnostics.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_diagnostics.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 12 changed code lines against 7d6f0cf2b4964deb75d47ff397be754ba0d3c955.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: test_iroh_media_datagrams
+[0/2] Re-checking globbed directories...
+[1/6] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\video_diagnostics.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/6] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\voice_datagram.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/6] Building CXX object src\px_transport\CMakeFiles\test_iroh_media_datagrams.dir\tests\test_media_datagrams.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/6] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\media_datagrams.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/6] Linking CXX static library src\px_transport\px_transport_cpp.lib
+[6/6] Linking CXX executable src\px_transport\test_iroh_media_datagrams.exe
+DONE: test_iroh_media_datagrams

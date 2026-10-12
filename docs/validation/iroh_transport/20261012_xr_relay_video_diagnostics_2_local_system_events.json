@@ -1,0 +1,14 @@
+[
+  {
+    "TimeCreated": "2026-10-12T13:24:24.8864531+08:00",
+    "ProviderName": "Microsoft-Windows-NDIS",
+    "Id": 10400,
+    "Message": "The network interface \"Realtek Gaming GbE Family Controller\" has begun resetting.  There will be a momentary disruption in network connectivity while the hardware resets. Reason: The network driver detected that its hardware has stopped responding to commands. This network interface has reset 6 time(s) since it was last initialized."
+  },
+  {
+    "TimeCreated": "2026-10-12T13:24:19.9360189+08:00",
+    "ProviderName": "Microsoft-Windows-DNS-Client",
+    "Id": 1014,
+    "Message": "Name resolution for the name pab.rgaa.vip timed out after none of the configured DNS servers responded."
+  }
+]

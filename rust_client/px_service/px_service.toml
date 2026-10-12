@@ -17,6 +17,9 @@ panel_port = 4999
 # 节点主动连接明确配置的 Console，因此默认关闭局域网发现。
 discovery_enabled = false
 discovery_port = 4604
+# 可选：只使用 Console 当前允许的指定私有 Relay。空列表保留整个候选集合。
+# 修改后重启本节点 Service；不改变其他节点或系统 UDP 配置。
+iroh_relay_urls = []
 
 [applications]
 # 云应用实例自动从此范围递增分配，并跳过已占用端口。

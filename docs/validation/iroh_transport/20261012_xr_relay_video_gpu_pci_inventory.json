@@ -1,0 +1,22 @@
+[
+    {
+        "pnp_id":  "PCI\\VEN_10DE\u0026DEV_2684\u0026SUBSYS_16F310DE\u0026REV_A1\\4\u0026CDEA0A7\u00260\u00260008",
+        "stable_key":  "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+        "location":  "PCI bus 168, device 0, function 0"
+    },
+    {
+        "pnp_id":  "PCI\\VEN_10DE\u0026DEV_2684\u0026SUBSYS_16F310DE\u0026REV_A1\\4\u00263532CD46\u00260\u00260008",
+        "stable_key":  "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+        "location":  "PCI bus 56, device 0, function 0"
+    },
+    {
+        "pnp_id":  "PCI\\VEN_10DE\u0026DEV_2684\u0026SUBSYS_16F310DE\u0026REV_A1\\4\u0026F30CBBF\u00260\u00260008",
+        "stable_key":  "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+        "location":  "PCI bus 184, device 0, function 0"
+    },
+    {
+        "pnp_id":  "PCI\\VEN_10DE\u0026DEV_2684\u0026SUBSYS_16F310DE\u0026REV_A1\\4\u00261B30C53\u00260\u00260008",
+        "stable_key":  "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+        "location":  "PCI bus 39, device 0, function 0"
+    }
+]

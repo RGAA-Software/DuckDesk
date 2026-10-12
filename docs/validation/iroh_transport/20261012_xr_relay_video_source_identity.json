@@ -1,0 +1,9 @@
+{
+    "port":  4613,
+    "source_path":  "D:\\uploadsoft\\rd\\pixels\\relay-video-20261012\\video-source-4613.log",
+    "lines":  14528,
+    "source_sha256":  "FF803E3E6984674C5FF1440B4C7BD9A0D1B1ED3365E91B47345602F0CFF254DB",
+    "gzip_path":  "D:\\uploadsoft\\rd\\pixels\\relay-video-20261012\\video-source-4613.log.gz",
+    "gzip_size":  422125,
+    "gzip_sha256":  "6DB9C311011503B061EC60A70DD666077E32E4E27B2A078B3D60AA352B484EB1"
+}

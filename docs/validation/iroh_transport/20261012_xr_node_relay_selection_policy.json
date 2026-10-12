@@ -1,0 +1,10 @@
+{
+    "configuration":  "C:\\Program Files\\Pixels Cloud Node\\px_service.toml",
+    "before_sha256":  "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+    "after_sha256":  "87C9D9DB6E4454574DF9C4ADD067523A9FD545D641B3D707A773C368BDA96005",
+    "selected_relays":  [
+                            "https://49.232.233.61:4605/"
+                        ],
+    "service":  "Running",
+    "scope":  "Only the owned XR node; global Relay configuration unchanged"
+}

@@ -477,7 +477,10 @@ async fn run_connection(
         runtime.node_public_code = authentication.public_device_code;
         runtime.authenticated_console_origin = authenticated_console_origin.to_string();
         runtime.node_control_relay = authentication.relay.clone();
-        runtime.node_control_iroh = authentication.iroh.clone();
+        runtime.node_control_iroh = authentication.iroh.clone().map(|mut configuration| {
+            configuration.relays = runtime.config.node.select_iroh_relays(configuration.relays);
+            configuration
+        });
         if transport_changed && runtime.state.desktop_alive {
             if let Some(launch) = runtime.state.last_desktop_launch.clone() {
                 runtime.restart_desktop(launch)?;
@@ -1292,8 +1295,10 @@ async fn report(
                 if !validation.is_valid() {
                     return Err("invalid Console Relay candidates".into());
                 }
-                if let Some(configuration) = &mut runtime.lock().await.node_control_iroh {
-                    configuration.relays = relays;
+                let mut runtime = runtime.lock().await;
+                let selected_relays = runtime.config.node.select_iroh_relays(relays);
+                if let Some(configuration) = &mut runtime.node_control_iroh {
+                    configuration.relays = selected_relays;
                 }
             }
             Ok(NodeReportOutcome {

@@ -1,0 +1,42 @@
+{
+  "formal_seconds": 600.0081014633179,
+  "complete_presentation_windows": 118,
+  "complete_window_seconds": 591.358359,
+  "presented_frames": 35466,
+  "weighted_presented_fps": 59.97378655469382,
+  "maximum_complete_window_gap_us": 422293,
+  "steady_transit_gaps_over_100ms": [
+    {
+      "time": "2026-10-12 12:48:06.754",
+      "event": "iroh.frame_transit",
+      "fields": {
+        "event": "iroh.frame_transit",
+        "stream": "0",
+        "frame": "34046",
+        "source_gap_us": "17044",
+        "receive_gap_us": "422192",
+        "excess_us": "406347",
+        "assembly_call_us": "5",
+        "reference_ready": "true"
+      }
+    }
+  ],
+  "outside_formal_window_gaps": [
+    {
+      "time": "2026-10-12 12:38:39.018",
+      "event": "iroh.frame_transit",
+      "fields": {
+        "event": "iroh.frame_transit",
+        "stream": "0",
+        "frame": "4",
+        "source_gap_us": "911866",
+        "receive_gap_us": "858903",
+        "excess_us": "0",
+        "assembly_call_us": "15",
+        "reference_ready": "true"
+      }
+    }
+  ],
+  "client_gzip_and_raw_sha256_verified": true,
+  "interpretation": "assembly_call_us measures one Feed call, not the first-to-last fragment span; no TCP/NIC root cause is established by this sample"
+}

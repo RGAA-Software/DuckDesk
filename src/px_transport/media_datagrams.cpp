@@ -452,11 +452,15 @@ void MediaDatagramReceiver::Feed(std::span<const std::uint8_t> payload, std::uin
             const auto timing = transit_timing_[datagram->stream].Observe(received.completed_timestamp_90khz, now_us);
             auto& logged_us = transit_logged_us_[datagram->stream];
             if ((timing.receive_gap_us >= 80000 || timing.excess_transit_us >= 80000) && now_us - logged_us >= 100000) {
+                const auto receipt = identity ? diagnostics_.Inspect(datagram->stream, identity->wire_frame) : std::nullopt;
+                const auto first_packet_us = receipt ? receipt->first_packet_received_us : std::nullopt;
+                const auto observed_packet_span_us = first_packet_us && *first_packet_us <= now_us ? now_us - *first_packet_us : 0;
                 LOGI(
                     "event=iroh.frame_transit stream={} frame={} source_gap_us={} receive_gap_us={} excess_us={} assembly_call_us={} "
-                    "reference_ready={}",
+                    "reference_ready={} packet_history_available={} first_observed_packet_us={} observed_packet_span_us={}",
                     datagram->stream, *received.completed_frame_index, timing.source_gap_us, timing.receive_gap_us, timing.excess_transit_us,
-                    assembled_us - now_us, received.frame.has_value());
+                    assembled_us - now_us, received.frame.has_value(), first_packet_us.has_value(), first_packet_us.value_or(0),
+                    observed_packet_span_us);
                 logged_us = now_us;
             }
         }

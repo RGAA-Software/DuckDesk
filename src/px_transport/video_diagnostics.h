@@ -35,6 +35,8 @@ public:
     [[nodiscard]] bool Active(std::uint64_t now_us) const { return now_us >= started_us_ && now_us - started_us_ < 90'000'000; }
     [[nodiscard]] std::uint64_t Id() const { return started_us_; }
     struct Receipt final {
+        std::optional<std::uint64_t> first_packet_received_us{};
+        std::optional<std::uint64_t> latest_packet_received_us{};
         std::uint64_t encoder_frame{};
         std::optional<media::VideoFrameKind> kind{};
         std::size_t unique_shards{};

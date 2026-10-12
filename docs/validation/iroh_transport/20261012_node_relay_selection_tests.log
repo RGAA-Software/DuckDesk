@@ -1,0 +1,62 @@
+   Compiling smallvec v1.15.1
+   Compiling windows-sys v0.61.2
+   Compiling futures-sink v0.3.32
+   Compiling slab v0.4.12
+   Compiling winapi v0.3.9
+   Compiling percent-encoding v2.3.2
+   Compiling windows v0.62.2
+   Compiling fastrand v2.4.1
+   Compiling futures-channel v0.3.32
+   Compiling icu_normalizer v2.2.0
+   Compiling parking_lot_core v0.9.12
+   Compiling form_urlencoded v1.2.2
+   Compiling futures-util v0.3.32
+   Compiling parking_lot v0.12.5
+   Compiling moka v0.12.15
+   Compiling quick_cache v0.6.23
+   Compiling idna_adapter v1.2.2
+   Compiling idna v1.1.0
+   Compiling url v2.5.8
+   Compiling px_node_protocol v0.1.0 (D:\GoCloud\GammaRayPremium\rust_server\px_node_protocol)
+   Compiling parking_lot_core v0.8.6
+   Compiling ntapi v0.4.3
+   Compiling fs2 v0.4.3
+   Compiling parking_lot v0.11.2
+   Compiling sled v0.34.7
+   Compiling futures-executor v0.3.32
+   Compiling sysinfo v0.37.2
+   Compiling futures v0.3.32
+   Compiling socket2 v0.6.4
+   Compiling mio v1.2.1
+   Compiling nu-ansi-term v0.50.3
+   Compiling local-ip-address v0.6.13
+   Compiling tempfile v3.27.0
+   Compiling tokio v1.52.3
+   Compiling ipconfig v0.3.4
+   Compiling tracing-subscriber v0.3.23
+   Compiling tracing-appender v0.2.5
+   Compiling tokio-rustls v0.26.4
+   Compiling tokio-stream v0.1.18
+   Compiling hickory-proto v0.26.0-alpha.1
+   Compiling tokio-test v0.4.5
+   Compiling hickory-resolver v0.26.0-alpha.1
+   Compiling mail-auth v0.7.5
+   Compiling mail-send v0.5.2
+   Compiling wmi v0.17.3
+   Compiling disk-serial-number v0.2.1
+   Compiling px_base v3.3.67 (D:\GoCloud\GammaRayPremium\rust_base\px_base)
+   Compiling service_core v3.3.67 (D:\GoCloud\GammaRayPremium\rust_client\px_service\service_core)
+    Finished `release` profile [optimized] target(s) in 31.35s
+     Running unittests src\lib.rs (D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\cargo\target\release\deps\service_core-1567ae58ab8f7499.exe)
+
+running 7 tests
+test node_config::tests::defaults_and_independent_node_ranges_are_valid ... ok
+test node_config::tests::access_host_rejects_credentials_and_ambiguous_destinations ... ok
+test node_config::tests::service_replaces_stale_launch_arguments_idempotently ... ok
+test node_config::tests::local_relay_selection_rejects_ambiguous_or_credentialed_urls ... ok
+test node_config::tests::local_relay_selection_tracks_console_withdrawal_without_fallback ... ok
+test node_config::tests::rejects_zero_reversed_overlapping_and_unknown_settings ... ok
+test node_config::tests::package_configuration_uses_built_in_port_defaults ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 92 filtered out; finished in 0.00s
+

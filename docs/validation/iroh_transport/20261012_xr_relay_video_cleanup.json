@@ -1,0 +1,10 @@
+{
+  "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+  "application_disabled": true,
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "deployment_disabled": true,
+  "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+  "node_retained": true,
+  "application_revision": 2,
+  "deployment_revision": 4
+}

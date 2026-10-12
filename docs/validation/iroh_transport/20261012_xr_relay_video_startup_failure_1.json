@@ -1,0 +1,13 @@
+{
+  "device_code": "947158375",
+  "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "requested_seconds": 600,
+  "video_bandwidth_kbps": 10000,
+  "require_60fps": false,
+  "expected_relay": "https://49.232.233.61:4605/",
+  "instance_id": "3107e6dd-b212-475f-ab15-3003fc4401f4",
+  "state": "failed",
+  "failure": "WebView first-frame startup failed before resource session opened; service log says no encodable first frame within20seconds",
+  "instance_terminal_state": "failed"
+}

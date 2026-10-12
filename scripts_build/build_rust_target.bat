@@ -2,7 +2,7 @@
 setlocal
 rem Focused Rust build only: no version bump, web build, deployment or config replacement.
 if "%~1"=="" (
-    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy
+    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy [jobs] [development^|official]
     exit /b 2
 )
 if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote" (
@@ -10,6 +10,11 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote
     exit /b 2
 )
 set "RUST_PRODUCT=%~1"
+set "RUST_BUILD_JOBS=18"
+if not "%~3"=="" set "RUST_BUILD_JOBS=%~3"
+set "RUST_DISTRIBUTION=development"
+if not "%~4"=="" set "RUST_DISTRIBUTION=%~4"
+if /I not "%RUST_DISTRIBUTION%"=="development" if /I not "%RUST_DISTRIBUTION%"=="official" exit /b 2
 if /i "%~2"=="service" (
     set "RUST_WORKSPACE=rust_client"
     set "RUST_PACKAGE=px_service"
@@ -17,11 +22,12 @@ if /i "%~2"=="service" (
     set "RUST_WORKSPACE=rust_client"
     set "RUST_PACKAGE=px_user_proxy"
 ) else (
-    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy
+    echo Usage: %~nx0 cloud_node^|client^|remote service^|user-proxy [jobs]
     exit /b 2
 )
 set "RUST_REPO=%~dp0.."
 set "CARGO_TARGET_DIR=%RUST_REPO%\build_official\%RUST_PRODUCT%\cargo\target"
+if /I "%RUST_DISTRIBUTION%"=="official" set "CARGO_TARGET_DIR=%RUST_REPO%\build_official\%RUST_PRODUCT%\official\cargo\target"
 set "RUST_VS="
 for /f "usebackq delims=" %%V in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "RUST_VS=%%V"
 if not defined RUST_VS exit /b 2
@@ -37,5 +43,5 @@ set "AWS_LC_SYS_C_STD=11"
 set "GOOS=windows"
 if exist "%ProgramFiles%\Git\usr\bin\perl.exe" set "PATH=%PATH%;%ProgramFiles%\Git\usr\bin"
 cd /d "%RUST_REPO%\%RUST_WORKSPACE%" || exit /b 2
-cargo build --release -p %RUST_PACKAGE%
+cargo build --release --jobs %RUST_BUILD_JOBS% -p %RUST_PACKAGE%
 exit /b %errorlevel%

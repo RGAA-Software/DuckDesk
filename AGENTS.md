@@ -65,6 +65,11 @@
   runtime semantics; development artifacts may be labeled `fast-release` and are not installable Pixels publication artifacts.
 - Android short device checks use the single Pixels fast Release APK. Final Android publication uses
   `scripts_build\build_android_product.bat release` and preflights/builds one signed Pixels APK with one Android version.
+- Remote incremental delivery decision (2026-10-12): after a complete package baseline has already been transferred/installed,
+  subsequent development updates transfer only changed executables and any required changed DLLs/resources; verify source and destination
+  SHA-256 and record the resulting runtime identities. Do not retransmit the complete package for these incremental updates.
+  This supersedes the complete-package requirement below for authorized development updates; formal installation acceptance still uses Setup.
+
 - Installation/upgrade acceptance decision (2026-09-27): every real installation test must use the freshly built complete product package,
   including Server applications. On Windows, install or overwrite with the product Setup; on Linux, deploy the built container images with
   Compose; on Android, overwrite-install the built APK. Verify the package/image identity and SHA-256 before deployment, then verify the

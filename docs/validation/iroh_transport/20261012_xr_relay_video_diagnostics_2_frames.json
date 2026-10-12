@@ -1,0 +1,50 @@
+{
+  "source_sha256_verified": true,
+  "observations": [
+    {
+      "client_line": "[2026-10-12 13:22:18.903][thread 56892][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=4 source_gap_us=851355 receive_gap_us=799044 excess_us=0 assembly_call_us=30 reference_ready=true packet_history_available=true first_observed_packet_us=1170582760724 observed_packet_span_us=7994",
+      "source_offer": [
+        "[2026-10-12 13:22:26.442][thread 51528][media_datagrams.cpp:85][info] : event=iroh.diag_offer trace=2564877777403 peer=5817aaf19a0ff2481fce8b27b9eb6627f85b6b5023e2a9b53873abd15f6158a7 stream=0 wire_frame=2 encoder_frame=4 kind=1 bytes=8561 mono_us=2564878633625 queued=0 pending_bytes=0"
+      ],
+      "source_transport_submit": [
+        "[2026-10-12 13:22:26.447][thread 41216][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2564877777403 stream=0 wire_frame=2 encoder_frame=4 local_accepted=true origin_us=2564878633646 queue_us=52 total_us=4721 path=2 rtt_us=46781 cwnd=21886 space=62236 tx_packets=122 tx_lost=0 congestion=0 writes=19:0:0:0:9:0:21:10:0;20:0:0:1:9:0:36:1:0;21:0:0:2:9:0:38:1:0;22:0:0:3:9:0:40:1:0;23:0:0:4:9:0:59:9:0;24:0:0:5:9:0:73:1:0;25:0:0:6:9:0:76:0:0;26:0:0:7:9:0:77:12:0;27:0:0:8:9:0:4682:5:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:22:19.516][thread 56892][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=30 source_gap_us=16855 receive_gap_us=204206 excess_us=187737 assembly_call_us=7 reference_ready=true packet_history_available=true first_observed_packet_us=1170583380797 observed_packet_span_us=17",
+      "source_offer": [
+        "[2026-10-12 13:22:26.875][thread 51528][media_datagrams.cpp:85][info] : event=iroh.diag_offer trace=2564877777403 peer=5817aaf19a0ff2481fce8b27b9eb6627f85b6b5023e2a9b53873abd15f6158a7 stream=0 wire_frame=28 encoder_frame=30 kind=1 bytes=2440 mono_us=2564879066446 queued=0 pending_bytes=0"
+      ],
+      "source_transport_submit": [
+        "[2026-10-12 13:22:26.875][thread 41216][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2564877777403 stream=0 wire_frame=28 encoder_frame=30 local_accepted=true origin_us=2564879066458 queue_us=29 total_us=42 path=2 rtt_us=46523 cwnd=21886 space=62236 tx_packets=245 tx_lost=0 congestion=0 writes=105:0:0:0:3:0:17:6:0;106:0:0:1:3:0:26:1:0;107:0:0:2:3:0:28:1:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:23:00.557][thread 56892][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=2499 source_gap_us=18011 receive_gap_us=99018 excess_us=81877 assembly_call_us=14 reference_ready=true packet_history_available=true first_observed_packet_us=1170624422567 observed_packet_span_us=67",
+      "source_offer": [
+        "[2026-10-12 13:23:08.024][thread 51528][media_datagrams.cpp:85][info] : event=iroh.diag_offer trace=2564877777403 peer=5817aaf19a0ff2481fce8b27b9eb6627f85b6b5023e2a9b53873abd15f6158a7 stream=0 wire_frame=2494 encoder_frame=2499 kind=1 bytes=2646 mono_us=2564920215921 queued=0 pending_bytes=0"
+      ],
+      "source_transport_submit": [
+        "[2026-10-12 13:23:08.024][thread 41216][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2564877777403 stream=0 wire_frame=2494 encoder_frame=2499 local_accepted=true origin_us=2564920215933 queue_us=24 total_us=36 path=2 rtt_us=62379 cwnd=49283 space=62236 tx_packets=11331 tx_lost=0 congestion=0 writes=7033:0:0:0:3:0:12:5:0;7034:0:0:1:3:0:19:1:0;7035:0:0:2:3:0:21:1:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:23:00.722][thread 56892][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=2504 source_gap_us=16788 receive_gap_us=139646 excess_us=165147 assembly_call_us=13 reference_ready=true packet_history_available=true first_observed_packet_us=1170624482602 observed_packet_span_us=104602",
+      "source_offer": [
+        "[2026-10-12 13:23:08.105][thread 51528][media_datagrams.cpp:85][info] : event=iroh.diag_offer trace=2564877777403 peer=5817aaf19a0ff2481fce8b27b9eb6627f85b6b5023e2a9b53873abd15f6158a7 stream=0 wire_frame=2499 encoder_frame=2504 kind=1 bytes=2443 mono_us=2564920297226 queued=0 pending_bytes=0"
+      ],
+      "source_transport_submit": [
+        "[2026-10-12 13:23:08.105][thread 41216][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2564877777403 stream=0 wire_frame=2499 encoder_frame=2504 local_accepted=true origin_us=2564920297238 queue_us=24 total_us=38 path=2 rtt_us=62379 cwnd=49283 space=62236 tx_packets=11347 tx_lost=0 congestion=0 writes=7045:0:0:0:3:0:13:6:0;7046:0:0:1:3:0:21:1:0;7047:0:0:2:3:0:24:1:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:23:01.221][thread 56892][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=2530 source_gap_us=17222 receive_gap_us=185864 excess_us=229690 assembly_call_us=7 reference_ready=true packet_history_available=true first_observed_packet_us=1170625086497 observed_packet_span_us=28",
+      "source_offer": [
+        "[2026-10-12 13:23:08.540][thread 51528][media_datagrams.cpp:85][info] : event=iroh.diag_offer trace=2564877777403 peer=5817aaf19a0ff2481fce8b27b9eb6627f85b6b5023e2a9b53873abd15f6158a7 stream=0 wire_frame=2518 encoder_frame=2530 kind=1 bytes=3050 mono_us=2564920731996 queued=0 pending_bytes=0"
+      ],
+      "source_transport_submit": [
+        "[2026-10-12 13:23:08.540][thread 41216][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2564877777403 stream=0 wire_frame=2518 encoder_frame=2530 local_accepted=true origin_us=2564920732007 queue_us=23 total_us=33 path=2 rtt_us=363652 cwnd=84798 space=62236 tx_packets=11412 tx_lost=0 congestion=0 writes=7100:0:0:0:3:0:12:5:0;7101:0:0:1:3:0:18:1:0;7102:0:0:2:3:0:20:0:0;"
+      ]
+    }
+  ]
+}

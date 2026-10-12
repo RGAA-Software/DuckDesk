@@ -1,0 +1,11 @@
+{
+  "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+  "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+  "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "device_code": "947158375",
+  "workspace": "D:\\uploadsoft\\rd\\pixels\\relay-video-20261012",
+  "application_video_kbps": 10000,
+  "disconnect_grace_seconds": 10,
+  "node_control_credentials": "Existing machine-protected node-control contract; no new transport credentials."
+}

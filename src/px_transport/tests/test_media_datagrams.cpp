@@ -40,6 +40,8 @@ TEST(IrohVideoDiagnostics, RecoveryMetadataAndDuplicatesRemainVisibleAfterInitia
     EXPECT_EQ(incomplete->kind, media::VideoFrameKind::kReferenceRecovery);
     EXPECT_EQ(incomplete->unique_shards, packets->packets.size());
     EXPECT_EQ(incomplete->duplicate_shards, 1);
+    EXPECT_EQ(incomplete->first_packet_received_us, observed_us);
+    EXPECT_EQ(incomplete->latest_packet_received_us, observed_us + 10);
     EXPECT_FALSE(incomplete->completed);
     diagnostics.Completed(0, 15518, 15699, media::VideoFrameKind::kReferenceRecovery, true);
     const auto completed = diagnostics.Inspect(0, 15518);

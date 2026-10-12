@@ -1,0 +1,38 @@
+{
+  "device_code": "947158375",
+  "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "requested_seconds": 600,
+  "video_bandwidth_kbps": 10000,
+  "require_60fps": false,
+  "expected_relay": "https://49.232.233.61:4605/",
+  "instance_id": "adafb32f-0bf8-44c0-91d9-1a098267cfd0",
+  "resource_session_id": "377f2e4e-cb56-408b-bf66-f9011072f93e",
+  "endpoint_address": {
+    "addrs": [
+      {
+        "Relay": "https://49.232.233.61:4605/"
+      },
+      {
+        "Ip": "112.27.225.224:23235"
+      },
+      {
+        "Ip": "172.17.80.25:4613"
+      }
+    ],
+    "id": "a56e255853e2ea22df55efb38eed3a4ed4c0b257dfa450e18858ae398ed6e5ea"
+  },
+  "render_port": 4613,
+  "node_reported_relay": [
+    "https://49.232.233.61:4605/"
+  ],
+  "client_pid": 63520,
+  "state": "failed",
+  "sample_started_epoch": 1791782543.4847944,
+  "sample_started_monotonic": 1170587.3496088,
+  "failure": "Owned Client exited during XR video",
+  "grace_stopped_seconds": 0.06,
+  "client_log_gzip_sha256": "95DB145359411DB60DF2F24A4E1DDB1A690DFA63FECD8B508C2EA2B10440515D",
+  "client_log_raw_sha256": "E93F7808C4357EFFC4C59CE012EEFFEE1E8305740904EFBC8018B0D2D53C5C66",
+  "owned_client_ended": true
+}

@@ -1,0 +1,13 @@
+{
+  "candidate": "node-relay-selection-20261012",
+  "setup_sha256": "EE9EB92326096864E1E36C9D18ED62938B0B28677817D07A139BB4941D626D39",
+  "manifest_sha256": "EE2473FC547B1AAA018BF1DE3563E8E1F03B06DB8204099973C815279BCD3358",
+  "state": "invalid_for_new_Service_delivery",
+  "built_service_sha256": "636C688E72F5FB135A7E7C194344345049449CA7E9DE5397C23DB6FF3D4526C0",
+  "staged_and_packaged_service_sha256": "EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0",
+  "installer_operation": "d44b3de8-f5de-4891-af9b-7d14b1066a89",
+  "wrapper_result": "execution_timeout",
+  "owned_setup_pid": 50080,
+  "owned_setup_verified_and_stopped": true,
+  "reason": "Focused official build changed cargo target, but old official cargo stage remained. Collector correctly consumed the stale stage. New TOML with unknown field and old Service prevented startup; silent setup did not suppress service-error MessageBox."
+}

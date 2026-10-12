@@ -1,0 +1,288 @@
+warning: in the working copy of 'src/px_transport/video_diagnostics.cpp', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/px_transport/video_diagnostics.h', LF will be replaced by CRLF the next time Git touches it
+C++ readable naming gate passed for 12 changed code lines against 7d6f0cf2b4964deb75d47ff397be754ba0d3c955.
+Incremental C++ build only. Build dir: build_official\client\cmake, jobs: 18
+Targets: px_client px_rtc_client test_client_imgui_launch_config test_client_input_mapper test_client_instance_guard test_client_local_file_system test_client_file_browser_model test_client_file_transfer_format test_rdp_clipboard_channel test_client_rdp_lifecycle
+[0/2] Re-checking globbed directories...
+[1/16] Linking CXX executable src\px_client\test_client_instance_guard.exe
+[2/16] Building CXX object src\px_client\CMakeFiles\test_client_imgui_launch_config.dir\ui_imgui\client_launch_config.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/16] Building CXX object src\px_client\CMakeFiles\test_client_imgui_launch_config.dir\tests\test_imgui_launch_config.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/16] Building CXX object src\px_deps\px_webrtc_client\CMakeFiles\px_rtc_client.dir\rtc_encoded_frame_sink.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/16] Linking CXX executable src\px_client\test_client_imgui_launch_config.exe
+[6/16] Building CXX object src\px_deps\px_webrtc_client\CMakeFiles\px_rtc_client.dir\rtc_video_sink.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(111): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(112): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(120): warning C4068: 未知的杂注“clang”
+[7/16] Building CXX object src\px_deps\px_webrtc_client\CMakeFiles\px_rtc_client.dir\rtc_data_channel.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(111): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(112): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(120): warning C4068: 未知的杂注“clang”
+[8/16] Building CXX object src\px_deps\px_webrtc_client\CMakeFiles\px_rtc_client.dir\peer_callback.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(111): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(112): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(120): warning C4068: 未知的杂注“clang”
+[9/16] Building CXX object src\px_deps\px_webrtc_client\CMakeFiles\px_rtc_client.dir\rtc_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(111): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(112): warning C4068: 未知的杂注“clang”
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\webrtc\include\rtc_base/stream.h(120): warning C4068: 未知的杂注“clang”
+[10/16] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[11/16] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[12/16] Linking CXX shared library src\px_deps\px_webrtc_client\px_client_rtc.dll
+[13/16] Linking CXX static library src\px_client_sdk\px_sdk.lib
+[14/16] Building CXX object src\px_client\CMakeFiles\test_client_rdp_lifecycle.dir\tests\test_client_rdp_lifecycle.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[15/16] Linking CXX executable src\px_deps\px_client.exe
+[16/16] Linking CXX executable src\px_deps\test_client_rdp_lifecycle.exe
+DONE: px_client px_rtc_client test_client_imgui_launch_config test_client_input_mapper test_client_instance_guard test_client_local_file_system test_client_file_browser_model test_client_file_transfer_format test_rdp_clipboard_channel test_client_rdp_lifecycle
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 24 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 1 test from ClientConnectionFailureTest
+[ RUN      ] ClientConnectionFailureTest.TerminalRecoveryFailuresHaveChineseAndEnglishMessages
+[       OK ] ClientConnectionFailureTest.TerminalRecoveryFailuresHaveChineseAndEnglishMessages (0 ms)
+[----------] 1 test from ClientConnectionFailureTest (0 ms total)
+
+[----------] 23 tests from ClientImguiLaunchConfigTest
+[ RUN      ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference
+[       OK ] ClientImguiLaunchConfigTest.IrohLaunchKeepsExistingFrontendAuthorizationAndRelayPreference (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback
+[       OK ] ClientImguiLaunchConfigTest.IrohDirectAndRdpUseTheSameDescriptionWithoutLegacyRouteFallback (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport
+[       OK ] ClientImguiLaunchConfigTest.InvalidIrohDescriptionRejectsLaunchInsteadOfSelectingOldTransport (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether
+[       OK ] ClientImguiLaunchConfigTest.PanelStartupRequiresPortAndCanonicalLaunchIdentityTogether (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesDirectPasswordLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration
+[       OK ] ClientImguiLaunchConfigTest.ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority
+[       OK ] ClientImguiLaunchConfigTest.ExplicitTcpOverridesAdvertisedIrohButKeepsExplicitRelayPriority (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements
+[       OK ] ClientImguiLaunchConfigTest.ParsesAppearanceWithoutChangingConnectionRequirements (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesIndependentFileTransferLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferHostRestartIsExplicitAndExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceFileTransferRejectsMissingPaths (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceAudioRequiresExplicitProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceModesAreMutuallyExclusive (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpIoErrorRejectsNonRdpAndOtherAcceptanceModes (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode
+[       OK ] ClientImguiLaunchConfigTest.AcceptanceRdpPeerCloseRequiresExplicitRdpProcessMode (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword
+[       OK ] ClientImguiLaunchConfigTest.RejectsLegacyCommandLineAndMissingPassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword
+[       OK ] ClientImguiLaunchConfigTest.ParsesConsoleFrontendDescriptorWithoutDevicePassword (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession
+[       OK ] ClientImguiLaunchConfigTest.RejectsMismatchedConsoleFrontendSession (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential
+[       OK ] ClientImguiLaunchConfigTest.BuildsVersionedRelayFrontendCredential (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch
+[       OK ] ClientImguiLaunchConfigTest.ParsesProtectedRdpLaunch (0 ms)
+[ RUN      ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType
+[       OK ] ClientImguiLaunchConfigTest.RejectsMalformedRdpIdentityAndPasswordType (0 ms)
+[----------] 23 tests from ClientImguiLaunchConfigTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 24 tests from 2 test suites ran. (1 ms total)
+[  PASSED  ] 24 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 9 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 9 tests from ClientInputMapperTest
+[ RUN      ] ClientInputMapperTest.ConvertsWindowsExtendedKeysToRdpWireScanCodes
+[       OK ] ClientInputMapperTest.ConvertsWindowsExtendedKeysToRdpWireScanCodes (0 ms)
+[ RUN      ] ClientInputMapperTest.MapsNavigationAndFunctionKeys
+[       OK ] ClientInputMapperTest.MapsNavigationAndFunctionKeys (0 ms)
+[ RUN      ] ClientInputMapperTest.PreservesModifierSidesAndOemKeys
+[       OK ] ClientInputMapperTest.PreservesModifierSidesAndOemKeys (0 ms)
+[ RUN      ] ClientInputMapperTest.PreservesWindowsScanCodesAndExtendedPrefixes
+[       OK ] ClientInputMapperTest.PreservesWindowsScanCodesAndExtendedPrefixes (0 ms)
+[ RUN      ] ClientInputMapperTest.UsesPhysicalScanCodeForShiftedSymbols
+[       OK ] ClientInputMapperTest.UsesPhysicalScanCodeForShiftedSymbols (0 ms)
+[ RUN      ] ClientInputMapperTest.MapsNumericKeypad
+[       OK ] ClientInputMapperTest.MapsNumericKeypad (0 ms)
+[ RUN      ] ClientInputMapperTest.DistinguishesMainAndKeypadEnter
+[       OK ] ClientInputMapperTest.DistinguishesMainAndKeypadEnter (0 ms)
+[ RUN      ] ClientInputMapperTest.MapsExtendedFunctionNavigationAndMediaKeys
+[       OK ] ClientInputMapperTest.MapsExtendedFunctionNavigationAndMediaKeys (0 ms)
+[ RUN      ] ClientInputMapperTest.DetectsCommittedUnicodeText
+[       OK ] ClientInputMapperTest.DetectsCommittedUnicodeText (0 ms)
+[----------] 9 tests from ClientInputMapperTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 9 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 9 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 4 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 4 tests from ClientInstanceGuardTest
+[ RUN      ] ClientInstanceGuardTest.ActivatesTheExistingInstanceForTheSameRemoteAndMode
+[       OK ] ClientInstanceGuardTest.ActivatesTheExistingInstanceForTheSameRemoteAndMode (0 ms)
+[ RUN      ] ClientInstanceGuardTest.KeepsDesktopAndFileTransferAsSeparateSingletons
+[       OK ] ClientInstanceGuardTest.KeepsDesktopAndFileTransferAsSeparateSingletons (0 ms)
+[ RUN      ] ClientInstanceGuardTest.ActivationMonitorReceivesRequestsWithoutFramePolling
+[       OK ] ClientInstanceGuardTest.ActivationMonitorReceivesRequestsWithoutFramePolling (111 ms)
+[ RUN      ] ClientInstanceGuardTest.NormalizesDeviceIdSpacingAndAsciiCase
+[       OK ] ClientInstanceGuardTest.NormalizesDeviceIdSpacingAndAsciiCase (0 ms)
+[----------] 4 tests from ClientInstanceGuardTest (111 ms total)
+
+[----------] Global test environment tear-down
+[==========] 4 tests from 1 test suite ran. (111 ms total)
+[  PASSED  ] 4 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 6 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 6 tests from ClientLocalFileSystemTest
+[ RUN      ] ClientLocalFileSystemTest.NavigatesRefreshesAndReturnsToPreviousDirectory
+[       OK ] ClientLocalFileSystemTest.NavigatesRefreshesAndReturnsToPreviousDirectory (1 ms)
+[ RUN      ] ClientLocalFileSystemTest.ExposesComputerDrivesAndCommonLocations
+[       OK ] ClientLocalFileSystemTest.ExposesComputerDrivesAndCommonLocations (0 ms)
+[ RUN      ] ClientLocalFileSystemTest.RejectsFilesAndPreservesCurrentDirectory
+[       OK ] ClientLocalFileSystemTest.RejectsFilesAndPreservesCurrentDirectory (1 ms)
+[ RUN      ] ClientLocalFileSystemTest.CreatesRenamesAndRemovesItemsWithinCurrentDirectory
+[       OK ] ClientLocalFileSystemTest.CreatesRenamesAndRemovesItemsWithinCurrentDirectory (3 ms)
+[ RUN      ] ClientLocalFileSystemTest.RejectsTraversalNamesAndItemsOutsideCurrentDirectory
+[       OK ] ClientLocalFileSystemTest.RejectsTraversalNamesAndItemsOutsideCurrentDirectory (1 ms)
+[ RUN      ] ClientLocalFileSystemTest.RemovesMultipleSelectedItems
+[       OK ] ClientLocalFileSystemTest.RemovesMultipleSelectedItems (1 ms)
+[----------] 6 tests from ClientLocalFileSystemTest (10 ms total)
+
+[----------] Global test environment tear-down
+[==========] 6 tests from 1 test suite ran. (10 ms total)
+[  PASSED  ] 6 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 3 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 2 tests from ClientFileSelectionTest
+[ RUN      ] ClientFileSelectionTest.SupportsControlAndShiftSelection
+[       OK ] ClientFileSelectionTest.SupportsControlAndShiftSelection (0 ms)
+[ RUN      ] ClientFileSelectionTest.SelectAllAndClearAreDeterministic
+[       OK ] ClientFileSelectionTest.SelectAllAndClearAreDeterministic (0 ms)
+[----------] 2 tests from ClientFileSelectionTest (0 ms total)
+
+[----------] 1 test from ClientFileSortTest
+[ RUN      ] ClientFileSortTest.KeepsDirectoriesFirstAndSortsFiles
+[       OK ] ClientFileSortTest.KeepsDirectoriesFirstAndSortsFiles (0 ms)
+[----------] 1 test from ClientFileSortTest (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 3 tests from 2 test suites ran. (0 ms total)
+[  PASSED  ] 3 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from ClientFileTransferFormat
+[ RUN      ] ClientFileTransferFormat.SelectsReadableBinaryUnit
+[       OK ] ClientFileTransferFormat.SelectsReadableBinaryUnit (0 ms)
+[ RUN      ] ClientFileTransferFormat.SanitizesInvalidSpeed
+[       OK ] ClientFileTransferFormat.SanitizesInvalidSpeed (0 ms)
+[----------] 2 tests from ClientFileTransferFormat (0 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (0 ms total)
+[  PASSED  ] 2 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from RdpClipboardChannel
+[ RUN      ] RdpClipboardChannel.ReceivesTextHtmlAndImageFormatsInOneClipboardGeneration
+[       OK ] RdpClipboardChannel.ReceivesTextHtmlAndImageFormatsInOneClipboardGeneration (0 ms)
+[ RUN      ] RdpClipboardChannel.UnsupportedRemoteClipboardClearsLocalFormats
+[       OK ] RdpClipboardChannel.UnsupportedRemoteClipboardClearsLocalFormats (0 ms)
+[ RUN      ] RdpClipboardChannel.ServesLocalFilesByDescriptorSizeAndRange
+[       OK ] RdpClipboardChannel.ServesLocalFilesByDescriptorSizeAndRange (6 ms)
+[ RUN      ] RdpClipboardChannel.DownloadsRemoteDirectoryIntoOwnedStagingArea
+[       OK ] RdpClipboardChannel.DownloadsRemoteDirectoryIntoOwnedStagingArea (13 ms)
+[ RUN      ] RdpClipboardChannel.RejectsRemotePathTraversal
+[       OK ] RdpClipboardChannel.RejectsRemotePathTraversal (1 ms)
+[----------] 5 tests from RdpClipboardChannel (21 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (21 ms total)
+[  PASSED  ] 5 tests.
+Running main() from C:\source\vcpkg\buildtrees\gtest\src\v1.17.0-0c449efaff.clean\googletest\src\gtest_main.cc
+[==========] Running 2 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 2 tests from ClientRdpLifecycle
+[ RUN      ] ClientRdpLifecycle.IdleConnectionProducesHeartbeatsAndReleasesEachSession
+[2026-10-12 13:20:40.989] [info] [sdk_net_client.cpp:286] Start native connection mode=1, route=0, control=127.0.0.1:29168
+[2026-10-12 13:20:40.990] [info] [sdk_net_client.cpp:287] Native media transport: WebSocket/TCP
+[2026-10-12 13:20:40.990] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 13:20:40.991] [info] [reconnect_supervisor.cpp:143] event=transport.connection_ready component=sdk_ws generation=1 latency_ms=1
+[2026-10-12 13:20:40.991] [info] [ws_connection.cpp:103] event=transport.tcp_connected component=sdk_ws local_address=127.0.0.1 local_port=29169
+[2026-10-12 13:20:43.016] [info] [sdk_net_client.cpp:429] Queued message count: 0
+[2026-10-12 13:20:43.031] [info] [sdk_net_client.cpp:441] WS has exited...
+[2026-10-12 13:20:43.032] [info] [sdk_net_client.cpp:286] Start native connection mode=1, route=0, control=127.0.0.1:29168
+[2026-10-12 13:20:43.032] [info] [sdk_net_client.cpp:287] Native media transport: WebSocket/TCP
+[2026-10-12 13:20:43.032] [info] [reconnect_supervisor.cpp:123] event=transport.connection_attempt component=sdk_ws generation=1 outcome=started
+[2026-10-12 13:20:43.033] [info] [reconnect_supervisor.cpp:143] event=transport.connection_ready component=sdk_ws generation=1 latency_ms=0
+[2026-10-12 13:20:43.033] [info] [ws_connection.cpp:103] event=transport.tcp_connected component=sdk_ws local_address=127.0.0.1 local_port=29175
+[2026-10-12 13:20:45.070] [info] [sdk_net_client.cpp:429] Queued message count: 0
+[2026-10-12 13:20:45.085] [info] [sdk_net_client.cpp:441] WS has exited...
+[       OK ] ClientRdpLifecycle.IdleConnectionProducesHeartbeatsAndReleasesEachSession (4117 ms)
+[ RUN      ] ClientRdpLifecycle.DestructionBeforeStartIsSafe
+[2026-10-12 13:20:45.115] [info] [sdk_net_client.cpp:441] WS has exited...
+[       OK ] ClientRdpLifecycle.DestructionBeforeStartIsSafe (29 ms)
+[----------] 2 tests from ClientRdpLifecycle (4146 ms total)
+
+[----------] Global test environment tear-down
+[==========] 2 tests from 1 test suite ran. (4146 ms total)
+[  PASSED  ] 2 tests.
+HASH OK  px_client.exe  7B72C2047EC06D825019B853FB2862EB61DF4DC25936EF067BFAD0C623CBFB87
+HASH OK  px_rdp_client.dll  21A1A9C3CADB02FD183337AD500CF1CA8B687F58B9DAA5AD2340A6FC9533C3A8
+HASH OK  px_rdp_core.dll  580DA115AAF104AB3FA9AE668B6EF0AD8DC1061FC2AE878F1CC6CEC1F7B065C9
+HASH OK  px_rdp_winpr.dll  463155B960A9C5A45579C6C97EB53A039262C8A131921D7E4AA3689759F9F352
+HASH OK  libusb-1.0.dll  CF0D2AB5C25B1E3414378E92C160DC7EB0386326736F812A97B61C915E6A43B1
+HASH OK  libssl-3-x64.dll  3B9486E25861A358DCCDD36BC6524B7554E94D00703704AC2037F34F34C67E1E
+HASH OK  libcrypto-3-x64.dll  D10718A1EE7A51ACF20D4DF5DAB191E249E715F7AC437BD0637D5D860818D336
+HASH OK  zlib1.dll  885404E26514F02BFC68983183542062E459A324292CAF281785507180EE2CBD
+HASH OK  cjson.dll  D2F1C0EF73D50CBA70294F947E34BA9B63C9949A8C352DD77E557F55D9B57DC0
+HASH OK  legacy.dll  2D0A349C883F50CBF776C0054EF1B37E24C4D266315C3437362DDE1B774412DF
+HASH OK  openh264-6.dll  ECBF31FD2691179D5E616F9659D6D72EBA0F8392980158F69567E93FE4C40159
+HASH OK  vulkan-1.dll  2302CECC9A056083A0E080DFDFDEA035C2480857168FD6EA52D4499B094256B6
+HASH OK  libplacebo-349.dll  D81222CA387BCE5475FD1F0D7515E8B6959DAF1846AAD9C6DF71312E044191A1
+HASH OK  rdp\px_rdp_sdk.json  5A1695FE30104CFD53B2AFAA836B1EC9D5DD01019FC0BBF07BA0830011CA4136
+HASH OK  px_voice_apm.dll  3F320BB096B1B52CF8C2D0E4A55450FCD96FA9C128B9CD4823DC22A2098039FD
+HASH OK  resources\fonts\Roboto-Medium.ttf  8559132C89AD51D8A2BA5B171887A44A7BA93776E205F553573DE228E64B45F8
+HASH OK  resources\icons\brand\px_icon.png  5CC1F93725D87065E2CFC68BF3B0B807CF3193A24CEDA8B4745545B0A5B1E87B
+HASH OK  resources\icons\brand\px_icon-150.png  CB70AE1856FC85755A75135108DE14925D216067C17A0A31367DBF4656A7B1EA
+HASH OK  resources\icons\brand\px_icon-200.png  C7F7A2B4A187C4D95F0D7C24C0ED353A26F0C5FF9E51001507F701D2F9E4F349
+HASH OK  resources\licenses\FreeType.txt  B70F0E349EFA97C835FAF3A82C4A641036537BA94C1DEDE77FF8BF3CEC6AAC30
+HASH OK  resources\icons\platform\windows.png  C82BA6C2316D9C4A2BC1D07B263387FC6F6C5CDE9E0F6AB508FB225908F00A63
+HASH OK  resources\icons\platform\windows-150.png  6595AF00D0AB9E8BBFD820CE67DE5DBF4DD4DA17B34727D564029B39D5514188
+HASH OK  resources\icons\platform\windows-200.png  D587ACA49C7EA1C97D4C94A12E7A44ADDC53BCF268183DF3F5D141C6EFF661A7
+HASH OK  resources\icons\platform\macos.png  9962E7BB5475BBA83B30131D6D24BC34D27999468BA845723BF4AF9D0B0A3A09
+HASH OK  resources\icons\platform\macos-150.png  EDEED6DE366D97EE1D2ACE6D59741307BE7CC5BF72E6958EC19B62916AA2E0DA
+HASH OK  resources\icons\platform\macos-200.png  288150377F43C64496ADE6B16A556F9A9E3BA72EC9AEEA41686BA47EA76D5527
+HASH OK  resources\icons\platform\android.png  2BA28FC5AC84A6CDB346590C10AB7DDF71D434169BC3A45F93C8E6142EDD89AD
+HASH OK  resources\icons\platform\android-150.png  EE86EB8D6AFCBCF50BC4F4BF71F5896C58804169E546DF903165CD4CDB4E73C6
+HASH OK  resources\icons\platform\android-200.png  C805460793FBCDEB05EFB201345BCCAEF0D6EA012450F1EFC76DD1EF9FA57492
+HASH OK  resources\icons\platform\ios.png  473DD687639D24B21455693D4EBBB659B1FB7D3239757E5A5ED68D99B047ABA0
+HASH OK  resources\icons\platform\ios-150.png  B7C6622F2A2643BD0E4413227862ED338454CE84BBAB8F1060AA4C05278F28FD
+HASH OK  resources\icons\platform\ios-200.png  4990CBC79CAA3C964C8BDB46F2604146A9E4EE498F341F725CC5F84BBAC8556A
+HASH OK  resources\licenses\Tabler.txt  D5A3F948AE5CB95BFC4D2F767EF2BF6A778815B0DDB2D1C48037744CF636518E
+HASH OK  resources\language\english.json  102E2530672C2B8A0866AEA26697C81618F2E74176AEE883590B2378C9F6315D
+HASH OK  resources\language\simple_cn.json  6138A11E5AA7CE0F37D620C16B1D8A5D73595EBE4BD744E5027A40A919BD31AB
+HASH OK  resources\language\traditional_cn.json  CF09C174CD07199EE28CD0981CF9EDEE7FE81A2E103B350E65DB43F8C49FC6A8
+Refreshed development distribution manifest: D:\GoCloud\GammaRayPremium\build_official\client\dist (40 artifacts).
+ZERO-QT OK  px_panel.exe
+ZERO-QT OK  px_client.exe
+ZERO-QT OK  px_osinfo.exe

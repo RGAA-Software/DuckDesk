@@ -1,0 +1,30 @@
+Verified cloud_node 3.3.97: 314 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Command line defined: "OUTPUT_DIR=D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\node-relay-selection-20261012\installer\.cloud_node-installer-sopm31p6"
+Command line defined: "PRODUCT_ID=cloud_node"
+Command line defined: "DISTRIBUTION=official"
+Command line defined: "RELEASE_NAMESPACE=pixels.official"
+Command line defined: "OEM_ID="
+Command line defined: "PRODUCT_VERSION=3.3.97"
+Command line defined: "PRODUCT_VERSION_CODE=30397"
+Command line defined: "COMPANY=Pixels"
+Command line defined: "PUBLISHER_NAME=Pixels"
+Processing config: D:\GoCloud\GammaRayPremium\tools\nsis\nsisconf.nsh
+Processing script file: "D:\GoCloud\GammaRayPremium\setup\make_setup.nsi" (UTF8)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\node-relay-selection-20261012\installer\.cloud_node-installer-sopm31p6\PixelsCloudNode_official_3.3.97_Setup.exe"
+Install: 4 pages (256 bytes), 1 section (2072 bytes), 1174 instructions (32872 bytes), 702 strings (27130 bytes), 2 language tables (636 bytes).
+Uninstall: 3 pages (256 bytes), 1 section (2072 bytes), 450 instructions (12600 bytes), 269 strings (9860 bytes), 2 language tables (572 bytes).
+Datablock optimizer saved 4257 KiB (~1.5%).
+
+Using zlib compression.
+
+EXE header size:              236032 / 39936 bytes
+Install code:                  12142 / 63430 bytes
+Install data:              278331786 / 676765675 bytes
+Uninstall code+data:           46431 / 218602 bytes
+CRC (0x994740A2):                  4 / 4 bytes
+
+Total size:                278626395 / 677087647 bytes (41.1%)
+Published installer atomically: D:\GoCloud\GammaRayPremium\build_official\cloud_node\official\candidates\node-relay-selection-20261012\installer\3.3.97

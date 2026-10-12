@@ -1,0 +1,38 @@
+{
+    "device_code":  "947158375",
+    "workspace":  "D:\\uploadsoft\\rd\\pixels\\relay-video-20261012",
+    "candidate":  "node-relay-selection-fixed-20261012",
+    "setup_sha256":  "58011B2129E7513F67063A6E2C0B268D25E83BAEC0C1E35326936A012134AEC9",
+    "manifest_sha256":  "967259D786D828475A2E6AF64A77BD5BF8E431BBE3710894EFED1C7EFDBE3DF2",
+    "setup_exit":  0,
+    "owned_client_removed":  false,
+    "product_version":  "3.3.97",
+    "verified_artifacts":  314,
+    "service":  "Running",
+    "sessions_before":  [
+                            " 用户名                会话名             ID  状态    空闲时间   登录时间",
+                            " administrator         console             1  运行中      无     2026/9/12 20:57"
+                        ],
+    "sessions_after":  [
+                           " 用户名                会话名             ID  状态    空闲时间   登录时间",
+                           " administrator         console             1  运行中      无     2026/9/12 20:57"
+                       ],
+    "runtime_artifacts":  [
+                              {
+                                  "path":  "px_render.exe",
+                                  "sha256":  "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E"
+                              },
+                              {
+                                  "path":  "px_client.exe",
+                                  "sha256":  "0C9B2695FCD536F9C888B3B9892912F6BB0814B6DEA5CC377E96D196A4E4DBAB"
+                              },
+                              {
+                                  "path":  "px_panel.exe",
+                                  "sha256":  "4FA736905019E6D9C8221BBDBF7F8B88690B06A40E901B9B3E58912C0768D630"
+                              },
+                              {
+                                  "path":  "px_service.exe",
+                                  "sha256":  "636C688E72F5FB135A7E7C194344345049449CA7E9DE5397C23DB6FF3D4526C0"
+                              }
+                          ]
+}

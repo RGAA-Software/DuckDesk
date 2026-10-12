@@ -27,6 +27,7 @@ pub struct NetworkConfig {
     pub panel_port: u16,
     pub discovery_port: u16,
     pub discovery_enabled: bool,
+    pub iroh_relay_urls: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
@@ -45,6 +46,7 @@ impl Default for NetworkConfig {
             panel_port: DEFAULT_PANEL_PORT,
             discovery_port: DEFAULT_DISCOVERY_PORT,
             discovery_enabled: false,
+            iroh_relay_urls: Vec::new(),
         }
     }
 }
@@ -84,6 +86,27 @@ impl NodeConfig {
     }
 
     pub fn validate(&self) -> Result<(), String> {
+        if self.network.iroh_relay_urls.len() > 32 {
+            return Err("network.iroh_relay_urls supports at most 32 private Relay URLs".into());
+        }
+        let mut relay_urls = std::collections::HashSet::new();
+        for relay_url in &self.network.iroh_relay_urls {
+            let parsed = url::Url::parse(relay_url)
+                .map_err(|_| "network.iroh_relay_urls contains an invalid URL")?;
+            if parsed.scheme() != "https"
+                || parsed.host_str().is_none()
+                || !parsed.username().is_empty()
+                || parsed.password().is_some()
+                || parsed.query().is_some()
+                || parsed.fragment().is_some()
+                || parsed.path() != "/"
+                || !relay_urls.insert(parsed.to_string())
+            {
+                return Err(
+                    "network.iroh_relay_urls requires distinct private HTTPS Relay origins".into(),
+                );
+            }
+        }
         validate_access_host(&self.access_host)?;
         if self
             .network
@@ -126,6 +149,29 @@ impl NodeConfig {
         validate_access_host(&access_host)?;
         self.access_host = access_host;
         Ok(())
+    }
+
+    /// Restrict only Console-authorized candidates; never introduce a local fallback Relay.
+    pub fn select_iroh_relays(
+        &self,
+        candidates: Vec<px_node_protocol::IrohRelayConfig>,
+    ) -> Vec<px_node_protocol::IrohRelayConfig> {
+        if self.network.iroh_relay_urls.is_empty() {
+            return candidates;
+        }
+        let selected_origins = self
+            .network
+            .iroh_relay_urls
+            .iter()
+            .filter_map(|relay_url| url::Url::parse(relay_url).ok())
+            .collect::<std::collections::HashSet<_>>();
+        candidates
+            .into_iter()
+            .filter(|candidate| {
+                url::Url::parse(&candidate.url)
+                    .is_ok_and(|candidate_origin| selected_origins.contains(&candidate_origin))
+            })
+            .collect()
     }
 
     /// Service owns these arguments; persisted launches cannot retain stale listener settings.
@@ -197,6 +243,68 @@ mod tests {
     use super::*;
 
     #[test]
+    fn local_relay_selection_tracks_console_withdrawal_without_fallback() {
+        let beijing = px_node_protocol::IrohRelayConfig {
+            url: "https://beijing.example.test:4605/".into(),
+            qad_port: Some(4605),
+        };
+        let other_relay = px_node_protocol::IrohRelayConfig {
+            url: "https://other.example.test:4605/".into(),
+            qad_port: Some(4605),
+        };
+        let mut configuration = NodeConfig::default();
+        assert_eq!(
+            configuration.select_iroh_relays(vec![beijing.clone(), other_relay.clone()]),
+            vec![beijing.clone(), other_relay.clone()]
+        );
+        // Canonical origins accept the operator's omitted trailing slash.
+        configuration.network.iroh_relay_urls = vec!["https://beijing.example.test:4605".into()];
+        configuration.validate().unwrap();
+        assert_eq!(
+            configuration.select_iroh_relays(vec![beijing.clone(), other_relay.clone()]),
+            vec![beijing.clone()]
+        );
+        // A local setting cannot retain a Relay withdrawn by Console, invent
+        // an unregistered endpoint or silently choose the unselected Relay.
+        assert!(
+            configuration
+                .select_iroh_relays(vec![other_relay])
+                .is_empty()
+        );
+        assert_eq!(
+            configuration.select_iroh_relays(vec![beijing.clone()]),
+            vec![beijing]
+        );
+    }
+
+    #[test]
+    fn local_relay_selection_rejects_ambiguous_or_credentialed_urls() {
+        for relay_url in [
+            "http://relay.example.test:4605/",
+            "https://name:secret@relay.example.test:4605/",
+            "https://relay.example.test:4605/path",
+            "https://relay.example.test:4605/?hint=value",
+            "https://relay.example.test:4605/#section",
+        ] {
+            let mut configuration = NodeConfig::default();
+            configuration.network.iroh_relay_urls = vec![relay_url.into()];
+            assert!(
+                configuration.validate().is_err(),
+                "invalid Relay origin accepted"
+            );
+        }
+        let mut configuration = NodeConfig::default();
+        configuration.network.iroh_relay_urls = vec![
+            "https://relay.example.test:4605".into(),
+            "https://relay.example.test:4605/".into(),
+        ];
+        assert!(
+            configuration.validate().is_err(),
+            "duplicate canonical origins accepted"
+        );
+    }
+
+    #[test]
     fn defaults_and_independent_node_ranges_are_valid() {
         NodeConfig::default().validate().unwrap();
         let mut config = NodeConfig::default();
@@ -254,9 +362,11 @@ mod tests {
         assert!(args.contains(&"--rtc_advertised_ipv4=203.0.113.8".into()));
         config.access_host = "render.example.com".into();
         config.configure_render(&mut args, true);
-        assert!(!args
-            .iter()
-            .any(|arg| arg.starts_with("--rtc_advertised_ipv4=")));
+        assert!(
+            !args
+                .iter()
+                .any(|arg| arg.starts_with("--rtc_advertised_ipv4="))
+        );
     }
 
     #[test]

@@ -1,0 +1,39 @@
+{
+  "device_code": "947158375",
+  "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "requested_seconds": 600,
+  "video_bandwidth_kbps": 10000,
+  "require_60fps": false,
+  "expected_relay": "https://49.232.233.61:4605/",
+  "instance_id": "1e87105b-d33c-4cf6-a4bc-5675a371df5b",
+  "resource_session_id": "edbceecf-5ffa-444d-a214-3d8d6453a150",
+  "endpoint_address": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "112.27.225.224:4613"
+      },
+      {
+        "Ip": "112.27.225.224:25586"
+      },
+      {
+        "Ip": "172.17.80.25:4613"
+      }
+    ],
+    "id": "98180f3c957ba8a34153580aef99d871f8ce0f7356bb069cae88b3ccf9bc906d"
+  },
+  "render_port": 4613,
+  "node_reported_relay": [
+    "https://39.71.45.66:4605/"
+  ],
+  "client_pid": 7200,
+  "failure": "Actual media path is not BJ Relay; do not count it as this acceptance",
+  "state": "failed",
+  "grace_stopped_seconds": 15.08,
+  "client_log_gzip_sha256": "759A9FC5614033E36150E04E8A2616DC66F619FB468BE58C3E5CF4BDAB5D846F",
+  "client_log_raw_sha256": "8319F8FE195E26CB9DA4F0E83E04036CF1AAE5FE125D8E9CC5B38564AE962806",
+  "owned_client_ended": true
+}

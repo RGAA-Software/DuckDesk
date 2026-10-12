@@ -645,11 +645,13 @@ FunctionEnd
 
 Function InstallAndStartService
     IfFileExists "$INSTDIR\px_service.exe" service_binary_present 0
+        IfSilent +2
         MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service.exe is missing. Setup cannot continue."
         SetErrorLevel 1603
         Abort "px_service.exe is missing"
 service_binary_present:
     IfFileExists "$INSTDIR\px_service_manager.exe" service_manager_present 0
+        IfSilent +2
         MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "px_service_manager.exe is missing. Setup cannot continue."
         SetErrorLevel 1603
         Abort "px_service_manager.exe is missing"
@@ -660,6 +662,7 @@ service_manager_present:
     Pop $R1
     DetailPrint "$R1"
     StrCmp $R0 "0" service_install_ok
+        IfSilent +2
         MessageBox MB_OK|MB_ICONSTOP|MB_TOPMOST "Failed to register or start px_service. Setup cannot continue."
         SetErrorLevel 1603
         Abort "px_service installation failed: $R1"

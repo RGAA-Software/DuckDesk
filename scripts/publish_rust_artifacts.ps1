@@ -6,7 +6,10 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidateSet('cloud_node', 'remote')]
-    [string]$Product
+    [string]$Product,
+
+    [ValidateSet('development', 'official')]
+    [string]$Distribution = 'development'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,10 +17,15 @@ Set-StrictMode -Version Latest
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $productRoot = Join-Path $repoRoot "build_official\$Product\cargo"
+if ($Distribution -eq 'official') {
+    $productRoot = Join-Path $repoRoot "build_official\$Product\official\cargo"
+}
 $outputRoot = Join-Path $productRoot 'stage'
 $distributionRoot = Join-Path $repoRoot "build_official\$Product\dist"
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
-New-Item -ItemType Directory -Path $distributionRoot -Force | Out-Null
+if ($Distribution -eq 'development') {
+    New-Item -ItemType Directory -Path $distributionRoot -Force | Out-Null
+}
 
 $source = Join-Path $productRoot 'target\release\px_service.exe'
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
@@ -77,6 +85,10 @@ function Publish-Artifact([string]$Destination) {
 }
 
 Publish-Artifact (Join-Path $outputRoot 'px_service.exe')
+if ($Distribution -eq 'official') {
+    # collect_dist owns the atomic complete package publication from this stage.
+    exit 0
+}
 Publish-Artifact (Join-Path $distributionRoot 'px_service.exe')
 $manifestRefresh = Join-Path $repoRoot 'scripts\refresh_development_dist.py'
 & python $manifestRefresh $distributionRoot

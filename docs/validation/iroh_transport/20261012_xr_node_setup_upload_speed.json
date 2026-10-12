@@ -1,0 +1,13 @@
+{
+  "operation_id": "fb7e33b4-f12b-4945-b8cc-8259f8318383",
+  "device_code": "947158375",
+  "destination": "D:\\uploadsoft\\rd\\pixels\\relay-video-20261012\\PixelsCloudNode_official_3.3.97_Setup.exe",
+  "source_bytes": 278626254,
+  "transferred_bytes": 278626254,
+  "elapsed_seconds": 699.743,
+  "average_MB_per_second": 0.398183696014108,
+  "average_megabits_per_second": 3.185469568112864,
+  "state": "completed",
+  "sha256": "56d2ecaf6fc1a37d7631a69615b41ad57754b225189c9f752de587b617bad293",
+  "scope": "Pixels MCP file upload; distinct from isolated BJ iroh throughput. No conclusion on which upload layer limits the speed."
+}

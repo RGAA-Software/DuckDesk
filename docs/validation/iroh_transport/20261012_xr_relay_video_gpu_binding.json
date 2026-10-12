@@ -1,0 +1,10 @@
+{
+  "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+  "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+  "gpu_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "observed_state": "ready",
+  "deployment_revision": 2,
+  "initial_unbound_reason": "binding_unverified: optional key with four verified GPUs fails unique-match gate",
+  "product_changed": false
+}

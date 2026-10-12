@@ -59,6 +59,7 @@ desktop_port = 4601
 panel_port = 4999
 discovery_enabled = false
 discovery_port = 4604
+iroh_relay_urls = []
 
 [applications]
 port_start = 4613
@@ -69,6 +70,12 @@ port_end = 4998
 桌面 4601、每个实际应用端口同时承载同号 TCP/WS 与 UDP。应用端口由当前节点自己的 4613–4998 池分配；不同节点可复用同一范围。
 管理4603只供同机Panel/Render，Panel 4999按产品需要开放。不存在独立RTC 5000–5031媒体池；Direct Host WebRTC使用对应
 Render的实际同号TCP/WS与UDP端口。所有活动范围必须互不重叠。
+
+`network.iroh_relay_urls` 是本节点的可选私有 Relay 限制，例如 `["https://relay-bj.example.com:4605/"]`。
+空列表使用 Console 当前提供的全部候选；非空列表仅取指定 HTTPS 源与 Console 当前候选的交集，不创建新 Relay 或改变
+其他节点。修改后重启本节点 Service，新的 Render 使用该集合；后续 Console 候选更新仍经过同一过滤，撤下的候选不会被
+本地设置重新加入。交集为空就没有可用的中继候选，不自动使用未选择的 Relay。该配置不屏蔽系统 UDP，也不强制所有连接
+经过 Relay；Client 的现有强制 Relay 策略继续独立控制连接方式。
 端口 20371 已完全退役，不是默认值、探测目标或回退端口。
 
 ## 4. 上报、对账和命令

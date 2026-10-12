@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\.cache\run_xr_relay_video.py", line 91, in <module>
+    raise RuntimeError('XR instance failed: ' + str(instance.get('error_code')))
+RuntimeError: XR instance failed: None
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\.cache\run_xr_relay_video.py", line 186, in <module>
+    result['grace_stopped_seconds'] = helpers['wait_stopped'](instance, 40)
+                                      ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "xr_relay_video_helpers", line 62, in wait_stopped
+RuntimeError: Idle exit classified as failed: None
