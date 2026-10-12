@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Remote availability update (2026-10-12, superseding the afternoon exclusion): the user confirmed
+  "Use 90; it is available now" for the paired Console/node rollout and subsequent mainline validation.
+  Device 428358431 may be used again; stage development and transfer artifacts only under `D:\112233`.
+  Keep Android excluded and leave the evening video-stutter/NIC/saturated mixed-load investigation deferred.
+
 - Transport sequencing decision (2026-10-12 afternoon): defer the remaining short video-stutter tuning to the evening return.
   Continue the Windows/Linux network mainline with multi-Relay load visibility and actual endpoint-distribution review.
   Reuse the completed functional/installation evidence; do not restart the video, NIC or saturated mixed-load investigation during this batch.

@@ -1,0 +1,510 @@
+{
+  "recorded_at": "2026-10-12T10:59:38.702043+00:00",
+  "base_revision": "cda87f42b",
+  "user_authorization": "2026-10-12: use 90; it is available now for this paired rollout",
+  "scope": "authorized incremental development publication after existing complete Setup baselines; not a new full Setup installation acceptance",
+  "delivery": {
+    "console": {
+      "transfer": {
+        "state": "completed",
+        "sha256": "d99adbf31913107db4bb011a0c1fe6664cfd8d16e56f94d4799437d465eb61a4",
+        "bytes": 7220064,
+        "started_at_unix_ms": 1791799831680,
+        "finished_at_unix_ms": 1791799833856
+      },
+      "transfer_seconds": 2.176,
+      "transfer_megabytes_per_second": 3.3180441176470588,
+      "publish": {
+        "state": "published",
+        "service": "Pixels.Console",
+        "runtime_sha256": "C783635BE09091D6BBA21159141AAE1D3F28C7CAAF366749010EDF804441B265",
+        "manifest_sha256": "4B2D26D7DAE607A28A5D6C3C8FD61E9782E19A2A7562C6DEB5FEC0B8665DDF2E",
+        "verified_artifacts": 36,
+        "backup_directory": "D:\\112233\\relay-retention-rollout-20261012\\console\\before-bca2ad99c3304f0cbfbca79cbcd121b9",
+        "service_state": "Running"
+      },
+      "publish_operation": {
+        "device_code": "428358431",
+        "kind": "command",
+        "operation_id": "118737e1-f824-4f2d-b28e-c8d324e3cccf",
+        "task_id": "0cf46b3c-f558-4661-a8a4-6e312adf8a80"
+      },
+      "plan": {
+        "schema_version": 1,
+        "purpose": "authorized-development-incremental-update-on-existing-complete-baseline",
+        "device_code": "428358431",
+        "installed_root": "C:\\Program Files\\Pixels\\Server\\current",
+        "service_name": "Pixels.Console",
+        "runtime_executable": "bin/px_console.exe",
+        "manifest_name": "sha256.json",
+        "baseline_manifest_sha256": "5f10b9d2071fa1ce038258fd515de8c3505026cc0501ee12c0356efa55c6484c",
+        "desired_manifest_sha256": "4b2d26d7dae607a28a5d6c3c8fd61e9782e19a2a7562c6deb5fec0b8665ddf2e",
+        "replacements": [
+          {
+            "path": "bin/px_console.exe",
+            "before_sha256": "deddb88cba84603386234dd59e7aa4e78a5c07f3bcf73fbbffe9e69671ff126f",
+            "after_sha256": "c783635be09091d6bba21159141aae1d3f28c7caaf366749010edf804441b265",
+            "bytes": 18815488
+          },
+          {
+            "path": "static/console/assets/index-Ccvh3tm_.js",
+            "before_sha256": null,
+            "after_sha256": "90bca77193da67d07c6092fa5475713fe8739b82ddb8715273c3d6846d20068c",
+            "bytes": 1866974
+          },
+          {
+            "path": "static/console/index.html",
+            "before_sha256": "f9be75d5bd24c44b97676ee8b4480e65b60eff1d3ba7f140c977041767f61147",
+            "after_sha256": "f0410ce5aac2d76ed758aa30467582700d781fe1efda28c60059130a44feb20d",
+            "bytes": 462
+          }
+        ],
+        "removals": [
+          {
+            "path": "static/console/assets/index-BgsyuxXJ.js",
+            "before_sha256": "cee5e86fee80895e31eec556718aebfecb4db490bc9b562a2821d40890c71c1d"
+          }
+        ],
+        "preserve_node_configuration": false
+      }
+    },
+    "node-90": {
+      "transfer": {
+        "state": "completed",
+        "sha256": "f601e4006682198911524c6bafe97f65b9940ff885c536e2b434c0d069ffae68",
+        "bytes": 3941437,
+        "started_at_unix_ms": 1791799833881,
+        "finished_at_unix_ms": 1791799835255
+      },
+      "transfer_seconds": 1.374,
+      "transfer_megabytes_per_second": 2.868585880640466,
+      "publish": {
+        "state": "published",
+        "service": "px_service",
+        "runtime_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "manifest_sha256": "5943655CD1C523A0DEBF2143EFDD561E4ABA4A44359E863714DC8F7290DD3E62",
+        "verified_artifacts": 315,
+        "backup_directory": "D:\\112233\\relay-retention-rollout-20261012\\node-90\\before-615c1514afa64b979adf610f95762557",
+        "service_state": "Running"
+      },
+      "publish_operation": {
+        "device_code": "428358431",
+        "kind": "command",
+        "operation_id": "a4a9c883-7543-4e7d-80e1-ad87f0f9cde7",
+        "task_id": "cce5b22b-126f-4dbb-ba49-7928c82c9747"
+      },
+      "plan": {
+        "schema_version": 1,
+        "purpose": "authorized-development-incremental-update-on-existing-complete-baseline",
+        "device_code": "428358431",
+        "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+        "service_name": "px_service",
+        "runtime_executable": "px_service.exe",
+        "manifest_name": "sha256sums.json",
+        "baseline_manifest_sha256": "d4764e0d5664d27b173aa60b0e7e989b342df07147fbb6e3d0e757f715d170ac",
+        "desired_manifest_sha256": "5943655cd1c523a0debf2143efdd561e4aba4a44359e863714dc8f7290dd3e62",
+        "replacements": [
+          {
+            "path": "px_service.exe",
+            "before_sha256": "EE2CFCC775356BA371766A2049E6F69769538871DDFD314AB919CE8805E11AE0",
+            "after_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+            "bytes": 10609152
+          }
+        ],
+        "removals": [],
+        "preserve_node_configuration": true
+      },
+      "final": {
+        "service_state": "Running",
+        "service_pid": 16536,
+        "service_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "configuration_sha256": "55904D032A3ED2955495715371ABE00002EA96F291C9CECA0269E0DBD23A2491",
+        "manifest_sha256": "5943655CD1C523A0DEBF2143EFDD561E4ABA4A44359E863714DC8F7290DD3E62",
+        "renders": [
+          {
+            "ProcessId": 12264,
+            "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+          }
+        ]
+      }
+    },
+    "node-xr": {
+      "transfer": {
+        "state": "completed",
+        "sha256": "d6f7176724c1722151e1e5135c36efdaf367da6769d86ac93eb353617c50c850",
+        "bytes": 3941437,
+        "started_at_unix_ms": 1791799835308,
+        "finished_at_unix_ms": 1791799844723
+      },
+      "transfer_seconds": 9.415,
+      "transfer_megabytes_per_second": 0.418633775889538,
+      "publish": {
+        "state": "published",
+        "service": "px_service",
+        "runtime_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "manifest_sha256": "BBC326BCC1A65B743987C7B79DA01767CE8F1689E4E31C21A0BA8D0E3BA4B17C",
+        "verified_artifacts": 315,
+        "backup_directory": "D:\\uploadsoft\\rd\\pixels\\relay-retention-rollout-20261012\\node-xr\\before-a96b8c6c4d0941aba819fd26d43664d9",
+        "service_state": "Running"
+      },
+      "publish_operation": {
+        "device_code": "947158375",
+        "kind": "command",
+        "operation_id": "5f356d52-3c3a-4e16-b8b5-c94f399119ae",
+        "task_id": "b590dfea-6cf8-4625-bc39-9fe50c8005e4"
+      },
+      "plan": {
+        "schema_version": 1,
+        "purpose": "authorized-development-incremental-update-on-existing-complete-baseline",
+        "device_code": "947158375",
+        "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+        "service_name": "px_service",
+        "runtime_executable": "px_service.exe",
+        "manifest_name": "sha256sums.json",
+        "baseline_manifest_sha256": "bb22cbd9d9028f2da73ae6142e9e55839abf9f2b846e7bc44d1f055d5f038110",
+        "desired_manifest_sha256": "bbc326bcc1a65b743987c7b79da01767ce8f1689e4e31c21a0ba8d0e3ba4b17c",
+        "replacements": [
+          {
+            "path": "px_service.exe",
+            "before_sha256": "636C688E72F5FB135A7E7C194344345049449CA7E9DE5397C23DB6FF3D4526C0",
+            "after_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+            "bytes": 10609152
+          }
+        ],
+        "removals": [],
+        "preserve_node_configuration": true
+      },
+      "final": {
+        "service_state": "Running",
+        "service_pid": 47064,
+        "service_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "configuration_sha256": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+        "manifest_sha256": "BBC326BCC1A65B743987C7B79DA01767CE8F1689E4E31C21A0BA8D0E3BA4B17C",
+        "renders": []
+      }
+    }
+  },
+  "production_validation": {
+    "source_render_endpoint_id": "bdc8b9e87ce3b4485c44eda94e4c18b888b3261869c43929fc708ff69d383996",
+    "existing_primary_connection_count_retained": true,
+    "held_transport": {
+      "datagrams_each_direction": 4,
+      "home": "https://39.71.45.66:4605/",
+      "new_endpoint_denied": true,
+      "phase": "draining",
+      "reliable_round_trips": 4,
+      "same_endpoint_identities": true,
+      "same_quic_connections": true,
+      "same_reliable_stream": true
+    },
+    "new_endpoint_allocation": {
+      "datagrams_each_direction": 4,
+      "endpoint_count": 2,
+      "homes": [
+        "https://49.232.233.61:4605/",
+        "https://49.232.233.61:4605/"
+      ],
+      "reliable_round_trips": 4
+    },
+    "before_relays": [
+      {
+        "control_epoch": 72,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "generation": 18,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:32.863180Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 322,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1744000987
+      },
+      {
+        "control_epoch": 72,
+        "current_connections": 3,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 3102032,
+        "fresh": true,
+        "generation": 93,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:37.166440Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 323,
+        "reported_draining": false,
+        "revision": 20,
+        "state": "ready",
+        "uploaded_bytes": 3114000
+      }
+    ],
+    "during_relays": [
+      {
+        "control_epoch": 72,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1743055751,
+        "fresh": true,
+        "generation": 18,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:52.863238Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 326,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1744019807
+      },
+      {
+        "control_epoch": 72,
+        "current_connections": 3,
+        "current_rooms": null,
+        "desired_draining": true,
+        "disabled": false,
+        "forwarded_bytes": 3104427,
+        "fresh": true,
+        "generation": 93,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:52.166723Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 327,
+        "reported_draining": true,
+        "revision": 21,
+        "state": "ready",
+        "uploaded_bytes": 3116395
+      }
+    ],
+    "video_started": false,
+    "restored_relays": [
+      {
+        "control_epoch": 72,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1743055751,
+        "fresh": true,
+        "generation": 18,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:52.863238Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 326,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1744019807
+      },
+      {
+        "control_epoch": 72,
+        "current_connections": 1,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 3104707,
+        "fresh": true,
+        "generation": 93,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:41:57.167367Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 329,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 3116737
+      }
+    ],
+    "relay_policy_restored": true
+  },
+  "final_api": {
+    "session_count": 328,
+    "session_states": {
+      "closed": 328
+    },
+    "active_resource_sessions": 0,
+    "nodes": [
+      {
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "state": "ready",
+        "fresh": true,
+        "generation": 20,
+        "control_epoch": 72,
+        "report_sequence": 133,
+        "endpoint_revision": 2,
+        "disabled": false
+      },
+      {
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "state": "ready",
+        "fresh": true,
+        "generation": 463,
+        "control_epoch": 72,
+        "report_sequence": 137,
+        "endpoint_revision": 3,
+        "disabled": false
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 72,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1743055751,
+        "fresh": true,
+        "generation": 18,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:48:52.861189Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 410,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1744019807
+      },
+      {
+        "control_epoch": 72,
+        "current_connections": 1,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 3104707,
+        "fresh": true,
+        "generation": 93,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-12T10:48:57.169352Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 413,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 3116737
+      }
+    ],
+    "instance_summary": []
+  },
+  "source_endpoint_before": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4601"
+      },
+      {
+        "Ip": "39.71.45.66:4601"
+      }
+    ],
+    "id": "bdc8b9e87ce3b4485c44eda94e4c18b888b3261869c43929fc708ff69d383996"
+  },
+  "source_endpoint_after": {
+    "addrs": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "10.0.0.90:4601"
+      },
+      {
+        "Ip": "39.71.45.66:4601"
+      }
+    ],
+    "id": "bdc8b9e87ce3b4485c44eda94e4c18b888b3261869c43929fc708ff69d383996"
+  },
+  "source_endpoint_identity_preserved": true,
+  "configuration_preserved": true,
+  "local_owned_probe_processes": 0,
+  "video_performance_tested": false,
+  "android_implemented": false,
+  "harness_failures_before_transport": [
+    {
+      "reason": "Non-UUID MCP request ID rejected before command admission"
+    },
+    {
+      "reason": "First native preflight guessed product path without spaces; corrected from verified service executable path"
+    },
+    {
+      "reason": "Large command output preview was truncated; switched to dedicated file read/download with SHA"
+    },
+    {
+      "reason": "Desktop resource harness missing subject-kind header returned 400"
+    },
+    {
+      "reason": "Desktop observer is unsupported and controller access was not granted to the test account; 403; no access grant changed"
+    },
+    {
+      "reason": "Retired cloud acceptance login returned 401; no user/password changed"
+    }
+  ],
+  "continued_validation": "Use existing administrator control API and read-only PostgreSQL endpoint snapshots; no new transport credentials or user access changes",
+  "probe_log": {
+    "path": "20261012_relay_retention_rollout_probe.log",
+    "sha256": "A6B2EAE10C67B3830539E58FB4870619E6A5C337ECA1E0EB754CE2A3D334DCE5"
+  },
+  "served_web_assets": {
+    "/": {
+      "status": 200,
+      "sha256": "F0410CE5AAC2D76ED758AA30467582700D781FE1EFDA28C60059130A44FEB20D"
+    },
+    "/assets/index-Ccvh3tm_.js": {
+      "status": 200,
+      "sha256": "90BCA77193DA67D07C6092FA5475713FE8739B82DDB8715273C3D6846D20068C"
+    }
+  }
+}

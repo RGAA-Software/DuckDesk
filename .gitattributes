@@ -25,3 +25,4 @@ rust_server/px_desk_server/.sqlx/*.json text eol=lf
 rust_server/px_auth_server/storage/queries/*.sql text eol=lf
 rust_server/px_auth_server/storage/.sqlx/*.json text eol=lf
 scripts/server_validation/*.sh text eol=lf
+docs/validation/iroh_transport/20261012_relay_retention_rollout_probe.log text eol=lf

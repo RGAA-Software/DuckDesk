@@ -4,6 +4,15 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-12 18:43，90恢复可用／配套增量上线完成
+
+- 用户明确“用90，可以用了”，AGENTS顶端记录覆盖此前暂停90；主线使用90恢复，Android及晚间短顿／NIC／饱和混传仍未启动。实际路径核对后，用Pixels MCP按Console→90节点→XR节点更新；90暂存D:\112233，XR暂存D:\uploadsoft\rd\pixels，没有Desktop复制。
+- 既有完整Setup基线之上仅传Console exe＋变化JS/index(7.22MB)、两侧Service各3.94MB，三个ZIP源／目标SHA一致；先VerifyOnly、备份、停止指定服务、发布、全部载荷清单SHA、启动。Server35载荷＋清单、Node各314载荷＋清单均核对。运行ConsoleC783635B…／两个ServiceA06AF7FE…；Server manifest4B2D26D7…／90 Node5943655C…／XR NodeBBC326BC…。90自定义TOML55904D03…／XR38363D78…哈希保持；Relay/Backup未重启。不是新Setup安装验收，不重打完整包。
+- 更新后节点90generation463／XR20、epoch72、fresh/ready，在多个报告周期保持代际；两Relay同epoch并恢复认证。Console先更新、旧节点随后更新的间隔有短暂重认证，明确记录，不称零重连。Company FE8B8257…沿用，本批未改。
+- 实网小消息：90原生产连接1＋helper2，临时排空后仍3；helper同一Endpoint／QUIC／可靠流保持，4可靠往返＋每方向4数据报核对，新90端点明确拒绝；两个新测试端点实际BJ并同样收发/BJ报告2。实际默认Render端点bdc8b9e8…前后身份/home保持。最终helper退出／原排空false恢复，两Relayfresh/ready/disabledfalse，90保留原生产1连接/BJ0；328业务资源会话分页确认全closed，无未结束实例摘要、无新增用户/权限/应用。90默认Render1、XR应用Render0、测试probe0。
+- 描述夹具最初400/403与旧账号401均未创建资源，未改变权限；最终用管理员现有接口＋只读端点快照，不宣称真实业务Client/视频验收，也不把管理状态构造的helper候选当作实测NodeResponse。最新WS/Service组合同版本证据复用。备份、变更清单和失败说明保留。XR上传约0.419MB/s，是Pixels上传，不是Relay速度。
+- 配套上线与本轮维护收发已收尾。下一未完成项回到用户约定的晚间151–165ms短顿定位／长期媒体与未覆盖NAT规模证据；本批没有进入这些专项或自动夜间启动。证据：[上线报告](20261012_relay_retention_rollout.md)、[身份／状态索引](20261012_relay_retention_rollout.json)、[收发日志](20261012_relay_retention_rollout_probe.log)。
+
 ## 最新接续：2026-10-12 17:43，Windows／Linux 双 Relay 实际分配
 
 - 复用核对过的 Windows Relay9932BC19…和 BJ 已交付 Linux imagec0d14493…／runtime9fbd130a…，本机实际启动 Windows exe 与独立 Linux/amd64 Compose 项目。最新 Console 真实上报策略＋Service 生产 HeartBeat 驱动：Windows2/2满员或已排空时，新候选只剩 Linux，原 Windows Endpoint／QUIC连接／同一可靠流保持；每阶段原、新两组各4次可靠往返和每方向4个数据报核对，新两端实际home均Linux，Console实际计数均2、2。
