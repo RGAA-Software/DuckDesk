@@ -1,0 +1,29 @@
+{
+  "state": "interrupted; not a completed 600-second sample",
+  "observed_until_command_interrupted_seconds": 467.23299980163574,
+  "complete_window_seconds": 450.867988,
+  "weighted_presented_fps": 59.866747514574044,
+  "maximum_complete_window_gap_us": 165167,
+  "steady_transit_gaps_over_100ms": [
+    {
+      "client_line": "[2026-10-12 13:58:44.186][thread 20128][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=324 source_gap_us=16744 receive_gap_us=151219 excess_us=134738 assembly_call_us=13 reference_ready=true packet_history_available=true first_observed_packet_us=346001024255 observed_packet_span_us=134399",
+      "source_submissions": [
+        "[2026-10-12 13:59:02.568][thread 44676][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2567068468625 stream=0 wire_frame=322 encoder_frame=324 local_accepted=true origin_us=2567074789458 queue_us=30 total_us=43 path=2 rtt_us=71432 cwnd=42038 space=62236 tx_packets=1646 tx_lost=0 congestion=0 writes=974:0:0:0:3:0:17:6:0;975:0:0:1:3:0:25:1:0;976:0:0:2:3:0:28:1:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:59:41.613][thread 20128][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=3769 source_gap_us=16400 receive_gap_us=163047 excess_us=147287 assembly_call_us=9 reference_ready=true packet_history_available=true first_observed_packet_us=346058439153 observed_packet_span_us=146203",
+      "source_submissions": [
+        "[2026-10-12 13:59:59.983][thread 44512][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2567068468625 stream=0 wire_frame=3764 encoder_frame=3769 local_accepted=true origin_us=2567132204480 queue_us=28 total_us=41 path=2 rtt_us=60155 cwnd=94710 space=62236 tx_packets=16710 tx_lost=0 congestion=0 writes=10633:0:0:0:3:0:15:6:0;10634:0:0:1:3:0:23:1:0;10635:0:0:2:3:0:25:1:0;"
+      ]
+    },
+    {
+      "client_line": "[2026-10-12 13:59:41.778][thread 20128][media_datagrams.cpp:463][info] : event=iroh.frame_transit stream=0 frame=3770 source_gap_us=16366 receive_gap_us=165387 excess_us=296307 assembly_call_us=9 reference_ready=true packet_history_available=true first_observed_packet_us=346058750374 observed_packet_span_us=369",
+      "source_submissions": [
+        "[2026-10-12 13:59:59.999][thread 44512][media_datagrams.cpp:215][info] : event=iroh.diag_tx_frame trace=2567068468625 stream=0 wire_frame=3765 encoder_frame=3770 local_accepted=true origin_us=2567132220841 queue_us=23 total_us=34 path=2 rtt_us=60155 cwnd=94710 space=60036 tx_packets=16711 tx_lost=0 congestion=0 writes=10636:0:0:0:3:0:13:5:0;10637:0:0:1:3:0:20:1:0;10638:0:0:2:3:0:22:1:0;"
+      ]
+    }
+  ],
+  "client_and_source_gzip_raw_sha256_verified": true,
+  "tcp_interpretation": "Container TCP sampling is valid. Source-leg reverse TCP retransmits and inbound out-of-order counters exist; no retransmit bytes reported on the Relay-to-Company video socket. Clock-offset bounds do not prove one-to-one causality for each frame gap."
+}

@@ -28,14 +28,26 @@
 namespace {
 
 void InitializeClientLog() {
-    std::array<wchar_t, 32'768> executablePath{};
-    const DWORD length{GetModuleFileNameW(nullptr, executablePath.data(), static_cast<DWORD>(executablePath.size()))};
-    std::filesystem::path basePath{length > 0U && length < executablePath.size() ? std::filesystem::path{executablePath.data()}.parent_path()
-                                                                                 : std::filesystem::current_path()};
-    const auto logDirectory = basePath / "px_logs";
-    std::error_code error{};
-    std::filesystem::create_directories(logDirectory, error);
-    static_cast<void>(px::Logger::InitLog((logDirectory / "px_client.log").wstring(), true, true));
+    std::array<wchar_t, 32'768> executable_path{};
+    const DWORD path_length{GetModuleFileNameW(nullptr, executable_path.data(), static_cast<DWORD>(executable_path.size()))};
+    const std::filesystem::path executable_directory{
+        path_length > 0U && path_length < executable_path.size() ? std::filesystem::path{executable_path.data()}.parent_path()
+                                                               : std::filesystem::current_path()};
+    const auto local_log_directory = executable_directory / "px_logs";
+    std::error_code directory_error{};
+    std::filesystem::create_directories(local_log_directory, directory_error);
+    if (!directory_error && px::Logger::InitLog((local_log_directory / "px_client.log").wstring(), true, true)) return;
+
+    // Installed binaries normally cannot write beneath Program Files as a user.
+    // Reuse the product's writable runtime directory without changing media logging.
+    const auto runtime_directory = px::FolderUtil::GetProgramDataPath();
+    if (runtime_directory.empty()) return;
+    const auto runtime_log_directory = std::filesystem::path{runtime_directory} / "px_logs";
+    directory_error.clear();
+    std::filesystem::create_directories(runtime_log_directory, directory_error);
+    if (!directory_error) {
+        static_cast<void>(px::Logger::InitLog((runtime_log_directory / "px_client.log").wstring(), true, true));
+    }
 }
 
 struct AcceptanceModes final {

@@ -1,0 +1,18 @@
+{
+  "xr": {
+    "service_status": "Running",
+    "configuration_sha256": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+    "remaining_render_count": 0,
+    "page_port_listeners": 0
+  },
+  "company_client_runtime": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+  "company_installed_manifest": "7D1988934E36DFB0E32D936CA08EB499B2D06A367906C832BE6A298E98B2592D",
+  "temporary_log_deny_removed": true,
+  "owned_guest_session_deleted": true,
+  "owned_application_disabled": true,
+  "application_revision": 4,
+  "owned_deployment_disabled": true,
+  "deployment_revision": 6,
+  "xr_page_cancelled_confirmed": true,
+  "legacy_company_products_retained": true
+}

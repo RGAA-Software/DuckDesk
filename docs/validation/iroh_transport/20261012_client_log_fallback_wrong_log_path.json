@@ -1,0 +1,9 @@
+{
+    "client_pid":  51812,
+    "client_sha256":  "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "failure":  "No presented video",
+    "requested_seconds":  60,
+    "client_exited":  true,
+    "state":  "failed",
+    "started_epoch":  1791786091.259
+}

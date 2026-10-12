@@ -1,0 +1,10 @@
+{
+    "client_pid":  39816,
+    "client_sha256":  "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "requested_seconds":  60,
+    "sample_ended_epoch":  1791786428.414,
+    "state":  "sample_complete",
+    "sample_started_epoch":  1791786368.055,
+    "started_epoch":  1791786361.131,
+    "client_exited":  true
+}

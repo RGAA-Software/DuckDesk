@@ -1,0 +1,14 @@
+{
+    "log_lines":  11504,
+    "gzip_bytes":  342705,
+    "gzip_sha256":  "E1AC8F6D274A7F9E6831A823CB3E225AD5C414712BA4DE083D971227C5FD4253",
+    "raw_sha256":  "5F2DC18A8254D459AC724941AE419C994E1D4FF4291A50652B28DC4032EE59D6",
+    "video":  {
+                  "client_pid":  48868,
+                  "client_sha256":  "A714EFA4A4DB9163F8E24570E974EB9C03ECB6EA3B6FA5E89745CA5A15DA1441",
+                  "requested_seconds":  600,
+                  "state":  "sampling",
+                  "sample_started_epoch":  1791784722.877,
+                  "started_epoch":  1791784715.994
+              }
+}

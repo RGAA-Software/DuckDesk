@@ -1,0 +1,9 @@
+{
+  "setup": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\official\\candidates\\company-relay-video-20261012\\installer\\3.3.81\\PixelsClient_official_3.3.81_Setup.exe",
+  "setup_sha256": "181F0006AFFF1DBD97D4C086BFDD9AD02EFB5F00AE4A1BF60731BC76CA758F9C",
+  "setup_bytes": 47952642,
+  "manifest_sha256": "FE24F4FCD9E51B9852D76A9731B684856F05D682599998890551E77992AC0E66",
+  "client_sha256": "A714EFA4A4DB9163F8E24570E974EB9C03ECB6EA3B6FA5E89745CA5A15DA1441",
+  "artifacts": 41,
+  "version": "3.3.81"
+}

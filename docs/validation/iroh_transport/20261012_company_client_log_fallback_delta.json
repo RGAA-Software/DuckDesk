@@ -1,0 +1,14 @@
+{
+  "runtime_changes": [
+    "px_client.exe"
+  ],
+  "metadata_files": [
+    "product-manifest.json",
+    "sha256sums.json"
+  ],
+  "archive_bytes": 31053025,
+  "archive_sha256": "37A3B1632DD2C052560F1D11C8688BB94AB4F6112A80269CB65B810DEFD40ADE",
+  "client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+  "manifest_sha256": "7D1988934E36DFB0E32D936CA08EB499B2D06A367906C832BE6A298E98B2592D",
+  "after_delivery_expected_artifacts": 41
+}

@@ -1,0 +1,1 @@
+C++ quality check passed: no new raw-pointer declarations, manual ownership, Qt parent ownership transfers, [this] captures, or lines over 150 characters.

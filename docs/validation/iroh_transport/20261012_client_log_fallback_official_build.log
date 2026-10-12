@@ -1,0 +1,83 @@
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Validated installer input: client/official 3.3.81 (D:\GoCloud\GammaRayPremium\build_official\client\official\dist)
+C++ readable naming gate passed for 17 changed code lines against f62a6f2eb68d11c33665f17a972658ea1a02619a.
+Incremental C++ build only. Build dir: build_official\client\official\cmake, jobs: 18
+Targets: px_panel px_client
+[0/2] Re-checking globbed directories...
+[1/2] Building CXX object src\px_client\CMakeFiles\px_client.dir\ui_imgui\client_main.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/2] Linking CXX executable src\px_deps\px_client.exe
+DONE: px_panel px_client
+  + px_panel.exe
+  + px_client.exe
+  + px_osinfo.exe
+  + libplacebo-349.dll
+  + vulkan-1.dll
+  + px_voice_apm.dll
+  + resources/fonts/Roboto-Regular.ttf
+  + resources/fonts/Roboto-Medium.ttf
+  + resources/icons/brand/px_icon-150.png
+  + resources/icons/brand/px_icon-200.png
+  + resources/icons/brand/px_icon.png
+  + resources/icons/platform/android-150.png
+  + resources/icons/platform/android-200.png
+  + resources/icons/platform/android.png
+  + resources/icons/platform/ios-150.png
+  + resources/icons/platform/ios-200.png
+  + resources/icons/platform/ios.png
+  + resources/icons/platform/macos-150.png
+  + resources/icons/platform/macos-200.png
+  + resources/icons/platform/macos.png
+  + resources/icons/platform/windows-150.png
+  + resources/icons/platform/windows-200.png
+  + resources/icons/platform/windows.png
+  + resources/language/english.json
+  + resources/language/simple_cn.json
+  + resources/language/traditional_cn.json
+  + resources/licenses/FreeType.txt
+  + resources/licenses/Lucide.txt
+  + resources/licenses/Tabler.txt
+  + rdp/px_rdp_sdk.json
+  + cjson.dll
+  + legacy.dll
+  + libcrypto-3-x64.dll
+  + libssl-3-x64.dll
+  + libusb-1.0.dll
+  + openh264-6.dll
+  + px_rdp_client.dll
+  + px_rdp_core.dll
+  + px_rdp_winpr.dll
+  + zlib1.dll
+  + resources/update/root.json
+Done: client distribution published to D:\GoCloud\GammaRayPremium\build_official\client\official\dist
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Command line defined: "OUTPUT_DIR=D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\company-client-log-fallback-20261012\installer\.client-installer-qj_094li"
+Command line defined: "PRODUCT_ID=client"
+Command line defined: "DISTRIBUTION=official"
+Command line defined: "RELEASE_NAMESPACE=pixels.official"
+Command line defined: "OEM_ID="
+Command line defined: "PRODUCT_VERSION=3.3.81"
+Command line defined: "PRODUCT_VERSION_CODE=30381"
+Command line defined: "COMPANY=Pixels"
+Command line defined: "PUBLISHER_NAME=Pixels"
+Processing config: D:\GoCloud\GammaRayPremium\tools\nsis\nsisconf.nsh
+Processing script file: "D:\GoCloud\GammaRayPremium\setup\make_setup.nsi" (UTF8)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\company-client-log-fallback-20261012\installer\.client-installer-qj_094li\PixelsClient_official_3.3.81_Setup.exe"
+Install: 4 pages (256 bytes), 1 section (2072 bytes), 636 instructions (17808 bytes), 371 strings (13758 bytes), 2 language tables (636 bytes).
+Uninstall: 3 pages (256 bytes), 1 section (2072 bytes), 338 instructions (9464 bytes), 236 strings (7390 bytes), 2 language tables (572 bytes).
+Datablock optimizer saved 1903 bytes (~0.0%).
+
+Using zlib compression.
+
+EXE header size:              236032 / 39936 bytes
+Install code:                   7530 / 34994 bytes
+Install data:               47664356 / 117637150 bytes
+Uninstall code+data:           45387 / 217558 bytes
+CRC (0x5F6C37AD):                  4 / 4 bytes
+
+Total size:                 47953309 / 117929642 bytes (40.6%)
+Published installer atomically: D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\company-client-log-fallback-20261012\installer\3.3.81

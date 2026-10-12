@@ -1,0 +1,11 @@
+{
+  "temporary_program_files_log_permission_removed": true,
+  "delivery_kind": "incremental update after verified complete Setup baseline",
+  "manifest_sha256": "7D1988934E36DFB0E32D936CA08EB499B2D06A367906C832BE6A298E98B2592D",
+  "verified_files": 41,
+  "client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+  "runtime_changes": [
+    "px_client.exe"
+  ],
+  "archived_logs": "D:\\112233\\xr-relay-video-receiver-20261012\\client-before-log-fallback"
+}
