@@ -4,7 +4,10 @@ param(
     [string]$ProbeBinary = '',
     [Parameter(Mandatory)]
     [string]$ServicePolicyBinary,
-    [string]$EvidenceDirectory = ''
+    [string]$EvidenceDirectory = '',
+    [switch]$Distribution,
+    [string]$WindowsRelayBinary = '',
+    [string]$LinuxRelayImage = 'pixels-relay:3.2.1-delivery-20261011'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,6 +20,10 @@ $binaryPaths = @{
     PIXELS_TEST_TRANSPORT_PROBE_BINARY = [IO.Path]::GetFullPath($ProbeBinary)
     PIXELS_TEST_SERVICE_POLICY_BINARY = [IO.Path]::GetFullPath($ServicePolicyBinary)
 }
+if ($Distribution) {
+    if (-not $WindowsRelayBinary) { $WindowsRelayBinary = Join-Path $repository 'build_official/private_server/candidates/relay-retention-20261012/package/bin/px_relay.exe' }
+    $binaryPaths['PIXELS_TEST_WINDOWS_RELAY_BINARY'] = [IO.Path]::GetFullPath($WindowsRelayBinary)
+}
 $identities = @{}
 foreach ($binaryName in $binaryPaths.Keys) {
     $binaryPath = $binaryPaths[$binaryName]
@@ -27,12 +34,25 @@ $savedEnvironment = @{}
 $testEnvironment = $binaryPaths.Clone()
 $testEnvironment['PIXELS_TEST_RELAY_RETENTION_RESULT'] = Join-Path $EvidenceDirectory 'result.json'
 $testEnvironment['CARGO_BUILD_JOBS'] = '18'
+if ($Distribution) {
+    $dockerBinary = Join-Path $env:ProgramFiles 'Docker/Docker/resources/bin/docker.exe'
+    if (-not (Test-Path -LiteralPath $dockerBinary -PathType Leaf)) { $dockerBinary = (Get-Command docker -ErrorAction Stop).Source }
+    $imageInventory = & $dockerBinary image inspect $LinuxRelayImage
+    if ($LASTEXITCODE -ne 0) { throw 'The verified Linux Relay image must already be loaded' }
+    $image = ($imageInventory | ConvertFrom-Json)[0]
+    if ($image.Config.Labels.'io.pixels.product' -ne 'relay' -or -not $image.Config.Labels.'io.pixels.runtime.sha256') { throw 'Linux Relay identity missing' }
+    $testEnvironment['PIXELS_TEST_DOCKER_BINARY'] = $dockerBinary
+    $testEnvironment['PIXELS_TEST_LINUX_RELAY_IMAGE'] = $image.Id
+    $testEnvironment['PIXELS_TEST_LINUX_RELAY_SHA256'] = $image.Config.Labels.'io.pixels.runtime.sha256'
+    $identities['linux_relay'] = @{image_id=$image.Id;runtime_sha256=$image.Config.Labels.'io.pixels.runtime.sha256'}
+}
 try {
     foreach ($environmentName in $testEnvironment.Keys) {
         $savedEnvironment[$environmentName] = [Environment]::GetEnvironmentVariable($environmentName)
         [Environment]::SetEnvironmentVariable($environmentName, $testEnvironment[$environmentName])
     }
-    & (Join-Path $PSScriptRoot 'postgres.ps1') TestSuite -Suite relay-retention
+    $suite = if ($Distribution) { 'relay-distribution' } else { 'relay-retention' }
+    & (Join-Path $PSScriptRoot 'postgres.ps1') TestSuite -Suite $suite
     if ($LASTEXITCODE -ne 0) { throw "Relay retention integration failed: $LASTEXITCODE" }
     foreach ($binaryName in $binaryPaths.Keys) {
         if ((Get-FileHash -LiteralPath $binaryPaths[$binaryName] -Algorithm SHA256).Hash -ne $identities[$binaryName].sha256) {

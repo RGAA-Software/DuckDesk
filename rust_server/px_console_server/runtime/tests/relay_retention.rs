@@ -2,6 +2,9 @@
 #[path = "support/runtime_fixture.rs"]
 mod fixture;
 
+#[path = "support/relay_distribution.rs"]
+mod relay_distribution;
+
 use fixture::{call, login, PASSWORD};
 use futures_util::{SinkExt, StreamExt};
 use px_relay_server::{
@@ -37,10 +40,14 @@ struct Probe {
 
 impl Probe {
     fn start(configuration: &Path, errors: &Path) -> Self {
+        Self::start_operation(configuration, errors, "retention-self-test")
+    }
+
+    fn start_operation(configuration: &Path, errors: &Path, operation: &str) -> Self {
         let mut child = Command::new(
             std::env::var_os("PIXELS_TEST_TRANSPORT_PROBE_BINARY").expect("probe binary missing"),
         )
-        .args(["retention-self-test", "--endpoint-config"])
+        .args([operation, "--endpoint-config"])
         .arg(configuration)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

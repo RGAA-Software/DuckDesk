@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-12 17:43，Windows／Linux 双 Relay 实际分配
+
+- 复用核对过的 Windows Relay9932BC19…和 BJ 已交付 Linux imagec0d14493…／runtime9fbd130a…，本机实际启动 Windows exe 与独立 Linux/amd64 Compose 项目。最新 Console 真实上报策略＋Service 生产 HeartBeat 驱动：Windows2/2满员或已排空时，新候选只剩 Linux，原 Windows Endpoint／QUIC连接／同一可靠流保持；每阶段原、新两组各4次可靠往返和每方向4个数据报核对，新两端实际home均Linux，Console实际计数均2、2。
+- 解除排空／释放后两侧候选恢复，四个新端点从同一双候选池实际分到2＋2，Console两侧各2且新候选为空；最终两侧真实上报0、0。`pg-20261012-174208-a54653dd`聚焦1项通过／46.98秒，记录源文件稳定；二进制前后SHA、Linux容器内runtime SHA核对，Linux项目及网络、隔离PG容器／卷清理，owned Windows Relay／probe／测试进程均0。新增精确过滤的relay-distribution入口，既有单Relay／安装／媒体套件未重跑。
+- 仅测试／诊断变动，18jobs Release；新probeF0F9C7EA…，Service unittest E9C4F767…复用。生产 ServiceA06AF7FE…／ConsoleC783635B…及完整候选未改，没重打包或上传；CompanyFE8B8257…、XR Service636C688E…／Render6F9A2D19…身份沿用，本批无远端命令／持久配置变化。90、Android、视频／NIC／饱和混传未用。
+- 本机Windows/Linux新端点分配、排空和连接保留已补齐；四端点2＋2不是带宽均分／十台物理Relay／地域公平性或长稳证明。下一主线仍是可用Server窗口中的Server-first配套安装与安装后连接确认，公网Console在排除使用的90，保持待办。晚间短顿继续原有效片段，无自动启动时间。
+- 证据：[双Relay报告](20261012_windows_linux_relay_distribution.md)、[结果／身份／清理索引](20261012_windows_linux_relay_distribution.json)。
+
 ## 最新接续：2026-10-12 17:22，本机真实 Relay 连接保留验证
 
 - 接续上一批容量策略修复，补真实产品 Relay + Console/PG + Service 生产 HeartBeat + 实际 iroh Endpoint 集成。Relay 本身认证上报 2/2，Console 满员及排空时不给新候选，Service 心跳仍保留自己的 home；同一 Endpoint 身份／QUIC 连接／双向可靠流，在两阶段各 4 次可靠往返和每方向 4 个数据报校验通过；第三端点明确拒绝。解除排空、关闭原两端后真实上报 0/2，新候选恢复，新身份端点上线后关闭。

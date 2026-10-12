@@ -6,6 +6,8 @@ Windows/Linux 第 0.9 节已有功能与安装证据复用，不重开基本接�
 公网Console在90，本批未上线；见 [修复与交付报告](validation/iroh_transport/20261012_relay_retention_report.md)。
 本机真实 Relay 满员／排空时同一 QUIC 连接、可靠流和数据报保留验证已通过，释放后新端点恢复；
 见 [集成验证](validation/iroh_transport/20261012_relay_retention_integration.md)。公网配套部署仍待可用服务器窗口。
+Windows exe／Linux Compose 双Relay的最新策略联动亦通过：忙／排空时新端点选另一侧，
+恢复后实际四端点2＋2、两侧最终0；见 [双系统分配报告](validation/iroh_transport/20261012_windows_linux_relay_distribution.md)。
 已补 Console 接收/转发区间平均速率，见 [本批主线报告](validation/iroh_transport/20261012_relay_load_mainline.md)。
 最新 Company 467.233 秒仍有三次超过 100ms 的接收间隔，不能由下方历史验收推导为长期零卡顿。
 

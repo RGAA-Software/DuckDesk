@@ -1,0 +1,155 @@
+{
+  "recorded_at": "2026-10-12T09:48:48.426621+00:00",
+  "base_revision": "cc199822ea255066606265151eacb4a19d785f92",
+  "result": {
+    "cleanup_complete": true,
+    "final_connection_counts": [
+      0,
+      0
+    ],
+    "linux_image": "sha256:c0d1449319def4b2ef6951027ad8805b57b98b2cd5fff493f2659a51253e6b16",
+    "linux_runtime_sha256": "9fbd130af5009168196ea8190991c03b66b45271d14bfda17641e8353f3963dd",
+    "phases": [
+      {
+        "allocated": {
+          "datagrams_each_direction": 4,
+          "endpoint_count": 2,
+          "homes": [
+            "https://127.0.0.1:12292/",
+            "https://127.0.0.1:12292/"
+          ],
+          "reliable_round_trips": 4
+        },
+        "console_linux_connections": 2,
+        "console_windows_connections": 2,
+        "phase": "full",
+        "retained": {
+          "datagrams_each_direction": 4,
+          "home": "https://127.0.0.1:12291/",
+          "new_endpoint_denied": true,
+          "phase": "full",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "allocated": {
+          "datagrams_each_direction": 4,
+          "endpoint_count": 2,
+          "homes": [
+            "https://127.0.0.1:12292/",
+            "https://127.0.0.1:12292/"
+          ],
+          "reliable_round_trips": 4
+        },
+        "console_linux_connections": 2,
+        "console_windows_connections": 2,
+        "phase": "draining",
+        "retained": {
+          "datagrams_each_direction": 4,
+          "home": "https://127.0.0.1:12291/",
+          "new_endpoint_denied": true,
+          "phase": "draining",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      }
+    ],
+    "remote_deployment": false,
+    "restored_allocation": {
+      "endpoint_count": 4,
+      "home_counts": [
+        2,
+        2
+      ],
+      "homes": [
+        "https://127.0.0.1:12291/",
+        "https://127.0.0.1:12291/",
+        "https://127.0.0.1:12292/",
+        "https://127.0.0.1:12292/"
+      ]
+    },
+    "scope": "actual-windows-executable-and-linux-compose-relay-with-console-service-policy"
+  },
+  "identities": {
+    "PIXELS_TEST_SERVICE_POLICY_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\deps\\px_service-c1bb3805df7c551b.exe",
+      "sha256": "E9C4F7675AA2289F93FDAB1B97F53E2639544C71C26805B86641394E7B6BBC6F"
+    },
+    "PIXELS_TEST_TRANSPORT_PROBE_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\rust_transport\\target\\release\\px_transport_probe.exe",
+      "sha256": "F0F9C7EA359DEB7529190DFC0EC2762EFCBEB16BC22D52308498F5F64FE6D538"
+    },
+    "linux_relay": {
+      "runtime_sha256": "9fbd130af5009168196ea8190991c03b66b45271d14bfda17641e8353f3963dd",
+      "image_id": "sha256:c0d1449319def4b2ef6951027ad8805b57b98b2cd5fff493f2659a51253e6b16"
+    },
+    "PIXELS_TEST_WINDOWS_RELAY_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\private_server\\candidates\\relay-retention-20261012\\package\\bin\\px_relay.exe",
+      "sha256": "9932BC19A68C57F5008A4882C44F20678481513A6BDEEE8E20C696F840C36C2C"
+    }
+  },
+  "linux_platform": "linux/amd64",
+  "build_jobs": 18,
+  "configuration": "Release",
+  "duration_seconds": 46.98,
+  "report": {
+    "path": "test-results/server_validation/pg-20261012-174208-a54653dd/report.json",
+    "sha256": "9A3709B567F5CB39133A730848B1BA59654A194938D4D6FB5642E87D6E64C866",
+    "status": "PASS",
+    "cases": [
+      {
+        "case": "SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable",
+        "status": "PASS"
+      },
+      {
+        "case": "ENV: isolated PostgreSQL healthy",
+        "status": "PASS"
+      },
+      {
+        "case": "SCHEMA: three fresh databases, repeatable initialization, runtime readiness",
+        "status": "PASS"
+      },
+      {
+        "case": "focused/relay-distribution/relay_distribution::windows_linux_relays_allocate_new_endpoints_without_disrupting_existing_connections",
+        "status": "PASS"
+      },
+      {
+        "case": "SOURCE: all recorded source hashes unchanged throughout acceptance",
+        "status": "PASS"
+      },
+      {
+        "case": "FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance",
+        "status": "PASS"
+      },
+      {
+        "case": "CLEANUP: isolated test containers and volume removed",
+        "status": "PASS"
+      }
+    ]
+  },
+  "source_sha256": {
+    "rust_server/px_console_server/runtime/tests/relay_retention.rs": "0A8BB0AEEA032E40ED5B18A279779C9916C55829845B8A673DDEA7D518887C6C",
+    "rust_server/px_console_server/runtime/tests/support/relay_distribution.rs": "C6320E5E1B5DC2908986B9C5EDA314580C7CA91E7CA487FE146B6EDB12968A81",
+    "rust_transport/px_transport_probe/src/main.rs": "E10591C0940FA799004261FC31099049EDDDC04271C71B7106699EDA7C5E0D93",
+    "rust_transport/px_transport_probe/src/retention_probe.rs": "05456DB53E86EA3BF528518423572E79035D0A1983CFC051A65C4903084B12CF",
+    "scripts/server_validation/relay_retention.ps1": "E0858CBDFE35DDE512CF1A469561513F571B106071DA55BBCF7089F37434D467",
+    "scripts/server_validation/postgres.ps1": "F31D0072A5F7051DCD04F3E19BCF162949C8FE28CBFFD1E85972ABA9A7B09EDB",
+    "rust_client/px_service/src/service_host.rs": "8D9D4D4B18B69FCC4BEC6400E26A21A37BADBB9FE62E5F97801F23CE91F8A460"
+  },
+  "owned_cleanup": {
+    "windows_relay_processes": 0,
+    "transport_probe_processes": 0,
+    "test_processes": 0,
+    "linux_compose_container_removed": true,
+    "isolated_postgres_containers_and_volume_removed": true
+  },
+  "remote_commands": false,
+  "product_artifacts_changed": false,
+  "media_stutter_tested": false,
+  "android_implemented": false
+}

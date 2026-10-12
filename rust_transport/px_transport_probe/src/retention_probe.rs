@@ -28,6 +28,36 @@ async fn check_messages(source: &Connection, peer: &Connection, sequence: u32) -
     Ok(())
 }
 
+async fn check_new_pair(endpoints: &[TransportEndpoint]) -> Result<()> {
+    let (accepted, connected) = tokio::join!(
+        endpoints[0].accept(),
+        endpoints[1].connect(endpoints[0].address())
+    );
+    let source = accepted?;
+    let peer = connected?;
+    let (mut peer_sender, mut peer_receiver) = peer.open_bi().await?;
+    peer_sender.write_all(&[0; 4]).await?;
+    let (mut source_sender, mut source_receiver) =
+        tokio::time::timeout(WAIT, source.accept_bi()).await??;
+    let mut received = [0; 4];
+    source_receiver.read_exact(&mut received).await?;
+    for sequence in 1_u32..=4 {
+        let expected = sequence.to_be_bytes();
+        peer_sender.write_all(&expected).await?;
+        source_receiver.read_exact(&mut received).await?;
+        ensure!(received == expected);
+        source_sender.write_all(&received).await?;
+        peer_receiver.read_exact(&mut received).await?;
+        ensure!(received == expected);
+        check_messages(&source, &peer, sequence).await?;
+    }
+    peer_sender.finish()?;
+    source_sender.finish()?;
+    source.close(0_u32.into(), b"new pair verified");
+    peer.close(0_u32.into(), b"new pair verified");
+    Ok(())
+}
+
 pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
     ensure!(
         configuration.relay_only && configuration.relays.len() == 1,
@@ -65,11 +95,77 @@ pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
     );
     let mut commands = BufReader::new(tokio::io::stdin()).lines();
     let mut sequence = 0_u32;
+    let mut new_endpoints = Vec::new();
     while let Some(command) = commands.next_line().await? {
         let request: Value = serde_json::from_str(&command)?;
         let phase = request["phase"]
             .as_str()
             .context("retention phase missing")?;
+        if phase == "new-endpoints" || phase == "allocate-restored" {
+            ensure!(
+                new_endpoints.is_empty(),
+                "previous new endpoint allocation still held"
+            );
+            let mut available = configuration.clone();
+            available.relays = serde_json::from_value(request["relays"].clone())?;
+            let endpoint_count = if phase == "new-endpoints" { 2 } else { 4 };
+            ensure!(
+                available.relays.len() == endpoint_count / 2,
+                "unexpected available Relay count"
+            );
+            let mut homes = Vec::new();
+            for _endpoint_index in 0..endpoint_count {
+                let endpoint = TransportEndpoint::bind(available.clone()).await?;
+                endpoint.online(WAIT).await?;
+                let selected = endpoint
+                    .relay_status()
+                    .into_iter()
+                    .find(|status| status.is_connected())
+                    .context("fresh endpoint has no connected home")?
+                    .url()
+                    .clone();
+                homes.push(selected);
+                new_endpoints.push(endpoint);
+            }
+            for relay in &available.relays {
+                ensure!(
+                    homes
+                        .iter()
+                        .filter(|selected| **selected == relay.url)
+                        .count()
+                        == 2,
+                    "new endpoints did not use available capacity"
+                );
+            }
+            if phase == "new-endpoints" {
+                check_new_pair(&new_endpoints).await?;
+                println!(
+                    "DISTRIBUTION_READY {}",
+                    json!({"homes":homes,"endpoint_count":2,
+                    "reliable_round_trips":4,"datagrams_each_direction":4})
+                );
+            } else {
+                println!(
+                    "DISTRIBUTION_RESTORED {}",
+                    json!({"homes":homes,"endpoint_count":4,"home_counts":[2,2]})
+                );
+            }
+            continue;
+        }
+        if phase == "finish" {
+            for endpoint in new_endpoints.drain(..) {
+                endpoint.close().await;
+            }
+            println!("DISTRIBUTION_FINISHED");
+            return Ok(());
+        }
+        if phase == "release-new" {
+            for endpoint in new_endpoints.drain(..) {
+                endpoint.close().await;
+            }
+            println!("DISTRIBUTION_RELEASED");
+            continue;
+        }
         if phase == "release" {
             peer_sender.finish()?;
             source_sender.finish()?;

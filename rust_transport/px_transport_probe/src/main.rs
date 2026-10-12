@@ -89,8 +89,13 @@ async fn main() -> Result<()> {
             .await
             .context("allocation probe deadline exceeded")?;
     }
-    if operation == "retention-self-test" {
-        return tokio::time::timeout(Duration::from_secs(90), retention_probe::run(config))
+    if matches!(operation, "retention-self-test" | "distribution-self-test") {
+        let deadline = if operation == "distribution-self-test" {
+            Duration::from_secs(120)
+        } else {
+            Duration::from_secs(90)
+        };
+        return tokio::time::timeout(deadline, retention_probe::run(config))
             .await
             .context("retention probe deadline exceeded")?;
     }

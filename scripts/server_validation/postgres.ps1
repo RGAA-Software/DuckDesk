@@ -10,7 +10,7 @@ param(
     [string]$LinuxCandidate = '',
     [string]$PgToolchain = '',
     [string]$TargetDirectory = '',
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'cn-license', 'distribution-isolation', 'node-control', 'relay-control', 'relay-retention', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'cn-license', 'distribution-isolation', 'node-control', 'relay-control', 'relay-retention', 'relay-distribution', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -492,6 +492,7 @@ try {
         $suiteCounts['node-control'] = 3
         $suiteCounts['relay-control'] = 1
         $suiteCounts['relay-retention'] = 1
+        $suiteCounts['relay-distribution'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 4
         $suiteCounts['schema_gate'] = 4
@@ -507,6 +508,7 @@ try {
             'node-control' = 'node_control'
             'relay-control' = 'relay_control'
             'relay-retention' = 'relay_retention'
+            'relay-distribution' = 'relay_retention'
             'console-process' = 'process'
             'console-admin' = 'admin'
         }
@@ -549,7 +551,11 @@ try {
             }
         }
         $suiteArgs = @($suiteArgs[0], '--release') + $suiteArgs[1..($suiteArgs.Count - 1)]
-        $suiteArgs += @('--','--test-threads=1')
+        if ($Suite -eq 'relay-distribution') {
+            $suiteArgs += @('--','relay_distribution::windows_linux_relays_allocate_new_endpoints_without_disrupting_existing_connections','--exact','--test-threads=1')
+        } elseif ($Suite -eq 'relay-retention') {
+            $suiteArgs += @('--','actual_relay_preserves_existing_streams_and_datagrams_when_full_or_draining','--exact','--test-threads=1')
+        } else { $suiteArgs += @('--','--test-threads=1') }
         $result = Invoke-Checked 'cargo' $suiteArgs
         Write-Host $result
         Add-TestCases $result "focused/$Suite" $suiteCounts[$Suite]
