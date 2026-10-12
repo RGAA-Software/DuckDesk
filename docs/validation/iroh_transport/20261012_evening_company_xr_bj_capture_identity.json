@@ -1,0 +1,17 @@
+{
+  "elapsed_seconds": 696.3690719119913,
+  "tcpdump_exit": 0,
+  "tcpdump_log": "tcpdump: WARNING: any: That device doesn't support promiscuous mode\n(Promiscuous mode not supported on the \"any\" device)\ntcpdump: listening on any, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 128 bytes\n560350 packets captured\n560355 packets received by filter\n0 packets dropped by kernel\n",
+  "files": {
+    "relay.pcap.gz": {
+      "bytes": 31431248,
+      "sha256": "f5bbbf6e5ef6dffcc2323e05efa611ecd51e2d6062e17f6aea12e1633739842d",
+      "raw_sha256": "4b11342556471f2727363f6b450e5a8ba64d4e7eb08f3fc56150e8cb8117947a"
+    },
+    "tcp.jsonl.gz": {
+      "bytes": 1235743,
+      "sha256": "5e03d0f57db5b63ad163a489b1434596db764081d465c261d3f85a4b855bb919",
+      "raw_sha256": "30a84d1d5b130181efc1d1b9b392a8ba628113802f01f71a42a60aa1bdafed40"
+    }
+  }
+}

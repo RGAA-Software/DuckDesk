@@ -1,10 +1,33 @@
 #include "video_diagnostics.h"
 
+#include <algorithm>
 #include <format>
 
 #include "px_common/log.h"
 
 namespace px::transport {
+void VideoSendDiagnostics::Record(Submission submission) {
+    if (submissions_.size() == 64) submissions_.pop_front();
+    submissions_.push_back(std::move(submission));
+}
+
+std::vector<VideoSendDiagnostics::Submission> VideoSendDiagnostics::RecentForGap(std::uint8_t stream, std::uint64_t now_us,
+                                                                                 std::uint64_t arrival_gap_us, std::uint64_t generated_gap_us,
+                                                                                 std::uint64_t receipt_progress_gap_us) {
+    if (std::max({arrival_gap_us, generated_gap_us, receipt_progress_gap_us}) < 100'000 || (next_dump_us_ && now_us < *next_dump_us_)) return {};
+    std::vector<Submission> recent{};
+    for (const auto& submission : submissions_) {
+        if (submission.stream == stream) recent.push_back(submission);
+    }
+    if (!recent.empty()) next_dump_us_ = now_us + 1'000'000;
+    return recent;
+}
+
+void VideoSendDiagnostics::Clear() {
+    submissions_.clear();
+    next_dump_us_.reset();
+}
+
 std::optional<VideoPacketIdentity> ReadVideoPacketIdentity(std::span<const std::uint8_t> packet) {
     if (packet.size() < 32 || (packet[0] & 0x90) != 0x90) return std::nullopt;
     const auto little = [packet](std::size_t offset) {

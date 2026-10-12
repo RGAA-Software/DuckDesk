@@ -1,0 +1,32 @@
+{
+  "90": {
+    "inventory_artifacts": 314,
+    "sessions": [
+      " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+      " administrator         console             2  Active      10:32  2026/10/12 11:06"
+    ],
+    "inventory_sha": "008C1B1D7A38C7F934F88E6F93058305893BEA2F5F3FF92020DA46A590853D2A",
+    "service_sha": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+    "render_sha": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+    "product_artifacts": 314,
+    "product_manifest_sha": "5F011ECBABD82CAEC235214E2FC0DF5C99322ECD30F82AE765940A8962C8642C",
+    "render_count": 1,
+    "configuration_sha": "55904D032A3ED2955495715371ABE00002EA96F291C9CECA0269E0DBD23A2491",
+    "service": "Running"
+  },
+  "xr": {
+    "inventory_artifacts": 314,
+    "sessions": [
+      " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+      " administrator         console             1  Active      none   2026/9/12 20:57"
+    ],
+    "inventory_sha": "1F19F8DCD6DBB1B12E5C9356C73A1B40CC010995E495D85C5C7BEDFEEEE39431",
+    "service_sha": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+    "render_sha": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+    "product_artifacts": 314,
+    "product_manifest_sha": "C1A06CECB6D8371C91BC2A76EF29769E7854B253D9797085F4163ACF11CE0A52",
+    "render_count": 0,
+    "configuration_sha": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+    "service": "Running"
+  }
+}

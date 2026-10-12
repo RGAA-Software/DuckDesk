@@ -1,0 +1,13 @@
+{
+  "source_device": "947158375",
+  "receiver_device": "559038160",
+  "instance_id": "fadbabd9-db39-44f5-8f70-74081e6cb590",
+  "resource_session_id": "5a693c67-d936-4f06-a56a-4a1f60979734",
+  "actual_source_advertised_relays": [
+    "https://49.232.233.61:4605/"
+  ],
+  "render_port": 4613,
+  "client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+  "state": "prepared",
+  "require_60fps": false
+}

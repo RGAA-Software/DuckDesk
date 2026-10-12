@@ -1,0 +1,14 @@
+{
+    "state":  "failed",
+    "requested_seconds":  300,
+    "client_sha256":  "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "expected_relay":  "https://39.71.45.66:4605/",
+    "client_pid":  44796,
+    "started_local":  "2026-10-12 20:42:17.087",
+    "started_epoch":  1791808937.703,
+    "failure":  "No current presented video",
+    "client_exited":  true,
+    "raw_sha256":  "8DD0E5C569459BD5C88975BF6DD7C3ED5AFDFB10BD908DEEC9DAA915D45F97F6",
+    "gzip_sha256":  "87C971930CEB840AAC6EC49B7047C81B73881DFCAE8879E79BD79889166A7084",
+    "gzip_bytes":  1126
+}

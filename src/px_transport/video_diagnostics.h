@@ -2,15 +2,48 @@
 
 #include <array>
 #include <bitset>
+#include <deque>
 #include <map>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "media_transport/media_wire.h"
 #include "media_transport/packet_timing.h"
 #include "media_transport/video_packetizer.h"
+#include "transport.h"
 
 namespace px::transport {
+
+// Caller serializes access. Keep metadata after the initial verbose window;
+// no encoded bytes, packet payloads or asynchronous callbacks are retained.
+class VideoSendDiagnostics final {
+public:
+    struct Submission final {
+        std::uint64_t trace{};
+        std::uint8_t stream{};
+        std::uint32_t wire_frame{};
+        std::uint64_t encoder_frame{};
+        bool local_accepted{};
+        std::uint64_t origin_us{};
+        std::optional<std::uint64_t> first_accepted_us{};
+        std::optional<std::uint64_t> last_accepted_us{};
+        std::uint64_t queue_us{};
+        std::uint64_t total_us{};
+        std::uint64_t maximum_write_us{};
+        std::size_t accepted_packets{};
+        std::size_t bytes{};
+        ConnectionSnapshot transport{};
+    };
+    void Record(Submission submission);
+    [[nodiscard]] std::vector<Submission> RecentForGap(std::uint8_t stream, std::uint64_t now_us, std::uint64_t arrival_gap_us,
+                                                       std::uint64_t generated_gap_us, std::uint64_t receipt_progress_gap_us);
+    void Clear();
+
+private:
+    std::deque<Submission> submissions_{};
+    std::optional<std::uint64_t> next_dump_us_{};
+};
 
 // Temporary, payload-free diagnostics. Local monotonic clocks must never be subtracted across hosts.
 struct VideoPacketIdentity final {

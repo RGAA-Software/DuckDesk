@@ -1,0 +1,9 @@
+{
+    "port":  4613,
+    "source_path":  "D:\\112233\\evening-game90-20261012\\video-source-4613.log",
+    "lines":  13979,
+    "source_sha256":  "973BF7E895C1C0BB928857D3C55E63FD911257ED9200442E0FCCDED6191D0A40",
+    "gzip_path":  "D:\\112233\\evening-game90-20261012\\video-source-4613.log.gz",
+    "gzip_size":  770682,
+    "gzip_sha256":  "0B78CC0B7F51DDEC8BE7FFD172B7655BDDBFEF8D96025A45782FC6A74387B7EC"
+}

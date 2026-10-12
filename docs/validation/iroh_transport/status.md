@@ -4,6 +4,18 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-12 21:42，晚间拖动/卡帧回归与持续发送诊断交付
+
+- 用户明确开始晚间短顿调查，Company/90/XR可用，并确认是在远程内容内按住鼠标拖动。Android、NIC/驱动及饱和混传仍排除；下午Windows/Linux主线功能、安装与双Relay保留证据复用。
+- 原媒体二进制：XR→BJ→Company600.251s/59.988FPS/max64.158ms、90GameHook→90Relay→Company300.302s/59.980FPS/max80.047ms、同游戏UDP LAN直连300.124s/59.945FPS/max42.457ms。都无>100ms正式接收/呈现事件、decoder无输出/错误或overruns；实际1.481/6.009/7.267Mbps，配置10000kbps未改，不称10Mbps吞吐、公网复杂NAT或长稳全覆盖。真实内容拖动480位置约8秒，cursor/focus/DPI恢复；源也见消息练习n400。
+- BJ正确namespace128字节TCP头采912286包/kernel drop0，四业务方向无>=50ms序列/SACK缺口；BJ→Company19重传/17073bytes、→XR2/139bytes仍能稳定新图。重传和reord_seen计数不直接等于150ms卡帧根因，跨主机时钟界限仍不强配逐帧。两份大PCAP在.cache和BJ源目录，压缩/原文SHA保留；两端log源端gzip后下载双SHA。
+- 修正采样活动文件LastWriteTime过滤、直接用户命令生命周期及启动衔接；首次派生用户任务interrupted、误判No presented video、首游戏admission失败及转义/未生成源文件下载失败保留，不算媒体样本，不加授权票据/令牌门槛。发布器增加精确PID/创建时间停止、双清单校验；没有进程名/路径扫游戏。
+- 找到实际后段诊断缺口：旧XR第九分钟frame34046的422ms事件源普通逐帧日志已过90秒。Sender现在保存最近64纯值提交，反馈/完整确认进度>=100ms时每秒最多一次输出，Stop清空；不保存payload、不改发送/恢复策略。61媒体/生命周期测试、2TCP证据测试及ownership/naming/PS解析通过；真实loopback延迟确认触发日志核对，不冒充公网修复。
+- 18jobs Release聚焦Render/test构建；development CloudNode9275B4E0…/Remote9EC1EEF8…均dist SHA一致，正式族RenderC276FAB5…与stage一致。90/XR增量仅Render+清单约30.10MB各、双端SHA/备份/315文件检查/服务Running；ServiceA06、CompanyClientFE8不变。修正两侧上次Service更新后PM旧SHA元数据，两个314载荷清单均匹配。新PM90 5F011ECB…/XR C1A06CEC…，inventory90 008C1B1D…/XR1F19F8DC…；节点TOML55904D03…/38363D78…保持，90WindowsID2/XRID1保持，90默认Render恢复。
+- 新Render再测150.104s UDP LAN/实际拖动，59.283FPS/max42.669ms、无>100ms或过载诊断。总正式约22.5分钟目前未复现旧151–165ms，**不称旧问题已经定因或消除**。未进行新Setup安装或重新启动其它安装/业务验收。
+- 最终335业务会话全closed/实例摘要空，90/XR fresh/ready gen464/23、epoch72，两Relayfresh；XR页面/本地Relay限制撤回，owned app6/deploy8 disabled，Company owned Client0。下一未完成项是用已交付后段历史关联下一次实际短顿；不要重复已通过样本或转回NIC/饱和混传。
+- 证据：[晚间报告](20261012_evening_video_investigation.md)、`20261012_evening_*analysis.json`、`20261012_evening_send_diagnostics_{delivery,rollout,tests}.json`、`20261012_evening_final_health.json`。
+
 ## 最新接续：2026-10-12 18:43，90恢复可用／配套增量上线完成
 
 - 用户明确“用90，可以用了”，AGENTS顶端记录覆盖此前暂停90；主线使用90恢复，Android及晚间短顿／NIC／饱和混传仍未启动。实际路径核对后，用Pixels MCP按Console→90节点→XR节点更新；90暂存D:\112233，XR暂存D:\uploadsoft\rd\pixels，没有Desktop复制。

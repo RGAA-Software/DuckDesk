@@ -1,0 +1,82 @@
+{
+  "90": {
+    "plan": {
+      "schema_version": 1,
+      "purpose": "authorized-development-incremental-update-on-existing-complete-baseline",
+      "device_code": "428358431",
+      "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+      "service_name": "px_service",
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "5943655CD1C523A0DEBF2143EFDD561E4ABA4A44359E863714DC8F7290DD3E62",
+      "desired_manifest_sha256": "008C1B1D7A38C7F934F88E6F93058305893BEA2F5F3FF92020DA46A590853D2A",
+      "replacements": [
+        {
+          "path": "px_render.exe",
+          "before_sha256": "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E",
+          "after_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+          "bytes": 74320896
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "A5497FDF8F474A5CD2BC53E8B441A3B365C6C55293E4CC45E1137534180CBD97",
+          "after_sha256": "5F011ECBABD82CAEC235214E2FC0DF5C99322ECD30F82AE765940A8962C8642C",
+          "bytes": 45238
+        }
+      ],
+      "removals": [],
+      "runtime_processes": [
+        {
+          "pid": 12264,
+          "created_utc": "2026-10-12T10:15:06.8662270Z",
+          "path": "px_render.exe"
+        }
+      ],
+      "preserve_node_configuration": true
+    },
+    "archive_sha256": "4809C67BC75561DE0355A48DDB26DA42D9973874AC070A221CB568B88E6EC6F2",
+    "archive_bytes": 30096396,
+    "corrected_stale_metadata": [
+      "px_service.exe"
+    ],
+    "product_manifest_sha256": "5F011ECBABD82CAEC235214E2FC0DF5C99322ECD30F82AE765940A8962C8642C",
+    "source_render_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931"
+  },
+  "xr": {
+    "plan": {
+      "schema_version": 1,
+      "purpose": "authorized-development-incremental-update-on-existing-complete-baseline",
+      "device_code": "947158375",
+      "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+      "service_name": "px_service",
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "BBC326BCC1A65B743987C7B79DA01767CE8F1689E4E31C21A0BA8D0E3BA4B17C",
+      "desired_manifest_sha256": "1F19F8DCD6DBB1B12E5C9356C73A1B40CC010995E495D85C5C7BEDFEEEE39431",
+      "replacements": [
+        {
+          "path": "px_render.exe",
+          "before_sha256": "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E",
+          "after_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+          "bytes": 74320896
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "967259D786D828475A2E6AF64A77BD5BF8E431BBE3710894EFED1C7EFDBE3DF2",
+          "after_sha256": "C1A06CECB6D8371C91BC2A76EF29769E7854B253D9797085F4163ACF11CE0A52",
+          "bytes": 45238
+        }
+      ],
+      "removals": [],
+      "runtime_processes": [],
+      "preserve_node_configuration": true
+    },
+    "archive_sha256": "786744A4FEEF773ED6F25CDAC9512FE19221BDB4467918FC86C52A66C939ACBE",
+    "archive_bytes": 30096346,
+    "corrected_stale_metadata": [
+      "px_service.exe"
+    ],
+    "product_manifest_sha256": "C1A06CECB6D8371C91BC2A76EF29769E7854B253D9797085F4163ACF11CE0A52",
+    "source_render_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931"
+  }
+}

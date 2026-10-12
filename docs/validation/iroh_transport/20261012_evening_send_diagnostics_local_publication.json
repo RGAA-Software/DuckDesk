@@ -1,0 +1,13 @@
+{
+  "official_build_and_stage_render_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+  "official_stage_payloads_verified": 314,
+  "official_stage_product_manifest_sha256": "4307E9320490C653CF1705C918F9F3554B4F66F9BEFD68366C58E1FBD4C10755",
+  "development_products": {
+    "cloud_node": {
+      "render_sha256": "9275B4E041B03C9A5582983D0FFF238C1951A64CF20908CD27C022FA7ADC29B1"
+    },
+    "remote": {
+      "render_sha256": "9EC1EEF8E01B70A8EBE45610AA0D1F5FB3B6797A68D2EC5764158D41A612AE66"
+    }
+  }
+}

@@ -16,6 +16,47 @@
 
 namespace px::transport {
 namespace {
+TEST(IrohVideoSendDiagnostics, LateFrameReceiptGapKeepsBoundedRecentMetadataWithoutContinuousLogging) {
+    VideoSendDiagnostics diagnostics{};
+    for (std::uint64_t frame_index{1}; frame_index <= 100; ++frame_index) {
+        diagnostics.Record({.trace = 17,
+                            .wire_frame = static_cast<std::uint32_t>(frame_index),
+                            .encoder_frame = frame_index + 10,
+                            .local_accepted = true,
+                            .origin_us = 600'000'000 + frame_index * 16'667,
+                            .first_accepted_us = 600'000'020 + frame_index * 16'667,
+                            .last_accepted_us = 600'000'030 + frame_index * 16'667,
+                            .transport = {.path = PathKind::kRelay, .congestion_window_bytes = 12000}});
+    }
+    EXPECT_TRUE(diagnostics.RecentForGap(0, 602'000'000, 20'000, 20'000, 99'999).empty());
+    // Feedback continues at 20ms, but advancing frame receipts paused for 422ms.
+    const auto recent = diagnostics.RecentForGap(0, 602'000'000, 20'000, 20'000, 422'000);
+    ASSERT_EQ(recent.size(), 64);
+    EXPECT_EQ(recent.front().wire_frame, 37);
+    EXPECT_EQ(recent.back().encoder_frame, 110);
+    EXPECT_EQ(recent.back().first_accepted_us, 601'666'720);
+    EXPECT_EQ(recent.back().transport.path, PathKind::kRelay);
+    EXPECT_TRUE(diagnostics.RecentForGap(0, 602'999'999, 150'000, 20'000, 0).empty());
+    EXPECT_EQ(diagnostics.RecentForGap(0, 603'000'000, 150'000, 20'000, 0).size(), 64);
+}
+
+TEST(IrohVideoSendDiagnostics, StreamIsolationEmptyHistoryAndRepeatedClearDoNotConsumeDumpCredit) {
+    VideoSendDiagnostics diagnostics{};
+    EXPECT_TRUE(diagnostics.RecentForGap(1, 200'000'000, 150'000, 20'000, 0).empty());
+    diagnostics.Record({.stream = 1, .wire_frame = 7, .encoder_frame = 9, .local_accepted = false});
+    diagnostics.Record({.stream = 2, .wire_frame = 8, .encoder_frame = 10, .local_accepted = true});
+    const auto recent = diagnostics.RecentForGap(1, 200'000'000, 150'000, 20'000, 0);
+    ASSERT_EQ(recent.size(), 1);
+    EXPECT_EQ(recent.front().encoder_frame, 9);
+    EXPECT_FALSE(recent.front().first_accepted_us);
+    EXPECT_FALSE(recent.front().local_accepted);
+    diagnostics.Clear();
+    diagnostics.Clear();
+    EXPECT_TRUE(diagnostics.RecentForGap(1, 200'000'000, 150'000, 20'000, 0).empty());
+    diagnostics.Record({.stream = 1, .encoder_frame = 11});
+    EXPECT_EQ(diagnostics.RecentForGap(1, 200'000'000, 20'000, 150'000, 0).size(), 1);
+}
+
 TEST(IrohVideoDiagnostics, RecoveryMetadataAndDuplicatesRemainVisibleAfterInitialTraceExpires) {
     VideoReceiveDiagnostics diagnostics{};
     const auto observed_us = diagnostics.Id() + 240'000'000;
@@ -890,6 +931,24 @@ TEST_F(IrohMediaTest, PacedVideoAndAudioUseActualQuicDatagrams) {
     EXPECT_EQ(probe_->feedback.back().complete_frames, 1);
     EXPECT_EQ(probe_->feedback.back().complete_bytes, frame.encoded.size());
     EXPECT_EQ(probe_->feedback.back().latest_frame_index, frame.frame_index);
+}
+
+TEST_F(IrohMediaTest, DelayedReceiptLogsActualSubmissionHistoryWithoutChangingMediaOrControlLifetime) {
+    const auto frame = Frame(34046);
+    ASSERT_TRUE(sender_->SendVideo(frame, Completion()));
+    {
+        std::unique_lock lock(probe_->mutex);
+        ASSERT_TRUE(probe_->changed.wait_for(lock, std::chrono::seconds(3),
+                                             [probe = probe_] { return probe->video.size() == 1 && probe->sends_completed == 1; }));
+        ASSERT_EQ(probe_->video.front().encoded, frame.encoded);
+    }
+    // Only the receipt is delayed; this is a diagnostic trigger, not injected NIC/network loss.
+    std::this_thread::sleep_for(std::chrono::milliseconds(120));
+    sender_->ObserveFeedback({.stream = frame.stream, .elapsed_us = 200000, .complete_frames = 1, .latest_frame_index = frame.frame_index});
+    EXPECT_TRUE(sender_->CanEncodeVideo(frame.stream));
+    sender_->Stop();
+    sender_->Stop();
+    EXPECT_FALSE(outgoing_->IsClosed());
 }
 
 TEST(IrohVoiceDatagram, RejectsNonVoiceTruncatedAndOversizedMessages) {

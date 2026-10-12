@@ -1,5 +1,9 @@
 # Workspace delivery rules
 
+- Evening validation update (2026-10-12): the user explicitly started the deferred short-video-stutter investigation.
+  Company (559038160), 90 (428358431) and XRServer03 (947158375) are available. Reuse existing delivery evidence,
+  investigate actual media waits with logs and upstream references, and keep Android and the stopped NIC/saturated mixed-load stress excluded.
+
 - Remote availability update (2026-10-12, superseding the afternoon exclusion): the user confirmed
   "Use 90; it is available now" for the paired Console/node rollout and subsequent mainline validation.
   Device 428358431 may be used again; stage development and transfer artifacts only under `D:\112233`.

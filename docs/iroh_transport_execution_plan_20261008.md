@@ -1,5 +1,9 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-12 21:42追加：用户启动晚间短顿调查并允许Company/90/XR。两Relay+UDP LAN/内容拖动累计约22.5分钟无>100ms旧事件，
+不称旧151–165ms已定因或消除；源持续64帧摘要诊断已增量交付90/XR，61媒体检查通过。
+见 [晚间报告](validation/iroh_transport/20261012_evening_video_investigation.md)；下午主线功能/交付证据复用，Android/NIC/饱和混传仍排除。
+
 2026-10-12 18:43追加：用户确认90恢复可用；Console／90与XR节点配套增量上线、真实Relay排空收发和设置恢复完成，
 见 [上线收尾](validation/iroh_transport/20261012_relay_retention_rollout.md)。下方暂停90／待服务器窗口属于先前阶段记录。
 

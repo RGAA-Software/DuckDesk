@@ -59,6 +59,16 @@ if ($windowsService.ProcessId -ne 0) {
     $serviceProcess = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $windowsService.ProcessId)
     if ([IO.Path]::GetFullPath($serviceProcess.ExecutablePath) -ine $expectedExecutable) { throw 'Installed service executable differs' }
 }
+foreach ($runtime in @($plan.runtime_processes)) {
+    if ($null -eq $runtime) { continue }
+    $expectedPath = Resolve-ContainedFile $installedDirectory ([string]$runtime.path)
+    $runtimeProcess = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)
+    if ($null -ne $runtimeProcess -and
+        ([IO.Path]::GetFullPath($runtimeProcess.ExecutablePath) -ine $expectedPath -or
+         $runtimeProcess.CreationDate.ToUniversalTime().ToString('o') -ne [string]$runtime.created_utc)) {
+        throw 'Runtime PID was reused or its identity changed'
+    }
+}
 if ($VerifyOnly) {
     [pscustomobject]@{state='verified';service=$plan.service_name;changed_files=@($plan.replacements).Count;baseline_manifest_sha256=$plan.baseline_manifest_sha256} | ConvertTo-Json -Compress
     return
@@ -77,6 +87,23 @@ foreach ($artifact in @($plan.replacements) + @($plan.removals)) {
 }
 Stop-Service -Name $plan.service_name -ErrorAction Stop
 (Get-Service -Name $plan.service_name).WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(30))
+foreach ($runtime in @($plan.runtime_processes)) {
+    if ($null -eq $runtime) { continue }
+    $runtimeProcess = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)
+    if ($null -eq $runtimeProcess) { continue }
+    if ([IO.Path]::GetFullPath($runtimeProcess.ExecutablePath) -ine (Resolve-ContainedFile $installedDirectory ([string]$runtime.path)) -or
+        $runtimeProcess.CreationDate.ToUniversalTime().ToString('o') -ne [string]$runtime.created_utc) {
+        throw 'Runtime changed before publication'
+    }
+    Stop-Process -Id ([int]$runtime.pid) -ErrorAction Stop
+    $shutdownDeadline = [DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $remainingProcess = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)
+        if ($null -eq $remainingProcess) { break }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $shutdownDeadline)
+    if ($null -ne $remainingProcess) { throw 'Explicit runtime did not stop' }
+}
 foreach ($replacement in $plan.replacements) {
     $destinationPath = Resolve-ContainedFile $installedDirectory ([string]$replacement.path)
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destinationPath)) | Out-Null
@@ -89,6 +116,12 @@ foreach ($retired in $plan.removals) {
 Copy-Item -LiteralPath $desiredManifestPath -Destination $manifestPath -Force
 foreach ($property in $desiredFiles.PSObject.Properties) {
     Assert-FileHash (Resolve-ContainedFile $installedDirectory $property.Name) ([string]$property.Value)
+}
+if ($plan.manifest_name -eq 'sha256sums.json') {
+    $productManifest = Get-Content -LiteralPath (Resolve-ContainedFile $installedDirectory 'product-manifest.json') -Raw | ConvertFrom-Json
+    foreach ($artifact in $productManifest.artifacts) {
+        Assert-FileHash (Resolve-ContainedFile $installedDirectory ([string]$artifact.path)) ([string]$artifact.sha256)
+    }
 }
 Start-Service -Name $plan.service_name -ErrorAction Stop
 (Get-Service -Name $plan.service_name).WaitForStatus([ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(30))

@@ -1,0 +1,19 @@
+{
+  "completed_monotonic_seconds": 300.3023861,
+  "complete_window_seconds": 295.581899,
+  "weighted_presented_fps": 59.979992211904694,
+  "presented_frames_in_complete_windows": 17729,
+  "maximum_complete_window_gap_us": 80047,
+  "steady_gaps_over_100ms": [],
+  "outside_formal_window_gaps": [],
+  "decoder_no_output": 0,
+  "decoder_errors": 0,
+  "maximum_log_overruns": 0,
+  "source_video_datagram_mean_bps": 6008660.580645162,
+  "source_video_datagram_max_bps": 6119391,
+  "source_max_send_us": 24407,
+  "source_failed_frames": 0,
+  "source_busy_frames": 0,
+  "client_and_source_compressed_and_raw_sha256_verified": true,
+  "interpretation": "Unchanged product media code; a passing current sample does not identify or remove the earlier 151-165ms waits."
+}

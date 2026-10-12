@@ -1,0 +1,16 @@
+{
+    "state":  "sample_complete",
+    "requested_seconds":  300,
+    "client_sha256":  "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "expected_relay":  "https://39.71.45.66:4605/",
+    "client_pid":  51016,
+    "started_local":  "2026-10-12 20:46:22.858",
+    "started_epoch":  1791809182.882,
+    "sample_started_epoch":  1791809190.593,
+    "sample_elapsed_seconds":  300.3023861,
+    "sample_ended_epoch":  1791809490.9,
+    "client_exited":  true,
+    "raw_sha256":  "AAC40CC182A2A9CAB281BC20958FFFF6623F37CD44751A86E4F12A7BD22AFB31",
+    "gzip_sha256":  "E1238798154FCC6B3E5C315BB5872A7385EDC934E073895C09467D85F8020A3C",
+    "gzip_bytes":  688352
+}

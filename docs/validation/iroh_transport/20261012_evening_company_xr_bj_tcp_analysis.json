@@ -1,0 +1,125 @@
+{
+  "capture": ".cache/evening-video-20261012/20261012_evening_company_xr_bj_final_relay.pcap.gz",
+  "first_epoch": 1791808085.586888,
+  "last_epoch": 1791808719.219457,
+  "minimum_gap_ms": 50,
+  "limitations": "Sequence holes and SACK prove ordering waits at this capture point, not a physical loss location. Payload gaps include idle periods. TLS prevents frame identification.",
+  "flows": {
+    "112.27.225.224:45950>172.18.0.2:4605": {
+      "packets": 226164,
+      "payload_bytes": 125132090,
+      "hole": null,
+      "holes": [],
+      "sack_hole": null,
+      "sack_stalls": [],
+      "overlap_packets": 0,
+      "zero_window_packets": 0,
+      "payload_gaps": [
+        {
+          "started_epoch": 1791808085.831571,
+          "ended_epoch": 1791808090.116913,
+          "duration_ms": 4285.34197807312
+        },
+        {
+          "started_epoch": 1791808701.272201,
+          "ended_epoch": 1791808701.343099,
+          "duration_ms": 70.89805603027344
+        },
+        {
+          "started_epoch": 1791808701.343099,
+          "ended_epoch": 1791808701.480127,
+          "duration_ms": 137.02797889709473
+        },
+        {
+          "started_epoch": 1791808701.480127,
+          "ended_epoch": 1791808701.754062,
+          "duration_ms": 273.93484115600586
+        },
+        {
+          "started_epoch": 1791808701.754062,
+          "ended_epoch": 1791808702.301076,
+          "duration_ms": 547.0139980316162
+        },
+        {
+          "started_epoch": 1791808702.301076,
+          "ended_epoch": 1791808703.394986,
+          "duration_ms": 1093.9099788665771
+        },
+        {
+          "started_epoch": 1791808703.394986,
+          "ended_epoch": 1791808705.581729,
+          "duration_ms": 2186.7430210113525
+        },
+        {
+          "started_epoch": 1791808705.581729,
+          "ended_epoch": 1791808716.221861,
+          "duration_ms": 10640.131950378418
+        },
+        {
+          "started_epoch": 1791808716.221861,
+          "ended_epoch": 1791808719.190725,
+          "duration_ms": 2968.8642024993896
+        }
+      ]
+    },
+    "172.18.0.2:4605>112.27.225.224:45950": {
+      "packets": 221615,
+      "payload_bytes": 11251139,
+      "hole": null,
+      "holes": [],
+      "sack_hole": null,
+      "sack_stalls": [],
+      "overlap_packets": 2,
+      "zero_window_packets": 0,
+      "payload_gaps": [
+        {
+          "started_epoch": 1791808085.83169,
+          "ended_epoch": 1791808090.089307,
+          "duration_ms": 4257.616996765137
+        },
+        {
+          "started_epoch": 1791808181.415087,
+          "ended_epoch": 1791808181.477179,
+          "duration_ms": 62.09206581115723
+        },
+        {
+          "started_epoch": 1791808185.081953,
+          "ended_epoch": 1791808185.139104,
+          "duration_ms": 57.150840759277344
+        },
+        {
+          "started_epoch": 1791808701.117951,
+          "ended_epoch": 1791808701.193873,
+          "duration_ms": 75.92201232910156
+        },
+        {
+          "started_epoch": 1791808701.193913,
+          "ended_epoch": 1791808716.222021,
+          "duration_ms": 15028.1081199646
+        }
+      ]
+    },
+    "39.71.45.66:50982>172.18.0.2:4605": {
+      "packets": 229612,
+      "payload_bytes": 9675541,
+      "hole": null,
+      "holes": [],
+      "sack_hole": null,
+      "sack_stalls": [],
+      "overlap_packets": 1,
+      "zero_window_packets": 0,
+      "payload_gaps": []
+    },
+    "172.18.0.2:4605>39.71.45.66:50982": {
+      "packets": 234435,
+      "payload_bytes": 126887517,
+      "hole": null,
+      "holes": [],
+      "sack_hole": null,
+      "sack_stalls": [],
+      "overlap_packets": 19,
+      "zero_window_packets": 0,
+      "payload_gaps": []
+    }
+  }
+}

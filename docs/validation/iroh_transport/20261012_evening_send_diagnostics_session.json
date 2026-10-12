@@ -1,0 +1,12 @@
+{
+  "source_device": "428358431",
+  "receiver_device": "559038160",
+  "instance_id": "0415ddb6-9e00-4362-a13d-b8fa615eb765",
+  "resource_session_id": "7aa0b64f-b6d0-46d0-b040-df1f15daacad",
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "advertised_source_relay": "https://39.71.45.66:4605/",
+  "render_port": 4613,
+  "bitrate_kbps": 10000,
+  "client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+  "state": "prepared"
+}

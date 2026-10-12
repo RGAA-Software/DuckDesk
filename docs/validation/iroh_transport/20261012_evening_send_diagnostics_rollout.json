@@ -1,0 +1,159 @@
+{
+  "source": {
+    "source_pid": 24240,
+    "created_local": "2026-10-12 21:30:47.748",
+    "render_sha": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931"
+  },
+  "installed_peers": {
+    "90": {
+      "publication": {
+        "state": "published",
+        "service": "px_service",
+        "runtime_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "manifest_sha256": "008C1B1D7A38C7F934F88E6F93058305893BEA2F5F3FF92020DA46A590853D2A",
+        "verified_artifacts": 315,
+        "backup_directory": "D:\\112233\\evening-send-diagnostics-20261012\\bundle\\before-cde53866bdcf46998341bcb817d3e271",
+        "service_state": "Running"
+      },
+      "source_upload": {
+        "destination": "D:\\112233\\evening-send-diagnostics-20261012\\render-delta.zip",
+        "device_code": "428358431",
+        "device_ref": {
+          "device_id": "ffc68590-74dc-4355-a452-555da0b92473",
+          "tenant_id": "ba889233-f860-4cc1-8a53-1f6929bd4824"
+        },
+        "direction": "upload",
+        "execution": {
+          "mode": "service"
+        },
+        "execution_context": {
+          "architecture": "x86_64",
+          "cwd": "C:\\Windows\\system32",
+          "environment_revision": "native-v2:61f25b661fe554f203e17f8e73eab05649546065afef8688af3f0e70eb49c76e",
+          "execution_scope": "native",
+          "identity": {
+            "account_id": "S-1-5-18",
+            "account_name": "NT AUTHORITY\\SYSTEM",
+            "environment_source": "service_process",
+            "home": "C:\\Windows\\system32\\config\\systemprofile",
+            "logon_id": "00000000:000003e7",
+            "mode": "service",
+            "primary_group": null,
+            "session_id": "0"
+          },
+          "interpreter": null,
+          "os_family": "windows",
+          "os_name": "Windows",
+          "os_version": "10.0.20348",
+          "path_style": "windows"
+        },
+        "execution_observation": null,
+        "finished_at_unix_ms": 1791811518840,
+        "id": "d85f109a-f530-47a6-ba3b-ef053e76280d",
+        "initiated_by": "guest",
+        "initiating_user": {
+          "user_id": "78e7862f-93c8-4757-8d62-20b8acb78102",
+          "username": "home"
+        },
+        "kind": "file_transfer",
+        "message": null,
+        "offset": 30096396,
+        "overwrite": false,
+        "owned": true,
+        "phase": "completed",
+        "sha256": "4809c67bc75561de0355a48ddb26da42d9973874ac070a221cb568b88e6ec6f2",
+        "size": 30096396,
+        "source": "D:\\GoCloud\\GammaRayPremium\\.cache\\evening-diagnostics-delta-90.zip",
+        "started_at_unix_ms": 1791811511657,
+        "state": "completed",
+        "updated_at_unix_ms": 1791811518841
+      },
+      "preflight": {
+        "sessions": [
+          " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+          " administrator         console             2  Active      10:15  2026/10/12 11:06"
+        ],
+        "runtimes": [
+          {
+            "path": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe",
+            "pid": 12264,
+            "created_utc": "2026-10-12T10:15:06.8662270Z"
+          }
+        ],
+        "clients": 0
+      }
+    },
+    "xr": {
+      "publication": {
+        "state": "published",
+        "service": "px_service",
+        "runtime_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+        "manifest_sha256": "1F19F8DCD6DBB1B12E5C9356C73A1B40CC010995E495D85C5C7BEDFEEEE39431",
+        "verified_artifacts": 315,
+        "backup_directory": "D:\\uploadsoft\\rd\\pixels\\evening-send-diagnostics-20261012\\bundle\\before-e709c42259ad45398a1e5bffc837ae51",
+        "service_state": "Running"
+      },
+      "source_upload": {
+        "destination": "D:\\uploadsoft\\rd\\pixels\\evening-send-diagnostics-20261012\\render-delta.zip",
+        "device_code": "947158375",
+        "device_ref": {
+          "device_id": "8ceb658e-3d26-465a-b095-400df3e7aab8",
+          "tenant_id": "27509a2f-abae-4c3c-9a73-cf825b39647e"
+        },
+        "direction": "upload",
+        "execution": {
+          "mode": "service"
+        },
+        "execution_context": {
+          "architecture": "x86_64",
+          "cwd": "C:\\Windows\\system32",
+          "environment_revision": "native-v2:61f25b661fe554f203e17f8e73eab05649546065afef8688af3f0e70eb49c76e",
+          "execution_scope": "native",
+          "identity": {
+            "account_id": "S-1-5-18",
+            "account_name": "NT AUTHORITY\\SYSTEM",
+            "environment_source": "service_process",
+            "home": "C:\\Windows\\system32\\config\\systemprofile",
+            "logon_id": "00000000:000003e7",
+            "mode": "service",
+            "primary_group": null,
+            "session_id": "0"
+          },
+          "interpreter": null,
+          "os_family": "windows",
+          "os_name": "Windows",
+          "os_version": "10.0.20348",
+          "path_style": "windows"
+        },
+        "execution_observation": null,
+        "finished_at_unix_ms": 1791811589564,
+        "id": "22e32e7c-dde6-47e4-93dc-6dc41dece950",
+        "initiated_by": "guest",
+        "initiating_user": {
+          "user_id": "78e7862f-93c8-4757-8d62-20b8acb78102",
+          "username": "home"
+        },
+        "kind": "file_transfer",
+        "message": null,
+        "offset": 30096346,
+        "overwrite": false,
+        "owned": true,
+        "phase": "completed",
+        "sha256": "786744a4feef773ed6f25cdac9512fe19221bdb4467918fc86c52a66c939acbe",
+        "size": 30096346,
+        "source": "D:\\GoCloud\\GammaRayPremium\\.cache\\evening-diagnostics-delta-xr.zip",
+        "started_at_unix_ms": 1791811516953,
+        "state": "completed",
+        "updated_at_unix_ms": 1791811589565
+      },
+      "preflight": {
+        "sessions": [
+          " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+          " administrator         console             1  Active      none   2026/9/12 20:57"
+        ],
+        "runtimes": [],
+        "clients": 0
+      }
+    }
+  }
+}

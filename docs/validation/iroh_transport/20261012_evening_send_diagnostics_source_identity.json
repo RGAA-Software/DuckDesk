@@ -1,0 +1,11 @@
+{
+  "base_revision": "a6a093ad4ba2705b6c31ca38d0fc9d4a63724b0d",
+  "source_sha256": {
+    "src/px_transport/media_datagrams.cpp": "df8ec8d1842e8c0b1ec12597eb8e06c2bfb868419f4f2dffdc3fcb35f6b09336",
+    "src/px_transport/media_datagrams.h": "37e7d479422f440790f6cf16ee1a155bae9d7b3d5562e6bf452f0af1f7b3153f",
+    "src/px_transport/video_diagnostics.cpp": "575a4872962686d4ffe1eaf48dbdf3aab61af8bee22b48378ad5645f10df4e6e",
+    "src/px_transport/video_diagnostics.h": "8985fd775300f7ff0944b889284c37b541c09facd36b0718595f8ef8a66c478a",
+    "src/px_transport/tests/test_media_datagrams.cpp": "94234a6ab5094dfe8e979a01c70928d13420f4e4797f6ef703197f577b1ee3b7"
+  },
+  "diagnostic_trigger_log_sha256": "74d1427822e027a2fcdd1c638ebef4171b56308587d721e8d0c32a032ea86ee0"
+}

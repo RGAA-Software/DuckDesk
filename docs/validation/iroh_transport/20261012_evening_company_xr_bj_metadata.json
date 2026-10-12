@@ -1,0 +1,34 @@
+{
+  "company_clock_bounds": [
+    {
+      "device_code": "559038160",
+      "local_started_ms": 1791808262885,
+      "local_ended_ms": 1791808264120,
+      "remote_ms": 1791808253353,
+      "offset_lower_ms": -10767,
+      "offset_upper_ms": -9532
+    },
+    {
+      "device_code": "559038160",
+      "local_started_ms": 1791808264120,
+      "local_ended_ms": 1791808265236,
+      "remote_ms": 1791808254564,
+      "offset_lower_ms": -10672,
+      "offset_upper_ms": -9556
+    },
+    {
+      "device_code": "559038160",
+      "local_started_ms": 1791808265236,
+      "local_ended_ms": 1791808266368,
+      "remote_ms": 1791808255682,
+      "offset_lower_ms": -10686,
+      "offset_upper_ms": -9554
+    }
+  ],
+  "source": {
+    "source_pid": 50004,
+    "render_sha": "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E",
+    "started_local": "2026-10-12 20:28:05.215",
+    "service_sha": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED"
+  }
+}

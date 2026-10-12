@@ -1,0 +1,9 @@
+{
+    "port":  4613,
+    "source_path":  "D:\\112233\\evening-direct-20261012\\video-source-4613.log",
+    "lines":  13416,
+    "source_sha256":  "5448E6FE3EEEB3B905E03612856167F7818A093260ABF485B9598D1419632B55",
+    "gzip_path":  "D:\\112233\\evening-direct-20261012\\video-source-4613.log.gz",
+    "gzip_size":  874530,
+    "gzip_sha256":  "5F0E325E9A499EC5845DA205315E763AA56491E48C4AFC6E87D53B75B6D5C28A"
+}

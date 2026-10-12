@@ -1,0 +1,19 @@
+{
+  "completed_monotonic_seconds": 150.10405079999998,
+  "complete_window_seconds": 140.275764,
+  "weighted_presented_fps": 59.28322728650403,
+  "presented_frames_in_complete_windows": 8316,
+  "maximum_complete_window_gap_us": 42669,
+  "steady_gaps_over_100ms": [],
+  "outside_formal_window_gaps": [],
+  "decoder_no_output": 0,
+  "decoder_errors": 0,
+  "maximum_log_overruns": 0,
+  "source_video_datagram_mean_bps": 7468372.9375,
+  "source_video_datagram_max_bps": 7921969,
+  "source_max_send_us": 34688,
+  "source_failed_frames": 0,
+  "source_busy_frames": 0,
+  "client_and_source_compressed_and_raw_sha256_verified": true,
+  "interpretation": "Bounded send-history diagnostics added; routing, FEC and media policy unchanged. No earlier long wait reproduced."
+}

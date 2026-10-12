@@ -61,6 +61,8 @@ private:
     // PacedMediaBatch serializes its callbacks. Measures admission to QUIC, not NIC transmission.
     struct VideoWriteTrace final {
         std::optional<std::chrono::steady_clock::time_point> first_write{};
+        std::optional<std::uint64_t> first_accepted_us{};
+        std::optional<std::uint64_t> last_accepted_us{};
         std::uint64_t maximum_write_us{};
         std::size_t maximum_burst_bytes{};
         std::size_t accepted_packets{};
@@ -93,6 +95,7 @@ private:
     std::map<std::uint8_t, std::chrono::steady_clock::time_point> last_encoded_frame_{};
     VideoFlightWindow flight_{};
     std::map<std::uint8_t, FeedbackTrace> feedback_traces_{};
+    VideoSendDiagnostics send_diagnostics_{};  // Guarded by video_mutex_.
     std::map<std::uint8_t, std::chrono::steady_clock::time_point> admitted_recovery_requests_{};
     media::AudioPacketizer audio_{};
     std::atomic_bool stopped_{};
