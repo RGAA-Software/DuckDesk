@@ -1,0 +1,116 @@
+[
+  {
+    "datagrams_sent": 601,
+    "datagrams_verified": 601,
+    "elapsed_ms": 30537,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 77695,
+    "maximum_datagram_success_gap_ms": 108,
+    "maximum_reliable_round_trip_ms": 33,
+    "peer_id": "3d5adcc7c2a84ff96f2b34e9e662bbc0c10075a946689954d03cffbbf9ce8882",
+    "reliable_messages_verified": 30,
+    "case": "company_local_auto_1",
+    "selected_paths": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "39.71.45.66:62485"
+      }
+    ]
+  },
+  {
+    "datagrams_sent": 600,
+    "datagrams_verified": 600,
+    "elapsed_ms": 30459,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 76246,
+    "maximum_datagram_success_gap_ms": 101,
+    "maximum_reliable_round_trip_ms": 29,
+    "peer_id": "bb6e948ccea236238a17c69f1d41e717d69298201be832c12e983d639ddc646b",
+    "reliable_messages_verified": 30,
+    "case": "local_company_auto_1",
+    "selected_paths": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      },
+      {
+        "Ip": "39.82.198.244:55481"
+      }
+    ]
+  },
+  {
+    "datagrams_sent": 601,
+    "datagrams_verified": 601,
+    "elapsed_ms": 30274,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 13080,
+    "maximum_datagram_success_gap_ms": 69,
+    "maximum_reliable_round_trip_ms": 4,
+    "peer_id": "bf4f0755192c25c9a30aee28b5d689f5c6be1a2ec48cc42c794a4195dc5b2caa",
+    "reliable_messages_verified": 30,
+    "case": "90_company_lan_1",
+    "selected_paths": [
+      {
+        "Ip": "10.0.0.90:50674"
+      }
+    ]
+  },
+  {
+    "datagrams_sent": 1201,
+    "datagrams_verified": 1201,
+    "elapsed_ms": 60841,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 41089,
+    "maximum_datagram_success_gap_ms": 56,
+    "maximum_reliable_round_trip_ms": 42,
+    "peer_id": "6e6dda2687e824c16dc6750c5ecafb28633317abfc4212dfe82ea8545d500cc9",
+    "reliable_messages_verified": 59,
+    "case": "90_xr_auto_1",
+    "selected_paths": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      }
+    ]
+  },
+  {
+    "datagrams_sent": 1171,
+    "datagrams_verified": 1171,
+    "elapsed_ms": 60031,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 175200,
+    "maximum_datagram_success_gap_ms": 175,
+    "maximum_reliable_round_trip_ms": 113,
+    "peer_id": "7686135f7398d2f3a2a174cd3d9596cc8fceba0daca4db2c0b57ef4fa33f0165",
+    "reliable_messages_verified": 57,
+    "case": "xr_local_auto_1",
+    "selected_paths": [
+      {
+        "Relay": "https://39.71.45.66:4605/"
+      }
+    ]
+  },
+  {
+    "datagrams_sent": 1199,
+    "datagrams_verified": 1199,
+    "elapsed_ms": 60966,
+    "event": "nat_probe.result",
+    "late_datagrams": 0,
+    "maximum_datagram_round_trip_us": 148577,
+    "maximum_datagram_success_gap_ms": 148,
+    "maximum_reliable_round_trip_ms": 60,
+    "peer_id": "ef65eefe40cc13467088371f3c25d92a6a3ef730f5fc3becbcdf32a6d62c7574",
+    "reliable_messages_verified": 58,
+    "case": "xr_local_bj_auto_1",
+    "selected_paths": [
+      {
+        "Relay": "https://49.232.233.61:4605/"
+      }
+    ]
+  }
+]

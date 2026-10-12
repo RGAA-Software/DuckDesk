@@ -1,0 +1,60 @@
+{
+  "workspace": "D:\\uploadsoft\\rd\\pixels",
+  "staging": "D:\\uploadsoft\\rd\\pixels\\nat-acceptance-20261012",
+  "old_staging_exists": false,
+  "files": [
+    {
+      "Name": "90-xr-auto-1.address.json",
+      "Length": 239
+    },
+    {
+      "Name": "endpoint-bj.json",
+      "Length": 1371
+    },
+    {
+      "Name": "endpoint.json",
+      "Length": 1453
+    },
+    {
+      "Name": "install-client.ps1",
+      "Length": 2172
+    },
+    {
+      "Name": "installation-result.json",
+      "Length": 1456
+    },
+    {
+      "Name": "launch-client-2.ps1",
+      "Length": 1798
+    },
+    {
+      "Name": "launch-client.ps1",
+      "Length": 1384
+    },
+    {
+      "Name": "PixelsClient_official_3.3.81_Setup.exe",
+      "Length": 47952706
+    },
+    {
+      "Name": "px_nat_probe.exe",
+      "Length": 11200512
+    },
+    {
+      "Name": "xr-local-auto-1.address.json",
+      "Length": 245
+    },
+    {
+      "Name": "xr-local-bj-auto-1.address.json",
+      "Length": 247
+    },
+    {
+      "Name": "xr-native-client-1-owner.json",
+      "Length": 167
+    },
+    {
+      "Name": "xr-native-client-2-owner.json",
+      "Length": 167
+    }
+  ],
+  "client_active": 0
+}

@@ -1,0 +1,5 @@
+{
+  "accepted": false,
+  "reason": "MCP transport closed before address download/peer launch. Original Company command ab63f63b-cbde-4b27-aa8a-0b1a7efdfbdc terminal failed exit1: no peer connected before deadline. Download request36f06c69-20af-478f-a965-c385821865a9 had no local task record after MCP restart. No local test socket/client started.",
+  "cleanup": "Company probe process list empty andhelperSHA097F43A8.../ownedRules0 verified after restart."
+}

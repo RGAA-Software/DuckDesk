@@ -1,0 +1,19 @@
+{
+  "events": [],
+  "controller_failure": [],
+  "paths": [
+    {
+      "peer": [
+        "39.71.45.66",
+        4613
+      ],
+      "forwarded_uplink": 1,
+      "forwarded_downlink": 0,
+      "dropped_uplink": 0,
+      "dropped_downlink": 0,
+      "worker_stopped": true,
+      "failure": null
+    }
+  ],
+  "scope": "Only owned UDP media path is interrupted. Existing real private Relay candidates remain; this is not new NAT evidence."
+}

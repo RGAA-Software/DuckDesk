@@ -1,0 +1,39 @@
+   Compiling px_transport_probe v0.1.0 (D:\GoCloud\GammaRayPremium\rust_transport\px_transport_probe)
+error[E0502]: cannot borrow `summary` as immutable because it is also borrowed as mutable
+   --> px_transport_probe\src\bin\px_relay_speed.rs:178:39
+    |
+144 |         let finish_phase = control_receive.read_exact(&mut summary);
+    |                                                       ------------ mutable borrow occurs here
+...
+178 |         let sent = u64::from_le_bytes(summary[..8].try_into()?);
+    |                                       ^^^^^^^ immutable borrow occurs here
+...
+194 |     }
+    |     - mutable borrow might be used here, when `finish_phase` is dropped and runs the destructor for type `impl Future<Output = Result<(), noq::recv_stream::ReadExactError>>`
+
+error[E0502]: cannot borrow `summary` as immutable because it is also borrowed as mutable
+   --> px_transport_probe\src\bin\px_relay_speed.rs:179:49
+    |
+144 |         let finish_phase = control_receive.read_exact(&mut summary);
+    |                                                       ------------ mutable borrow occurs here
+...
+179 |         let queue_failures = u64::from_le_bytes(summary[8..16].try_into()?);
+    |                                                 ^^^^^^^ immutable borrow occurs here
+...
+194 |     }
+    |     - mutable borrow might be used here, when `finish_phase` is dropped and runs the destructor for type `impl Future<Output = Result<(), noq::recv_stream::ReadExactError>>`
+
+error[E0502]: cannot borrow `summary` as immutable because it is also borrowed as mutable
+   --> px_transport_probe\src\bin\px_relay_speed.rs:180:47
+    |
+144 |         let finish_phase = control_receive.read_exact(&mut summary);
+    |                                                       ------------ mutable borrow occurs here
+...
+180 |         let send_seconds = u64::from_le_bytes(summary[16..].try_into()?) as f64 / 1_000_000.0;
+    |                                               ^^^^^^^ immutable borrow occurs here
+...
+194 |     }
+    |     - mutable borrow might be used here, when `finish_phase` is dropped and runs the destructor for type `impl Future<Output = Result<(), noq::recv_stream::ReadExactError>>`
+
+For more information about this error, try `rustc --explain E0502`.
+error: could not compile `px_transport_probe` (bin "px_relay_speed") due to 3 previous errors

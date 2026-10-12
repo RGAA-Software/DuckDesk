@@ -1,0 +1,38 @@
+   Compiling iroh v1.3.0 (D:\GoCloud\GammaRayPremium\rust_transport\vendor\iroh-1.3.0)
+   Compiling px_transport v0.1.0 (D:\GoCloud\GammaRayPremium\rust_transport\px_transport)
+   Compiling px_transport_probe v0.1.0 (D:\GoCloud\GammaRayPremium\rust_transport\px_transport_probe)
+error[E0515]: cannot return value referencing function parameter `path`
+  --> px_transport_probe\src\bin\px_nat_probe.rs:52:45
+   |
+52 |             "selected": selected.map(|path| path.remote_addr()),
+   |                                             ----^^^^^^^^^^^^^^
+   |                                             |
+   |                                             returns a value referencing data owned by the current function
+   |                                             `path` is borrowed here
+
+error[E0382]: borrow of moved value: `selected`
+    --> px_transport_probe\src\bin\px_nat_probe.rs:53:31
+     |
+  46 |     let selected = paths.iter().find(|path| path.is_selected());
+     |         -------- move occurs because `selected` has type `Option<iroh::socket::remote_map::remote_state::path_watcher::Path<'_>>`, which does not implement the `Copy` trait
+...
+  52 |             "selected": selected.map(|path| path.remote_addr()),
+     |                         -------- ------------------------------ `selected` moved due to this method call
+     |                         |
+     |                         help: consider calling `.as_ref()` or `.as_mut()` to borrow the type's contents
+  53 |             "selected_is_ip": selected.as_ref().map(|path| path.is_ip()),
+     |                               ^^^^^^^^ value borrowed here after move
+     |
+note: `Option::<T>::map` takes ownership of the receiver `self`, which moves `selected`
+    --> C:\Users\chess\.rustup\toolchains\1.95.0-x86_64-pc-windows-msvc\lib/rustlib/src/rust\library\core\src\option.rs:1160:28
+     |
+1160 |     pub const fn map<U, F>(self, f: F) -> Option<U>
+     |                            ^^^^
+help: you can `clone` the value and consume it, but this might not be your desired behavior
+     |
+  52 |             "selected": selected.clone().map(|path| path.remote_addr()),
+     |                                 ++++++++
+
+Some errors have detailed explanations: E0382, E0515.
+For more information about an error, try `rustc --explain E0382`.
+error: could not compile `px_transport_probe` (bin "px_nat_probe") due to 2 previous errors

@@ -1,0 +1,58 @@
+{
+  "case": "local_xr_bj_1",
+  "device": "947158375",
+  "source": "local",
+  "relay": "BJ-200M Linux 49.232.233.61:4605",
+  "reliable_phase_valid": true,
+  "datagram_rate_gate_valid": false,
+  "reason": "Per-packet timer offered only ~1Mbps even for 4/10Mbps targets; do not infer a Relay limit. Retain first sample and repeat with actual-time bounded packet credits.",
+  "measurements": [
+    {
+      "bytes_verified": 111165440,
+      "effective_mbps": 44.26466597725182,
+      "elapsed_seconds": 20.0910478,
+      "event": "relay_speed.reliable_received",
+      "maximum_read_gap_ms": 365,
+      "offered_ceiling_mbps": 50
+    },
+    {
+      "duplicates": 0,
+      "effective_mbps": 0.9393365156276237,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 44,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.00536,
+      "sent": 1068,
+      "target_mbps": 1,
+      "unique_received": 1068
+    },
+    {
+      "duplicates": 0,
+      "effective_mbps": 0.9957242710589845,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 150,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.004376,
+      "sent": 1132,
+      "target_mbps": 4,
+      "unique_received": 1132
+    },
+    {
+      "duplicates": 0,
+      "effective_mbps": 0.9651376322895204,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 106,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.002304,
+      "sent": 1097,
+      "target_mbps": 10,
+      "unique_received": 1097
+    }
+  ]
+}

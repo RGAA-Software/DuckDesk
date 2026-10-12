@@ -1,0 +1,20 @@
+{
+  "candidate": "nat-xr-client-20261012",
+  "product": "client",
+  "product_version": "3.3.81",
+  "setup_path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\official\\candidates\\nat-xr-client-20261012\\installer\\3.3.81\\PixelsClient_official_3.3.81_Setup.exe",
+  "setup_sha256": "BFC20A5D041F8EE01EFF99F6D275F7BDAE106C3E56D697551FE79669FE4D4663",
+  "setup_bytes": 47952706,
+  "manifest_sha256": "D25A6043697CA81E6454AAA6E5CC6A23846C71426BA514DE100D1481E1A0536C",
+  "artifact_count": 41,
+  "artifacts": [
+    {
+      "path": "px_client.exe",
+      "sha256": "9E1E2E543A2F1A2ABA53A2D57416A9256D29D91CA728727F35073ED0583BE19A"
+    },
+    {
+      "path": "px_panel.exe",
+      "sha256": "70357392D2BB58D9DA90EFE091FB8F8F632DD61AC731845DD911807864DDC985"
+    }
+  ]
+}

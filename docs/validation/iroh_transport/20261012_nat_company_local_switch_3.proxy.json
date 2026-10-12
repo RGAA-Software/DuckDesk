@@ -1,0 +1,14 @@
+{
+  "events": [],
+  "ingress": "127.0.0.1:62102",
+  "peer": "39.71.45.66:56431",
+  "forwarded_uplink": 1,
+  "forwarded_downlink": 0,
+  "dropped_uplink": 0,
+  "dropped_downlink": 0,
+  "reset_notifications": 0,
+  "worker_failure": null,
+  "worker_stopped": true,
+  "exit_code": 0,
+  "scope": "Controlled path migration, not new two-ended NAT evidence. Native UDP binds loopback to prevent bypass; private Relay TCP remains real."
+}

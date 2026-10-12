@@ -1,0 +1,756 @@
+{
+  "receiver_device_code": "947158375",
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "instance_id": "c32dda37-0b84-4836-9d1e-35b3558e7c17",
+  "resource_session_id": "0debe5f7-23c8-4897-a440-8cb4e71504a8",
+  "selected_path": "IP39.71.45.66:4613",
+  "relay_video_acceptance": false,
+  "presentations": [
+    {
+      "frames": 50.0,
+      "elapsed_us": 5031303.0,
+      "fps": 9.94,
+      "maximum_gap_us": 3907920.0,
+      "maximum_upload_age_us": 827.0,
+      "maximum_render_us": 808.0,
+      "timestamp": "2026-10-12 10:44:23.302"
+    },
+    {
+      "frames": 62.0,
+      "elapsed_us": 5046518.0,
+      "fps": 12.29,
+      "maximum_gap_us": 865899.0,
+      "maximum_upload_age_us": 226.0,
+      "maximum_render_us": 202.0,
+      "timestamp": "2026-10-12 10:44:28.348"
+    },
+    {
+      "frames": 83.0,
+      "elapsed_us": 5084565.0,
+      "fps": 16.32,
+      "maximum_gap_us": 989894.0,
+      "maximum_upload_age_us": 214.0,
+      "maximum_render_us": 198.0,
+      "timestamp": "2026-10-12 10:44:33.433"
+    },
+    {
+      "frames": 72.0,
+      "elapsed_us": 5015494.0,
+      "fps": 14.36,
+      "maximum_gap_us": 460123.0,
+      "maximum_upload_age_us": 223.0,
+      "maximum_render_us": 209.0,
+      "timestamp": "2026-10-12 10:44:38.448"
+    },
+    {
+      "frames": 94.0,
+      "elapsed_us": 5034491.0,
+      "fps": 18.67,
+      "maximum_gap_us": 82020.0,
+      "maximum_upload_age_us": 273.0,
+      "maximum_render_us": 249.0,
+      "timestamp": "2026-10-12 10:44:43.482"
+    },
+    {
+      "frames": 89.0,
+      "elapsed_us": 5014551.0,
+      "fps": 17.75,
+      "maximum_gap_us": 88105.0,
+      "maximum_upload_age_us": 235.0,
+      "maximum_render_us": 219.0,
+      "timestamp": "2026-10-12 10:44:48.497"
+    },
+    {
+      "frames": 75.0,
+      "elapsed_us": 5001579.0,
+      "fps": 15.0,
+      "maximum_gap_us": 84062.0,
+      "maximum_upload_age_us": 218.0,
+      "maximum_render_us": 198.0,
+      "timestamp": "2026-10-12 10:44:53.498"
+    },
+    {
+      "frames": 87.0,
+      "elapsed_us": 5451716.0,
+      "fps": 15.96,
+      "maximum_gap_us": 1736144.0,
+      "maximum_upload_age_us": 250.0,
+      "maximum_render_us": 235.0,
+      "timestamp": "2026-10-12 10:44:58.950"
+    },
+    {
+      "frames": 77.0,
+      "elapsed_us": 5065405.0,
+      "fps": 15.2,
+      "maximum_gap_us": 81222.0,
+      "maximum_upload_age_us": 422.0,
+      "maximum_render_us": 404.0,
+      "timestamp": "2026-10-12 10:45:04.015"
+    },
+    {
+      "frames": 83.0,
+      "elapsed_us": 5018421.0,
+      "fps": 16.54,
+      "maximum_gap_us": 266111.0,
+      "maximum_upload_age_us": 295.0,
+      "maximum_render_us": 277.0,
+      "timestamp": "2026-10-12 10:45:09.034"
+    },
+    {
+      "frames": 94.0,
+      "elapsed_us": 5031520.0,
+      "fps": 18.68,
+      "maximum_gap_us": 251020.0,
+      "maximum_upload_age_us": 312.0,
+      "maximum_render_us": 295.0,
+      "timestamp": "2026-10-12 10:45:14.065"
+    },
+    {
+      "frames": 75.0,
+      "elapsed_us": 5015502.0,
+      "fps": 14.95,
+      "maximum_gap_us": 87080.0,
+      "maximum_upload_age_us": 269.0,
+      "maximum_render_us": 227.0,
+      "timestamp": "2026-10-12 10:45:19.081"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5067609.0,
+      "fps": 15.0,
+      "maximum_gap_us": 85009.0,
+      "maximum_upload_age_us": 412.0,
+      "maximum_render_us": 397.0,
+      "timestamp": "2026-10-12 10:45:24.148"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5050536.0,
+      "fps": 15.05,
+      "maximum_gap_us": 87191.0,
+      "maximum_upload_age_us": 270.0,
+      "maximum_render_us": 254.0,
+      "timestamp": "2026-10-12 10:45:29.199"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5066466.0,
+      "fps": 15.0,
+      "maximum_gap_us": 85924.0,
+      "maximum_upload_age_us": 206.0,
+      "maximum_render_us": 183.0,
+      "timestamp": "2026-10-12 10:45:34.265"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5033545.0,
+      "fps": 21.26,
+      "maximum_gap_us": 85957.0,
+      "maximum_upload_age_us": 264.0,
+      "maximum_render_us": 243.0,
+      "timestamp": "2026-10-12 10:45:39.299"
+    },
+    {
+      "frames": 100.0,
+      "elapsed_us": 5166484.0,
+      "fps": 19.36,
+      "maximum_gap_us": 266967.0,
+      "maximum_upload_age_us": 304.0,
+      "maximum_render_us": 288.0,
+      "timestamp": "2026-10-12 10:45:44.465"
+    },
+    {
+      "frames": 71.0,
+      "elapsed_us": 5017602.0,
+      "fps": 14.15,
+      "maximum_gap_us": 268076.0,
+      "maximum_upload_age_us": 339.0,
+      "maximum_render_us": 322.0,
+      "timestamp": "2026-10-12 10:45:49.482"
+    },
+    {
+      "frames": 101.0,
+      "elapsed_us": 5048446.0,
+      "fps": 20.01,
+      "maximum_gap_us": 267032.0,
+      "maximum_upload_age_us": 271.0,
+      "maximum_render_us": 253.0,
+      "timestamp": "2026-10-12 10:45:54.531"
+    },
+    {
+      "frames": 106.0,
+      "elapsed_us": 5035521.0,
+      "fps": 21.05,
+      "maximum_gap_us": 85070.0,
+      "maximum_upload_age_us": 314.0,
+      "maximum_render_us": 299.0,
+      "timestamp": "2026-10-12 10:45:59.566"
+    },
+    {
+      "frames": 74.0,
+      "elapsed_us": 5065547.0,
+      "fps": 14.61,
+      "maximum_gap_us": 185997.0,
+      "maximum_upload_age_us": 582.0,
+      "maximum_render_us": 564.0,
+      "timestamp": "2026-10-12 10:46:04.632"
+    },
+    {
+      "frames": 75.0,
+      "elapsed_us": 5001578.0,
+      "fps": 15.0,
+      "maximum_gap_us": 84161.0,
+      "maximum_upload_age_us": 323.0,
+      "maximum_render_us": 306.0,
+      "timestamp": "2026-10-12 10:46:09.633"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5065496.0,
+      "fps": 15.0,
+      "maximum_gap_us": 84996.0,
+      "maximum_upload_age_us": 249.0,
+      "maximum_render_us": 229.0,
+      "timestamp": "2026-10-12 10:46:14.699"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5066494.0,
+      "fps": 15.0,
+      "maximum_gap_us": 86065.0,
+      "maximum_upload_age_us": 216.0,
+      "maximum_render_us": 197.0,
+      "timestamp": "2026-10-12 10:46:19.765"
+    },
+    {
+      "frames": 75.0,
+      "elapsed_us": 5002647.0,
+      "fps": 14.99,
+      "maximum_gap_us": 82866.0,
+      "maximum_upload_age_us": 284.0,
+      "maximum_render_us": 268.0,
+      "timestamp": "2026-10-12 10:46:24.768"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5063383.0,
+      "fps": 15.01,
+      "maximum_gap_us": 85961.0,
+      "maximum_upload_age_us": 266.0,
+      "maximum_render_us": 249.0,
+      "timestamp": "2026-10-12 10:46:29.831"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5002576.0,
+      "fps": 21.99,
+      "maximum_gap_us": 84091.0,
+      "maximum_upload_age_us": 302.0,
+      "maximum_render_us": 284.0,
+      "timestamp": "2026-10-12 10:46:34.833"
+    },
+    {
+      "frames": 100.0,
+      "elapsed_us": 5030608.0,
+      "fps": 19.88,
+      "maximum_gap_us": 85096.0,
+      "maximum_upload_age_us": 410.0,
+      "maximum_render_us": 387.0,
+      "timestamp": "2026-10-12 10:46:39.864"
+    },
+    {
+      "frames": 62.0,
+      "elapsed_us": 5052463.0,
+      "fps": 12.27,
+      "maximum_gap_us": 332003.0,
+      "maximum_upload_age_us": 332.0,
+      "maximum_render_us": 317.0,
+      "timestamp": "2026-10-12 10:46:44.916"
+    },
+    {
+      "frames": 105.0,
+      "elapsed_us": 5033539.0,
+      "fps": 20.86,
+      "maximum_gap_us": 181928.0,
+      "maximum_upload_age_us": 252.0,
+      "maximum_render_us": 237.0,
+      "timestamp": "2026-10-12 10:46:49.950"
+    },
+    {
+      "frames": 109.0,
+      "elapsed_us": 5015541.0,
+      "fps": 21.73,
+      "maximum_gap_us": 87057.0,
+      "maximum_upload_age_us": 342.0,
+      "maximum_render_us": 320.0,
+      "timestamp": "2026-10-12 10:46:54.965"
+    },
+    {
+      "frames": 91.0,
+      "elapsed_us": 5001503.0,
+      "fps": 18.19,
+      "maximum_gap_us": 85032.0,
+      "maximum_upload_age_us": 400.0,
+      "maximum_render_us": 384.0,
+      "timestamp": "2026-10-12 10:46:59.967"
+    },
+    {
+      "frames": 100.0,
+      "elapsed_us": 5031523.0,
+      "fps": 19.87,
+      "maximum_gap_us": 85070.0,
+      "maximum_upload_age_us": 516.0,
+      "maximum_render_us": 499.0,
+      "timestamp": "2026-10-12 10:47:04.998"
+    },
+    {
+      "frames": 109.0,
+      "elapsed_us": 5018595.0,
+      "fps": 21.72,
+      "maximum_gap_us": 85033.0,
+      "maximum_upload_age_us": 283.0,
+      "maximum_render_us": 263.0,
+      "timestamp": "2026-10-12 10:47:10.017"
+    },
+    {
+      "frames": 108.0,
+      "elapsed_us": 5016473.0,
+      "fps": 21.53,
+      "maximum_gap_us": 85036.0,
+      "maximum_upload_age_us": 351.0,
+      "maximum_render_us": 330.0,
+      "timestamp": "2026-10-12 10:47:15.033"
+    },
+    {
+      "frames": 76.0,
+      "elapsed_us": 5066606.0,
+      "fps": 15.0,
+      "maximum_gap_us": 84169.0,
+      "maximum_upload_age_us": 404.0,
+      "maximum_render_us": 387.0,
+      "timestamp": "2026-10-12 10:47:20.100"
+    },
+    {
+      "frames": 109.0,
+      "elapsed_us": 5032420.0,
+      "fps": 21.66,
+      "maximum_gap_us": 85027.0,
+      "maximum_upload_age_us": 460.0,
+      "maximum_render_us": 444.0,
+      "timestamp": "2026-10-12 10:47:25.132"
+    },
+    {
+      "frames": 108.0,
+      "elapsed_us": 5003644.0,
+      "fps": 21.58,
+      "maximum_gap_us": 85127.0,
+      "maximum_upload_age_us": 463.0,
+      "maximum_render_us": 442.0,
+      "timestamp": "2026-10-12 10:47:30.136"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5029445.0,
+      "fps": 21.87,
+      "maximum_gap_us": 86200.0,
+      "maximum_upload_age_us": 279.0,
+      "maximum_render_us": 263.0,
+      "timestamp": "2026-10-12 10:47:35.165"
+    },
+    {
+      "frames": 106.0,
+      "elapsed_us": 5017587.0,
+      "fps": 21.13,
+      "maximum_gap_us": 86027.0,
+      "maximum_upload_age_us": 265.0,
+      "maximum_render_us": 247.0,
+      "timestamp": "2026-10-12 10:47:40.182"
+    },
+    {
+      "frames": 65.0,
+      "elapsed_us": 5017476.0,
+      "fps": 12.95,
+      "maximum_gap_us": 268894.0,
+      "maximum_upload_age_us": 494.0,
+      "maximum_render_us": 476.0,
+      "timestamp": "2026-10-12 10:47:45.200"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5065607.0,
+      "fps": 21.12,
+      "maximum_gap_us": 85065.0,
+      "maximum_upload_age_us": 312.0,
+      "maximum_render_us": 288.0,
+      "timestamp": "2026-10-12 10:47:50.265"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5049389.0,
+      "fps": 21.19,
+      "maximum_gap_us": 85073.0,
+      "maximum_upload_age_us": 333.0,
+      "maximum_render_us": 314.0,
+      "timestamp": "2026-10-12 10:47:55.315"
+    },
+    {
+      "frames": 98.0,
+      "elapsed_us": 5016630.0,
+      "fps": 19.54,
+      "maximum_gap_us": 134994.0,
+      "maximum_upload_age_us": 385.0,
+      "maximum_render_us": 368.0,
+      "timestamp": "2026-10-12 10:48:00.331"
+    },
+    {
+      "frames": 92.0,
+      "elapsed_us": 5051593.0,
+      "fps": 18.21,
+      "maximum_gap_us": 87135.0,
+      "maximum_upload_age_us": 440.0,
+      "maximum_render_us": 426.0,
+      "timestamp": "2026-10-12 10:48:05.383"
+    },
+    {
+      "frames": 120.0,
+      "elapsed_us": 5015431.0,
+      "fps": 23.93,
+      "maximum_gap_us": 85011.0,
+      "maximum_upload_age_us": 291.0,
+      "maximum_render_us": 274.0,
+      "timestamp": "2026-10-12 10:48:10.398"
+    },
+    {
+      "frames": 78.0,
+      "elapsed_us": 5018553.0,
+      "fps": 15.54,
+      "maximum_gap_us": 86022.0,
+      "maximum_upload_age_us": 231.0,
+      "maximum_render_us": 215.0,
+      "timestamp": "2026-10-12 10:48:15.417"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5016590.0,
+      "fps": 21.33,
+      "maximum_gap_us": 84979.0,
+      "maximum_upload_age_us": 300.0,
+      "maximum_render_us": 283.0,
+      "timestamp": "2026-10-12 10:48:20.433"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5047455.0,
+      "fps": 21.79,
+      "maximum_gap_us": 83238.0,
+      "maximum_upload_age_us": 308.0,
+      "maximum_render_us": 291.0,
+      "timestamp": "2026-10-12 10:48:25.481"
+    },
+    {
+      "frames": 119.0,
+      "elapsed_us": 5036616.0,
+      "fps": 23.63,
+      "maximum_gap_us": 85056.0,
+      "maximum_upload_age_us": 677.0,
+      "maximum_render_us": 662.0,
+      "timestamp": "2026-10-12 10:48:30.517"
+    },
+    {
+      "frames": 93.0,
+      "elapsed_us": 5014452.0,
+      "fps": 18.55,
+      "maximum_gap_us": 85478.0,
+      "maximum_upload_age_us": 251.0,
+      "maximum_render_us": 231.0,
+      "timestamp": "2026-10-12 10:48:35.531"
+    },
+    {
+      "frames": 95.0,
+      "elapsed_us": 5020616.0,
+      "fps": 18.92,
+      "maximum_gap_us": 85108.0,
+      "maximum_upload_age_us": 422.0,
+      "maximum_render_us": 403.0,
+      "timestamp": "2026-10-12 10:48:40.552"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5263508.0,
+      "fps": 20.9,
+      "maximum_gap_us": 284959.0,
+      "maximum_upload_age_us": 253.0,
+      "maximum_render_us": 236.0,
+      "timestamp": "2026-10-12 10:48:45.815"
+    },
+    {
+      "frames": 86.0,
+      "elapsed_us": 5032431.0,
+      "fps": 17.09,
+      "maximum_gap_us": 299939.0,
+      "maximum_upload_age_us": 233.0,
+      "maximum_render_us": 215.0,
+      "timestamp": "2026-10-12 10:48:50.848"
+    },
+    {
+      "frames": 100.0,
+      "elapsed_us": 5002533.0,
+      "fps": 19.99,
+      "maximum_gap_us": 85098.0,
+      "maximum_upload_age_us": 317.0,
+      "maximum_render_us": 300.0,
+      "timestamp": "2026-10-12 10:48:55.850"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5067559.0,
+      "fps": 21.11,
+      "maximum_gap_us": 85972.0,
+      "maximum_upload_age_us": 446.0,
+      "maximum_render_us": 426.0,
+      "timestamp": "2026-10-12 10:49:00.918"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5013575.0,
+      "fps": 21.94,
+      "maximum_gap_us": 84096.0,
+      "maximum_upload_age_us": 241.0,
+      "maximum_render_us": 224.0,
+      "timestamp": "2026-10-12 10:49:05.931"
+    },
+    {
+      "frames": 110.0,
+      "elapsed_us": 5033494.0,
+      "fps": 21.85,
+      "maximum_gap_us": 85089.0,
+      "maximum_upload_age_us": 238.0,
+      "maximum_render_us": 220.0,
+      "timestamp": "2026-10-12 10:49:10.965"
+    },
+    {
+      "frames": 101.0,
+      "elapsed_us": 5016490.0,
+      "fps": 20.13,
+      "maximum_gap_us": 83009.0,
+      "maximum_upload_age_us": 250.0,
+      "maximum_render_us": 229.0,
+      "timestamp": "2026-10-12 10:49:15.981"
+    },
+    {
+      "frames": 91.0,
+      "elapsed_us": 5002502.0,
+      "fps": 18.19,
+      "maximum_gap_us": 86063.0,
+      "maximum_upload_age_us": 269.0,
+      "maximum_render_us": 255.0,
+      "timestamp": "2026-10-12 10:49:20.983"
+    },
+    {
+      "frames": 100.0,
+      "elapsed_us": 5064611.0,
+      "fps": 19.74,
+      "maximum_gap_us": 88023.0,
+      "maximum_upload_age_us": 283.0,
+      "maximum_render_us": 230.0,
+      "timestamp": "2026-10-12 10:49:26.048"
+    },
+    {
+      "frames": 104.0,
+      "elapsed_us": 5035512.0,
+      "fps": 20.65,
+      "maximum_gap_us": 471012.0,
+      "maximum_upload_age_us": 286.0,
+      "maximum_render_us": 271.0,
+      "timestamp": "2026-10-12 10:49:31.083"
+    },
+    {
+      "frames": 113.0,
+      "elapsed_us": 5013471.0,
+      "fps": 22.54,
+      "maximum_gap_us": 93916.0,
+      "maximum_upload_age_us": 301.0,
+      "maximum_render_us": 285.0,
+      "timestamp": "2026-10-12 10:49:36.097"
+    },
+    {
+      "frames": 103.0,
+      "elapsed_us": 5000528.0,
+      "fps": 20.6,
+      "maximum_gap_us": 83023.0,
+      "maximum_upload_age_us": 398.0,
+      "maximum_render_us": 381.0,
+      "timestamp": "2026-10-12 10:49:41.097"
+    },
+    {
+      "frames": 94.0,
+      "elapsed_us": 5001589.0,
+      "fps": 18.79,
+      "maximum_gap_us": 85439.0,
+      "maximum_upload_age_us": 340.0,
+      "maximum_render_us": 325.0,
+      "timestamp": "2026-10-12 10:49:46.099"
+    },
+    {
+      "frames": 98.0,
+      "elapsed_us": 5032723.0,
+      "fps": 19.47,
+      "maximum_gap_us": 282095.0,
+      "maximum_upload_age_us": 280.0,
+      "maximum_render_us": 265.0,
+      "timestamp": "2026-10-12 10:49:51.131"
+    },
+    {
+      "frames": 95.0,
+      "elapsed_us": 5000318.0,
+      "fps": 19.0,
+      "maximum_gap_us": 86971.0,
+      "maximum_upload_age_us": 301.0,
+      "maximum_render_us": 285.0,
+      "timestamp": "2026-10-12 10:49:56.132"
+    },
+    {
+      "frames": 97.0,
+      "elapsed_us": 5033553.0,
+      "fps": 19.27,
+      "maximum_gap_us": 84090.0,
+      "maximum_upload_age_us": 428.0,
+      "maximum_render_us": 411.0,
+      "timestamp": "2026-10-12 10:50:01.165"
+    },
+    {
+      "frames": 106.0,
+      "elapsed_us": 5050577.0,
+      "fps": 20.99,
+      "maximum_gap_us": 135073.0,
+      "maximum_upload_age_us": 317.0,
+      "maximum_render_us": 278.0,
+      "timestamp": "2026-10-12 10:50:06.216"
+    },
+    {
+      "frames": 107.0,
+      "elapsed_us": 5032542.0,
+      "fps": 21.26,
+      "maximum_gap_us": 83977.0,
+      "maximum_upload_age_us": 282.0,
+      "maximum_render_us": 265.0,
+      "timestamp": "2026-10-12 10:50:11.248"
+    },
+    {
+      "frames": 106.0,
+      "elapsed_us": 5020507.0,
+      "fps": 21.11,
+      "maximum_gap_us": 112991.0,
+      "maximum_upload_age_us": 296.0,
+      "maximum_render_us": 281.0,
+      "timestamp": "2026-10-12 10:50:16.269"
+    },
+    {
+      "frames": 106.0,
+      "elapsed_us": 5029414.0,
+      "fps": 21.08,
+      "maximum_gap_us": 85087.0,
+      "maximum_upload_age_us": 472.0,
+      "maximum_render_us": 419.0,
+      "timestamp": "2026-10-12 10:50:21.298"
+    },
+    {
+      "frames": 94.0,
+      "elapsed_us": 5000591.0,
+      "fps": 18.8,
+      "maximum_gap_us": 85475.0,
+      "maximum_upload_age_us": 309.0,
+      "maximum_render_us": 292.0,
+      "timestamp": "2026-10-12 10:50:26.298"
+    },
+    {
+      "frames": 95.0,
+      "elapsed_us": 5015570.0,
+      "fps": 18.94,
+      "maximum_gap_us": 86007.0,
+      "maximum_upload_age_us": 324.0,
+      "maximum_render_us": 308.0,
+      "timestamp": "2026-10-12 10:50:31.314"
+    },
+    {
+      "frames": 92.0,
+      "elapsed_us": 5050492.0,
+      "fps": 18.22,
+      "maximum_gap_us": 333054.0,
+      "maximum_upload_age_us": 411.0,
+      "maximum_render_us": 388.0,
+      "timestamp": "2026-10-12 10:50:36.364"
+    },
+    {
+      "frames": 101.0,
+      "elapsed_us": 5015536.0,
+      "fps": 20.14,
+      "maximum_gap_us": 82007.0,
+      "maximum_upload_age_us": 408.0,
+      "maximum_render_us": 392.0,
+      "timestamp": "2026-10-12 10:50:41.380"
+    },
+    {
+      "frames": 91.0,
+      "elapsed_us": 5018572.0,
+      "fps": 18.13,
+      "maximum_gap_us": 69923.0,
+      "maximum_upload_age_us": 248.0,
+      "maximum_render_us": 229.0,
+      "timestamp": "2026-10-12 10:50:46.398"
+    },
+    {
+      "frames": 108.0,
+      "elapsed_us": 5066514.0,
+      "fps": 21.32,
+      "maximum_gap_us": 84965.0,
+      "maximum_upload_age_us": 511.0,
+      "maximum_render_us": 494.0,
+      "timestamp": "2026-10-12 10:50:51.465"
+    },
+    {
+      "frames": 95.0,
+      "elapsed_us": 5494789.0,
+      "fps": 17.29,
+      "maximum_gap_us": 1036214.0,
+      "maximum_upload_age_us": 399.0,
+      "maximum_render_us": 381.0,
+      "timestamp": "2026-10-12 10:50:56.959"
+    },
+    {
+      "frames": 98.0,
+      "elapsed_us": 5005259.0,
+      "fps": 19.58,
+      "maximum_gap_us": 85000.0,
+      "maximum_upload_age_us": 1109.0,
+      "maximum_render_us": 1073.0,
+      "timestamp": "2026-10-12 10:51:01.965"
+    },
+    {
+      "frames": 89.0,
+      "elapsed_us": 5017550.0,
+      "fps": 17.74,
+      "maximum_gap_us": 133060.0,
+      "maximum_upload_age_us": 799.0,
+      "maximum_render_us": 760.0,
+      "timestamp": "2026-10-12 10:51:06.982"
+    },
+    {
+      "frames": 102.0,
+      "elapsed_us": 5034477.0,
+      "fps": 20.26,
+      "maximum_gap_us": 86998.0,
+      "maximum_upload_age_us": 405.0,
+      "maximum_render_us": 342.0,
+      "timestamp": "2026-10-12 10:51:12.017"
+    }
+  ],
+  "gzip_sha256": "21A606E31FE1CCB2F9B43CB8A67C52E37EEC0488E8D140D02FF7FC43D8204DF3",
+  "raw_sha256": "10126BE675A2FAC6BDB42EED1054B54FDE54CA0BF29F424DAC78C2BAB5B32C5F",
+  "limitations": [
+    "Previous samples include failed initial launch; presentation windows only belong to successful second Client.",
+    "No new test or source-log command is issued to 90 after user withdrew it.",
+    "This low-FPS IP sample cannot establish XR bandwidth or Relay capacity; compare independent BJ throughput instead.",
+    "Launch wrapper reached its validation deadline and closed owned Client in finally; command failure retained."
+  ]
+}

@@ -1,0 +1,9 @@
+{"events": [], "ingress": "127.0.0.1:62102", "peer": "39.71.45.66:56431", "forwarded_uplink": 1, "forwarded_downlink": 0, "dropped_uplink": 0, "dropped_downlink": 0, "reset_notifications": 0, "worker_failure": null, "worker_stopped": true, "exit_code": 0, "scope": "Controlled path migration, not new two-ended NAT evidence. Native UDP binds loopback to prevent bypass; private Relay TCP remains real."}
+Traceback (most recent call last):
+  File "D:\GoCloud\GammaRayPremium\docs\validation\iroh_transport\controlled_udp_path.py", line 136, in <module>
+    main()
+    ~~~~^^
+  File "D:\GoCloud\GammaRayPremium\docs\validation\iroh_transport\controlled_udp_path.py", line 122, in main
+    assert blocked_at is not None and unblocked, 'UDP block and restore segment incomplete'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: UDP block and restore segment incomplete

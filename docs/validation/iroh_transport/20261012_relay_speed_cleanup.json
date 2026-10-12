@@ -1,0 +1,11 @@
+{
+    "workspace":  "D:\\uploadsoft\\rd\\pixels\\nat-acceptance-20261012",
+    "probe_sha256":  "91E796B57EC0C7D15D818F781993709A34375FEFC757918C731A433283B62A36",
+    "active_owned_processes":  [
+
+                               ],
+    "old_staging_exists":  false,
+    "temp_directory":  "D:\\uploadsoft\\rd\\pixels\\nat-acceptance-20261012\\temp",
+    "private_launch_files":  0,
+    "installed_client_sha256":  "9E1E2E543A2F1A2ABA53A2D57416A9256D29D91CA728727F35073ED0583BE19A"
+}

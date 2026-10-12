@@ -1,0 +1,20 @@
+{
+  "helper": "px_relay_speed.exe",
+  "sha256": "91E796B57EC0C7D15D818F781993709A34375FEFC757918C731A433283B62A36",
+  "profile": "Release",
+  "build_jobs": 18,
+  "installed_product_changed": false,
+  "core_transport_changed": false,
+  "iroh_vendor_verified_files": 84,
+  "xr_workspace": "D:\\uploadsoft\\rd\\pixels",
+  "config_sha256": "0EFFE07F6FC2E699F18FCFCB257C050A238C80968054326D48D978C3E175927B",
+  "relay_only_policy": "Test helper endpoints only; no host UDP/firewall/NIC modification.",
+  "config_private_relays": [
+    "https://49.232.233.61:4605/"
+  ],
+  "case_operations": {
+    "local_xr_bj_1": "b8b1f107-30c5-49b6-9a8b-7a66bb7a1b8c",
+    "local_xr_bj_2": "24f1e185-12b9-40d9-ade9-a1a0d95101ed",
+    "xr_local_bj_1": "854ae392-27e8-4e63-877a-4ab4ce11f5ba"
+  }
+}

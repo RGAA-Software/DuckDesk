@@ -1,0 +1,6 @@
+{
+  "accepted_as_udp_failure_test": false,
+  "reason": "All Windows Firewall profiles are disabled on local,90 andCompany. Temporary rules had no effect; no IP->Relay migration observed.",
+  "cleanup": "Rules removed during restore; final rule count0, no owned probe process. Final repeated-remove command returned1 on absent rule, so wrapper did not write its cleanup summary; read-only final query proves cleanup.",
+  "probe_result": "1197/1197 datagrams and60 reliable messages verified as another normal path sample, not failure recovery."
+}

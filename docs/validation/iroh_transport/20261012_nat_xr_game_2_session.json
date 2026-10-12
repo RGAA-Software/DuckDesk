@@ -1,0 +1,12 @@
+{
+  "device_code": "947158375",
+  "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+  "instance_id": "c32dda37-0b84-4836-9d1e-35b3558e7c17",
+  "resource_session_id": "0debe5f7-23c8-4897-a440-8cb4e71504a8",
+  "force_relay": false,
+  "force_tcp": false,
+  "host": "39.71.45.66",
+  "port": 4613,
+  "client_sha256": "9E1E2E543A2F1A2ABA53A2D57416A9256D29D91CA728727F35073ED0583BE19A",
+  "launch_envelope_ready_epoch": 1791773048.426116
+}

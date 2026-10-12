@@ -1,0 +1,11 @@
+{
+  "accepted_as_switch_test": false,
+  "reason": "Only Relay path established; one proxy uplink packet and no downlink, no block segment, no real UDP drops.",
+  "business_result": "Owned GameHook connection stayed connected for75seconds; resource610b3590-a4ce-42e1-a09e-92f5d72d7ca5 andinstance945959da-8a8c-47ac-997d-9128a1be0e80 cleaned; grace15.46s.",
+  "source_log": {
+    "lines": 11295,
+    "gzip_sha256": "5b1a691585410fdf88735ab141ef8e711cebc606be7e988f19ca85cf0b42f4d8",
+    "raw_sha256": "6350dfc42fedc170c4b298c54659ce6f797e0b5a5f998ffcbb487fecdf6a186f"
+  },
+  "latest_scope": "User stopped forced UDP testing; switch to XRServer03 natural Relay-only-like network. WFP was only researched, never implemented or installed."
+}

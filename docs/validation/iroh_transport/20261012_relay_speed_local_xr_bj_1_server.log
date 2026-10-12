@@ -1,0 +1,7 @@
+{"address":{"addrs":[{"Relay":"https://49.232.233.61:4605/"}],"id":"1140d38143e9dc3f3ca4bdb45f2232cc3851cc2cdb04b496e8560d0f24824d19"},"event":"relay_speed.endpoint"}
+{"event":"relay_speed.path","peer_id":"5ee0be501b04205b99be5cd55bd0006077db768a6b4514bb6db78948531cf1a5","selected":{"Relay":"https://49.232.233.61:4605/"}}
+{"bytes":111165440,"elapsed_ms":20001,"event":"relay_speed.reliable_sent","offered_ceiling_mbps":50}
+{"elapsed_ms":10005,"event":"relay_speed.datagram_sent","queue_failures":0,"sent":1068,"target_mbps":1}
+{"elapsed_ms":10004,"event":"relay_speed.datagram_sent","queue_failures":0,"sent":1132,"target_mbps":4}
+{"elapsed_ms":10002,"event":"relay_speed.datagram_sent","queue_failures":0,"sent":1097,"target_mbps":10}
+{"event":"relay_speed.path","peer_id":"5ee0be501b04205b99be5cd55bd0006077db768a6b4514bb6db78948531cf1a5","selected":{"Relay":"https://49.232.233.61:4605/"}}

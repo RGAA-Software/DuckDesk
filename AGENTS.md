@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Remote validation decision (2026-10-12): do not use 90 (428358431) for further tests; the user needs it for other work.
+  Use local/Company peers and XRServer03 (947158375) for subsequent Relay measurements. XR development, transfers and temporary files
+  belong under `D:\uploadsoft\rd\pixels`; this does not relocate installed products or runtime logs. Measure actual Relay throughput
+  and delivered media performance; poor-network XR acceptance does not require 60 FPS.
+
 - Build parallelism decision (2026-10-11): use 18 build jobs for every subsequent compilation; do not use all available cores.
   Pass the job count explicitly to focused C++ build entry points and to other compilers when invoked.
 

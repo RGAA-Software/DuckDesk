@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-12",
+  "source_commit": "757c90810",
+  "devices": [
+    {
+      "code": "428358431",
+      "name": "90",
+      "os": "Windows 10.0.20348",
+      "ipv4": "10.0.0.90",
+      "gateway": "10.0.0.1",
+      "gateway_mac": "50-98-B8-7F-D2-7D",
+      "workspace": "D:\\112233\\nat-acceptance-20261012"
+    },
+    {
+      "code": "559038160",
+      "name": "Company",
+      "os": "Windows 10.0.26200",
+      "ipv4": "10.0.0.16",
+      "gateway": "10.0.0.1",
+      "gateway_mac": "50-98-B8-7F-D2-7D",
+      "workspace": "D:\\112233\\nat-acceptance-20261012",
+      "existing_panel_pid": 16936,
+      "existing_panel_path": "D:\\source\\GoCloud\\GammaRayPremium\\build_official\\dist\\px_panel.exe"
+    }
+  ],
+  "local": {
+    "ipv4": "192.168.31.6",
+    "gateway": "192.168.31.1"
+  },
+  "topology": "Company and90 share an L2 LAN (mutual ARP and identical gateway MAC). Company<->local is a separate-network candidate; public mappings/NAT behaviour still to measure.",
+  "changes": "Dedicated test workspaces created; existing services, Panel and NIC state unchanged."
+}

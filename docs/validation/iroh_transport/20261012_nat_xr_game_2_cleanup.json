@@ -1,0 +1,10 @@
+{
+  "resource_session_id": "0debe5f7-23c8-4897-a440-8cb4e71504a8",
+  "resource_state": "closed",
+  "instance_id": "c32dda37-0b84-4836-9d1e-35b3558e7c17",
+  "active_business_sessions": 0,
+  "managed_active_instance_summary": [],
+  "owned_xr_client_present": false,
+  "guest_cleanup_status": "Guest credentials unavailable on repeat read; prior cleanup or expiry. No new guest session created.",
+  "launch_wrapper_result": "failed at owned deadline; finally closed child. Failed wrapper is not a passing launch-lifecycle gate."
+}

@@ -1,0 +1,7 @@
+{
+  "accepted_as_udp_failure_test": false,
+  "reason": "Controlled Company proxy did not establish a direct path: one forwarded uplink packet, zero downlink, zero drops; selected path remained Relay. This is not evidence of a failed automatic migration.",
+  "result": "1199/1199 datagrams and60 reliable messages onactual90Relay; not counted as direct/fault recovery.",
+  "cleanup": "Forwarding worker stopped/ownedprocess exited0; wrapperfailedassert due absent UDP segment.",
+  "next": "Use90 mapped application Render endpoint with previouslyvalidated owned proxy ingress, retain real Relay candidates."
+}

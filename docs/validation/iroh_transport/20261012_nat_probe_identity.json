@@ -1,0 +1,12 @@
+{
+  "binary": "rust_transport\\target\\release\\px_nat_probe.exe",
+  "sha256": "097F43A8383B12703E77CB18B3E51E348E4000185CBDE9FFD264DE694923E0F1",
+  "build": "cargo build --manifest-path rust_transport/Cargo.toml --release --locked --jobs 18 -p px_transport_probe --bin px_nat_probe",
+  "traffic": "128-byte datagram round trips at at most20Hz; one8-byte reliable echo persecond; no file saturation",
+  "workspace": "D:\\112233\\nat-acceptance-20261012",
+  "configs": {
+    "company": "E15A811B8310AC85F3EB64E83180FCB971C4348CE80A9ABC12288F7D8FA05B78",
+    "90": "330D4F12B19C407C5D35B9AC5C2E9A19FD35E972E81B1637EF0AC4183E006AB9",
+    "local": "83E440903F7D73549EE5CE85FB709862151653F09EC25CC644315C5376957869"
+  }
+}

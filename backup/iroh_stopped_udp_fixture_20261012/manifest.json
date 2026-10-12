@@ -1,0 +1,12 @@
+{
+  "base_revision": "757c90810aa19c7dab801f9dfb4a97edc0ff5b32",
+  "local_status": "untracked project test fixture, full current contents preserved",
+  "retirement_reason": "User stopped artificial UDP blocking; one-sided proxy never established direct path, not valid failover evidence. Reference-only; excluded from tests/build/runtime.",
+  "files": [
+    {
+      "original_path": "docs/validation/iroh_transport/controlled_udp_path.py",
+      "archived_path": "backup/iroh_stopped_udp_fixture_20261012/docs/validation/iroh_transport/controlled_udp_path.py",
+      "sha256": "7EE1C618A4112A59888B89B7FE80C22432F8602A420D14C8D7E318A4A3E6DF9D"
+    }
+  ]
+}

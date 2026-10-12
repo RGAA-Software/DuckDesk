@@ -1,0 +1,84 @@
+{
+  "source": "local192.168.31.6",
+  "receiver_device_code": "947158375",
+  "receiver_workspace": "D:\\uploadsoft\\rd\\pixels",
+  "relay": "https://49.232.233.61:4605/",
+  "helper_sha256": "91E796B57EC0C7D15D818F781993709A34375FEFC757918C731A433283B62A36",
+  "complete": true,
+  "scope": "One connection: reliable then datagrams sequentially. Not media FPS, absolute Relay maximum, multi-user capacity or long-term stability. No 90 use.",
+  "reliable": {
+    "bytes_verified": 108855296,
+    "effective_mbps": 43.266711933197385,
+    "elapsed_seconds": 20.1273064,
+    "event": "relay_speed.reliable_received",
+    "maximum_read_gap_ms": 533,
+    "offered_ceiling_mbps": 50
+  },
+  "datagram_phases": [
+    {
+      "duplicates": 0,
+      "effective_mbps": 0.99730812677316,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 60,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.014959,
+      "sent": 1135,
+      "target_mbps": 1,
+      "unique_received": 1135
+    },
+    {
+      "duplicates": 0,
+      "effective_mbps": 3.9955527663157033,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 72,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.003522,
+      "sent": 4542,
+      "target_mbps": 4,
+      "unique_received": 4542
+    },
+    {
+      "duplicates": 0,
+      "effective_mbps": 9.988110011734028,
+      "event": "relay_speed.datagram_received",
+      "lost_after_enqueue": 0,
+      "maximum_arrival_gap_ms": 49,
+      "old_phase_packets": 0,
+      "queue_failures": 0,
+      "send_seconds": 10.002533,
+      "sent": 11353,
+      "target_mbps": 10,
+      "unique_received": 11353
+    }
+  ],
+  "source_pacing": [
+    {
+      "elapsed_ms": 10014,
+      "event": "relay_speed.datagram_sent",
+      "maximum_pacing_tick_gap_ms": 24,
+      "queue_failures": 0,
+      "sent": 1135,
+      "target_mbps": 1
+    },
+    {
+      "elapsed_ms": 10003,
+      "event": "relay_speed.datagram_sent",
+      "maximum_pacing_tick_gap_ms": 20,
+      "queue_failures": 0,
+      "sent": 4542,
+      "target_mbps": 4
+    },
+    {
+      "elapsed_ms": 10002,
+      "event": "relay_speed.datagram_sent",
+      "maximum_pacing_tick_gap_ms": 17,
+      "queue_failures": 0,
+      "sent": 11353,
+      "target_mbps": 10
+    }
+  ]
+}

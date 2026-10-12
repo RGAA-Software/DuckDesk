@@ -1,0 +1,701 @@
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Validated installer input: client/official 3.3.81 (D:\GoCloud\GammaRayPremium\build_official\client\official\dist)
+C++ readable naming gate passed for 0 changed code lines against 757c90810aa19c7dab801f9dfb4a97edc0ff5b32.
+Incremental C++ build only. Build dir: build_official\client\official\cmake, jobs: 18
+Targets: px_panel px_client
+-- Pixels product: client (CLIENT) 3.3.81 (30381)
+-- Building Official version
+TARGET_TYPE: ===> Official
+-- PROBE: PkgConfig::modplug EXISTS
+-- PROBE: PkgConfig::modplug OK
+-- PROBE: PkgConfig::srt OK
+-- PROBE: PkgConfig::dav1d OK
+-- PROBE: PkgConfig::openh264 OK
+-- PROBE: PKG_CONFIG_EXECUTABLE='C:/source/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe'
+-- PROBE: CMAKE_PREFIX_PATH='C:/source/vcpkg/installed/x64-windows-static-release;C:/source/vcpkg/installed/x64-windows-static-release/debug'
+-- PROBE: manual pkg_check_modules PROBE_MODPLUG_FOUND='1'
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found suitable version "1.3.2", minimum required is "1")  
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found the following ICU libraries:
+--   uc (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuuc.lib
+--   i18n (required): C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/icuin.Lib
+-- Failed to find all ICU components (missing: ICU_INCLUDE_DIR) 
+-- Found ZLIB: C:/source/vcpkg/installed/x64-windows-static-release/lib/zs.lib (found version "1.3.2")  
+-- Using protobuf from vcpkg: 33.4.0
+-- Checking for module 'libusb-1.0>=1.0.16'
+--   Package 'libusb-1.0', required by 'virtual:world', not found
+-- Could NOT find LibUSB (missing: LibUSB_LIBRARY LibUSB_INCLUDE_PATH) (found version "LibUSB_VERSION-NOTFOUND")
+-- 
+-- SDL3 was configured with the following options:
+-- 
+-- Platform: Windows-10.0.19045
+-- 64-bit:   TRUE
+-- Compiler: C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/cl.exe
+-- Revision: SDL-3.4.16-release-3.4.16
+-- Vendor:   
+-- 
+-- Subsystems:
+--   Audio:    ON
+--   Video:    ON
+--   GPU:      ON
+--   Render:   ON
+--   Camera:   ON
+--   Joystick: ON
+--   Haptic:   ON
+--   Hidapi:   ON
+--   Power:    ON
+--   Sensor:   ON
+--   Dialog:   ON
+--   Tray:     ON
+-- 
+-- Options:
+--   SDL_ALSA                    (Wanted: OFF): OFF
+--   SDL_ALSA_SHARED             (Wanted: OFF): OFF
+--   SDL_ALTIVEC                 (Wanted: OFF): OFF
+--   SDL_ARMNEON                 (Wanted: OFF): OFF
+--   SDL_ASAN                    (Wanted: OFF): OFF
+--   SDL_ASSEMBLY                (Wanted: ON): ON
+--   SDL_ASSERTIONS              (Wanted: auto): auto
+--   SDL_AVX                     (Wanted: ON): ON
+--   SDL_AVX2                    (Wanted: ON): ON
+--   SDL_AVX512F                 (Wanted: ON): ON
+--   SDL_BACKGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_CCACHE                  (Wanted: OFF): OFF
+--   SDL_CLANG_TIDY              (Wanted: OFF): OFF
+--   SDL_CLOCK_GETTIME           (Wanted: OFF): OFF
+--   SDL_COCOA                   (Wanted: OFF): OFF
+--   SDL_DBUS                    (Wanted: OFF): OFF
+--   SDL_DEPS_SHARED             (Wanted: ON): OFF
+--   SDL_DIRECTX                 (Wanted: ON): ON
+--   SDL_DISKAUDIO               (Wanted: ON): ON
+--   SDL_DLOPEN_NOTES            (Wanted: OFF): OFF
+--   SDL_DUMMYAUDIO              (Wanted: ON): ON
+--   SDL_DUMMYCAMERA             (Wanted: ON): ON
+--   SDL_DUMMYVIDEO              (Wanted: ON): ON
+--   SDL_EXAMPLES                (Wanted: OFF): OFF
+--   SDL_EXAMPLES_LINK_SHARED    (Wanted: OFF): OFF
+--   SDL_FOREGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_FRIBIDI                 (Wanted: OFF): OFF
+--   SDL_FRIBIDI_SHARED          (Wanted: OFF): OFF
+--   SDL_GCC_ATOMICS             (Wanted: OFF): OFF
+--   SDL_HIDAPI                  (Wanted: ON): ON
+--   SDL_HIDAPI_JOYSTICK         (Wanted: ON): ON
+--   SDL_HIDAPI_LIBUSB           (Wanted: ON): OFF
+--   SDL_HIDAPI_LIBUSB_SHARED    (Wanted: ON): OFF
+--   SDL_IBUS                    (Wanted: OFF): OFF
+--   SDL_INSTALL                 (Wanted: OFF): OFF
+--   SDL_INSTALL_TESTS           (Wanted: OFF): OFF
+--   SDL_JACK                    (Wanted: OFF): OFF
+--   SDL_JACK_SHARED             (Wanted: OFF): OFF
+--   SDL_KMSDRM                  (Wanted: OFF): OFF
+--   SDL_KMSDRM_SHARED           (Wanted: OFF): OFF
+--   SDL_LASX                    (Wanted: OFF): OFF
+--   SDL_LIBC                    (Wanted: ON): ON
+--   SDL_LIBICONV                (Wanted: OFF): OFF
+--   SDL_LIBTHAI                 (Wanted: OFF): OFF
+--   SDL_LIBTHAI_SHARED          (Wanted: OFF): OFF
+--   SDL_LIBUDEV                 (Wanted: ON): OFF
+--   SDL_LIBURING                (Wanted: OFF): OFF
+--   SDL_LSX                     (Wanted: OFF): OFF
+--   SDL_METAL                   (Wanted: OFF): OFF
+--   SDL_MMX                     (Wanted: ON): OFF
+--   SDL_OFFSCREEN               (Wanted: ON): ON
+--   SDL_OPENGL                  (Wanted: ON): ON
+--   SDL_OPENGLES                (Wanted: ON): ON
+--   SDL_OPENVR                  (Wanted: OFF): OFF
+--   SDL_OSS                     (Wanted: OFF): OFF
+--   SDL_PIPEWIRE                (Wanted: OFF): OFF
+--   SDL_PIPEWIRE_SHARED         (Wanted: OFF): OFF
+--   SDL_PTHREADS                (Wanted: OFF): OFF
+--   SDL_PTHREADS_SEM            (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO              (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO_SHARED       (Wanted: OFF): OFF
+--   SDL_RENDER_D3D              (Wanted: ON): ON
+--   SDL_RENDER_D3D11            (Wanted: ON): ON
+--   SDL_RENDER_D3D12            (Wanted: ON): ON
+--   SDL_RENDER_GPU              (Wanted: ON): ON
+--   SDL_RENDER_METAL            (Wanted: OFF): OFF
+--   SDL_RENDER_VULKAN           (Wanted: ON): ON
+--   SDL_ROCKCHIP                (Wanted: OFF): OFF
+--   SDL_RPATH                   (Wanted: OFF): OFF
+--   SDL_RPI                     (Wanted: OFF): OFF
+--   SDL_SNDIO                   (Wanted: OFF): OFF
+--   SDL_SNDIO_SHARED            (Wanted: OFF): OFF
+--   SDL_SSE                     (Wanted: ON): ON
+--   SDL_SSE2                    (Wanted: ON): ON
+--   SDL_SSE3                    (Wanted: ON): ON
+--   SDL_SSE4_1                  (Wanted: ON): ON
+--   SDL_SSE4_2                  (Wanted: ON): ON
+--   SDL_SYSTEM_ICONV            (Wanted: OFF): OFF
+--   SDL_TESTS                   (Wanted: OFF): OFF
+--   SDL_TESTS_LINK_SHARED       (Wanted: OFF): OFF
+--   SDL_UNINSTALL               (Wanted: OFF): OFF
+--   SDL_VIRTUAL_JOYSTICK        (Wanted: ON): ON
+--   SDL_VIVANTE                 (Wanted: OFF): OFF
+--   SDL_VULKAN                  (Wanted: ON): ON
+--   SDL_WASAPI                  (Wanted: ON): ON
+--   SDL_WAYLAND                 (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR        (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR_SHARED (Wanted: OFF): OFF
+--   SDL_WAYLAND_SHARED          (Wanted: OFF): OFF
+--   SDL_X11                     (Wanted: OFF): OFF
+--   SDL_X11_SHARED              (Wanted: OFF): OFF
+--   SDL_X11_XCURSOR             (Wanted: OFF): OFF
+--   SDL_X11_XDBE                (Wanted: OFF): OFF
+--   SDL_X11_XFIXES              (Wanted: OFF): OFF
+--   SDL_X11_XINPUT              (Wanted: OFF): OFF
+--   SDL_X11_XRANDR              (Wanted: OFF): OFF
+--   SDL_X11_XSCRNSAVER          (Wanted: OFF): OFF
+--   SDL_X11_XSHAPE              (Wanted: OFF): OFF
+--   SDL_X11_XSYNC               (Wanted: OFF): OFF
+--   SDL_X11_XTEST               (Wanted: OFF): OFF
+--   SDL_XINPUT                  (Wanted: ON): ON
+-- 
+--  Build Shared Library: OFF
+--  Build Static Library: ON
+-- 
+-- Enabled backends:
+--   Video drivers: dummy offscreen windows
+--   Render drivers: d3d d3d11 d3d12 gpu ogl ogl_es2 vulkan
+--   GPU drivers: d3d12 vulkan
+--   Audio drivers: disk dsound dummy wasapi
+--   Joystick drivers: dinput gameinput hidapi rawinput virtual wgi xinput
+--   Camera drivers: dummy mediafoundation
+-- 
+Protobuf of px_message.proto: D:/GoCloud/GammaRayPremium/build_official/client/official/cmake/src/px_deps/px_message//px_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/official/cmake/src/px_deps/px_message//px_service_message.pb.cc;D:/GoCloud/GammaRayPremium/build_official/client/official/cmake/src/px_deps/px_message//px_file_transfer.pb.cc
+DETOURS_INCLUDE_DIRS--> 
+DETOURS_LIBRARY--> C:/source/vcpkg/installed/x64-windows-static-release/lib/detours.lib
+-- Found Python3: C:/Users/chess/AppData/Local/Programs/Python/Python313/python.exe (found version "3.13.15") found components: Interpreter 
+-- px_render is excluded from the client product graph
+-- Configuring done (22.2s)
+-- Generating done (1.7s)
+-- Build files have been written to: D:/GoCloud/GammaRayPremium/build_official/client/official/cmake
+[0/2] Re-checking globbed directories...
+[1/2] Re-running CMake...
+[0/2] Re-checking globbed directories...
+[1/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\vector_icon.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[2/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\clipboard\win\clipboard_platform_win.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[3/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_core.dir\time_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[4/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\memory_stat.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[5/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\audio_device_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[6/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_core.dir\image.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[7/233] Linking CXX static library src\px_deps\px_common\px_common_core.lib
+[8/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\firewall_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[9/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\hardware.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[10/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\auto_start.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[11/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\dxgi_mon_detector.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[12/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\process_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[13/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\file.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[14/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\process_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[15/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\win_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[16/233] Running cpp protocol buffer compiler on px_service_message.proto
+[17/233] Running cpp protocol buffer compiler on px_message.proto
+[18/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\ip_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[19/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\win32\d3d_debug_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[20/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\thread.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[21/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\reconnect_supervisor.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[22/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_async.dir\message_notifier.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[23/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_compress.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[24/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\clipboard\clipboard_file_builder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[25/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_crypto.dir\px_aes.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[26/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_terminal.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[27/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\file_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[28/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\qrcode\qr_generator.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[29/233] Building CXX object src\px_deps\px_opus_codec\CMakeFiles\px_opus_codec.dir\opus_codec.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[30/233] Linking CXX static library src\px_deps\px_common\px_common_async.lib
+[31/233] Linking CXX static library src\px_deps\px_common\px_common_crypto.lib
+[32/233] Building CXX object src\px_deps\px_message\CMakeFiles\px_message.dir\proto_converter.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[33/233] Building CXX object src\px_deps\px_message\CMakeFiles\px_message.dir\proto_message_maker.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[34/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_sha256.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[35/233] Building CXX object src\px_deps\px_message\CMakeFiles\px_message.dir\px_service_message.pb.cc.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[36/233] Linking CXX static library src\px_deps\px_opus_codec\px_opus_codec.lib
+[37/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_storage.dir\shared_preference.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[38/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_net.dir\http_base_op.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[39/233] Linking CXX static library src\px_deps\px_common\px_common_storage.lib
+[40/233] Building CXX object src\px_deps\px_message\CMakeFiles\px_message.dir\px_message.pb.cc.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[41/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\button.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[42/233] Linking CXX static library src\px_deps\px_message\px_message.lib
+[43/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\form.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[44/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\identity.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[45/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\data_view.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[46/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_file.dir\folder_util.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[47/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_win.dir\dump_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[48/233] Building CXX object src\px_deps\px_relay_client\CMakeFiles\px_relay_client.dir\relay_client_sdk.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[49/233] Linking CXX static library src\px_deps\px_common\px_common_file.lib
+[50/233] Linking CXX static library src\px_deps\px_common\px_common_win.lib
+[51/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_path.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[52/233] Building CXX object src\px_deps\px_rdp\CMakeFiles\px_rdp_stream.dir\rdp_proxy_process.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[53/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\feedback.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[54/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_engine.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[55/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\transport.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[56/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\media_timer_resolution.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[57/233] Building CXX object src\px_deps\px_rdp\CMakeFiles\px_rdp_stream.dir\rdp_stream_packet.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[58/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\channel.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[59/233] Linking CXX static library src\px_deps\px_rdp\px_rdp_stream.lib
+[60/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\transfer_job.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[61/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\surface.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[62/233] Building CXX object src\px_deps\px_common\CMakeFiles\px_common_net.dir\http_client.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[63/233] Linking CXX static library src\px_deps\px_common\px_common_net.lib
+[64/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\session_open.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[65/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\overlay.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[66/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_user.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[67/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_user_device.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[68/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\px_ui_theme.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[69/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\components\navigation.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[70/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\localization.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[71/233] Building CXX object src\px_ui\CMakeFiles\px_ui.dir\theme_tokens.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[72/233] Linking CXX static library src\px_ui\px_ui.lib
+[73/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[74/233] Building CXX object src\px_deps\px_relay_client\CMakeFiles\px_relay_client.dir\relay_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[75/233] Building CXX object src\px_deps\px_relay_client\CMakeFiles\px_relay_client.dir\relay_server_sdk.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[76/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_user_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[77/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\imgui_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[78/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\message_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[79/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\window_host.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[80/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\voice_datagram.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[81/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\title_bar.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[82/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\font_loader.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[83/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\d3d11_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[84/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\font_loader.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[85/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\desktop_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[86/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_user_device_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[87/233] Building CXX object src\px_deps\px_ft_engine\CMakeFiles\px_ft_engine.dir\ft_async_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[88/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_user_app_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[89/233] Linking CXX static library src\px_deps\px_ft_engine\px_ft_engine.lib
+[90/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\video_presentation_progress.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[91/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\desktop_shell.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[92/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\title_bar.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[93/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\video_diagnostics.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[94/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\d3d11_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[95/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\brand_logo.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[96/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\platform_icon_atlas.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[97/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\window_host.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[98/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\imgui_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[99/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\atlas_image_loader.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[100/233] Building C object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\vulkan_libav_bridge.c.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+D:\GoCloud\GammaRayPremium\src\px_deps\px_3rdparty\libplacebo/config.h(96): warning C4068: 未知的杂注“GCC”
+[101/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\desktop_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[102/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\windows_title_bar_behavior.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[103/233] Building CXX object src\px_deps\px_console_client\CMakeFiles\px_console_client.dir\console_resource_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[104/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_panel_desktop_shell.dir\live_resize_refresh.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[105/233] Linking CXX static library src\px_deps\px_console_client\px_console_client.lib
+[106/233] Linking CXX static library src\px_desktop_shell\px_panel_desktop_shell.lib
+[107/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_voice_protocol.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[108/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\windows_title_bar_behavior.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[109/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\vulkan_renderer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[110/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_errors.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[111/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[112/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_stream_helper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[113/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\desktop_shell.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[114/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\video_presentation_progress.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[115/233] Building CXX object src\px_transport\CMakeFiles\px_transport_cpp.dir\media_datagrams.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[116/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\live_resize_refresh.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[117/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_cast_receiver.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[118/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\udp_datagram_policy.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+Please define _WIN32_WINNT or _WIN32_WINDOWS appropriately. For example:
+- add -D_WIN32_WINNT=0x0601 to the compiler command line; or
+- add _WIN32_WINNT=0x0601 to your project's Preprocessor Definitions.
+Assuming _WIN32_WINNT=0x0601 (i.e. Windows 7 target).
+[119/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\encoded_video_delivery.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[120/233] Building CXX object src\px_desktop_shell\CMakeFiles\px_desktop_shell.dir\d3d11_video_presenter.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[121/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\sdk_voice_call.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[122/233] Building CXX object src\px_deps\px_relay_client\CMakeFiles\px_relay_client.dir\relay_ws_client.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[123/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\sdk_video_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[124/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\video_decode_thread_task.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[125/233] Linking CXX static library src\px_deps\px_relay_client\px_relay_client.lib
+[126/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_statistics.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[127/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\sdk_video_decoder_factory.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[128/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\gl\raw_image.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[129/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[130/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_net_client.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[131/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\relay_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[132/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_timer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[133/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_vulkan_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[134/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_device_presence.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[135/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_text.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[136/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_startup_dialog.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[137/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_recording_feedback.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[138/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_statistics_format.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[139/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_frame.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[140/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_soft_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[141/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_video_frame.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[142/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\sdk_ffmpeg_decoder.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[143/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\iroh_dialer.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[144/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_process_audio_controller.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[145/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_statistics_overlay.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[146/233] Building RC object src\px_client\CMakeFiles\px_client.dir\icon.rc.res
+[147/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_running_pipe.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[148/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\render_api.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[149/233] Building CXX object src\px_client_sdk\media_transport\CMakeFiles\pixels_media_transport.dir\video_stream.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[150/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\sdk_iroh_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[151/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_clipboard_channel.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[152/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\sdk_recording_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[153/233] Building CXX object src\px_client_sdk\media_transport\CMakeFiles\pixels_media_transport.dir\video_receive_queue.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[154/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_audio_output.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[155/233] Linking CXX static library src\px_client_sdk\media_transport\pixels_media_transport.lib
+[156/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk.dir\thunder_sdk.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[157/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_ui_settings.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[158/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_platform.dir\platform\windows\windows_decoder_factory.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[159/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_windows_clipboard.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[160/233] Linking CXX static library src\px_transport\px_transport_cpp.lib
+[161/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_input_mapper.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[162/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_file_browser_model.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[163/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_clipboard_files.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[164/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_file_transfer_format.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[165/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_instance_guard.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[166/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_file_transfer_window.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[167/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\rdp\rdp_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[168/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_file_transfer_acceptance.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[169/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\udp_direct_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[170/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_local_file_system.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[171/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_toolbar.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[172/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ct_virtual_display_protocol.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[173/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\account_control.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[174/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\about_settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[175/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_launch_config.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[176/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_audio_acceptance.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[177/233] Building CXX object src\px_client\CMakeFiles\px_client.dir\ui_imgui\client_main.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[178/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_iroh_reconnect.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[179/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_screenshot.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[180/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\controller_settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[181/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\connection_progress_dialog.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[182/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\ws_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[183/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\device_list_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[184/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\general_settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[185/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_window.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[186/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_connection_links.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[187/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\connection_qr_dialog.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[188/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\network_settings_presenter.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[189/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\network_settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[190/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\security_records_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[191/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_display.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[192/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\security_settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[193/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\notification_center.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[194/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\remote_device_actions.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[195/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\settings_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[196/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\panel_preview.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[197/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\panel_navigation.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[198/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\cloud_applications_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[199/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\remote_control_page.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[200/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel_imgui_views.dir\cloud_application_progress_dialog.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[201/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_statistics.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[202/233] Linking CXX static library src\px_deps\px_panel_imgui_views.lib
+[203/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_connection_input.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[204/233] Building CXX object src\px_client_sdk\CMakeFiles\px_sdk_core.dir\connection\wss_connection.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[205/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_features.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[206/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[207/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_lifecycle.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[208/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_console_session.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[209/233] Linking CXX static library src\px_client_sdk\px_sdk.lib
+[210/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_input.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[211/233] Linking CXX static library src\px_desktop_shell\px_desktop_shell.lib
+[212/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_config_store.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+Please define _WIN32_WINNT or _WIN32_WINDOWS appropriately. For example:
+- add -D_WIN32_WINNT=0x0601 to the compiler command line; or
+- add _WIN32_WINNT=0x0601 to your project's Preprocessor Definitions.
+Assuming _WIN32_WINNT=0x0601 (i.e. Windows 7 target).
+[213/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_audit_store.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[214/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_account_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[215/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_product_runtime.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[216/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_system_information.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[217/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_session_rdp.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[218/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_client_launcher.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[219/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_os_info_supervisor.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[220/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_network_settings_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[221/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_cloud_applications_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[222/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_remote_control_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[223/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_security_records_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[224/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_voice_call_consent_overlay.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[225/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\product_settings_port.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[226/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\application_launch_workflow.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[227/233] Building CXX object src\px_client\CMakeFiles\px_client_imgui_runtime.dir\ui_imgui\client_panel_reporter.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[228/233] Linking CXX static library src\px_client\px_client_imgui_runtime.lib
+[229/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product_main.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[230/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_service_bridge.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[231/233] Building CXX object src\px_panel\ui_imgui\CMakeFiles\px_panel.dir\product\panel_local_server.cpp.obj
+cl: 命令行 warning D9025 :正在重写“/MD”(用“/MT”)
+[232/233] Linking CXX executable src\px_deps\px_panel.exe
+[233/233] Linking CXX executable src\px_deps\px_client.exe
+DONE: px_panel px_client
+  + px_panel.exe
+  + px_client.exe
+  + px_osinfo.exe
+  + libplacebo-349.dll
+  + vulkan-1.dll
+  + px_voice_apm.dll
+  + resources/fonts/Roboto-Regular.ttf
+  + resources/fonts/Roboto-Medium.ttf
+  + resources/icons/brand/px_icon-150.png
+  + resources/icons/brand/px_icon-200.png
+  + resources/icons/brand/px_icon.png
+  + resources/icons/platform/android-150.png
+  + resources/icons/platform/android-200.png
+  + resources/icons/platform/android.png
+  + resources/icons/platform/ios-150.png
+  + resources/icons/platform/ios-200.png
+  + resources/icons/platform/ios.png
+  + resources/icons/platform/macos-150.png
+  + resources/icons/platform/macos-200.png
+  + resources/icons/platform/macos.png
+  + resources/icons/platform/windows-150.png
+  + resources/icons/platform/windows-200.png
+  + resources/icons/platform/windows.png
+  + resources/language/english.json
+  + resources/language/simple_cn.json
+  + resources/language/traditional_cn.json
+  + resources/licenses/FreeType.txt
+  + resources/licenses/Lucide.txt
+  + resources/licenses/Tabler.txt
+  + rdp/px_rdp_sdk.json
+  + cjson.dll
+  + legacy.dll
+  + libcrypto-3-x64.dll
+  + libssl-3-x64.dll
+  + libusb-1.0.dll
+  + openh264-6.dll
+  + px_rdp_client.dll
+  + px_rdp_core.dll
+  + px_rdp_winpr.dll
+  + zlib1.dll
+  + resources/update/root.json
+Done: client distribution published to D:\GoCloud\GammaRayPremium\build_official\client\official\dist
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Verified client 3.3.81: 41 artifacts with matching SHA-256 hashes and product dependency boundaries.
+Command line defined: "OUTPUT_DIR=D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\nat-xr-client-20261012\installer\.client-installer-ytixm1fn"
+Command line defined: "PRODUCT_ID=client"
+Command line defined: "DISTRIBUTION=official"
+Command line defined: "RELEASE_NAMESPACE=pixels.official"
+Command line defined: "OEM_ID="
+Command line defined: "PRODUCT_VERSION=3.3.81"
+Command line defined: "PRODUCT_VERSION_CODE=30381"
+Command line defined: "COMPANY=Pixels"
+Command line defined: "PUBLISHER_NAME=Pixels"
+Processing config: D:\GoCloud\GammaRayPremium\tools\nsis\nsisconf.nsh
+Processing script file: "D:\GoCloud\GammaRayPremium\setup\make_setup.nsi" (UTF8)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\nat-xr-client-20261012\installer\.client-installer-ytixm1fn\PixelsClient_official_3.3.81_Setup.exe"
+Install: 4 pages (256 bytes), 1 section (2072 bytes), 636 instructions (17808 bytes), 371 strings (13758 bytes), 2 language tables (636 bytes).
+Uninstall: 3 pages (256 bytes), 1 section (2072 bytes), 338 instructions (9464 bytes), 236 strings (7390 bytes), 2 language tables (572 bytes).
+Datablock optimizer saved 1903 bytes (~0.0%).
+
+Using zlib compression.
+
+EXE header size:              236032 / 39936 bytes
+Install code:                   7529 / 34994 bytes
+Install data:               47663754 / 117635102 bytes
+Uninstall code+data:           45387 / 217558 bytes
+CRC (0xBF5E8938):                  4 / 4 bytes
+
+Total size:                 47952706 / 117927594 bytes (40.6%)
+Published installer atomically: D:\GoCloud\GammaRayPremium\build_official\client\official\candidates\nat-xr-client-20261012\installer\3.3.81
