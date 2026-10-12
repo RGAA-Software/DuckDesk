@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Transport sequencing decision (2026-10-12 afternoon): defer the remaining short video-stutter tuning to the evening return.
+  Continue the Windows/Linux network mainline with multi-Relay load visibility and actual endpoint-distribution review.
+  Reuse the completed functional/installation evidence; do not restart the video, NIC or saturated mixed-load investigation during this batch.
+  Android remains excluded and 90 remains unavailable for tests. The evening return has no fixed automatic start time.
+
 - Remote validation decision (2026-10-12): do not use 90 (428358431) for further tests; the user needs it for other work.
   Use local/Company peers and XRServer03 (947158375) for subsequent Relay measurements. XR development, transfers and temporary files
   belong under `D:\uploadsoft\rd\pixels`; this does not relocate installed products or runtime logs. Measure actual Relay throughput

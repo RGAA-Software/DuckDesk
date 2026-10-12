@@ -1,0 +1,38 @@
+{
+  "scope": "Console web focused development publication only; no remote installation",
+  "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist",
+  "destination": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static",
+  "build_workers": 18,
+  "artifacts": [
+    {
+      "path": "favicon.ico",
+      "sha256": "EA8A86BDEE6E0E6A6100EDF803D6BEFC120161C5C6401324646315DC914354B3",
+      "bytes": 190461
+    },
+    {
+      "path": "index.html",
+      "sha256": "F0410CE5AAC2D76ED758AA30467582700D781FE1EFDA28C60059130A44FEB20D",
+      "bytes": 462
+    },
+    {
+      "path": "pixels-logo-45.svg",
+      "sha256": "EBD4B5784028F12CF3C71FFA756E42B05805E399A16956D7821BB9A750EB3F3F",
+      "bytes": 677
+    },
+    {
+      "path": "webview-test.html",
+      "sha256": "9D591969BA27B8E1BE0BB92C97851F8F5942865135ED0380F9BAAC7A96E7DC46",
+      "bytes": 1518
+    },
+    {
+      "path": "assets\\index--ZrwTxfZ.css",
+      "sha256": "A8AD2E9134D23D4AEF3A39F99B0A8F903518EA75BDDD667AA836079F7A4F3A90",
+      "bytes": 17027
+    },
+    {
+      "path": "assets\\index-Ccvh3tm_.js",
+      "sha256": "90BCA77193DA67D07C6092FA5475713FE8739B82DDB8715273C3D6846D20068C",
+      "bytes": 1866974
+    }
+  ]
+}

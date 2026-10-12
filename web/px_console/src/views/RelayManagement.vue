@@ -11,6 +11,7 @@ import {
     type ManagedRelay,
 } from "@/model/managed_relay_api";
 import { copyText } from "@/util/clipboard";
+import { RelayTrafficTracker, type RelayTrafficRate } from "@/model/relay_traffic";
 
 const { locale, t } = useI18n();
 const relays = ref<ManagedRelay[]>([]);
@@ -22,6 +23,8 @@ const credentialOpen = ref(false);
 const relayToken = ref("");
 const monotonicNowMs = ref(performance.now());
 const snapshotObservedAtMs = ref<number>();
+const trafficTracker = new RelayTrafficTracker();
+const trafficRates = ref<ReadonlyMap<string, RelayTrafficRate>>(new Map());
 let statusClockTimer: number | undefined;
 const snapshotCurrent = computed(
     () => managementSnapshotCurrent(snapshotObservedAtMs.value, monotonicNowMs.value),
@@ -39,6 +42,7 @@ async function refresh(): Promise<void> {
     try {
         relays.value = await listManagedRelays();
         monotonicNowMs.value = performance.now();
+        trafficRates.value = trafficTracker.observe(relays.value, monotonicNowMs.value);
         snapshotObservedAtMs.value = monotonicNowMs.value;
     }
     catch {
@@ -149,6 +153,19 @@ function formatBytes(bytes: number | null): string {
     return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
+function formatTrafficRate(relay: ManagedRelay): string {
+    const rate = trafficRates.value.get(relay.id);
+    if (!rate || !snapshotCurrent.value || !relay.fresh ||
+        !managementSnapshotCurrent(rate.observedAtMs, monotonicNowMs.value)) {
+        return t("relays.unknown");
+    }
+    const formatter = new Intl.NumberFormat(locale.value, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return t("relays.trafficRateValue", {
+        received: formatter.format(rate.receivedMbps),
+        forwarded: formatter.format(rate.forwardedMbps),
+    });
+}
+
 function formatTimestamp(timestamp: string | null): string {
     if (!timestamp) return t("relays.unknown");
     return new Intl.DateTimeFormat(locale.value, {
@@ -180,7 +197,7 @@ useManagementRefresh(["relays"], refresh);
             :message="t('relays.statusNotice')"
             style="margin-bottom: 12px"
         />
-        <a-table :data-source="relays" row-key="id" :loading="loading" :pagination="false">
+        <a-table :data-source="relays" row-key="id" :loading="loading" :pagination="false" :scroll="{ x: 'max-content' }">
             <a-table-column :title="t('relays.name')" data-index="name" />
             <a-table-column :title="t('relays.endpoint')">
                 <template #default="{ record }"
@@ -232,6 +249,14 @@ useManagementRefresh(["relays"], refresh);
                     {{ record.fresh && snapshotCurrent ? formatBytes(record.uploaded_bytes) : t("relays.unknown") }} /
                     {{ record.fresh && snapshotCurrent ? formatBytes(record.forwarded_bytes) : t("relays.unknown") }}
                 </template>
+            </a-table-column>
+            <a-table-column>
+                <template #title>
+                    <a-tooltip :title="t('relays.trafficRateNotice')">
+                        {{ t("relays.trafficRate") }}
+                    </a-tooltip>
+                </template>
+                <template #default="{ record }">{{ formatTrafficRate(record) }}</template>
             </a-table-column>
             <a-table-column :title="t('relays.lastSeen')">
                 <template #default="{ record }">{{ formatTimestamp(record.last_seen) }}</template>

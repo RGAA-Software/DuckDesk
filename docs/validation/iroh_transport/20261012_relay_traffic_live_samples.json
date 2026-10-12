@@ -1,0 +1,125 @@
+{
+  "scope": "Console read-only BJ Relay reports; no transport load or configuration changes",
+  "samples": [
+    {
+      "observedAtMs": 6.806100020185113,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3141,
+        "last_seen": "2026-10-12T07:28:33.743123Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    },
+    {
+      "observedAtMs": 5018.233200069517,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3142,
+        "last_seen": "2026-10-12T07:28:38.743014Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    },
+    {
+      "observedAtMs": 10026.425099931657,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3143,
+        "last_seen": "2026-10-12T07:28:43.743324Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    },
+    {
+      "observedAtMs": 15033.10939995572,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3144,
+        "last_seen": "2026-10-12T07:28:48.742939Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    },
+    {
+      "observedAtMs": 20041.08770005405,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3145,
+        "last_seen": "2026-10-12T07:28:53.746751Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    },
+    {
+      "observedAtMs": 25049.184900010005,
+      "relay": {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "generation": 17,
+        "control_epoch": 71,
+        "report_sequence": 3146,
+        "last_seen": "2026-10-12T07:28:58.742997Z",
+        "uploaded_bytes": 1744000987,
+        "forwarded_bytes": 1743036931,
+        "fresh": true,
+        "state": "ready",
+        "disabled": false,
+        "desired_draining": false,
+        "max_connections": 4096,
+        "current_connections": 0
+      }
+    }
+  ]
+}

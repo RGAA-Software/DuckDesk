@@ -4,6 +4,16 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-12 下午，推进多 Relay 负载主线
+
+- 用户明确将残余卡帧调优留到今晚回归。当前继续 Windows/Linux 主线，Android 排除，不测试90，不恢复 NIC/饱和混传或视频长稳批次。没有确定的自动晚间启动时间。
+- 第0.9节 A–F 功能与交付已完成的证据复用；当前补多 Relay 的负载观测，不重新实现文件独立进程、重连或双系统 Relay。
+- 发现 Relay 页面只有累计字节、缺少当前带宽观测，新增接收/转发 Mbps，按同一代际近期两次受认证上报的字节差与 Console 上报时间差计算；首次/重连/计数回退/过期显示未知，重复读取不延长有效期，中英文一致，列表支持横向滚动。
+- 18项聚焦回归通过、TypeScript检查与变更文件ESLint通过；Vite构建完成，6个静态文件同步 `output/px_console/dev/static` 并逐项SHA一致。构建线程环境显式18；只交付本地开发静态资源，未更新远端安装。真实BJ只读六份报告3141–3146回放通过，均为0连接、区间速率0；这不是吞吐/容量验收。
+- 当前 Company installed Client FE8B8257…/41文件、XR Node Service636C688E…/Render6F9A2D19…及已恢复默认Relay选择的身份沿用上一批；本批未远端安装/启动应用/改配置。BJ报告generation17/control_epoch71/fresh/ready，原disabled=false/desired_draining=false保持。
+- 分配核对：Console按连接利用率筛选候选，Rust将候选转入BTreeMap，iroh以网络报告preferred_relay决定home；列表排序不能当作带宽均分。后续唯一主线项是核对新 Endpoint 实际home/连接分布与容量边界，再依据具体证据补分配缺口。90停用后本批仅有BJ可用测试Relay，不伪造跨Relay负载结论；没有把新增复杂调度或十台机器设为基本功能前置。
+- 证据：[本批报告](20261012_relay_load_mainline.md)、`20261012_relay_traffic_live_samples.json`、`20261012_relay_traffic_live_replay.json`、`20261012_relay_traffic_web_delivery.json`。今晚卡帧从Company有效467.233秒、三次151–165ms及源/Relay反馈证据接续，不从头压测。
+
 ## 最新实机接续：2026-10-11，Windows 应用 iroh
 
 ### 连续实施：回程反馈额度修复（2026-10-11）

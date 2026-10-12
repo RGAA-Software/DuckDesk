@@ -173,3 +173,10 @@ Two-host Relay recovery, live candidates, maintenance and connection capacity ha
 recorded real-host evidence. Remaining NAT, long-duration stability and throughput
 distribution checks are tracked separately; local/WSL packaging checks do not
 replace those outcomes or establish Android acceptance.
+
+Console's Relay page also shows received/forwarded Mbps, averaged between recent
+authenticated reports. Two reports are required; reconnection, stale reports or
+reset counters restart the baseline. Repeated inventory reads do not keep an old
+rate alive. These observed rates are not configured bandwidth limits or proof of
+balanced endpoint assignment. Compare them with actual home Relay/path logs and
+connection counts before drawing a load-distribution conclusion.

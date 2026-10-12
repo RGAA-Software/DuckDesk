@@ -1,5 +1,10 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-12 下午最新安排：用户将残余短卡顿调优留到今晚回归，当前推进多 Relay 负载可视化与端点分配核对。
+Windows/Linux 第 0.9 节已有功能与安装证据复用，不重开基本接入；Android 排除，90 不参与测试。
+已补 Console 接收/转发区间平均速率，见 [本批主线报告](validation/iroh_transport/20261012_relay_load_mainline.md)。
+最新 Company 467.233 秒仍有三次超过 100ms 的接收间隔，不能由下方历史验收推导为长期零卡顿。
+
 2026-10-12 最新结果：卡帧统一任务S1–S4本轮工程验收通过，见 [验收报告](validation/iroh_transport/20261012_decoder_recovery_acceptance.md) 与 [主线推进分析](validation/iroh_transport/20261012_mainline_progress.md)。真实NAT/规模/长期稳定性未整体验收，Android排除。2026-10-11用户任务及阶段约定见 [卡帧问题持续解决任务](video_stutter_resolution_task_20261011.md)。
 先定位/修复/验证 direct 与 Relay 画面停顿，不重复已经交付的网络功能，也不扩大到 Android 或独立业务验收。
 

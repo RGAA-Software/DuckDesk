@@ -1,0 +1,50 @@
+{
+  "scope": "Production TypeScript tracker replay of read-only BJ reports; idle, no capacity or throughput acceptance",
+  "state": "passed",
+  "results": [
+    {
+      "report_sequence": 3141,
+      "rate": null
+    },
+    {
+      "report_sequence": 3142,
+      "rate": {
+        "receivedMbps": 0,
+        "forwardedMbps": 0,
+        "observedAtMs": 5018.233200069517
+      }
+    },
+    {
+      "report_sequence": 3143,
+      "rate": {
+        "receivedMbps": 0,
+        "forwardedMbps": 0,
+        "observedAtMs": 10026.425099931657
+      }
+    },
+    {
+      "report_sequence": 3144,
+      "rate": {
+        "receivedMbps": 0,
+        "forwardedMbps": 0,
+        "observedAtMs": 15033.10939995572
+      }
+    },
+    {
+      "report_sequence": 3145,
+      "rate": {
+        "receivedMbps": 0,
+        "forwardedMbps": 0,
+        "observedAtMs": 20041.08770005405
+      }
+    },
+    {
+      "report_sequence": 3146,
+      "rate": {
+        "receivedMbps": 0,
+        "forwardedMbps": 0,
+        "observedAtMs": 25049.184900010005
+      }
+    }
+  ]
+}
