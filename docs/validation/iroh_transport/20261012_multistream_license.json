@@ -1,0 +1,98 @@
+{
+  "result": "LICENSE_ACTIVE",
+  "auth_origin": "https://auth.rgaa.vip",
+  "deployment_id": "2f5b1d67-6dba-47bd-a985-f5925a0b1662",
+  "request_id": "ba3477b5-4236-4cec-9d2f-774868c60d1c",
+  "previous_license": {
+    "license_id": "255414cd-ae99-492c-8bb5-3eca2cbe2d72",
+    "revision": 1,
+    "expires_at": 4070908800,
+    "max_streams": 4,
+    "services": [
+      "cloud_applications",
+      "desktop",
+      "rdp"
+    ],
+    "starter_license": true
+  },
+  "active_license": {
+    "license_id": "02b71f36-09f4-48ab-a9cd-0a0d0d45f338",
+    "revision": 1,
+    "expires_at": 1823351187,
+    "max_streams": 80,
+    "services": [
+      "cloud_applications",
+      "desktop",
+      "rdp"
+    ],
+    "starter_license": false
+  },
+  "license_sha256": "90882aa859f0bc84aa5358548674d01770e5e5f3d36bee1bede2e52d9d61457e",
+  "signature_verified": true,
+  "console_ready_http": 204,
+  "expires_at_utc": "2027-10-12T22:26:27+08:00",
+  "capacity_snapshot": {
+    "nodes": [
+      {
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "state": "ready",
+        "fresh": true,
+        "max_instances": 1,
+        "capacity": null
+      },
+      {
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "state": "ready",
+        "fresh": true,
+        "max_instances": 4,
+        "capacity": null
+      }
+    ],
+    "deployments": [
+      {
+        "id": "53caf4d4-7ebb-4068-97f8-be0adc6cf30c",
+        "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "capacity": 5,
+        "disabled": false
+      },
+      {
+        "id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+        "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "capacity": 12,
+        "disabled": false
+      },
+      {
+        "id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+        "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+        "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "capacity": 1,
+        "disabled": true
+      },
+      {
+        "id": "c9109b67-d118-44a6-9c97-55500d4a4339",
+        "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "capacity": 1,
+        "disabled": false
+      },
+      {
+        "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "capacity": 1,
+        "disabled": false
+      }
+    ]
+  },
+  "scope": "License activation only; no twenty-stream application load run or scheduling capacity change.",
+  "remote_persistence": {
+    "backup_path": "D:\\112233\\multistream-license-20261012\\starter-before.pxlic2",
+    "observed_utc_unix": 1791815253,
+    "backup_sha256": "718E645666F34377722226AF29C180A83D00B3C35AE74541A0F0B9A384CA8D41",
+    "independent_system_validator": "Rejected service-SID-owned private material; no ACL changes",
+    "console_service": "Running",
+    "license_sha256": "90882AA859F0BC84AA5358548674D01770E5E5F3D36BEE1BEDE2E52D9D61457E"
+  }
+}

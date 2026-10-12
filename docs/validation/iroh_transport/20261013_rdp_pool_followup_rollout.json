@@ -1,0 +1,17 @@
+{
+  "90": {
+    "operation_id": "620287ce-e95f-485e-a3a1-695912d0b411",
+    "state": "succeeded",
+    "result": "{\"state\":\"published\",\"service\":\"px_service\",\"runtime_sha256\":\"6E3C56A6FB7F05B1AA41A9B6288CC7BC9877287781CB6E5623E2357D471B912B\",\"manifest_sha256\":\"710A3F3A51E991C9BD39E0EA27B7D4B53D125DC0BF87F43EFC85B8EE722DDCB3\",\"verified_artifacts\":315,\"backup_directory\":\"D:\\\\112233\\\\rdp-pool-20261012\\\\panel-update\\\\before-7a3990ac78ae48fdbd078a49d06ad092\",\"service_state\":\"Running\"}\r\n"
+  },
+  "company": {
+    "operation_id": "14d4b2c0-656b-4e0c-8932-bc026a1288c8",
+    "state": "succeeded",
+    "result": "{\"state\":\"published\",\"backup_directory\":\"D:\\\\112233\\\\rdp-pool-20261013\\\\panel-update\\\\before-fb7a8caf5bf6421b9be29b0795791a6d\",\"files_verified\":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],\"panel_sha256\":\"17A16E24E4B6DDCE37393860F3AB694DD22129DEEDFDB0EE63180B408EA2A3D7\",\"manifest_sha256\":\"F3AE7D4DFAE6AEE4CBA4FD73A78CFC12EC3B6D67C3C28563E661CA8B85E57102\"}\r\n"
+  },
+  "xr": {
+    "operation_id": "189894d7-c0ca-4f0a-b2f9-1394b3104895",
+    "state": "succeeded",
+    "result": "{\"state\":\"published\",\"service\":\"px_service\",\"runtime_sha256\":\"6E3C56A6FB7F05B1AA41A9B6288CC7BC9877287781CB6E5623E2357D471B912B\",\"manifest_sha256\":\"81F8303A388B38CE0419FE211934CFE422BF63E5D54B6DD520DCB230AEADC351\",\"verified_artifacts\":315,\"backup_directory\":\"D:\\\\uploadsoft\\\\rd\\\\pixels\\\\rdp-pool-20261013\\\\node-update\\\\before-19e2b8c8d602484e98f79c1fcfa608fe\",\"service_state\":\"Running\"}\r\n"
+  }
+}

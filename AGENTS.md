@@ -1,5 +1,33 @@
 # Workspace delivery rules
 
+- RDP workspace pool update (2026-10-13, superseding the singleton notes below): the same RDP application/node
+  now owns persistent slots `(application_id, node_id, workspace_slot)`, each with a distinct Windows user.
+  Capacity is configurable from 1 to 64; the current 90 deployment is configured for 20. Each workspace still
+  permits one active frontend. Ordinary launch may allocate another workspace when an existing instance is busy;
+  it must never take over the occupied desktop. Preserve original workspace identity and credentials in slot 1,
+  and retain all accounts, profiles and disconnected sessions on stop. Reuse the implementation and focused
+  evidence in docs/validation/iroh_transport/20261013_rdp_workspace_pool.md; configured capacity and database
+  concurrency tests are not proof that twenty real Windows desktops have been simultaneously accepted.
+
+- RDP concurrency clarification (2026-10-12): the user clarified that multiple instances of the same RDP application
+  on one node should use distinct Windows users and sessions. The one-active-frontend rule applies to each workspace,
+  not to the whole application or node. The current application/node singleton mapping and RDP capacity=1 checks
+  are implementation limitations to address, not a reason to require twenty machines or duplicate application entries.
+  Preserve existing accounts, SIDs, profiles and disconnected sessions when extending workspace allocation.
+
+- Multi-stream configuration update (2026-10-12): the current Console has an Auth-issued 80-stream license.
+  The user authorized increasing runtime scheduling capacity: 90 and XR Cloud Nodes now have max_instances=64;
+  their existing GameHook/WebView deployments have capacity=20, with disabled flags and GPU bindings preserved.
+  The existing RDP deployment remains capacity=1 because it represents one workspace with one active frontend.
+  Twenty distinct RDP workspaces are not delivered by this configuration batch; do not claim all types have twenty running instances.
+  Reuse the capacity baseline and verification in docs/validation/iroh_transport/20261012_multistream_capacity.json.
+
+- Video investigation deferral (2026-10-12, superseding the evening start below): the user accepted the current
+  un-reproduced short-video-stutter investigation as staged progress and asked to defer further handling.
+  Preserve delivered diagnostics and evidence; the root cause remains unconfirmed, so do not claim a permanent fix.
+  Resume only on an actual recurrence or explicit user direction. Do not repeat captures or tuning as a prerequisite
+  for the Windows/Linux network mainline. Android and the stopped NIC/saturated mixed-load stress remain excluded.
+
 - Evening validation update (2026-10-12): the user explicitly started the deferred short-video-stutter investigation.
   Company (559038160), 90 (428358431) and XRServer03 (947158375) are available. Reuse existing delivery evidence,
   investigate actual media waits with logs and upstream references, and keep Android and the stopped NIC/saturated mixed-load stress excluded.

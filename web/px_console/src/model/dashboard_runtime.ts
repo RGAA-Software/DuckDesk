@@ -21,7 +21,6 @@ export function schedulingHeadroom(
     preview: PlacementPreview,
     nodes: ManagedNode[],
     instances: InstanceSummary[],
-    isRdp: boolean,
 ): number {
     const eligibleNodes = new Map<string, { slots: number; deployments: Map<string, number> }>();
     for (const candidate of preview.candidates) {
@@ -49,10 +48,7 @@ export function schedulingHeadroom(
             (total, slots) => total + slots,
             0,
         );
-        headroom += Math.max(
-            0,
-            Math.min(capacity.slots, deploymentSlots, availablePorts, isRdp ? 1 : Infinity),
-        );
+        headroom += Math.max(0, Math.min(capacity.slots, deploymentSlots, availablePorts));
     }
     return headroom;
 }

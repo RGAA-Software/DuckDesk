@@ -127,6 +127,8 @@ void ApplicationLaunchWorkflow::Prepare(const std::uint64_t generation) {
         if (!instance || (instance->state != "reserved" && instance->state != "starting" && instance->state != "running"))
             instance = operations_.start(request.applicationId, request.requestId);
         if (!AwaitReadiness(generation, instance)) return;
+        bool mayAllocateAnotherInstance{request.startNewInstanceWhenOccupied && !request.viewOnly &&
+                                        !request.existingInstanceId.empty() && instance->instance_id == request.existingInstanceId};
         const auto retirementStarted = std::chrono::steady_clock::now();
         const auto retirementDeadline = retirementStarted + operations_.retirementTimeout;
         bool waitingForRetirement{};
@@ -135,6 +137,17 @@ void ApplicationLaunchWorkflow::Prepare(const std::uint64_t generation) {
             if (!SetStage(generation, ui::ApplicationLaunchStage::AuthorizeConnection)) return;
             connection = operations_.authorize(instance->instance_id, request.viewOnly, request.requestId);
             if (connection) break;
+            if (connection.error() == px_console::ConsoleApiError::kConnectionBusy && mayAllocateAnotherInstance) {
+                mayAllocateAnotherInstance = false;
+                LOGI("event=application.allocate_another_instance application={} occupied_instance={}", request.applicationId,
+                     instance->instance_id);
+                request.existingInstanceId.clear();
+                request.requestId = px::GetCanonicalUUID();
+                if (!SetStage(generation, ui::ApplicationLaunchStage::StartApplication)) return;
+                instance = operations_.start(request.applicationId, request.requestId);
+                if (!AwaitReadiness(generation, instance)) return;
+                continue;
+            }
             if (connection.error() != px_console::ConsoleApiError::kConnectionRetiring) {
                 ApiFailure(generation, connection.error());
                 return;

@@ -2,7 +2,8 @@
 mod fixture;
 use fixture::{config, request, token, Fixture};
 use px_console_store::{
-    ClientType, CommandOutcome, CommandReceipt, DeploymentTarget, NodeCommand, ResourceCredential,
+    ClientType, CommandOutcome, CommandReceipt, DeploymentTarget, NodeCommand, NodeCommandAction,
+    OpenResourceSession, ResourceCredential, ResourceSessionStore, SessionAccess, SessionTarget,
     StoreError, WorkspaceCommandLease, WorkspaceKey, WorkspaceStore, WorkspaceVault,
 };
 use std::{env, sync::Arc};
@@ -141,6 +142,235 @@ async fn persistent_workspace_reuses_identity_after_runtime_stop_and_another_vis
         .fetch_one(&fixture.owner).await.unwrap();
     assert_eq!(tables, 0);
     db.close().await;
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn twenty_parallel_rdp_instances_get_distinct_users_and_reuse_only_released_desktops() {
+    let fixture = Fixture::new().await;
+    let workspace_store = store(vault(Uuid::new_v4(), 61)).await;
+    let (node, application, _) = fixture.prepared(DeploymentTarget::Rdp, 20).await;
+    let user = fixture.session("user", ClientType::Panel).await;
+    let mut reservations = tokio::task::JoinSet::new();
+    for _ in 0..20 {
+        let instance_store = fixture.instances.clone();
+        let user_token = user.clone();
+        let application_id = application.id;
+        let epoch = node.epoch();
+        reservations.spawn(async move {
+            instance_store
+                .reserve(
+                    ResourceCredential::User(&user_token),
+                    ClientType::Panel,
+                    epoch,
+                    &request(application_id),
+                )
+                .await
+        });
+    }
+    let mut instance_ids = std::collections::BTreeSet::new();
+    while let Some(reservation) = reservations.join_next().await {
+        instance_ids.insert(reservation.unwrap().unwrap().id);
+    }
+    assert_eq!(instance_ids.len(), 20);
+    assert_eq!(
+        fixture
+            .instances
+            .reserve(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                node.epoch(),
+                &request(application.id)
+            )
+            .await
+            .unwrap_err(),
+        StoreError::NoCapacity
+    );
+    let mut desktops: Vec<(NodeCommand, px_console_store::WorkspaceCredential)> = Vec::new();
+    let mut workspace_ids = std::collections::BTreeSet::new();
+    let mut account_names = std::collections::BTreeSet::new();
+    for workspace_index in 0..20 {
+        let start = fixture
+            .instances
+            .next_command(&node)
+            .await
+            .unwrap()
+            .unwrap();
+        let credential = workspace_store
+            .credentials_for_start(&node, lease(&start))
+            .await
+            .unwrap();
+        assert!(workspace_ids.insert(credential.workspace_id));
+        assert!(account_names.insert(credential.account_name.clone()));
+        let sid = format!("S-1-5-21-11-22-33-{}", 1001 + workspace_index);
+        workspace_store
+            .confirm_account(&node, lease(&start), credential.workspace_id, &sid)
+            .await
+            .unwrap();
+        if let Some((other_start, other_credential)) = desktops.first() {
+            assert!(workspace_store
+                .confirm_account(&node, lease(&start), other_credential.workspace_id, &sid)
+                .await
+                .is_err());
+            assert!(workspace_store
+                .confirm_account(&node, lease(other_start), credential.workspace_id, &sid)
+                .await
+                .is_err());
+        }
+        desktops.push((start, credential));
+    }
+    assert_eq!(count(&fixture, node.id()).await, 20);
+    let session_store = ResourceSessionStore::connect(
+        &config("RUNTIME"),
+        env::var("PIXELS_DEPLOYMENT_ID").unwrap().parse().unwrap(),
+    )
+    .await
+    .unwrap();
+    for (start, expected_credential) in &desktops {
+        let port = match start.action {
+            NodeCommandAction::Start { port, .. } => port,
+            _ => panic!("Expected RDP start"),
+        };
+        let mut running_receipt = receipt(start);
+        running_receipt.outcome = CommandOutcome::Running { port };
+        fixture
+            .instances
+            .acknowledge_command(&node, &running_receipt)
+            .await
+            .unwrap();
+        let session = session_store
+            .open(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                &OpenResourceSession {
+                    request_id: Uuid::new_v4(),
+                    target: SessionTarget::CloudApplication {
+                        application_id: application.id,
+                        instance_id: start.instance_id,
+                    },
+                    access: SessionAccess::Controller,
+                },
+            )
+            .await
+            .unwrap();
+        session_store
+            .descriptor(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                session.id,
+                session.revision,
+                &token(),
+            )
+            .await
+            .unwrap();
+        let frontend_credential = workspace_store
+            .credentials_for_frontend(session.id)
+            .await
+            .unwrap();
+        assert_eq!(
+            frontend_credential.workspace_id,
+            expected_credential.workspace_id
+        );
+        assert_eq!(
+            frontend_credential.account_name,
+            expected_credential.account_name
+        );
+        assert_eq!(*frontend_credential.password, *expected_credential.password);
+        assert_eq!(
+            session_store
+                .open(
+                    ResourceCredential::User(&user),
+                    ClientType::Panel,
+                    &OpenResourceSession {
+                        request_id: Uuid::new_v4(),
+                        target: SessionTarget::CloudApplication {
+                            application_id: application.id,
+                            instance_id: start.instance_id
+                        },
+                        access: SessionAccess::Controller
+                    }
+                )
+                .await
+                .unwrap_err(),
+            StoreError::NoCapacity
+        );
+        let retirement = session_store
+            .begin_retirement(&node, session.id)
+            .await
+            .unwrap();
+        session_store
+            .finish_retirement(&node, session.id, retirement.challenge_id)
+            .await
+            .unwrap();
+    }
+    let (released_start, released_credential) = &desktops[0];
+    let current = fixture
+        .instances
+        .get(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            released_start.instance_id,
+        )
+        .await
+        .unwrap();
+    fixture
+        .instances
+        .stop_managed(&fixture.admin, node.epoch(), current.id, current.revision)
+        .await
+        .unwrap();
+    let stop = fixture
+        .instances
+        .next_command(&node)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(stop.instance_id, released_start.instance_id);
+    assert_eq!(
+        fixture
+            .instances
+            .reserve(
+                ResourceCredential::User(&user),
+                ClientType::Panel,
+                node.epoch(),
+                &request(application.id)
+            )
+            .await
+            .unwrap_err(),
+        StoreError::NoCapacity
+    );
+    fixture
+        .instances
+        .acknowledge_command(&node, &receipt(&stop))
+        .await
+        .unwrap();
+    let replacement = fixture
+        .instances
+        .reserve(
+            ResourceCredential::User(&user),
+            ClientType::Panel,
+            node.epoch(),
+            &request(application.id),
+        )
+        .await
+        .unwrap();
+    assert!(!instance_ids.contains(&replacement.id));
+    let replacement_start = fixture
+        .instances
+        .next_command(&node)
+        .await
+        .unwrap()
+        .unwrap();
+    let reused = workspace_store
+        .credentials_for_start(&node, lease(&replacement_start))
+        .await
+        .unwrap();
+    assert_eq!(reused.workspace_id, released_credential.workspace_id);
+    assert_eq!(reused.account_name, released_credential.account_name);
+    assert!(reused.windows_sid.is_some());
+    assert_eq!(*reused.password, *released_credential.password);
+    assert_eq!(count(&fixture, node.id()).await, 20);
+    session_store.close().await;
+    workspace_store.close().await;
     fixture.close().await;
 }
 #[tokio::test]

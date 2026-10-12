@@ -54,9 +54,11 @@ async function refresh() {
         nodes.value = nodeRows;
         loadFailed.value = false;
         initialized.value = true;
-    } catch {
+    }
+ catch {
         if (!disposed && requestId === refreshId) loadFailed.value = true;
-    } finally {
+    }
+ finally {
         if (!disposed && requestId === refreshId) loading.value = false;
     }
 }
@@ -79,7 +81,7 @@ function configuration(): DeploymentConfiguration {
     return {
         target: { kind },
         gpu_key: kind === "rdp" ? null : form.gpuKey.trim() || null,
-        capacity: kind === "rdp" ? 1 : form.capacity,
+        capacity: form.capacity,
         disabled: form.disabled,
     };
 }
@@ -98,7 +100,8 @@ async function save() {
         editorOpen.value = false;
         message.success(t("deployments.messages.saved"));
         await refresh();
-    } catch (error) {
+    }
+ catch (error) {
         if (disposed) return;
         const status = isAxiosError(error) ? error.response?.status : undefined;
         saveError.value =
@@ -111,7 +114,8 @@ async function save() {
                     : status === 409
                       ? "deployments.configurationConflict"
                       : "deployments.saveFailed";
-    } finally {
+    }
+ finally {
         if (!disposed) saving.value = false;
     }
 }
@@ -206,11 +210,7 @@ onBeforeUnmount(() => {
                     ><a-input v-model:value="form.gpuKey"
                 /></a-form-item>
                 <a-form-item :label="t('deployments.capacity')"
-                    ><a-input-number
-                        v-model:value="form.capacity"
-                        :disabled="selectedKind === 'rdp'"
-                        :min="1"
-                        :max="64"
+                    ><a-input-number v-model:value="form.capacity" :min="1" :max="64"
                 /></a-form-item>
                 <a-form-item v-if="editing" :label="t('deployments.disabled')"
                     ><a-switch v-model:checked="form.disabled"

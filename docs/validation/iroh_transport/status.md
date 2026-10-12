@@ -4,6 +4,42 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，RDP多用户池已实现并交付
+
+- 用户确认同一应用可用多个Windows用户多开。schema41将工作区和活动实例唯一约束改为应用/节点/slot，容量1–64；Console、Service、Web、Panel同步修改，单工作区仍单前端。90现有RDP capacity20/revision2，不需20个应用或机器，原workspace保留slot1及SID/凭证。
+- 100项Rust/Web聚焦检查、三产品Panel CTest、所有权/命名/rustfmt/PS解析通过。20slot实际DB并发预留/满额拒绝/跨slot凭证拒绝/停止后复用通过；真机Company→90两个独立RDP用户session3/4和各自图形输出确认。420秒MCP任务约143秒interrupted，后续5路请求上下文失效未获接受；不计完整长稳或20路Windows实机通过，保留夹具早期JSON错误的无效批次。
+- Release18jobs增量Console8DAC…/90与XR Service6E3…/两Node PanelC63B…/Company Panel17A1…已发布；开发三产品dist SHA相等，RenderC276/ClientFE8沿用。ZIP双端SHA、Server35/Node各314/Company41载荷及PM检查，TOML5590…/3836…保持；服务Running。没有新Setup或Android交付。
+- 本批Console错误Web前缀造成约23:41–23:59停机，启动日志定位static_index后恢复static/console及35SHA；迁移前private PG dump95F702…，DB/Backup计划均41。90 Panel退出/占用导致两次确认失败，精确PID句柄关闭后成功并恢复Node；失败不隐藏。两用户会话保留Disc、管理员2保持、原密文摘要不变。
+- 最终11 owned实例stopped/11资源closed、guest注销、业务活动0。7个持久工作区保留，不删账号/profile、不logoff。本地磁盘不足仅同步已改变Panel及元数据并全哈希，完整collect未成功；删除PG编译缓存被审批策略拒绝且未删除。
+- 下项仍是正常多路/多Relay实际分配及负载验收。RDP20配置与20slot回归已完成，20路真实Windows连接未完成；不要再次分析已退休的应用/节点单例。短顿/NIC/饱和混传和Android不启动。见[交付报告](20261013_rdp_workspace_pool.md)、`20261013_rdp_pool_*`证据。
+
+## 最新接续：2026-10-12，RDP多用户并发范围纠正
+
+- 用户明确RDP多开应对应多个Windows用户及会话；单工作区单前端不应限制整个应用/节点。此前将20路RDP描述成需要另配20个单独部署不准确：目标是在同一应用/节点下分配不同用户工作区，不要求20台机器或复制20个应用目录项。
+- 已确认阻挡来自当前实现：DeploymentConfiguration要求RDP capacity=1；数据库部署CHECK重复要求1；instances_rdp_busy对application_id/node_id建活动实例唯一索引；rdp_workspaces以application_id/node_id唯一，find_workspace也只按这一对查询。因此仅调容量或授权无法形成第二个独立用户。
+- 下一开发项是将这些应用级单例约束收敛为工作区级独占，并增加持久多用户工作区分配及复用；保留原账号/SID/profile和断开的Windows会话。80路授权及GameHook/WebView容量配置继续复用。此次仅分析和纠正文档，RDP20用户并发尚未实现；未改数据库或远端账号，卡帧/NIC/饱和混传及Android仍不启动。
+
+## 最新接续：2026-10-12 22:58，多路调度容量已调整
+
+- 用户授权“调整吧”。经现有管理API将90/XR节点max_instances从4/1改为64（当前节点配置允许的最大值），两节点revision均为2；保留disabled/draining=false，未重启服务或改变本地TOML。节点generation464/23、epoch72、fresh/ready保持。
+- 90现有两个GameHook及WebView部署容量均调到20，revision分别4/3/2；XR既有测试WebView容量20、revision9，原禁用状态保持。GPU绑定、应用配置及授权80路未改。启用的三个部署均由节点重新上报ready；调度只读预览显示node_slots64/deployment_slots20、eligible=true。
+- **RDP例外未完成：** 现有部署绑定单工作区，校验要求capacity=1，单工作区只能一路控制连接。保持该规则；20个独立RDP工作区尚未配置，不能声称每种类型20实例全部完成。RDP当前ready，预览deployment_slots1。
+- 本批只做持久容量配置及回读/调度预览，无构建、安装或20路负载实测；原始配置在.env/multistream-license-20261012/capacity-before.json。初次应用名称字段读取错误在写入前退出，修正后本批API修改均已确认，无自动重放未知请求。
+- 下一步可用GameHook/WebView分批建立独立连接做多Relay实际分配与正常负载核对；20路RDP属于独立工作区扩展待办。卡帧主动复现、NIC和饱和混传仍暂缓，Android排除。见[容量报告](20261012_multistream_capacity.md)和[证据](20261012_multistream_capacity.json)。
+
+## 最新接续：2026-10-12，多路验证正式授权已激活
+
+- 用户要求从Auth取得各应用类型至少20路的新授权。现有Auth签发并通过Console管理接口激活正式PXLIC2，总80路，覆盖desktop/cloud_applications/rdp；取消入门模式每类别1路。GameHook/WebView各20路与桌面/RDP各20路可以同时占用80路授权额度，没有新增分类配额或授权协议。
+- license_id=`02b71f36-09f4-48ab-a9cd-0a0d0d45f338`，revision1，到期北京时间2027-10-12 22:26:27；绑定原部署，持久SHA90882aa8…。原信任库未变，Ed25519/管理GET/ready204/远端文件SHA核对；服务运行，无重启、构建或媒体测试，运行二进制沿用21:42身份。
+- 原授权在90的D:\112233\multistream-license-20261012备份，新wire及签发去重请求仅在本机.env。SYSTEM独立管理员校验器因服务SID私有文件检查失败保留；没有改ACL来绕过，实际服务导入及回读成功。
+- **下一步：** 为实际多路验证核对并调整节点与部署容量。目前90节点4、XR节点1，启用部署容量5/12/1/1，授权激活不代表这些容量已扩大或已跑20路。卡帧主动调查保持阶段性暂缓；Android排除。见[授权报告](20261012_multistream_license.md)和[证据](20261012_multistream_license.json)。
+
+## 最新接续：2026-10-12，卡帧调查暂置为阶段性进展
+
+- 用户明确“未复现就先不处理了，暂时置为阶段性进展”。晚间约22.5分钟有效媒体样本未复现超过100ms的旧卡帧事件；根因仍未确定，不标记为彻底修复。
+- 保留已交付90/XR的最近64帧发送诊断、61项媒体测试和[晚间证据](20261012_evening_video_investigation.md)。本次仅更新阶段状态，没有新增构建、部署或远端测试，运行身份与配置沿用21:42记录。
+- 暂停主动复现、抓包和短顿调优；实际复现或用户明确要求继续时再接续。此项不作为Windows/Linux网络主线的阻塞条件，不重复已通过验收；Android、NIC及饱和混传仍排除。
+
 ## 最新接续：2026-10-12 21:42，晚间拖动/卡帧回归与持续发送诊断交付
 
 - 用户明确开始晚间短顿调查，Company/90/XR可用，并确认是在远程内容内按住鼠标拖动。Android、NIC/驱动及饱和混传仍排除；下午Windows/Linux主线功能、安装与双Relay保留证据复用。

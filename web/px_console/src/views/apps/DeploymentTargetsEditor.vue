@@ -66,12 +66,7 @@ watch([selectedNodeIds, newNodeCapacity], () => {
             :label="t('deployments.newNodeCapacity')"
             :extra="t('deployments.preserveSettings')"
         >
-            <a-input-number
-                v-model:value="newNodeCapacity"
-                :disabled="application.spec.launch.kind === 'rdp'"
-                :min="1"
-                :max="64"
-            />
+            <a-input-number v-model:value="newNodeCapacity" :min="1" :max="64" />
         </a-form-item>
     </a-form>
     <a-alert

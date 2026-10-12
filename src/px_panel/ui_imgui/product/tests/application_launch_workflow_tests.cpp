@@ -66,6 +66,74 @@ ApplicationLaunchOperations Operations(const std::shared_ptr<LaunchObservations>
 
 ApplicationLaunchRequest Request() { return {.applicationId = "application", .applicationName = "Test App", .requestId = "request"}; }
 
+TEST(ApplicationLaunchWorkflow, OccupiedApplicationAllocatesOneIndependentInstanceWithoutTakingOverTheOldDesktop) {
+    const auto observations = std::make_shared<LaunchObservations>();
+    observations->ready = true;
+    auto operations = Operations(observations);
+    const auto authorize = operations.authorize;
+    operations.authorize = [authorize, observations](const std::string& instanceId, const bool viewOnly,
+                                                     const std::string& requestId) -> ApplicationLaunchOperations::ConnectionResult {
+        if (instanceId == "occupied") {
+            ++observations->authorizations;
+            return std::unexpected{px_console::ConsoleApiError::kConnectionBusy};
+        }
+        return authorize(instanceId, viewOnly, requestId);
+    };
+    auto request = Request();
+    request.existingInstanceId = "occupied";
+    request.startNewInstanceWhenOccupied = true;
+    ApplicationLaunchWorkflow workflow{std::move(operations)};
+    const auto generation = workflow.Begin(std::move(request));
+    ASSERT_TRUE(generation);
+    workflow.Prepare(*generation);
+    ASSERT_EQ(workflow.Snapshot()->status, ui::ApplicationLaunchStatus::Ready);
+    EXPECT_EQ(observations->starts, 1);
+    EXPECT_EQ(observations->authorizations, 2);
+    EXPECT_EQ(observations->closes, 0);
+    workflow.LaunchPrepared(*generation);
+    EXPECT_EQ(observations->launches, 1);
+}
+
+TEST(ApplicationLaunchWorkflow, OccupiedViewOnlyRequestsAndForbiddenApplicationsNeverAllocateAnotherDesktop) {
+    for (const bool viewOnly : {false, true}) {
+        const auto observations = std::make_shared<LaunchObservations>();
+        observations->ready = true;
+        auto operations = Operations(observations);
+        operations.authorize = [viewOnly](const std::string&, bool, const std::string&) -> ApplicationLaunchOperations::ConnectionResult {
+            return std::unexpected{viewOnly ? px_console::ConsoleApiError::kConnectionBusy : px_console::ConsoleApiError::kForbidden};
+        };
+        auto request = Request();
+        request.existingInstanceId = "occupied";
+        request.viewOnly = viewOnly;
+        request.startNewInstanceWhenOccupied = true;
+        ApplicationLaunchWorkflow workflow{std::move(operations)};
+        const auto generation = workflow.Begin(std::move(request));
+        ASSERT_TRUE(generation);
+        workflow.Prepare(*generation);
+        EXPECT_EQ(workflow.Snapshot()->status, ui::ApplicationLaunchStatus::Failed);
+        EXPECT_EQ(observations->starts, 0);
+        EXPECT_EQ(observations->closes, 0);
+    }
+}
+
+TEST(ApplicationLaunchWorkflow, NewInstanceBusyFailureDoesNotCreateAnUnboundedChainOfInstances) {
+    const auto observations = std::make_shared<LaunchObservations>();
+    observations->ready = true;
+    auto operations = Operations(observations);
+    operations.authorize = [](const std::string&, bool, const std::string&) -> ApplicationLaunchOperations::ConnectionResult {
+        return std::unexpected{px_console::ConsoleApiError::kConnectionBusy};
+    };
+    auto request = Request();
+    request.existingInstanceId = "occupied";
+    request.startNewInstanceWhenOccupied = true;
+    ApplicationLaunchWorkflow workflow{std::move(operations)};
+    const auto generation = workflow.Begin(std::move(request));
+    ASSERT_TRUE(generation);
+    workflow.Prepare(*generation);
+    EXPECT_EQ(workflow.Snapshot()->status, ui::ApplicationLaunchStatus::Failed);
+    EXPECT_EQ(observations->starts, 1);
+}
+
 TEST(ApplicationLaunchWorkflow, PreparationDoesNotCompleteUntilClientConfirmsRemoteConnection) {
     const auto observations = std::make_shared<LaunchObservations>();
     ApplicationLaunchWorkflow workflow{Operations(observations)};

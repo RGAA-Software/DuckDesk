@@ -1,0 +1,437 @@
+{
+  "started_at_utc": "2026-10-12T14:57:39.375329+00:00",
+  "license_status": {
+    "license_id": "02b71f36-09f4-48ab-a9cd-0a0d0d45f338",
+    "revision": 1,
+    "expires_at": 1823351187,
+    "max_streams": 80,
+    "services": [
+      "cloud_applications",
+      "desktop",
+      "rdp"
+    ],
+    "starter_license": false
+  },
+  "baseline": {
+    "nodes": [
+      {
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "revision": 1,
+        "configuration": {
+          "draining": false,
+          "disabled": false,
+          "max_instances": 1
+        }
+      },
+      {
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "revision": 1,
+        "configuration": {
+          "draining": false,
+          "disabled": false,
+          "max_instances": 4
+        }
+      }
+    ],
+    "deployments": [
+      {
+        "id": "53caf4d4-7ebb-4068-97f8-be0adc6cf30c",
+        "revision": 1,
+        "configuration": {
+          "target": {
+            "kind": "webview"
+          },
+          "gpu_key": null,
+          "capacity": 5,
+          "disabled": false
+        }
+      },
+      {
+        "id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+        "revision": 3,
+        "configuration": {
+          "target": {
+            "kind": "game_hook"
+          },
+          "gpu_key": null,
+          "capacity": 12,
+          "disabled": false
+        }
+      },
+      {
+        "id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+        "revision": 8,
+        "configuration": {
+          "target": {
+            "kind": "webview"
+          },
+          "gpu_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+          "capacity": 1,
+          "disabled": true
+        }
+      },
+      {
+        "id": "c9109b67-d118-44a6-9c97-55500d4a4339",
+        "revision": 2,
+        "configuration": {
+          "target": {
+            "kind": "game_hook"
+          },
+          "gpu_key": null,
+          "capacity": 1,
+          "disabled": false
+        }
+      },
+      {
+        "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+        "revision": 1,
+        "configuration": {
+          "target": {
+            "kind": "rdp"
+          },
+          "gpu_key": null,
+          "capacity": 1,
+          "disabled": false
+        }
+      }
+    ]
+  },
+  "operations": [
+    {
+      "kind": "node",
+      "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+      "name": "XR",
+      "expected_revision": 1,
+      "configuration": {
+        "draining": false,
+        "disabled": false,
+        "max_instances": 64
+      },
+      "state": "confirmed",
+      "revision": 2
+    },
+    {
+      "kind": "node",
+      "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+      "name": "90",
+      "expected_revision": 1,
+      "configuration": {
+        "draining": false,
+        "disabled": false,
+        "max_instances": 64
+      },
+      "state": "confirmed",
+      "revision": 2
+    },
+    {
+      "kind": "deployment",
+      "id": "53caf4d4-7ebb-4068-97f8-be0adc6cf30c",
+      "application_name": "water webview",
+      "node": "90",
+      "expected_revision": 1,
+      "configuration": {
+        "target": {
+          "kind": "webview"
+        },
+        "gpu_key": null,
+        "capacity": 20,
+        "disabled": false
+      },
+      "state": "confirmed",
+      "revision": 2
+    },
+    {
+      "kind": "deployment",
+      "id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+      "application_name": "心脏医学动态展示",
+      "node": "90",
+      "expected_revision": 3,
+      "configuration": {
+        "target": {
+          "kind": "game_hook"
+        },
+        "gpu_key": null,
+        "capacity": 20,
+        "disabled": false
+      },
+      "state": "confirmed",
+      "revision": 4
+    },
+    {
+      "kind": "deployment",
+      "id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+      "application_name": "XR Relay video validation 20261012",
+      "node": "XR",
+      "expected_revision": 8,
+      "configuration": {
+        "target": {
+          "kind": "webview"
+        },
+        "gpu_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+        "capacity": 20,
+        "disabled": true
+      },
+      "state": "confirmed",
+      "revision": 9
+    },
+    {
+      "kind": "deployment",
+      "id": "c9109b67-d118-44a6-9c97-55500d4a4339",
+      "application_name": "2dadventure",
+      "node": "90",
+      "expected_revision": 2,
+      "configuration": {
+        "target": {
+          "kind": "game_hook"
+        },
+        "gpu_key": null,
+        "capacity": 20,
+        "disabled": false
+      },
+      "state": "confirmed",
+      "revision": 3
+    },
+    {
+      "kind": "deployment",
+      "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+      "application_name": "RDP 桌面",
+      "state": "preserved",
+      "reason": "One RDP frontend per distinct workspace",
+      "configuration": {
+        "target": {
+          "kind": "rdp"
+        },
+        "gpu_key": null,
+        "capacity": 1,
+        "disabled": false
+      }
+    }
+  ],
+  "result": "CONFIGURATION_VERIFIED",
+  "policy": "Nodes 64; each GameHook/WebView deployment at least 20. RDP keeps one frontend per workspace.",
+  "verification": {
+    "observed_at_utc": "2026-10-12T14:58:18.869896+00:00",
+    "console_ready_http": 204,
+    "observations": [
+      {
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "revision": 2,
+        "generation": 23,
+        "control_epoch": 72,
+        "state": "ready",
+        "fresh": true,
+        "max_instances": 64,
+        "report_sequence": 357,
+        "last_seen": "2026-10-12T14:58:17.028600Z"
+      },
+      {
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "revision": 2,
+        "generation": 464,
+        "control_epoch": 72,
+        "state": "ready",
+        "fresh": true,
+        "max_instances": 64,
+        "report_sequence": 361,
+        "last_seen": "2026-10-12T14:58:26.766858Z"
+      },
+      {
+        "id": "53caf4d4-7ebb-4068-97f8-be0adc6cf30c",
+        "kind": "webview",
+        "revision": 2,
+        "capacity": 20,
+        "disabled": false,
+        "observed_state": "ready",
+        "observed_reason": null,
+        "observed_generation": 464,
+        "observed_epoch": 72,
+        "observed_sequence": 361,
+        "observed_at": "2026-10-12T14:58:26.771129Z"
+      },
+      {
+        "id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+        "kind": "game_hook",
+        "revision": 4,
+        "capacity": 20,
+        "disabled": false,
+        "observed_state": "ready",
+        "observed_reason": null,
+        "observed_generation": 464,
+        "observed_epoch": 72,
+        "observed_sequence": 361,
+        "observed_at": "2026-10-12T14:58:26.771987Z"
+      },
+      {
+        "id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+        "kind": "webview",
+        "revision": 9,
+        "capacity": 20,
+        "disabled": true,
+        "observed_state": "pending",
+        "observed_reason": null,
+        "observed_generation": 23,
+        "observed_epoch": 72,
+        "observed_sequence": 357,
+        "observed_at": "2026-10-12T14:58:17.079106Z"
+      },
+      {
+        "id": "c9109b67-d118-44a6-9c97-55500d4a4339",
+        "kind": "game_hook",
+        "revision": 3,
+        "capacity": 20,
+        "disabled": false,
+        "observed_state": "ready",
+        "observed_reason": null,
+        "observed_generation": 464,
+        "observed_epoch": 72,
+        "observed_sequence": 361,
+        "observed_at": "2026-10-12T14:58:26.772816Z"
+      },
+      {
+        "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+        "kind": "rdp",
+        "revision": 1,
+        "capacity": 1,
+        "disabled": false,
+        "observed_state": "ready",
+        "observed_reason": null,
+        "observed_generation": 464,
+        "observed_epoch": 72,
+        "observed_sequence": 361,
+        "observed_at": "2026-10-12T14:58:26.773717Z"
+      }
+    ],
+    "scheduling_previews": [
+      {
+        "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+        "application_name": "XR Relay video validation 20261012",
+        "result": {
+          "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+          "evaluated_at": "2026-10-12T14:58:26.888771Z",
+          "candidates": [
+            {
+              "rank": null,
+              "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+              "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+              "gpu_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+              "eligible": false,
+              "dominant_pressure_per_mille": 30,
+              "average_pressure_per_mille": 20,
+              "node_slots": 64,
+              "deployment_slots": 20,
+              "gpu_memory_headroom_bytes": 24963612672,
+              "gpu_compute_headroom_per_mille": 1000,
+              "gpu_encoder_headroom_per_mille": 970,
+              "rejection_reasons": [
+                "application_disabled",
+                "deployment_disabled",
+                "deployment_not_ready"
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+        "application_name": "water webview",
+        "result": {
+          "application_id": "8432b9b1-4e7c-4e87-96ec-d7bce0ab22cb",
+          "evaluated_at": "2026-10-12T14:58:26.897286Z",
+          "candidates": [
+            {
+              "rank": 1,
+              "deployment_id": "53caf4d4-7ebb-4068-97f8-be0adc6cf30c",
+              "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+              "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+              "eligible": true,
+              "dominant_pressure_per_mille": 17,
+              "average_pressure_per_mille": 9,
+              "node_slots": 64,
+              "deployment_slots": 20,
+              "gpu_memory_headroom_bytes": 25300770816,
+              "gpu_compute_headroom_per_mille": 990,
+              "gpu_encoder_headroom_per_mille": 1000,
+              "rejection_reasons": []
+            }
+          ]
+        }
+      },
+      {
+        "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+        "application_name": "心脏医学动态展示",
+        "result": {
+          "application_id": "8ebdbd8e-925d-4885-9401-e87d0418bff9",
+          "evaluated_at": "2026-10-12T14:58:26.904206Z",
+          "candidates": [
+            {
+              "rank": 1,
+              "deployment_id": "a5a38a11-ab9d-48bb-b669-84181dbfffb6",
+              "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+              "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+              "eligible": true,
+              "dominant_pressure_per_mille": 17,
+              "average_pressure_per_mille": 9,
+              "node_slots": 64,
+              "deployment_slots": 20,
+              "gpu_memory_headroom_bytes": 25300770816,
+              "gpu_compute_headroom_per_mille": 990,
+              "gpu_encoder_headroom_per_mille": 1000,
+              "rejection_reasons": []
+            }
+          ]
+        }
+      },
+      {
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "application_name": "RDP 桌面",
+        "result": {
+          "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+          "evaluated_at": "2026-10-12T14:58:26.912924Z",
+          "candidates": [
+            {
+              "rank": 1,
+              "deployment_id": "e1db8006-1ab8-4044-bafb-980636831c21",
+              "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+              "gpu_key": null,
+              "eligible": true,
+              "dominant_pressure_per_mille": 0,
+              "average_pressure_per_mille": 0,
+              "node_slots": 64,
+              "deployment_slots": 1,
+              "gpu_memory_headroom_bytes": null,
+              "gpu_compute_headroom_per_mille": null,
+              "gpu_encoder_headroom_per_mille": null,
+              "rejection_reasons": []
+            }
+          ]
+        }
+      },
+      {
+        "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+        "application_name": "2dadventure",
+        "result": {
+          "application_id": "e52e55b4-5e9b-46df-a034-a7de573c9562",
+          "evaluated_at": "2026-10-12T14:58:26.920451Z",
+          "candidates": [
+            {
+              "rank": 1,
+              "deployment_id": "c9109b67-d118-44a6-9c97-55500d4a4339",
+              "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+              "gpu_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+              "eligible": true,
+              "dominant_pressure_per_mille": 17,
+              "average_pressure_per_mille": 9,
+              "node_slots": 64,
+              "deployment_slots": 20,
+              "gpu_memory_headroom_bytes": 25300770816,
+              "gpu_compute_headroom_per_mille": 990,
+              "gpu_encoder_headroom_per_mille": 1000,
+              "rejection_reasons": []
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "remaining": "Twenty concurrent RDP workspaces are not provided by raising per-deployment capacity; the existing single-workspace RDP deployment remains one."
+}

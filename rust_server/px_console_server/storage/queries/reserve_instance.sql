@@ -3,6 +3,7 @@ SELECT d.id,d.application_id,d.node_id,d.kind,gpu.stable_key AS gpu_key,
 gpu.inventory_revision AS gpu_inventory_revision,
 d.revision AS deployment_revision,a.revision AS application_revision,a.access_revision,a.executable_path,a.arguments,
 a.entry_url,a.codec,a.bitrate_kbps,a.disconnect_grace_seconds,n.generation,n.control_epoch,n.endpoint_revision,available.port,
+workspace_slot.slot AS rdp_workspace_slot,
 CASE WHEN d.kind='rdp' THEN 0::bigint
  WHEN gpu.dedicated_memory_bytes IS NULL OR gpu.dedicated_memory_bytes=0 OR gpu.used_memory_bytes IS NULL
   OR gpu.utilization_per_mille IS NULL OR gpu.encoder_utilization_per_mille IS NULL THEN NULL
@@ -30,6 +31,16 @@ CROSS JOIN LATERAL (
  UNION ALL
  SELECT NULL::text,NULL::bigint,NULL::bigint,NULL::bigint,NULL::smallint,NULL::smallint WHERE d.kind='rdp'
 ) gpu
+CROSS JOIN LATERAL (
+ SELECT candidate_slot AS slot FROM generate_series(1,d.capacity) AS slots(candidate_slot)
+ WHERE d.kind='rdp' AND NOT EXISTS(
+  SELECT 1 FROM pixels.instances occupied
+  WHERE occupied.application_id=d.application_id AND occupied.node_id=d.node_id
+   AND occupied.rdp_workspace_slot=candidate_slot AND occupied.ended_at IS NULL
+ )
+ UNION ALL SELECT NULL::integer WHERE d.kind<>'rdp'
+ ORDER BY slot LIMIT 1
+) workspace_slot
 WHERE a.id=$2 AND ($3::uuid IS NULL OR d.id=$3) AND NOT a.disabled AND a.deleted_at IS NULL AND NOT d.disabled
 AND NOT n.disabled AND NOT n.draining AND n.deleted_at IS NULL AND NOT v.disabled AND v.deleted_at IS NULL
 AND n.state='ready' AND n.connection_hash IS NOT NULL AND n.last_seen>clock_timestamp()-interval '30 seconds'
@@ -38,13 +49,12 @@ AND d.observed_state='ready' AND d.observed_generation=n.generation AND d.observ
 AND d.observed_endpoint_revision=n.endpoint_revision AND d.application_revision=a.revision
 AND ((a.kind='game_hook' AND n.game_hook) OR (a.kind='webview' AND n.webview) OR (a.kind='rdp' AND n.rdp))
 AND node_usage.used<n.max_instances AND deployment_usage.used<d.capacity
-AND (a.kind<>'rdp' OR NOT EXISTS(SELECT 1 FROM pixels.instances i WHERE i.application_id=a.id AND i.node_id=n.id AND i.ended_at IS NULL))
 ORDER BY dominant_pressure NULLS LAST,average_pressure NULLS LAST,node_slots DESC,deployment_slots DESC,n.id,d.id,gpu.stable_key NULLS FIRST LIMIT 1
 )
 INSERT INTO pixels.instances AS i(id,application_id,deployment_id,node_id,kind,owner_user,owner_guest,client_type,request_id,request_hash,launch_id,
 application_revision,application_access_revision,deployment_revision,node_generation,control_epoch,endpoint_revision,port,
-executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,login_session_id,owner_revision,disconnect_grace_seconds)
+executable_path,arguments,entry_url,codec,bitrate_kbps,gpu_key,gpu_inventory_revision,login_session_id,owner_revision,disconnect_grace_seconds,rdp_workspace_slot)
 SELECT $1,c.application_id,c.id,c.node_id,c.kind,$4,$5,$6,$7,$8,$10,c.application_revision,c.access_revision,c.deployment_revision,
 c.generation,c.control_epoch,c.endpoint_revision,c.port,c.executable_path,c.arguments,c.entry_url,c.codec,c.bitrate_kbps,
-c.gpu_key,c.gpu_inventory_revision,$11,$12,c.disconnect_grace_seconds
+c.gpu_key,c.gpu_inventory_revision,$11,$12,c.disconnect_grace_seconds,c.rdp_workspace_slot
 FROM candidate c RETURNING i.id,i.application_id,i.node_id,i.owner_user,i.owner_guest,i.client_type,i.request_hash,i.state,i.revision,i.node_generation,i.control_epoch,i.created_at,i.ended_at,i.deployment_id,i.launch_id,i.desired_state,i.application_revision,i.deployment_revision,i.endpoint_revision,i.port

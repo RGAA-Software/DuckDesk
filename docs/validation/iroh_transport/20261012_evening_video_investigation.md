@@ -107,4 +107,7 @@ product-manifest与sha256sums的314载荷均重新匹配。不是新Setup安装�
 本轮正式媒体合计约22.5分钟未复现>100ms旧事件，仍不宣告旧问题定因/消除。
 最终335业务resource sessions全部closed，无未结束实例；90/XR节点fresh/ready、generation464/23、epoch72，两Relayfresh；
 临时XR页面/本地BJ限制已撤回，测试app revision6/deployment8 disabled，Company owned Client均结束。
-Android、NIC/驱动、限速和饱和混传未启动。下一步利用已交付的晚间后段历史在实际复现时关联等待位置，复用本轮有效样本。
+Android、NIC/驱动、限速和饱和混传未启动。
+
+用户后续决定：当前未复现，暂置为**阶段性进展**，先不继续处理。保留已交付诊断及本轮有效样本，根因仍未确定，
+不宣告彻底修复；实际复现或用户明确要求继续时再利用后段历史关联等待位置。此调查不作为Windows/Linux网络主线的阻塞条件。

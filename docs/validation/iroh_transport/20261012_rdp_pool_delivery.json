@@ -1,0 +1,130 @@
+{
+  "console": {
+    "archive": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\rdp-pool-delivery-20261012\\console.zip",
+      "sha256": "8e6d98a83ea2883dd3b2ea38e65e72c38b7322c4ccadec5298d57b002ce68cc9",
+      "bytes": 13338113
+    },
+    "plan": {
+      "installed_root": "C:\\Program Files\\Pixels\\Server\\current",
+      "service_name": "Pixels.Console",
+      "runtime_executable": "bin/px_console.exe",
+      "manifest_name": "sha256.json",
+      "baseline_manifest_sha256": "4B2D26D7DAE607A28A5D6C3C8FD61E9782E19A2A7562C6DEB5FEC0B8665DDF2E",
+      "desired_manifest_sha256": "4b000c9d610ad76d750d2ffb8efc2b47bf1334114d7142a70fa18f92a74c03ee",
+      "baseline_backup_config_sha256": "4068BEFA5E50C372082FDB80962EA929648FA817C369436A58EC5A4ECCECD98D",
+      "replacements": [
+        {
+          "path": "bin/px_console.exe",
+          "before_sha256": "c783635be09091d6bba21159141aae1d3f28c7caaf366749010edf804441b265",
+          "after_sha256": "26cc12b7fdad7283de1c41eebc6af2108df4aa73562af1e9915b2bc94527f1ad",
+          "bytes": 18814976
+        },
+        {
+          "path": "bin/px_console_admin.exe",
+          "before_sha256": "e8b0bd6af8dda682ff5c785cebde1f95b6c51f4a234b03d61e31b5512151a1f9",
+          "after_sha256": "c33ce63ea0d46fb349d36f1d3c21d1c9ee34a6634edc140959189bdfebf93776",
+          "bytes": 9181184
+        },
+        {
+          "path": "bin/px_db.exe",
+          "before_sha256": "271ec8c28e1d55ab18557bb2bb514d7dd7c55d4911bfd2a265a6f67931d4a021",
+          "after_sha256": "5927895e7398ad0dfb7c9f8666a06bdb8dc5ce13bb29ce7ca6b64c244079e484",
+          "bytes": 5489664
+        },
+        {
+          "path": "static/assets/index-BCEoYHcI.js",
+          "before_sha256": null,
+          "after_sha256": "23ee76402ec065d1c726bdd117e117819673352c32875527b800c250da8c8dc1",
+          "bytes": 1866818
+        },
+        {
+          "path": "static/assets/index-CkWZd6ct.css",
+          "before_sha256": null,
+          "after_sha256": "119bfc04ac3382f178a632a4a2b223c21dac59efc8a87cf93c9ca0360542e49b",
+          "bytes": 17027
+        },
+        {
+          "path": "static/favicon.ico",
+          "before_sha256": null,
+          "after_sha256": "ea8a86bdee6e0e6a6100edf803d6befc120161c5c6401324646315dc914354b3",
+          "bytes": 190461
+        },
+        {
+          "path": "static/index.html",
+          "before_sha256": null,
+          "after_sha256": "7dfead9a8eb6fd3df69bde99d96f19f821e9cfb95ee614406d18d6cc4585772c",
+          "bytes": 462
+        },
+        {
+          "path": "static/pixels-logo-45.svg",
+          "before_sha256": null,
+          "after_sha256": "ebd4b5784028f12cf3c71ffa756e42b05805e399a16956d7821bb9a750eb3f3f",
+          "bytes": 677
+        },
+        {
+          "path": "static/webview-test.html",
+          "before_sha256": null,
+          "after_sha256": "9d591969ba27b8e1be0bb92c97851f8f5942865135ed0380f9baac7a96e7dc46",
+          "bytes": 1518
+        }
+      ],
+      "removals": [
+        {
+          "path": "static/console/assets/index--ZrwTxfZ.css",
+          "before_sha256": "a8ad2e9134d23d4aef3a39f99b0a8f903518ea75bddd667aa836079f7a4f3a90"
+        },
+        {
+          "path": "static/console/assets/index-Ccvh3tm_.js",
+          "before_sha256": "90bca77193da67d07c6092fa5475713fe8739b82ddb8715273c3d6846d20068c"
+        },
+        {
+          "path": "static/console/favicon.ico",
+          "before_sha256": "ea8a86bdee6e0e6a6100edf803d6befc120161c5c6401324646315dc914354b3"
+        },
+        {
+          "path": "static/console/index.html",
+          "before_sha256": "f0410ce5aac2d76ed758aa30467582700d781fe1efda28c60059130a44feb20d"
+        },
+        {
+          "path": "static/console/pixels-logo-45.svg",
+          "before_sha256": "ebd4b5784028f12cf3c71ffa756e42b05805e399a16956d7821bb9a750eb3f3f"
+        },
+        {
+          "path": "static/console/webview-test.html",
+          "before_sha256": "9d591969ba27b8e1be0bb92c97851f8f5942865135ed0380f9baac7a96e7dc46"
+        }
+      ]
+    }
+  },
+  "node": {
+    "archive": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\rdp-pool-delivery-20261012\\node.zip",
+      "sha256": "9ac83f05cf412a4ad28fac18d30f36a3996214b84cfd7d612ef9dc16b57daa40",
+      "bytes": 3950683
+    },
+    "plan": {
+      "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+      "service_name": "px_service",
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "008C1B1D7A38C7F934F88E6F93058305893BEA2F5F3FF92020DA46A590853D2A",
+      "desired_manifest_sha256": "6d482f9cc57e8c671d28c9021284b17fc22d769613dbe6897915c6c460d99a97",
+      "replacements": [
+        {
+          "path": "px_service.exe",
+          "before_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+          "after_sha256": "6e3c56a6fb7f05b1aa41a9b6288cc7bc9877287781cb6e5623e2357d471b912b",
+          "bytes": 10609152
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "5F011ECBABD82CAEC235214E2FC0DF5C99322ECD30F82AE765940A8962C8642C",
+          "after_sha256": "df9810a5f4cf0c7504f9ef919eb8482fc0497ee15d97d5777dd5f88278bdf510",
+          "bytes": 45238
+        }
+      ],
+      "removals": []
+    }
+  }
+}

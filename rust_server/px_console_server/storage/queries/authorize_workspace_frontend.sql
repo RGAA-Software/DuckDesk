@@ -4,6 +4,7 @@ FROM pixels.resource_sessions r
 JOIN pixels.instances i ON i.id=r.instance_id AND i.application_id=r.application_id AND i.node_id=r.node_id
 JOIN pixels.nodes n ON n.id=r.node_id
 JOIN pixels.rdp_workspaces w ON w.application_id=i.application_id AND w.deployment_id=i.deployment_id AND w.node_id=i.node_id
+ AND w.workspace_slot=i.rdp_workspace_slot
 JOIN pixels.workspace_secrets s ON s.workspace_id=w.id
 WHERE r.id=$1 AND r.target_kind='cloud_application' AND r.client_type='panel' AND r.access_role='controller'
 AND r.state IN ('pending','connected') AND r.descriptor_hash IS NOT NULL AND r.descriptor_expires_at>clock_timestamp()

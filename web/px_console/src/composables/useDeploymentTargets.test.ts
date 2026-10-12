@@ -102,7 +102,7 @@ describe("deployment machine set", () => {
         });
         scope.stop();
     });
-    it("does not touch other applications and uses one slot for each RDP node", async () => {
+    it("does not touch other applications and preserves the requested RDP user capacity", async () => {
         vi.mocked(listManagedDeployments).mockResolvedValue([
             { ...original, application_id: "other" },
         ]);
@@ -113,7 +113,7 @@ describe("deployment machine set", () => {
         expect(configureManagedDeployment).not.toHaveBeenCalled();
         expect(createManagedDeployment).toHaveBeenCalledWith("heart", "node-new-1", {
             target: { kind: "rdp" },
-            capacity: 1,
+            capacity: 9,
             gpu_key: null,
             disabled: false,
         });

@@ -211,10 +211,16 @@ impl ConsoleLaunchConfig {
     pub async fn load(self) -> Result<ConsoleLaunch, ConfigurationError> {
         let static_directory = tokio::fs::canonicalize(&self.static_directory)
             .await
-            .map_err(|_| ConfigurationError)?;
+            .map_err(|error| {
+                tracing::error!(event = "console.config_rejected", field = "static_directory", %error);
+                ConfigurationError
+            })?;
         let index_path = tokio::fs::canonicalize(static_directory.join("index.html"))
             .await
-            .map_err(|_| ConfigurationError)?;
+            .map_err(|error| {
+                tracing::error!(event = "console.config_rejected", field = "static_index", %error);
+                ConfigurationError
+            })?;
         if !index_path.starts_with(&static_directory) {
             return Err(ConfigurationError);
         }
@@ -231,14 +237,20 @@ impl ConsoleLaunchConfig {
             self.guest_source_key,
         )
         .await
-        .map_err(|_| ConfigurationError)?;
+        .map_err(|error| {
+            tracing::error!(event = "console.config_rejected", field = "workspace_credentials", %error);
+            ConfigurationError
+        })?;
         let (vault, guests) = secrets.into_parts();
         let recording_cache_root = tokio::task::spawn_blocking(move || {
             CacheRoot::open(&self.recording_cache_directory, self.deployment)
         })
         .await
         .map_err(|_| ConfigurationError)?
-        .map_err(|_| ConfigurationError)?;
+        .map_err(|error| {
+            tracing::error!(event = "console.config_rejected", field = "recording_cache", %error);
+            ConfigurationError
+        })?;
         let license = match self.license.clone().admit_if_present(self.deployment).await {
             Ok(license) => license,
             Err(_) => {

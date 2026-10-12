@@ -404,13 +404,14 @@ async fn ready_relay(
         .report(
             &relay_connection,
             &RelayNodeReport {
+                iroh_qad_port: None,
                 sequence: 1,
                 product_version_code: 1,
                 draining: false,
                 max_connections: 100,
                 current_connections: current_load.connections,
                 max_rooms: Some(50),
-                current_rooms: current_load.rooms,
+                current_rooms: Some(current_load.rooms),
                 uploaded_bytes: 0,
                 forwarded_bytes: 0,
             },

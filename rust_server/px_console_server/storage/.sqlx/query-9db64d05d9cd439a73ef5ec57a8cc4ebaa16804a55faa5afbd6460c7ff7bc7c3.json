@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pixels.rdp_workspaces(id,application_id,deployment_id,node_id,account_name,workspace_slot)\nSELECT $1,$2,$3,$4,$5,rdp_workspace_slot FROM pixels.instances\nWHERE id=$6 AND application_id=$2 AND deployment_id=$3 AND node_id=$4 AND kind='rdp'\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9db64d05d9cd439a73ef5ec57a8cc4ebaa16804a55faa5afbd6460c7ff7bc7c3"
+}

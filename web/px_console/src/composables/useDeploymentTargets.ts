@@ -67,7 +67,7 @@ export function useDeploymentTargets(
         errorKey.value = undefined;
         results.value = [];
         const selected = new Set(selectedNodeIds.value);
-        const capacity = kind === "rdp" ? 1 : newNodeCapacity.value;
+        const capacity = newNodeCapacity.value;
         try {
             const deployments = (await listManagedDeployments()).filter(
                 deployment => deployment.application_id === applicationId,
@@ -122,7 +122,8 @@ export function useDeploymentTargets(
                             capacity,
                             disabled: false,
                         });
-                    } else {
+                    }
+ else {
                         const deployment = currentByNode.get(result.nodeId)!;
                         await configureManagedDeployment(
                             deployment,
@@ -131,7 +132,8 @@ export function useDeploymentTargets(
                     }
                     if (disposed) return;
                     result.status = "saved";
-                } catch (error) {
+                }
+ catch (error) {
                     if (disposed) return;
                     result.status = "error";
                     result.errorKey = deploymentErrorKey(error);
@@ -139,9 +141,11 @@ export function useDeploymentTargets(
                 }
             }
             if (!disposed) complete.value = !hasFailures.value;
-        } catch (error) {
+        }
+ catch (error) {
             if (!disposed) errorKey.value = deploymentErrorKey(error);
-        } finally {
+        }
+ finally {
             if (!disposed) saving.value = false;
         }
     }

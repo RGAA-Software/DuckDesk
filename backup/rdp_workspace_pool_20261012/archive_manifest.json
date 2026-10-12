@@ -1,0 +1,138 @@
+{
+  "reference_only": true,
+  "entries": [
+    {
+      "original_path": "rust_server/px_console_server/storage/src/deployment_model.rs",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "0e6733eeb38c9712615ca1a592f656fa94d1b3b2ea72a28e6d447735bf5e6a62",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/src/workspaces.rs",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "86c51255e4e25cb678507d1884ca150e1a288cb08942716dd621ed047096d91d",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/queries/reserve_instance.sql",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "f83d46209f6c13436180aa522bd0415fedf26660d7d0f628f51a52558d41db23",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/queries/preview_placement.sql",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "f08160aabda0698bf1e3d8181ab7300dd80f9605e7dbabbae4ff09c1ad2c108d",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/queries/find_workspace.sql",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "46ac53924fca39f8bf325087414eb4a356f5e61b52a049052400a57bbab13541",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/queries/insert_workspace.sql",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "060a28c48ae0f79f1a41ab79965cc73065ea43a40dff9f20e47fb9d298306225",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_server/px_console_server/storage/queries/authorize_workspace_frontend.sql",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "e4b04286dab641f8586bf803ad96f7f62dc866dc8b59a7df9fa1c21612ef42c5",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "rust_client/px_service/service_core/src/app_instance.rs",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "051c1d4e8f755d09ed4e47d4aef87b8f16f63901aa17eb8115be5b1fce7ef9bb",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "web/px_console/src/composables/useDeploymentTargets.ts",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "e4763ef36a264973a9b91a86c0bb1f0762389cd02a68c55ac9dea3a4d434cd48",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "web/px_console/src/views/apps/DeploymentTargetsEditor.vue",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "3889069d1b0320cc20a8a412bc2556a67d5891825ae7b258070c765928b4c739",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "web/px_console/src/views/apps/ApplicationDeploymentsModal.vue",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "7be27f4447abeb8a8e516dc814c3d91bc23a3166737dce91dbce8afc8b71fb6f",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "web/px_console/src/model/dashboard_runtime.ts",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "130d521a2aaf4f067584e5ba731c4a9be229f19850895145ce9e57378c7f35d8",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "web/px_console/src/views/dashboard/ApplicationRuntimeCard.vue",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "b1666a99a91c1221d9b2f01881e469fbbbf9d6d9945f5dda5bba63543b0b9a9a",
+      "reason": "Replace application/node singleton RDP constraints with independent persistent workspace slots"
+    },
+    {
+      "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.cpp",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "ca433ca180bbe7433b13e42e5e785c7a59207f480e4afc96e8b7ff30971a4889",
+      "reason": "Preserve original Console startup and Panel occupied-instance workflow before RDP pool delivery"
+    },
+    {
+      "original_path": "src/px_panel/ui_imgui/product/application_launch_workflow.h",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "6e37988d4882599b906b29fcabc736042aef1389550eb950d04ae065428220ed",
+      "reason": "Preserve original Console startup and Panel occupied-instance workflow before RDP pool delivery"
+    },
+    {
+      "original_path": "src/px_panel/ui_imgui/product/product_cloud_applications_port.cpp",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "2c13804455951761ec0e40b67c7fe488495cf1d0628a8b84e4debcae37be1a9c",
+      "reason": "Preserve original Console startup and Panel occupied-instance workflow before RDP pool delivery"
+    },
+    {
+      "original_path": "rust_server/px_console_server/runtime/src/config.rs",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "7a6c6e289ca909556cf6d8d9f2cb6674d24e95920b8e399ff5dbe5156ef6840e",
+      "reason": "Preserve original Console startup and Panel occupied-instance workflow before RDP pool delivery"
+    },
+    {
+      "original_path": "rust_server/px_console_server/runtime/src/main.rs",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "a86bde016a58610b725537053c8b03074085d7ee38e51dc7ae05ce14843c97fa",
+      "reason": "Preserve original Console startup and Panel occupied-instance workflow before RDP pool delivery"
+    },
+    {
+      "original_path": "scripts/server_validation/apply_transport_incremental.ps1",
+      "base_revision": "84103e93e21159617e3b8310de082f7dc87b4052",
+      "local_modification_status": "clean",
+      "sha256": "a64399e99bbb9b06a960b6a7918c3f9c791df4d52c6004e8edc6d9de948365d6",
+      "reason": "Preserve exact-PID shutdown before fixing PowerShell Stop-Process null reference during RDP pool incremental publication"
+    }
+  ]
+}

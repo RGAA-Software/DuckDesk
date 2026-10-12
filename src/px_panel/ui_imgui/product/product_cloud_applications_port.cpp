@@ -123,6 +123,7 @@ public:
                        .applicationName = application->name,
                        .requestId = GetCanonicalUUID(),
                        .viewOnly = viewOnly,
+                       .startNewInstanceWhenOccupied = !viewOnly,
                        .forceTcp = application->forceTcp,
                        .forceRelay = application->forceRelay};
             if (const auto instance = instanceIds_.find(streamId); instance != instanceIds_.end()) request.existingInstanceId = instance->second;

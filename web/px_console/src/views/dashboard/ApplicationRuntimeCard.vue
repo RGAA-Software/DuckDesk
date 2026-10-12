@@ -50,12 +50,7 @@ function headroom(application: ManagedApplication): number | undefined {
     const age = props.observedAt - Date.parse(preview?.evaluated_at ?? "");
     if (!props.current || !preview || !Number.isFinite(age) || age < -5_000 || age > 30_000)
         return undefined;
-    return schedulingHeadroom(
-        preview,
-        props.nodes,
-        props.instances,
-        application.spec.launch.kind === "rdp",
-    );
+    return schedulingHeadroom(preview, props.nodes, props.instances);
 }
 </script>
 

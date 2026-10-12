@@ -1,0 +1,101 @@
+{
+  "company": {
+    "plan": {
+      "installed_root": "C:\\Program Files\\Pixels Client",
+      "service_name": null,
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "76d3d14e968226217526c67ddfea2509bfe0a07a7af05bd5c2b8eaad512c6a25",
+      "desired_manifest_sha256": "F3AE7D4DFAE6AEE4CBA4FD73A78CFC12EC3B6D67C3C28563E661CA8B85E57102",
+      "replacements": [
+        {
+          "path": "px_panel.exe",
+          "before_sha256": "70357392D2BB58D9DA90EFE091FB8F8F632DD61AC731845DD911807864DDC985",
+          "after_sha256": "17A16E24E4B6DDCE37393860F3AB694DD22129DEEDFDB0EE63180B408EA2A3D7",
+          "bytes": 15588864
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "7d1988934e36dfb0e32d936ca08eb499b2d06a367906c832be6a298e98b2592d",
+          "after_sha256": "7FFD584BD801AF32DBFACB882DE0D383A9D28F7C3B0A30F43728FC8A8CA42449",
+          "bytes": 6686
+        }
+      ],
+      "removals": [],
+      "runtime_processes": []
+    },
+    "archive_path": "D:\\GoCloud\\GammaRayPremium\\.cache\\rdp-pool-followup-20261013\\company.zip",
+    "archive_sha256": "CA82E5A939C65ACCF4CE582BD97D2BB23C075CC0F558A5915A6664F7655F8624",
+    "archive_bytes": 6544385
+  },
+  "90": {
+    "plan": {
+      "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+      "service_name": "px_service",
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "6D482F9CC57E8C671D28C9021284B17FC22D769613DBE6897915C6C460D99A97",
+      "desired_manifest_sha256": "710A3F3A51E991C9BD39E0EA27B7D4B53D125DC0BF87F43EFC85B8EE722DDCB3",
+      "replacements": [
+        {
+          "path": "px_panel.exe",
+          "before_sha256": "4FA736905019E6D9C8221BBDBF7F8B88690B06A40E901B9B3E58912C0768D630",
+          "after_sha256": "C63B173E2F169D5A5C966AEA2086E7C793C844715D621E053D87A1A30A8B508F",
+          "bytes": 16018432
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "DF9810A5F4CF0C7504F9EF919EB8482FC0497EE15D97D5777DD5F88278BDF510",
+          "after_sha256": "8D2699F5E4CB7E603345E664592AA563F0327A5DC9A97CC8757A2D270EA8365F",
+          "bytes": 45238
+        }
+      ],
+      "removals": [],
+      "runtime_processes": [
+        {
+          "path": "px_panel.exe",
+          "pid": 22236,
+          "created_utc": "2026-10-12T03:41:10.9757020Z"
+        }
+      ]
+    },
+    "archive_path": "D:\\GoCloud\\GammaRayPremium\\.cache\\rdp-pool-followup-20261013\\90.zip",
+    "archive_sha256": "490BECD445048E69E789B23B9AE0EFFC1CBC2F6555811092496AC3D0432F37C9",
+    "archive_bytes": 6707295
+  },
+  "xr": {
+    "plan": {
+      "installed_root": "C:\\Program Files\\Pixels Cloud Node",
+      "service_name": "px_service",
+      "runtime_executable": "px_service.exe",
+      "manifest_name": "sha256sums.json",
+      "baseline_manifest_sha256": "1F19F8DCD6DBB1B12E5C9356C73A1B40CC010995E495D85C5C7BEDFEEEE39431",
+      "desired_manifest_sha256": "81F8303A388B38CE0419FE211934CFE422BF63E5D54B6DD520DCB230AEADC351",
+      "replacements": [
+        {
+          "path": "px_panel.exe",
+          "before_sha256": "4FA736905019E6D9C8221BBDBF7F8B88690B06A40E901B9B3E58912C0768D630",
+          "after_sha256": "C63B173E2F169D5A5C966AEA2086E7C793C844715D621E053D87A1A30A8B508F",
+          "bytes": 16018432
+        },
+        {
+          "path": "px_service.exe",
+          "before_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+          "after_sha256": "6E3C56A6FB7F05B1AA41A9B6288CC7BC9877287781CB6E5623E2357D471B912B",
+          "bytes": 10609152
+        },
+        {
+          "path": "product-manifest.json",
+          "before_sha256": "C1A06CECB6D8371C91BC2A76EF29769E7854B253D9797085F4163ACF11CE0A52",
+          "after_sha256": "AFD33FE10BD844F398DC3C8900B0FF30B37ED3272E0258C46A4F569E68600684",
+          "bytes": 45238
+        }
+      ],
+      "removals": [],
+      "runtime_processes": []
+    },
+    "archive_path": "D:\\GoCloud\\GammaRayPremium\\.cache\\rdp-pool-followup-20261013\\xr.zip",
+    "archive_sha256": "1232E4AB23F6B58C235524408AD4136462527F359DBEC7E3313E67F61B66B16F",
+    "archive_bytes": 10638702
+  }
+}

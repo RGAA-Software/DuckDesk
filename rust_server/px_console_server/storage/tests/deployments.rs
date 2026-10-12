@@ -307,7 +307,7 @@ async fn all_modes_have_explicit_fields_stable_identity_and_database_constraints
         .await
         .is_err());
     let mut bad = settings(DeploymentTarget::Rdp);
-    bad.capacity = 2;
+    bad.capacity = 65;
     assert!(fixture
         .deployments
         .create(&fixture.admin, app.id, node, &bad)

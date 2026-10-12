@@ -1,0 +1,116 @@
+{
+  "identity": {
+    "schema": 41,
+    "workspaces": [
+      {
+        "id": "062c289d-9478-480b-82dd-625ef12ad713",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 1,
+        "account_name": "pxrdp_2c3153bd5fff41",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1099",
+        "credential_revision": 1
+      },
+      {
+        "id": "3004e063-506a-4902-86a4-341f270c0947",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 2,
+        "account_name": "pxrdp_b0f36cef23c348",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1102",
+        "credential_revision": 1
+      },
+      {
+        "id": "142ae731-f5f7-4ba0-ad29-3d91fd13bf6e",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 3,
+        "account_name": "pxrdp_705dbd09276447",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1103",
+        "credential_revision": 1
+      },
+      {
+        "id": "d281bef0-59a6-4efe-8872-f35a3284b60b",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 4,
+        "account_name": "pxrdp_3bf8b1c584864c",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1104",
+        "credential_revision": 1
+      },
+      {
+        "id": "809198e7-35ab-4c10-a5d7-8f7dec55ab22",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 5,
+        "account_name": "pxrdp_dfb3fa187c384e",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1105",
+        "credential_revision": 1
+      },
+      {
+        "id": "b98d4fe4-2e4b-4210-b3e2-a59573956e41",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 6,
+        "account_name": "pxrdp_a1def23ad7af4b",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1106",
+        "credential_revision": 1
+      },
+      {
+        "id": "9c55edf9-ae9c-4306-b5f3-608f56eed3c6",
+        "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "workspace_slot": 7,
+        "account_name": "pxrdp_b42f5c027f424d",
+        "windows_sid": "S-1-5-21-651462275-30253513-3142702281-1107",
+        "credential_revision": 1
+      }
+    ],
+    "secret_hashes": [
+      {
+        "workspace_id": "062c289d-9478-480b-82dd-625ef12ad713",
+        "ciphertext_hash": "2f0906b38adcee84c7032d107d28fb5f"
+      },
+      {
+        "workspace_id": "3004e063-506a-4902-86a4-341f270c0947",
+        "ciphertext_hash": "7769f5759f1c939fe89a92df8951dd72"
+      },
+      {
+        "workspace_id": "142ae731-f5f7-4ba0-ad29-3d91fd13bf6e",
+        "ciphertext_hash": "0f7eec0c438f73fdf01970dd60796ff2"
+      },
+      {
+        "workspace_id": "d281bef0-59a6-4efe-8872-f35a3284b60b",
+        "ciphertext_hash": "45e2bee1a7b498788f7eb41b65bd0b02"
+      },
+      {
+        "workspace_id": "809198e7-35ab-4c10-a5d7-8f7dec55ab22",
+        "ciphertext_hash": "39903405f7b572d21c806a5bdc5a754d"
+      },
+      {
+        "workspace_id": "b98d4fe4-2e4b-4210-b3e2-a59573956e41",
+        "ciphertext_hash": "8960a348a5e6855d0929249162d8391b"
+      },
+      {
+        "workspace_id": "9c55edf9-ae9c-4306-b5f3-608f56eed3c6",
+        "ciphertext_hash": "c0cbf5de73f64a5fd6023d6149f1686c"
+      }
+    ]
+  },
+  "original_identity_preserved": true,
+  "backup": [
+    {
+      "database": "pixels_console",
+      "host": "localhost",
+      "password_file": "C:\\ProgramData\\Pixels\\Server\\config\\backup/console.pgpass",
+      "port": 5432,
+      "schema_version": 41,
+      "service": "console",
+      "username": "pixels_console_backup"
+    },
+    null,
+    null
+  ],
+  "server_manifest_sha256": "970741C819364E5605AAB202F1D144655416D8F134EBD978B2704E1CDC4AF284",
+  "console_sha256": "8DACF64F6F6CD753A0663B4E83BDE251A881FC268C106682CD88418F3B634842"
+}

@@ -32,9 +32,7 @@ pub struct DeploymentConfiguration {
 
 impl DeploymentConfiguration {
     pub(crate) fn validate(&self) -> Result<(), StoreError> {
-        if !(1..=64).contains(&self.capacity)
-            || (self.target == DeploymentTarget::Rdp && self.capacity != 1)
-        {
+        if !(1..=64).contains(&self.capacity) {
             return Err(StoreError::InvalidInput);
         }
         if self.gpu_key.as_ref().is_some_and(|key| {
@@ -173,8 +171,9 @@ mod tests {
         assert!(config.validate().is_ok());
         config.target = DeploymentTarget::Rdp;
         assert!(config.validate().is_err());
-        config.capacity = 1;
         config.gpu_key = None;
+        assert!(config.validate().is_ok());
+        config.capacity = 20;
         assert!(config.validate().is_ok());
         config.gpu_key = Some("".into());
         assert!(config.validate().is_err());

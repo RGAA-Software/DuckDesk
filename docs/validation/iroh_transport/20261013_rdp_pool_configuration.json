@@ -1,0 +1,59 @@
+{
+  "before": {
+    "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "application_revision": 1,
+    "capacity": 1,
+    "disabled": false,
+    "gpu_key": null,
+    "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+    "kind": "rdp",
+    "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+    "observed_at": "2026-10-12T16:03:51.770519Z",
+    "observed_endpoint_revision": 3,
+    "observed_epoch": 73,
+    "observed_generation": 466,
+    "observed_reason": null,
+    "observed_sequence": 16,
+    "observed_state": "ready",
+    "revision": 1
+  },
+  "after": {
+    "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "application_revision": 1,
+    "capacity": 20,
+    "disabled": false,
+    "gpu_key": null,
+    "id": "e1db8006-1ab8-4044-bafb-980636831c21",
+    "kind": "rdp",
+    "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+    "observed_at": "2026-10-12T16:04:06.769437Z",
+    "observed_endpoint_revision": 3,
+    "observed_epoch": 73,
+    "observed_generation": 466,
+    "observed_reason": null,
+    "observed_sequence": 17,
+    "observed_state": "ready",
+    "revision": 2
+  },
+  "preview": {
+    "application_id": "ba45f578-8363-4e1a-bd5a-ee3e4e8e1d33",
+    "evaluated_at": "2026-10-12T16:04:07.142452Z",
+    "candidates": [
+      {
+        "rank": 1,
+        "deployment_id": "e1db8006-1ab8-4044-bafb-980636831c21",
+        "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "gpu_key": null,
+        "eligible": true,
+        "dominant_pressure_per_mille": 0,
+        "average_pressure_per_mille": 0,
+        "node_slots": 64,
+        "deployment_slots": 20,
+        "gpu_memory_headroom_bytes": null,
+        "gpu_compute_headroom_per_mille": null,
+        "gpu_encoder_headroom_per_mille": null,
+        "rejection_reasons": []
+      }
+    ]
+  }
+}

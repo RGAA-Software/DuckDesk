@@ -95,7 +95,11 @@ foreach ($runtime in @($plan.runtime_processes)) {
         $runtimeProcess.CreationDate.ToUniversalTime().ToString('o') -ne [string]$runtime.created_utc) {
         throw 'Runtime changed before publication'
     }
-    Stop-Process -Id ([int]$runtime.pid) -ErrorAction Stop
+    $processHandle = [Diagnostics.Process]::GetProcessById([int]$runtime.pid)
+    try {
+        $processHandle.Kill()
+        if (-not $processHandle.WaitForExit(15000)) { throw 'Explicit runtime did not exit' }
+    } finally { $processHandle.Dispose() }
     $shutdownDeadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
         $remainingProcess = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)

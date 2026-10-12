@@ -102,14 +102,10 @@ impl WorkspaceStore {
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
         let instance = Self::authorize(&mut tx, node, lease).await?;
-        let existing = sqlx::query_file_as!(
-            WorkspaceRow,
-            "queries/find_workspace.sql",
-            instance.application_id,
-            instance.node_id
-        )
-        .fetch_optional(&mut *tx)
-        .await?;
+        let existing =
+            sqlx::query_file_as!(WorkspaceRow, "queries/find_workspace.sql", instance.id)
+                .fetch_optional(&mut *tx)
+                .await?;
         let row = if let Some(row) = existing {
             if row.deployment_id != instance.deployment_id {
                 return Err(StoreError::RecoveryRequired);
@@ -134,7 +130,8 @@ impl WorkspaceStore {
                 binding.application,
                 binding.placement,
                 binding.node,
-                binding.account
+                binding.account,
+                instance.id
             )
             .execute(&mut *tx)
             .await?;
@@ -201,11 +198,12 @@ impl WorkspaceStore {
         let mut tx = self.pool.begin().await?;
         control::write_gate(&mut tx).await?;
         let instance = Self::authorize(&mut tx, node, lease).await?;
-        let row = sqlx::query_file_as!(WorkspaceRow, "queries/get_workspace.sql", workspace)
+        let row = sqlx::query_file_as!(WorkspaceRow, "queries/find_workspace.sql", instance.id)
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(StoreError::Rejected)?;
-        if row.application_id != instance.application_id
+        if row.id != workspace
+            || row.application_id != instance.application_id
             || row.node_id != instance.node_id
             || row.deployment_id != instance.deployment_id
         {

@@ -630,8 +630,7 @@ impl AppInstanceRegistry {
             if self.instances.values().any(|record| {
                 record.is_active()
                     && record.app_mode == APP_MODE_RDP
-                    && (record.rdp_workspace_id == account.workspace_id
-                        || (record.app_id == req.app_id && record.rdp_node_id == req.rdp_node_id))
+                    && record.rdp_workspace_id == account.workspace_id
             }) {
                 return Err("RDP workspace busy".into());
             }
@@ -1050,6 +1049,35 @@ mod tests {
         assert!(registry
             .begin_start(r"D:\Pixels", rdp_req("rdp-2", 0))
             .is_ok());
+    }
+
+    #[test]
+    fn twenty_rdp_users_of_one_application_have_independent_runtime_occupancy() {
+        let mut registry = AppInstanceRegistry::new();
+        let mut allocated_ports = std::collections::BTreeSet::new();
+        for workspace_index in 0..20 {
+            let instance_id = format!("rdp-pool-{workspace_index}");
+            let mut start_request = rdp_req(&instance_id, 0);
+            let account = start_request.rdp_account.as_mut().unwrap();
+            account.workspace_id = format!("workspace-{workspace_index}");
+            account.account_name = format!("pxrdp_{workspace_index:014x}");
+            let runtime = registry
+                .begin_start(r"D:\Pixels", start_request.clone())
+                .unwrap();
+            assert!(allocated_ports.insert(runtime.listen_port));
+            start_request.instance_id = format!("duplicate-{workspace_index}");
+            start_request.request_id = format!("duplicate-request-{workspace_index}");
+            assert!(registry
+                .begin_start(r"D:\Pixels", start_request.clone())
+                .is_err());
+            registry.begin_stop(&instance_id).unwrap();
+            assert!(registry.begin_start(r"D:\Pixels", start_request).is_err());
+        }
+        assert_eq!(allocated_ports.len(), 20);
+        registry.mark_stopped("rdp-pool-0").unwrap();
+        let mut reopened_request = rdp_req("rdp-reopened", 0);
+        reopened_request.rdp_account.as_mut().unwrap().workspace_id = "workspace-0".into();
+        assert!(registry.begin_start(r"D:\Pixels", reopened_request).is_ok());
     }
 
     #[test]

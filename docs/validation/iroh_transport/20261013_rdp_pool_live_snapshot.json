@@ -1,0 +1,117 @@
+{
+  "instances": [
+    {
+      "id": "b6ea3e0a-c40d-48dd-b6c6-30edcdb845da",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "cc7619f3-2051-40ca-8ce9-ba7b4815fdfc",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "4f61d797-fb45-4ccd-b524-352bbb7924bf",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "867a24ee-250d-4637-b9c5-2a5d6218a3ea",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "a2c7f260-e888-47d4-ab8b-8df6d66ecfee",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "eb2815f8-f50b-4381-ab9d-3d2aba16e592",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "e9cb86ef-692e-4885-a7f7-298fdb01d273",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "8eec41e3-6b78-4517-a87f-b42e49adc63d",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "a36f9017-fce7-469d-aa27-d5164bf0d8c3",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "f4981b3b-0f98-46a5-bb56-048b310f76e5",
+      "state": "stopped",
+      "revision": 4
+    },
+    {
+      "id": "eee10dc1-eaba-4c0f-b7cb-8858682742f1",
+      "state": "stopped",
+      "revision": 4
+    }
+  ],
+  "resources": [
+    {
+      "id": "6101694b-0843-4439-a7ce-d4648f8db88c",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "8200e3b2-3d7e-4021-bfa0-01c1760295fc",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "c5790b00-6918-4e2b-a986-deca7e7ad55f",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "a9d75f3e-5e61-420b-91f5-954323e08c1d",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "e5378541-34f0-4744-8cc1-62d00345a94a",
+      "state": "closed",
+      "revision": 5
+    },
+    {
+      "id": "f8e86c4c-7257-4920-89d6-0fb283bb2297",
+      "state": "closed",
+      "revision": 5
+    },
+    {
+      "id": "921ef95e-4db8-4942-af9c-afdb1e41b855",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "3a572b3f-1d8a-4be4-bca0-14c42f986d5e",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "36cb213c-7589-411f-910b-8fa93e00a627",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "5b12df85-a857-466e-ac53-1792fa099438",
+      "state": "closed",
+      "revision": 3
+    },
+    {
+      "id": "a0cdabac-1a98-4883-934c-aab073a88f64",
+      "state": "closed",
+      "revision": 3
+    }
+  ],
+  "summary": []
+}

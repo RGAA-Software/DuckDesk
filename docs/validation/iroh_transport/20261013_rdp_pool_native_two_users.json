@@ -1,0 +1,6 @@
+{
+  "source": " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME\r\n administrator         console             2  Active      13:13  2026/10/12 11:06\r\n pxrdp_2c3153bd5fff41  rdp-tcp#0           3  Active          .  2026/10/13 0:19\r\n pxrdp_b0f36cef23c348  rdp-tcp#1           4  Active          .  2026/10/13 0:19\r\n[\r\n    {\r\n        \"Id\":  6852,\r\n        \"SessionId\":  2,\r\n        \"UserName\":  \"WIN-RASS8RC6V3H\\\\Administrator\"\r\n    },\r\n    {\r\n        \"Id\":  16084,\r\n        \"SessionId\":  3,\r\n        \"UserName\":  \"WIN-RASS8RC6V3H\\\\pxrdp_2c3153bd5fff41\"\r\n    },\r\n    {\r\n        \"Id\":  20196,\r\n        \"SessionId\":  4,\r\n        \"UserName\":  \"WIN-RASS8RC6V3H\\\\pxrdp_b0f36cef23c348\"\r\n    }\r\n]\r\n",
+  "receiver_operation": "9c660f04-1c59-4fc9-b871-7a3b94d13f0a",
+  "receiver_final": "interrupted",
+  "actual_users": 2
+}

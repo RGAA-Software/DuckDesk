@@ -19,6 +19,7 @@ struct ApplicationLaunchRequest final {
     std::string existingInstanceId{};
     std::string requestId{};
     bool viewOnly{};
+    bool startNewInstanceWhenOccupied{};
     bool forceTcp{};
     bool forceRelay{};
 };

@@ -25,7 +25,7 @@ WITH raw_candidates AS (
   n.max_instances::bigint-node_usage.used AS node_slots,
   d.capacity::bigint-deployment_usage.used AS deployment_slots,
   available.port IS NOT NULL AS port_available,
-  rdp_usage.used>0 AS rdp_workspace_busy,
+  rdp_usage.used>=d.capacity AS rdp_workspace_busy,
   d.kind,
   d.revision AS deployment_revision,
   d.application_revision AS deployment_application_revision,

@@ -57,10 +57,16 @@ fn run_windows_service(
 ) -> Result<(), String> {
     runtime
         .block_on(run(stop_token))
-        .map_err(|error| error.to_string())
+        .map_err(|error| {
+            tracing::error!(event = "console.startup_failed", %error, "Console service startup/runtime failed");
+            error.to_string()
+        })
 }
 
 async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Error>> {
+    logging::initialize(std::path::Path::new(&std::env::var(
+        "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
+    )?))?;
     let ConsoleLaunch {
         database,
         deployment,
@@ -78,9 +84,6 @@ async fn run(stop_token: CancellationToken) -> Result<(), Box<dyn std::error::Er
         license,
         license_config,
     } = ConsoleLaunchConfig::from_env()?.load().await?;
-    logging::initialize(std::path::Path::new(&std::env::var(
-        "PIXELS_CONSOLE_RECORDING_CACHE_DIRECTORY",
-    )?))?;
     let runtime = ConsoleRuntime::activate_product_with_cache_optional(
         &database,
         deployment,

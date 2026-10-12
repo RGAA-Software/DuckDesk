@@ -7,8 +7,13 @@
 
 ## 1. 固定边界与首版范围
 
+2026-10-13更新：工作区已按应用/节点/slot持久分配，部署容量可配置为1–64，90现有部署为20。
+原工作区及Windows用户保留在slot1；一个应用可并发使用多个独立用户桌面，每个桌面仍单前端。
+RDP已使用iroh专用可靠流，下列初版WebSocket承载描述保留为历史，不恢复旧传输或增加独立授权系统。
+本批开发、真实两用户连接和20slot数据库回归证据见[工作区报告](validation/iroh_transport/20261013_rdp_workspace_pool.md)。
+
 - 新增 `rdp` 模式，与 game-hook、webview 平行；原有模式的用户、媒体与退出行为不变。
-- 工作区按 `(rdp_app_id, node_id)` 唯一映射 Windows 账号，不按访问者拆分；允许未登录访问并自动准入，无二次确认。
+- 工作区按 `(rdp_app_id, node_id, workspace_slot)` 唯一映射 Windows 账号，不按访问者拆分；允许未登录访问并自动准入，无二次确认。
 - px_console 生成并加密保存账号密码；Service 幂等创建和维护标准用户/SID；首版凭证自动下发到获准客户端的连接内存。
 - RDP 二进制数据复用现有 WebSocket 连接和消息封装，不新增传输选型或独立 WS 连接要求。
 - Windows RDP 原生图形编码在客户端解码/合成/显示；Render 不进行桌面采集，也不解码后重新编码视频。
