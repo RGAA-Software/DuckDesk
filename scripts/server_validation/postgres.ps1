@@ -10,7 +10,7 @@ param(
     [string]$LinuxCandidate = '',
     [string]$PgToolchain = '',
     [string]$TargetDirectory = '',
-    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'cn-license', 'distribution-isolation', 'node-control', 'relay-control', 'console-process', 'console-admin', 'console-browser')]
+    [ValidateSet('', 'unit', 'identity', 'control', 'devices', 'applications', 'guests', 'nodes', 'relay-nodes', 'deployments', 'instances', 'commands', 'workspaces', 'database', 'sessions', 'transfers', 'recordings', 'preferences', 'files', 'backup', 'backup-pg', 'backup-candidate', 'backup-systemd-native', 'full-systemd', 'bootstrap-candidate', 'cache', 'activity', 'updates', 'desk', 'auth', 'auth-api', 'auth-browser', 'catalog', 'update-authority', 'lease', 'postgres', 'schema_gate', 'accounts', 'console-api', 'directory-api', 'cn-license', 'distribution-isolation', 'node-control', 'relay-control', 'relay-retention', 'console-process', 'console-admin', 'console-browser')]
     [string]$Suite = ''
 )
 
@@ -491,6 +491,7 @@ try {
         $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 3
         $suiteCounts['relay-control'] = 1
+        $suiteCounts['relay-retention'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 4
         $suiteCounts['schema_gate'] = 4
@@ -505,6 +506,7 @@ try {
             'distribution-isolation' = 'distribution_isolation'
             'node-control' = 'node_control'
             'relay-control' = 'relay_control'
+            'relay-retention' = 'relay_retention'
             'console-process' = 'process'
             'console-admin' = 'admin'
         }

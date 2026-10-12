@@ -48,6 +48,7 @@ tower-http = { version = "0.6", features = ["cors"] }
 libc = "0.2"
 
 [dev-dependencies]
+tokio = { version = "1.43", features = ["process"] }
 px_relay_server = { path = "../../px_relay_server" }
 tower = { version = "0.5", features = ["util"] }
 tokio-tungstenite = "0.28"
@@ -68,6 +69,10 @@ required-features = ["pg-integration"]
 
 [[test]]
 name = "relay_control"
+required-features = ["pg-integration"]
+
+[[test]]
+name = "relay_retention"
 required-features = ["pg-integration"]
 
 [[test]]

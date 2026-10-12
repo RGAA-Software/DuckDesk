@@ -2314,6 +2314,60 @@ mod tests {
         assert_eq!(revoked, vec![new_candidate]);
     }
 
+    /// Invoked explicitly by the isolated real-Relay harness, not a standalone gate.
+    #[test]
+    #[ignore = "requires the isolated Console report fixture input"]
+    fn console_policy_heartbeat_fixture() {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct PolicyFixture {
+            report: px_node_protocol::NodeResponse,
+            description: px_node_protocol::IrohConnectionDescription,
+        }
+        let input_path =
+            std::env::var("PIXELS_TEST_RELAY_POLICY_INPUT").expect("policy input missing");
+        let fixture: PolicyFixture =
+            serde_json::from_slice(&std::fs::read(input_path).unwrap()).unwrap();
+        let px_node_protocol::NodeResponse::Reported {
+            iroh_relays: Some(available_relays),
+            iroh_retained_relays: Some(retained_relays),
+            ..
+        } = fixture.report
+        else {
+            panic!("Console policy missing")
+        };
+        assert!(fixture.description.is_valid());
+        let mut runtime = test_runtime(vec![]);
+        runtime.node_control_identity = Some(crate::node_control_client::NodeControlIdentity {
+            node_id: uuid::Uuid::new_v4(),
+            device_id: uuid::Uuid::new_v4(),
+            generation: 1,
+            control_epoch: 1,
+        });
+        runtime.node_control_iroh = Some(px_node_protocol::IrohNetworkConfig {
+            relays: runtime.config.node.select_iroh_relays(available_relays),
+            ..Default::default()
+        });
+        runtime.node_control_iroh_retained_relays =
+            runtime.config.node.select_iroh_relays(retained_relays);
+        let response = runtime
+            .handle_command(Command::HeartBeat {
+                index: 1,
+                from: "render_4601".into(),
+                logical_sessions_json: "[]".into(),
+                iroh_description_json: serde_json::to_string(&fixture.description).unwrap(),
+            })
+            .unwrap()
+            .unwrap();
+        let existing_relays: serde_json::Value =
+            serde_json::from_str(&response.heart_beat_resp.unwrap().iroh_relays_json).unwrap();
+        println!(
+            "POLICY_HEARTBEAT {}",
+            serde_json::json!({"relays": existing_relays,
+            "new_endpoint_candidates": runtime.node_control_iroh.unwrap().relays})
+        );
+    }
+
     #[test]
     fn iroh_endpoint_heartbeat_is_removed_on_disconnect_or_invalid_replacement() {
         let mut runtime = test_runtime(vec![]);

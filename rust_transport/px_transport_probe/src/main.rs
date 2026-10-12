@@ -9,6 +9,7 @@ use tokio::{task::JoinSet, time::Instant};
 
 mod capacity_probe;
 mod recovery_probe;
+mod retention_probe;
 
 const PROBE_DEADLINE: Duration = Duration::from_secs(30);
 
@@ -87,6 +88,11 @@ async fn main() -> Result<()> {
         return tokio::time::timeout(Duration::from_secs(30), capacity_probe::allocate(config))
             .await
             .context("allocation probe deadline exceeded")?;
+    }
+    if operation == "retention-self-test" {
+        return tokio::time::timeout(Duration::from_secs(90), retention_probe::run(config))
+            .await
+            .context("retention probe deadline exceeded")?;
     }
     if operation == "capacity-self-test" {
         let release_denied = arguments

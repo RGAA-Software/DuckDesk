@@ -1,0 +1,207 @@
+{
+  "recorded_at": "2026-10-12T09:25:17.659016+00:00",
+  "base_revision": "9be51d8825eaf410f707d99746bf073e94df82b9",
+  "result": {
+    "capacity_released": true,
+    "cleanup_complete": true,
+    "new_endpoint_restored": true,
+    "phases": [
+      {
+        "datagrams_each_direction": 4,
+        "home": "https://127.0.0.1:8883/",
+        "new_endpoint_denied": true,
+        "phase": "full",
+        "reliable_round_trips": 4,
+        "same_endpoint_identities": true,
+        "same_quic_connections": true,
+        "same_reliable_stream": true
+      },
+      {
+        "datagrams_each_direction": 4,
+        "home": "https://127.0.0.1:8883/",
+        "new_endpoint_denied": true,
+        "phase": "draining",
+        "reliable_round_trips": 4,
+        "same_endpoint_identities": true,
+        "same_quic_connections": true,
+        "same_reliable_stream": true
+      }
+    ],
+    "remote_deployment": false,
+    "scope": "isolated-loopback-real-relay-console-service-heartbeat"
+  },
+  "helper_identities": {
+    "PIXELS_TEST_TRANSPORT_PROBE_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\rust_transport\\target\\release\\px_transport_probe.exe",
+      "sha256": "2176E322DC3D81B70E287D32EC9F1D5BEC3535CA516B5FD884FDB8BF26916F86"
+    },
+    "PIXELS_TEST_SERVICE_POLICY_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\deps\\px_service-c1bb3805df7c551b.exe",
+      "sha256": "E9C4F7675AA2289F93FDAB1B97F53E2639544C71C26805B86641394E7B6BBC6F"
+    }
+  },
+  "test_runs": [
+    {
+      "run_id": "pg-20261012-170908-41259691",
+      "path": "test-results/server_validation/pg-20261012-170908-41259691/report.json",
+      "sha256": "AE9C139D692A621F38E78A94EA682437A8494FD640A993519C8BF8883EF32DE7",
+      "status": "FAIL",
+      "cases": [
+        {
+          "case": "SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable",
+          "status": "PASS"
+        },
+        {
+          "case": "ENV: isolated PostgreSQL healthy",
+          "status": "PASS"
+        },
+        {
+          "case": "SCHEMA: three fresh databases, repeatable initialization, runtime readiness",
+          "status": "PASS"
+        },
+        {
+          "case": "execution",
+          "status": "FAIL",
+          "reason": "Command failed its expected exit condition: cargo; exit=101"
+        },
+        {
+          "case": "CLEANUP: isolated test containers and volume removed",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run_id": "pg-20261012-171315-36be98ed",
+      "path": "test-results/server_validation/pg-20261012-171315-36be98ed/report.json",
+      "sha256": "334BA6FCE8B0376F4AE4B740EBA15B512BA05B92ADDF4A500BF055CC97B2AECE",
+      "status": "FAIL",
+      "cases": [
+        {
+          "case": "SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable",
+          "status": "PASS"
+        },
+        {
+          "case": "ENV: isolated PostgreSQL healthy",
+          "status": "PASS"
+        },
+        {
+          "case": "SCHEMA: three fresh databases, repeatable initialization, runtime readiness",
+          "status": "PASS"
+        },
+        {
+          "case": "execution",
+          "status": "FAIL",
+          "reason": "Command failed its expected exit condition: cargo; exit=101"
+        },
+        {
+          "case": "CLEANUP: isolated test containers and volume removed",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run_id": "pg-20261012-171424-9d531182",
+      "path": "test-results/server_validation/pg-20261012-171424-9d531182/report.json",
+      "sha256": "61E9DBD77F780F9248EC23E40F22A93E2B13F546855F1BD35C29284B45E605A4",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable",
+          "status": "PASS"
+        },
+        {
+          "case": "ENV: isolated PostgreSQL healthy",
+          "status": "PASS"
+        },
+        {
+          "case": "SCHEMA: three fresh databases, repeatable initialization, runtime readiness",
+          "status": "PASS"
+        },
+        {
+          "case": "focused/relay-retention/actual_relay_preserves_existing_streams_and_datagrams_when_full_or_draining",
+          "status": "PASS"
+        },
+        {
+          "case": "SOURCE: all recorded source hashes unchanged throughout acceptance",
+          "status": "PASS"
+        },
+        {
+          "case": "FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance",
+          "status": "PASS"
+        },
+        {
+          "case": "CLEANUP: isolated test containers and volume removed",
+          "status": "PASS"
+        }
+      ]
+    },
+    {
+      "run_id": "pg-20261012-172047-d50b5571",
+      "path": "test-results/server_validation/pg-20261012-172047-d50b5571/report.json",
+      "sha256": "50831143C213573B86E96EAD9C0E68792D159EAB002FDAFC18B15891ACD7B9E0",
+      "status": "PASS",
+      "cases": [
+        {
+          "case": "SOURCE-NAMING: maintained DB0-DB5 and Windows Service Rust identifiers are human-readable",
+          "status": "PASS"
+        },
+        {
+          "case": "ENV: isolated PostgreSQL healthy",
+          "status": "PASS"
+        },
+        {
+          "case": "SCHEMA: three fresh databases, repeatable initialization, runtime readiness",
+          "status": "PASS"
+        },
+        {
+          "case": "focused/relay-retention/actual_relay_preserves_existing_streams_and_datagrams_when_full_or_draining",
+          "status": "PASS"
+        },
+        {
+          "case": "SOURCE: all recorded source hashes unchanged throughout acceptance",
+          "status": "PASS"
+        },
+        {
+          "case": "FOCUSED-ONLY: selected native suite; no browser, restore or full cross-platform acceptance",
+          "status": "PASS"
+        },
+        {
+          "case": "CLEANUP: isolated test containers and volume removed",
+          "status": "PASS"
+        }
+      ]
+    }
+  ],
+  "build_jobs": 18,
+  "configuration": "Release",
+  "duration_seconds": 25.69,
+  "source_sha256": {
+    "rust_client/px_service/src/service_host.rs": "8D9D4D4B18B69FCC4BEC6400E26A21A37BADBB9FE62E5F97801F23CE91F8A460",
+    "rust_client/px_service/src/iroh_endpoints.rs": "E66849AD198723B5114A01EDDBB2BB86B3AD45FEB5B22F164316394A54B73A2F",
+    "rust_client/px_service/src/node_control_client.rs": "7068367294869AE90BB3FCA324A06FC5D2C1D1CE4DACBEAE017C9DCBCA5C35B3",
+    "rust_transport/px_transport_probe/src/retention_probe.rs": "EF6C1284140C0C63C30538805ADC4763A3F15B94FAE5780FDFECE6D60F922AB5",
+    "rust_transport/px_transport/src/lib.rs": "56FA2AAE717642C2EA91C56AC95E2D4180B830FD1630D5F63F6D55ECEF2C5982",
+    "rust_transport/px_transport/src/relay_candidates.rs": "36F303243C45479E1FB12AC7A12F24994A07528D87A122E3E5C5FB8E9F763267",
+    "rust_server/px_console_server/runtime/tests/relay_retention.rs": "61465A25B36B11789540F12C6587F3C0DF389FDAFEFCB21D19326B293A2B8A8B",
+    "rust_transport/px_transport_probe/src/main.rs": "AC2F4FD6D6AB273A50A11A37240A83AA83AAE5B387FC812F9A9BA5FB0E41A6F5"
+  },
+  "remote_commands": false,
+  "android_implemented": false,
+  "media_stutter_tested": false,
+  "runtime_artifacts_changed": false,
+  "earlier_pass_helper_identities": {
+    "PIXELS_TEST_TRANSPORT_PROBE_BINARY": {
+      "sha256": "2CB939C3EE25F9BB9A5696EF273D1BA2219230E62A0BA79830FFA5A4F4B464BC",
+      "path": "D:\\GoCloud\\GammaRayPremium\\rust_transport\\target\\release\\px_transport_probe.exe"
+    },
+    "PIXELS_TEST_SERVICE_POLICY_BINARY": {
+      "sha256": "E9C4F7675AA2289F93FDAB1B97F53E2639544C71C26805B86641394E7B6BBC6F",
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\deps\\px_service-c1bb3805df7c551b.exe"
+    }
+  },
+  "runtime_identities": {
+    "build_official/cloud_node/dist/px_service.exe": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+    "output/px_console/dev/px_console.exe": "C783635BE09091D6BBA21159141AAE1D3F28C7CAAF366749010EDF804441B265"
+  },
+  "final_rerun_reason": "Finalize probe formatting and test error redaction; rebuild changed helper and verify exact final binaries with tracked runner."
+}
