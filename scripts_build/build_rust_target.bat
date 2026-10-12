@@ -43,5 +43,5 @@ set "AWS_LC_SYS_C_STD=11"
 set "GOOS=windows"
 if exist "%ProgramFiles%\Git\usr\bin\perl.exe" set "PATH=%PATH%;%ProgramFiles%\Git\usr\bin"
 cd /d "%RUST_REPO%\%RUST_WORKSPACE%" || exit /b 2
-cargo build --release --jobs %RUST_BUILD_JOBS% -p %RUST_PACKAGE%
+cargo build --locked --release --jobs %RUST_BUILD_JOBS% -p %RUST_PACKAGE%
 exit /b %errorlevel%

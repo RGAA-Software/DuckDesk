@@ -96,6 +96,9 @@ function Set-LocalEnv([string]$Name, [string]$Value) {
 }
 
 function Invoke-Checked([string]$Exe, [string[]]$Arguments, [switch]$ExpectFailure, [int]$TimeoutSeconds = 600) {
+    if ($Exe -eq 'cargo' -and $Arguments.Count -gt 0 -and $Arguments[0] -in @('build','check','test') -and '--jobs' -notin $Arguments) {
+        $Arguments = @($Arguments[0], '--jobs', '18') + $Arguments[1..($Arguments.Count - 1)]
+    }
     if ($Exe -eq 'cargo' -and $Arguments.Count -gt 0 -and $Arguments[0] -in @('build','check','test') -and '--release' -notin $Arguments) {
         $Arguments = @($Arguments[0], '--release') + $Arguments[1..($Arguments.Count - 1)]
     }
@@ -486,7 +489,7 @@ try {
         $suiteCounts['directory-api'] = 8
         $suiteCounts['cn-license'] = 1
         $suiteCounts['distribution-isolation'] = 1
-        $suiteCounts['node-control'] = 2
+        $suiteCounts['node-control'] = 3
         $suiteCounts['relay-control'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 4

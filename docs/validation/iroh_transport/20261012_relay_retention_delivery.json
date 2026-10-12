@@ -1,0 +1,106 @@
+{
+  "scope": "complete paired Windows Server/Cloud Node candidates and development artifacts; not remotely installed",
+  "build_jobs": 18,
+  "state": "verified_local_delivery",
+  "server_files_verified": 35,
+  "node_files_verified": 314,
+  "development_cloud_node_files_verified": 277,
+  "development_remote_files_verified": 43,
+  "service_copies": [
+    {
+      "path": "build_official/cloud_node/cargo/target/release/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/cargo/stage/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/dist/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/official/cargo/target/release/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/official/cargo/stage/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/official/dist/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/cloud_node/official/candidates/relay-retention-fixed-20261012/installer/3.3.97/app/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/remote/cargo/target/release/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/remote/cargo/stage/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    },
+    {
+      "path": "build_official/remote/dist/px_service.exe",
+      "sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED",
+      "bytes": 10609152
+    }
+  ],
+  "console_copies": [
+    {
+      "path": ".cache/console-dev/release/px_console.exe",
+      "sha256": "C783635BE09091D6BBA21159141AAE1D3F28C7CAAF366749010EDF804441B265",
+      "bytes": 18815488
+    },
+    {
+      "path": "output/px_console/dev/px_console.exe",
+      "sha256": "C783635BE09091D6BBA21159141AAE1D3F28C7CAAF366749010EDF804441B265",
+      "bytes": 18815488
+    },
+    {
+      "path": "build_official/private_server/candidates/relay-retention-20261012/package/bin/px_console.exe",
+      "sha256": "C783635BE09091D6BBA21159141AAE1D3F28C7CAAF366749010EDF804441B265",
+      "bytes": 18815488
+    }
+  ],
+  "packages": [
+    {
+      "path": "build_official/private_server/candidates/relay-retention-20261012/PixelsServer_1.0.56_Setup.exe",
+      "sha256": "42FDB474D3ADE37790E59083AEEDBD705A82178562683DE61954FFEA4A7F13B6",
+      "bytes": 16865186
+    },
+    {
+      "path": "build_official/private_server/candidates/relay-retention-20261012/package/sha256.json",
+      "sha256": "4B2D26D7DAE607A28A5D6C3C8FD61E9782E19A2A7562C6DEB5FEC0B8665DDF2E",
+      "bytes": 3804
+    },
+    {
+      "path": "build_official/cloud_node/official/candidates/relay-retention-fixed-20261012/installer/3.3.97/PixelsCloudNode_official_3.3.97_Setup.exe",
+      "sha256": "EE7832A7BBDEE3EFC423CD6437A164BD756A885AAF8DFC860CF65533C2BC0835",
+      "bytes": 278637938
+    },
+    {
+      "path": "build_official/cloud_node/official/candidates/relay-retention-fixed-20261012/installer/3.3.97/app/sha256sums.json",
+      "sha256": "FE0B44B911642A7197AAE9841D4C54A9F0AD43B61D00A5F9A93CFB33911DF2E4",
+      "bytes": 29901
+    }
+  ],
+  "deployment": "pending; public Console is on 90 which the user has excluded from tests/updates",
+  "unchanged_remote_identities": {
+    "company_client": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "xr_service": "636C688E72F5FB135A7E7C194344345049449CA7E9DE5397C23DB6FF3D4526C0",
+    "xr_render": "6F9A2D19758F386303BFC378C7F07D285DFBD8A57AE9CA29A1C98643B4A97D5E"
+  }
+}

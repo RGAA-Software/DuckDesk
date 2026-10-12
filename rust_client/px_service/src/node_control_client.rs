@@ -125,6 +125,7 @@ struct NodeControlAuthentication {
     public_device_code: String,
     relay: Option<RelayEndpoint>,
     iroh: Option<px_node_protocol::IrohNetworkConfig>,
+    iroh_retained_relays: Option<Vec<px_node_protocol::IrohRelayConfig>>,
 }
 
 struct PendingFrontendRetirement {
@@ -242,6 +243,7 @@ impl ProtocolSession {
                 control_epoch,
                 relay,
                 iroh,
+                iroh_retained_relays,
             } if request_id == expected_request_id
                 && !node_id.is_nil()
                 && !device_id.is_nil()
@@ -254,7 +256,15 @@ impl ProtocolSession {
                 && relay.as_ref().is_none_or(valid_relay_endpoint)
                 && iroh
                     .as_ref()
-                    .is_none_or(px_node_protocol::IrohNetworkConfig::is_valid) =>
+                    .is_none_or(px_node_protocol::IrohNetworkConfig::is_valid)
+                && iroh.is_some() == iroh_retained_relays.is_some()
+                && iroh_retained_relays.as_ref().is_none_or(|relays| {
+                    px_node_protocol::IrohNetworkConfig {
+                        relays: relays.clone(),
+                        ..Default::default()
+                    }
+                    .is_valid()
+                }) =>
             {
                 let identity = NodeControlIdentity {
                     node_id,
@@ -268,6 +278,7 @@ impl ProtocolSession {
                     public_device_code,
                     relay,
                     iroh,
+                    iroh_retained_relays,
                 })
             }
             NodeResponse::Error { code, .. } => {
@@ -481,6 +492,12 @@ async fn run_connection(
             configuration.relays = runtime.config.node.select_iroh_relays(configuration.relays);
             configuration
         });
+        runtime.node_control_iroh_retained_relays = runtime.config.node.select_iroh_relays(
+            authentication
+                .iroh_retained_relays
+                .clone()
+                .unwrap_or_default(),
+        );
         if transport_changed && runtime.state.desktop_alive {
             if let Some(launch) = runtime.state.last_desktop_launch.clone() {
                 runtime.restart_desktop(launch)?;
@@ -1286,17 +1303,33 @@ async fn report(
             state,
             endpoint_revision,
             iroh_relays,
+            iroh_retained_relays,
         } if request_id == expected && endpoint_revision > 0 => {
-            if let Some(relays) = iroh_relays {
+            if iroh_relays.is_some() != iroh_retained_relays.is_some() {
+                return Err("incomplete Console Relay policy".into());
+            }
+            if let (Some(relays), Some(retained_relays)) = (iroh_relays, iroh_retained_relays) {
                 let validation = px_node_protocol::IrohNetworkConfig {
                     relays: relays.clone(),
                     ..Default::default()
                 };
-                if !validation.is_valid() {
+                let retained_validation = px_node_protocol::IrohNetworkConfig {
+                    relays: retained_relays.clone(),
+                    ..Default::default()
+                };
+                if !validation.is_valid() || !retained_validation.is_valid() {
                     return Err("invalid Console Relay candidates".into());
                 }
                 let mut runtime = runtime.lock().await;
                 let selected_relays = runtime.config.node.select_iroh_relays(relays);
+                let selected_retained_relays = runtime.config.node.select_iroh_relays(retained_relays);
+                let relay_policy_changed = runtime.node_control_iroh_retained_relays != selected_retained_relays
+                    || runtime.node_control_iroh.as_ref().is_some_and(|configuration| configuration.relays != selected_relays);
+                if relay_policy_changed {
+                    info!(event = "iroh.relay_policy", new_endpoint_candidates = selected_relays.len(),
+                        retained_homes = selected_retained_relays.len(), "Console Relay policy changed");
+                }
+                runtime.node_control_iroh_retained_relays = selected_retained_relays;
                 if let Some(configuration) = &mut runtime.node_control_iroh {
                     configuration.relays = selected_relays;
                 }
@@ -2571,6 +2604,7 @@ mod tests {
                     control_epoch: 5,
                     relay: None,
                     iroh: Some(px_node_protocol::IrohNetworkConfig::default()),
+                    iroh_retained_relays: Some(Vec::new()),
                 },
             )
             .unwrap();
@@ -2579,6 +2613,24 @@ mod tests {
         assert!(identity.relay.is_none());
         assert!(identity.iroh.is_some());
         assert_eq!(session.request_id().unwrap(), 2);
+    }
+
+    #[test]
+    fn authentication_rejects_partial_or_invalid_relay_retention_policy() {
+        let authentication_response = |iroh, iroh_retained_relays| NodeResponse::Authenticated {
+            request_id: 1,
+            node_id: Uuid::new_v4(), device_id: Uuid::new_v4(), public_device_code: "123456789".into(),
+            generation: 4, control_epoch: 5, relay: None, iroh, iroh_retained_relays,
+        };
+        assert!(ProtocolSession::new().accept_authentication(1,
+            authentication_response(Some(px_node_protocol::IrohNetworkConfig::default()), None)).is_err());
+        assert!(ProtocolSession::new().accept_authentication(1,
+            authentication_response(None, Some(Vec::new()))).is_err());
+        let invalid_retention = vec![px_node_protocol::IrohRelayConfig {
+            url: "https://user:password@relay.example.test:4605/".into(), qad_port: Some(4605),
+        }];
+        assert!(ProtocolSession::new().accept_authentication(1,
+            authentication_response(Some(px_node_protocol::IrohNetworkConfig::default()), Some(invalid_retention))).is_err());
     }
 
     #[test]
@@ -2847,6 +2899,7 @@ mod tests {
                         control_epoch: 3,
                         relay: None,
                         iroh: None,
+                        iroh_retained_relays: None,
                     })
                     .unwrap()
                     .into(),

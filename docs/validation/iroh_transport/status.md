@@ -4,6 +4,16 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-12 下午，满员与排空时保留现有 Relay home
+
+- 接续875623f36的分配核对，发现同一份“新接入有余量”集合也经Service心跳更新运行中Render；满员/维护过滤可能撤下健康home。已拆分Console新端点候选与允许保留的home，认证/报告都下发明确两组字段；新Render只使用前者，Service按每个Render当前上报地址保留自己的home，两组都经过本节点局部Relay限制。禁用/离线/过期/撤下仍清除，不新增票据或改iroh vendor。
+- 网络聚焦21项通过：Node protocol6、Service8、Relay store4、真实Console WS/PG3；分发7项另通过。PG报告`pg-20261012-155206-0239e557`及`pg-20261012-155913-7b440392`均确认源文件在验收中不变、测试容器/卷已清理。WS覆盖满员/排空时新候选空而保留集合存在，禁用后两组清空；心跳覆盖每Render隔离与新启动配置不污染。未将合成报告等同实网容量或媒体长稳。
+- 18jobs Release聚焦构建/同步完成：CloudNode development277文件、Remote development43文件均核对，Service各target/stage/dist/官方候选统一A06AF7FE…；Console开发target/output/新Server包统一C783635B…。Server1.0.56完整候选35文件(Setup42FDB474…/manifest4B2D26D7…)、Node3.3.97完整候选314文件(SetupEE7832A7…/manifestFE0B44B9…)已生成并逐项SHA核对。Server包含上一批Relay速率网页。Rust聚焦入口增加--locked，PG编译显式--jobs18；未运行全仓release-only构建。
+- 首次Node collect缺少必需update-root-file，PowerShell随后误用旧dist打包；该候选Service仍636C688E…，已标记REJECTED/未上传。正确参数重建到独立`relay-retention-fixed-20261012`，新增打包调用只在collect成功且Service与官方target哈希一致后继续；失败记录保留。
+- **未实机上线**：公网Console在90，90仍被用户排除，故未连接/安装/重启90，也未单独替换XR Service造成协议不匹配。本批新Server/Service需要按Server先、节点随后配套更新，无分布式激活事务或旧开发协议兼容层。Company installed Client FE8B8257…、XR installed Service636C688E…/Render6F9A2D19…、默认候选配置和此前disabled测试应用均保持上一批记录；本批没有远端应用/探针或持久配置修改。
+- 下一未完成项是可用Server部署窗口中的配套安装与一次实际容量/连接保留验证；已有双Relay4端点/容量释放证据复用，尚不称带宽均分。今晚卡帧仍从Company467.233秒/三次151–165ms接续，本批未改媒体发送、组帧或NIC，也未启动新长稳。Android排除。
+- 证据：[本批报告](20261012_relay_retention_report.md)、`20261012_relay_retention_delivery.json`、`20261012_relay_retention_tests.json`及拒绝候选记录。开发与候选包检查完成；部署验收保持待办。
+
 ## 最新接续：2026-10-12 下午，推进多 Relay 负载主线
 
 - 用户明确将残余卡帧调优留到今晚回归。当前继续 Windows/Linux 主线，Android 排除，不测试90，不恢复 NIC/饱和混传或视频长稳批次。没有确定的自动晚间启动时间。

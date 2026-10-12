@@ -203,6 +203,26 @@ async fn initialize() {
     .await;
 }
 
+pub async fn start_with_iroh() -> ConsoleRuntime {
+    initialize().await;
+    ConsoleRuntime::activate_with_resources(
+        &config("RUNTIME"),
+        deployment(),
+        vault(),
+        policy(),
+        guests(),
+        RuntimeResources {
+            iroh: Some(px_node_protocol::IrohNetworkConfig::default()),
+            recording_cache: None,
+            relay_admission: None,
+            release: px_console_runtime::ReleaseIdentity::integration(),
+            backup_control_token: None,
+        },
+    )
+    .await
+    .unwrap()
+}
+
 fn make_private(path: &std::path::Path) {
     #[cfg(unix)]
     {

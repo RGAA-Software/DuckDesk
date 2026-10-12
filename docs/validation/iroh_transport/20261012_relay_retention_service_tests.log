@@ -1,0 +1,29 @@
+   Compiling px_service v3.3.67 (D:\GoCloud\GammaRayPremium\rust_client\px_service)
+    Finished `release` profile [optimized] target(s) in 12.31s
+     Running unittests src\main.rs (D:\GoCloud\GammaRayPremium\build_official\cloud_node\cargo\target\release\deps\px_service-c1bb3805df7c551b.exe)
+
+running 5 tests
+test iroh_endpoints::tests::full_or_draining_home_is_retained_only_by_its_current_render ... ok
+test iroh_endpoints::tests::ip_only_or_unregistered_home_does_not_add_retained_alternatives ... ok
+test iroh_endpoints::tests::iroh_launch_removes_old_relay_credentials_and_preserves_other_launch_values ... ok
+test iroh_endpoints::tests::retained_home_uses_current_qad_without_duplicates_or_exceeding_candidate_limit ... ok
+test service_host::tests::iroh_endpoint_heartbeat_is_removed_on_disconnect_or_invalid_replacement ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 116 filtered out; finished in 0.00s
+
+    Finished `release` profile [optimized] target(s) in 0.54s
+     Running unittests src\main.rs (D:\GoCloud\GammaRayPremium\build_official\cloud_node\cargo\target\release\deps\px_service-c1bb3805df7c551b.exe)
+
+running 2 tests
+test node_control_client::tests::authentication_rejects_partial_or_invalid_relay_retention_policy ... ok
+test service_host::tests::relay_retention_is_scoped_to_each_render_and_does_not_change_new_launch_configuration ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 119 filtered out; finished in 0.00s
+
+    Finished `release` profile [optimized] target(s) in 0.53s
+     Running unittests src\main.rs (D:\GoCloud\GammaRayPremium\build_official\cloud_node\cargo\target\release\deps\px_service-c1bb3805df7c551b.exe)
+
+running 1 test
+test node_control_client::tests::request_ids_are_strictly_increasing_and_authentication_is_bound ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 120 filtered out; finished in 0.00s

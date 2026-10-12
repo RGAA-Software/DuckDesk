@@ -62,6 +62,7 @@ pub struct ServiceRuntime {
     pub(crate) authenticated_console_origin: String,
     pub(crate) node_control_relay: Option<px_node_protocol::RelayEndpoint>,
     pub(crate) node_control_iroh: Option<px_node_protocol::IrohNetworkConfig>,
+    pub(crate) node_control_iroh_retained_relays: Vec<px_node_protocol::IrohRelayConfig>,
     pub(crate) file_transfer_outbox:
         Arc<std::sync::Mutex<crate::node_control_store::FileTransferOutboxStore>>,
     stop_tx: broadcast::Sender<()>,
@@ -275,6 +276,7 @@ impl ServiceRuntime {
             authenticated_console_origin: String::new(),
             node_control_relay: None,
             node_control_iroh: None,
+            node_control_iroh_retained_relays: Vec::new(),
             file_transfer_outbox,
             stop_tx,
         }
@@ -501,8 +503,17 @@ impl ServiceRuntime {
                     heartbeat.node_control_ready = true;
                     heartbeat.node_access_host = self.config.node.access_host.clone();
                     if let Some(configuration) = &self.node_control_iroh {
-                        heartbeat.iroh_relays_json = serde_json::to_string(&configuration.relays)
-                            .map_err(|error| error.to_string())?;
+                        let current_description = self
+                            .render_iroh_descriptions
+                            .get(&from)
+                            .map(|(_, description)| description);
+                        let relays = crate::iroh_endpoints::relays_for_running_render(
+                            &configuration.relays,
+                            &self.node_control_iroh_retained_relays,
+                            current_description,
+                        );
+                        heartbeat.iroh_relays_json =
+                            serde_json::to_string(&relays).map_err(|error| error.to_string())?;
                     }
                 }
                 Ok(Some(response))
@@ -1783,8 +1794,8 @@ async fn control_loop(
 mod tests {
     use super::*;
     use std::sync::{
-        Mutex as StdMutex,
         atomic::{AtomicBool, Ordering},
+        Mutex as StdMutex,
     };
 
     use service_core::process::ProcessSnapshot;
@@ -2230,6 +2241,77 @@ mod tests {
         assert!(!refresh.await.unwrap().unwrap());
         assert_eq!(runtime.lock().await.state.desktop_pid, Some(1234));
         assert_eq!(manager.list_calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn relay_retention_is_scoped_to_each_render_and_does_not_change_new_launch_configuration() {
+        let mut runtime = test_runtime(vec![]);
+        runtime.node_control_identity = Some(crate::node_control_client::NodeControlIdentity {
+            node_id: uuid::Uuid::new_v4(),
+            device_id: uuid::Uuid::new_v4(),
+            generation: 7,
+            control_epoch: 11,
+        });
+        let current_home = px_node_protocol::IrohRelayConfig {
+            url: "https://primary.example.test:4605/".into(),
+            qad_port: Some(4605),
+        };
+        let new_candidate = px_node_protocol::IrohRelayConfig {
+            url: "https://alternative.example.test:4605/".into(),
+            qad_port: Some(4605),
+        };
+        runtime.node_control_iroh = Some(px_node_protocol::IrohNetworkConfig {
+            relays: vec![new_candidate.clone()],
+            ..Default::default()
+        });
+        runtime.node_control_iroh_retained_relays = vec![current_home.clone()];
+        let current_description = serde_json::json!({
+            "endpoint_address": {"id": "a".repeat(64), "addrs": [{"Relay": current_home.url}]},
+            "endpoint_configuration": {}
+        })
+        .to_string();
+        let response = runtime
+            .handle_command(Command::HeartBeat {
+                index: 1,
+                from: "render_4601".into(),
+                logical_sessions_json: "[]".into(),
+                iroh_description_json: current_description.clone(),
+            })
+            .unwrap()
+            .unwrap();
+        let retained: Vec<px_node_protocol::IrohRelayConfig> =
+            serde_json::from_str(&response.heart_beat_resp.unwrap().iroh_relays_json).unwrap();
+        assert_eq!(retained, vec![new_candidate.clone(), current_home]);
+        assert_eq!(
+            runtime.node_control_iroh.as_ref().unwrap().relays,
+            vec![new_candidate.clone()]
+        );
+        let new_response = runtime
+            .handle_command(Command::HeartBeat {
+                index: 2,
+                from: "render_4613".into(),
+                logical_sessions_json: "[]".into(),
+                iroh_description_json: String::new(),
+            })
+            .unwrap()
+            .unwrap();
+        let new_candidates: Vec<px_node_protocol::IrohRelayConfig> =
+            serde_json::from_str(&new_response.heart_beat_resp.unwrap().iroh_relays_json).unwrap();
+        assert_eq!(new_candidates, vec![new_candidate.clone()]);
+        runtime.node_control_iroh_retained_relays.clear();
+        let revoked_response = runtime
+            .handle_command(Command::HeartBeat {
+                index: 3,
+                from: "render_4601".into(),
+                logical_sessions_json: "[]".into(),
+                iroh_description_json: current_description,
+            })
+            .unwrap()
+            .unwrap();
+        let revoked: Vec<px_node_protocol::IrohRelayConfig> =
+            serde_json::from_str(&revoked_response.heart_beat_resp.unwrap().iroh_relays_json)
+                .unwrap();
+        assert_eq!(revoked, vec![new_candidate]);
     }
 
     #[test]

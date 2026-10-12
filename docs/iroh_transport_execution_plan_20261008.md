@@ -2,6 +2,8 @@
 
 2026-10-12 下午最新安排：用户将残余短卡顿调优留到今晚回归，当前推进多 Relay 负载可视化与端点分配核对。
 Windows/Linux 第 0.9 节已有功能与安装证据复用，不重开基本接入；Android 排除，90 不参与测试。
+追加容量边界修复：新端点候选与现有home保留已分离，配套Server/Node完整候选已校验，
+公网Console在90，本批未上线；见 [修复与交付报告](validation/iroh_transport/20261012_relay_retention_report.md)。
 已补 Console 接收/转发区间平均速率，见 [本批主线报告](validation/iroh_transport/20261012_relay_load_mainline.md)。
 最新 Company 467.233 秒仍有三次超过 100ms 的接收间隔，不能由下方历史验收推导为长期零卡顿。
 

@@ -76,6 +76,12 @@ Render的实际同号TCP/WS与UDP端口。所有活动范围必须互不重叠�
 其他节点。修改后重启本节点 Service，新的 Render 使用该集合；后续 Console 候选更新仍经过同一过滤，撤下的候选不会被
 本地设置重新加入。交集为空就没有可用的中继候选，不自动使用未选择的 Relay。该配置不屏蔽系统 UDP，也不强制所有连接
 经过 Relay；Client 的现有强制 Relay 策略继续独立控制连接方式。
+
+Console认证与报告分别下发新端点候选和现有home保留集合。满员或排空的Relay不再用于新Render启动；
+Service仅为每个运行中Render保留它自己当前上报的home，不能把该集合交给新实例或其他Render。
+两组地址均经过本节点的 `iroh_relay_urls` 限制。禁用、离线、过期或从授权集合撤下的Relay不保留。
+这项协议调整需要配套的Server/Service版本；开发候选详见
+[容量与home保留报告](validation/iroh_transport/20261012_relay_retention_report.md)。
 端口 20371 已完全退役，不是默认值、探测目标或回退端口。
 
 ## 4. 上报、对账和命令

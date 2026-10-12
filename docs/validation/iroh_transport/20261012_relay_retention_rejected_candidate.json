@@ -1,0 +1,10 @@
+{
+  "state": "rejected_not_deployed",
+  "reason": "collect_dist omitted the required update-root-file; PowerShell continued into packaging the unchanged previous distribution",
+  "actual_service": {
+    "path": "build_official/cloud_node/official/candidates/relay-retention-20261012/installer/3.3.97/app/px_service.exe",
+    "sha256": "636C688E72F5FB135A7E7C194344345049449CA7E9DE5397C23DB6FF3D4526C0",
+    "bytes": 10592768
+  },
+  "expected_service_sha256": "A06AF7FE0E9F0DC7CDFBA78A443874A2855B5DA2F18CA4B770764FBE115671ED"
+}

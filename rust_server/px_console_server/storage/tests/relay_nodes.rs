@@ -208,6 +208,15 @@ async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots
     assert!(!available
         .iter()
         .any(|candidate| candidate.url == candidate_url(9)));
+    assert_eq!(
+        fixture
+            .relay_nodes
+            .retained_iroh_relays()
+            .await
+            .unwrap()
+            .len(),
+        10
+    );
     let mut full_report = registered[0].2.clone();
     full_report.sequence = 2;
     full_report.current_connections = 10;
@@ -257,6 +266,19 @@ async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots
             .collect::<Vec<_>>(),
         (5..9).map(candidate_url).collect::<Vec<_>>()
     );
+    let retained = fixture.relay_nodes.retained_iroh_relays().await.unwrap();
+    // Full/draining remain allowed homes; offline, disabled and stale do not.
+    assert_eq!(retained.len(), 7);
+    for relay_index in [0, 1, 9] {
+        assert!(retained
+            .iter()
+            .any(|candidate| candidate.url == candidate_url(relay_index)));
+    }
+    for relay_index in [2, 3, 4] {
+        assert!(!retained
+            .iter()
+            .any(|candidate| candidate.url == candidate_url(relay_index)));
+    }
     full_report.sequence = 3;
     full_report.current_connections = 0;
     fixture

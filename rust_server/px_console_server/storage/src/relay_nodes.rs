@@ -15,6 +15,21 @@ impl RelayNodeStore {
     pub async fn available_iroh_relays(
         &self,
     ) -> Result<Vec<px_node_protocol::IrohRelayConfig>, StoreError> {
+        self.iroh_relays(false).await
+    }
+
+    /// Allowed homes for existing endpoints. Capacity and maintenance prohibit
+    /// new admissions, but must not withdraw a healthy endpoint's current home.
+    pub async fn retained_iroh_relays(
+        &self,
+    ) -> Result<Vec<px_node_protocol::IrohRelayConfig>, StoreError> {
+        self.iroh_relays(true).await
+    }
+
+    async fn iroh_relays(
+        &self,
+        retain_existing: bool,
+    ) -> Result<Vec<px_node_protocol::IrohRelayConfig>, StoreError> {
         let mut transaction = self.pool.begin().await?;
         control::read_gate(&mut transaction).await?;
         let endpoints: Vec<(String, i32, i32)> = sqlx::query_as(
@@ -22,10 +37,15 @@ impl RelayNodeStore {
              WHERE iroh_qad_port IS NOT NULL AND state='ready' AND connection_hash IS NOT NULL \
              AND control_epoch=(SELECT epoch FROM pixels.control_runtime) \
              AND last_seen > clock_timestamp() - interval '30 seconds' \
-             AND NOT disabled AND NOT desired_draining AND reported_draining=false AND deleted_at IS NULL \
-             AND current_connections + 2 <= max_connections \
-             ORDER BY current_connections::numeric / max_connections, id LIMIT 32"
-        ).fetch_all(&mut *transaction).await?;
+             AND NOT disabled AND reported_draining IS NOT NULL AND deleted_at IS NULL \
+             AND current_connections IS NOT NULL AND max_connections IS NOT NULL \
+             AND ($1 OR (NOT desired_draining AND reported_draining=false \
+                 AND current_connections + 2 <= max_connections)) \
+             ORDER BY current_connections::numeric / max_connections, id LIMIT 32",
+        )
+        .bind(retain_existing)
+        .fetch_all(&mut *transaction)
+        .await?;
         transaction.commit().await?;
         endpoints
             .into_iter()

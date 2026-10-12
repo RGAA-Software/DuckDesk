@@ -180,3 +180,11 @@ reset counters restart the baseline. Repeated inventory reads do not keep an old
 rate alive. These observed rates are not configured bandwidth limits or proof of
 balanced endpoint assignment. Compare them with actual home Relay/path logs and
 connection counts before drawing a load-distribution conclusion.
+
+Console and Service distinguish candidates for new endpoints from allowed homes
+for existing endpoints. A full or draining Relay is excluded from new Render
+launches while a running Render may retain its own reported home. The Service
+does not give retained alternatives to a new Render or another Render. Disabled,
+offline, stale or withdrawn Relays are not retained. This requires the paired
+Console/Service protocol update; it does not change the Relay binary or its hard
+connection-admission limits.

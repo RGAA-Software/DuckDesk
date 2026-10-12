@@ -659,12 +659,16 @@ pub enum NodeResponse {
         control_epoch: i64,
         relay: Option<RelayEndpoint>,
         iroh: Option<IrohNetworkConfig>,
+        iroh_retained_relays: Option<Vec<IrohRelayConfig>>,
     },
     Reported {
         request_id: u64,
         state: String,
         endpoint_revision: i64,
         iroh_relays: Option<Vec<IrohRelayConfig>>,
+        /// Only a running Render's already reported home may be retained from
+        /// this set. New endpoints use iroh_relays exclusively.
+        iroh_retained_relays: Option<Vec<IrohRelayConfig>>,
     },
     TelemetryBackfilled {
         request_id: u64,
@@ -808,7 +812,7 @@ impl NodeResponse {
 }
 
 mod strict_empty {
-    use serde::{Deserialize, Deserializer, de::MapAccess};
+    use serde::{de::MapAccess, Deserialize, Deserializer};
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<(), D::Error>
     where
@@ -871,6 +875,7 @@ mod tests {
             control_epoch: 3,
             relay: None,
             iroh: None,
+            iroh_retained_relays: None,
         })
         .unwrap();
         assert!(!response.contains("token"));

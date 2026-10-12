@@ -252,7 +252,8 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
     state
         .management_events
         .publish("nodes", Some(connection.id()));
-    let iroh_configuration = match managed_iroh_configuration(&state).await {
+    let (iroh_configuration, iroh_retained_relays) = match managed_iroh_configuration(&state).await
+    {
         Ok(configuration) => configuration,
         Err(error) => {
             tracing::warn!(%error, "Node iroh configuration unavailable");
@@ -272,6 +273,7 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
             control_epoch: connection.epoch().value(),
             relay: None,
             iroh: iroh_configuration,
+            iroh_retained_relays,
         },
     )
     .await
@@ -292,15 +294,22 @@ async fn session(mut socket: WebSocket, state: Arc<StateData>) {
 
 async fn managed_iroh_configuration(
     state: &StateData,
-) -> Result<Option<px_node_protocol::IrohNetworkConfig>, ApiError> {
+) -> Result<
+    (
+        Option<px_node_protocol::IrohNetworkConfig>,
+        Option<Vec<px_node_protocol::IrohRelayConfig>>,
+    ),
+    ApiError,
+> {
     let Some(mut configuration) = state.iroh.clone() else {
-        return Ok(None);
+        return Ok((None, None));
     };
     configuration.relays = state.db.relay_nodes().available_iroh_relays().await?;
     if !configuration.is_valid() {
         return Err(ApiError::Unavailable);
     }
-    Ok(Some(configuration))
+    let retained_relays = state.db.relay_nodes().retained_iroh_relays().await?;
+    Ok((Some(configuration), Some(retained_relays)))
 }
 
 async fn run_authenticated(
@@ -375,6 +384,11 @@ async fn operation(
                     endpoint_revision: node.endpoint_revision,
                     iroh_relays: if state.iroh.is_some() {
                         Some(state.db.relay_nodes().available_iroh_relays().await?)
+                    } else {
+                        None
+                    },
+                    iroh_retained_relays: if state.iroh.is_some() {
+                        Some(state.db.relay_nodes().retained_iroh_relays().await?)
                     } else {
                         None
                     },

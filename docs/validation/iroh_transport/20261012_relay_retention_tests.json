@@ -1,0 +1,28 @@
+{
+  "scope": "local policy contracts, PostgreSQL and Console WebSocket, not deployed media/scale acceptance",
+  "state": "passed",
+  "distinct_test_count": 28,
+  "protocol_tests": 6,
+  "service_tests": 8,
+  "relay_store_tests": 4,
+  "node_control_tests": 3,
+  "postgres_reports": [
+    {
+      "path": "test-results/server_validation/pg-20261012-155206-0239e557/report.json",
+      "sha256": "BF522AAF900DFEF0EF407EC7CB04F98EAC780F293D5173E60EB5D4258A68334A",
+      "bytes": 164912
+    },
+    {
+      "path": "test-results/server_validation/pg-20261012-155913-7b440392/report.json",
+      "sha256": "083F1BC0D053A5589E88C863BE8B475FAE780A195C85CC79573B8A9D47DD8A9B",
+      "bytes": 164765
+    }
+  ],
+  "service_log": {
+    "path": "docs/validation/iroh_transport/20261012_relay_retention_service_tests.log",
+    "sha256": "A81205EF8261EF9DA3861774A10DC1D48AC17D17B4C91B4A7D86708B2CD930DA",
+    "bytes": 1940
+  },
+  "network_test_count": 21,
+  "distribution_tests": 7
+}

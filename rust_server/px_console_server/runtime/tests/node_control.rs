@@ -18,6 +18,130 @@ use uuid::Uuid;
 
 const FIXTURE_KIND: &str = "node_control";
 
+#[tokio::test]
+async fn iroh_reports_keep_full_and_draining_homes_out_of_new_endpoint_candidates() {
+    let runtime = fixture::start_with_iroh().await;
+    let router = runtime.router();
+    let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
+    let (relay_status, relay_registration) = call(
+        &router,
+        "POST",
+        "/api/console/managed/relays",
+        "admin_web",
+        Some(&admin),
+        json!({"name":"retained-home", "public_host":"relay.example.test", "public_port":4605}),
+    )
+    .await;
+    assert_eq!(relay_status.as_u16(), 201);
+    let relay_id = relay_registration["relay"]["id"].as_str().unwrap();
+    let (_, relay_configuration) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/relays/{relay_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":relay_registration["relay"]["revision"],
+            "configuration":{"draining":false,"disabled":false}}),
+    )
+    .await;
+    let (device_status, device) = call(
+        &router,
+        "POST",
+        "/api/console/managed/devices",
+        "admin_web",
+        Some(&admin),
+        json!({"name":"retention-node", "platform":"windows"}),
+    )
+    .await;
+    assert_eq!(device_status.as_u16(), 201);
+    let (node_status, node) = call(
+        &router,
+        "POST",
+        "/api/console/managed/nodes",
+        "admin_web",
+        Some(&admin),
+        json!({"device_id":device["device"]["id"], "product":"cloud_node", "max_instances":4}),
+    )
+    .await;
+    assert_eq!(node_status.as_u16(), 201);
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server_stop = CancellationToken::new();
+    let shutdown_signal = server_stop.clone();
+    let server_router = router.clone();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            server_router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown_signal.cancelled_owned())
+        .await
+    });
+    let (mut relay_socket, _) = connect_async(format!("ws://{address}/api/console/relay-control"))
+        .await
+        .unwrap();
+    let authenticated_relay = exchange(
+        &mut relay_socket,
+        json!({"type":"authenticate", "request_id":1,
+        "relay_token":relay_registration["relay_token"]}),
+    )
+    .await;
+    assert_eq!(authenticated_relay["type"], "authenticated");
+    let relay_report = |request_id, sequence, draining, current_connections| {
+        json!({
+            "type":"report", "request_id":request_id, "report":{
+                "sequence":sequence, "product_version_code":3002001, "draining":draining,
+                "max_connections":2, "current_connections":current_connections,
+                "max_rooms":null, "current_rooms":null, "iroh_qad_port":4605,
+                "uploaded_bytes":1000, "forwarded_bytes":1000
+            }
+        })
+    };
+    let full_relay = exchange(&mut relay_socket, relay_report(2, 1, false, 2)).await;
+    assert_eq!(full_relay["type"], "reported");
+    let (mut node_socket, _) = connect_async(format!("ws://{address}/api/console/node-control"))
+        .await
+        .unwrap();
+    let authenticated_node = exchange(
+        &mut node_socket,
+        json!({"type":"authenticate", "request_id":1,
+        "node_token":node["node_token"]}),
+    )
+    .await;
+    assert_eq!(authenticated_node["type"], "authenticated");
+    assert_eq!(authenticated_node["iroh"]["relays"], json!([]));
+    let retained_home = json!([{"url":"https://relay.example.test:4605/", "qad_port":4605}]);
+    assert_eq!(authenticated_node["iroh_retained_relays"], retained_home);
+    let reported_node = exchange(&mut node_socket, telemetry_report(2, 1, 100)).await;
+    assert_eq!(reported_node["type"], "reported");
+    assert_eq!(reported_node["iroh_relays"], json!([]));
+    assert_eq!(reported_node["iroh_retained_relays"], retained_home);
+    let draining_relay = exchange(&mut relay_socket, relay_report(3, 2, true, 0)).await;
+    assert_eq!(draining_relay["type"], "reported");
+    let draining_node = exchange(&mut node_socket, telemetry_report(3, 2, 100)).await;
+    assert_eq!(draining_node["iroh_relays"], json!([]));
+    assert_eq!(draining_node["iroh_retained_relays"], retained_home);
+    let (disable_status, _) = call(
+        &router,
+        "PATCH",
+        &format!("/api/console/managed/relays/{relay_id}"),
+        "admin_web",
+        Some(&admin),
+        json!({"revision":relay_configuration["revision"],
+            "configuration":{"draining":true,"disabled":true}}),
+    )
+    .await;
+    assert_eq!(disable_status.as_u16(), 200);
+    let disabled_node = exchange(&mut node_socket, telemetry_report(4, 3, 100)).await;
+    assert_eq!(disabled_node["iroh_relays"], json!([]));
+    assert_eq!(disabled_node["iroh_retained_relays"], json!([]));
+    node_socket.close(None).await.unwrap();
+    relay_socket.close(None).await.unwrap();
+    server_stop.cancel();
+    server.await.unwrap().unwrap();
+    runtime.shutdown().await;
+}
+
 async fn exchange<S>(socket: &mut S, request: Value) -> Value
 where
     S: futures_util::Sink<Message, Error = tokio_tungstenite::tungstenite::Error>
