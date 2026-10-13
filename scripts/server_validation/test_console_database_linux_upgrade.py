@@ -55,6 +55,13 @@ try:
         raise RuntimeError('Owned PostgreSQL readiness timed out')
     request = {'postgresql_host': postgres_container, 'postgresql_port': 5432, 'postgresql_administrator': 'postgres', 'postgresql_password': postgres_password, 'public_host': '127.0.0.1', 'initial_username': 'Pixels', 'initial_password': secrets.token_urlsafe(32)}
     initialized = run_server_image(['/opt/pixels/bin/px_console_admin', 'initialize-single-server', '/etc/pixels', '/var/lib/pixels', '/opt/pixels', '/opt/pixels', 'linux'], json.dumps(request))
+    log_permissions = run_server_image(['stat', '--format=%u:%g:%a', '/var/lib/pixels/logs']).stdout.strip()
+    if log_permissions != '10001:10001:700':
+        raise RuntimeError('Console persistent log directory has incorrect ownership')
+    run_docker_command(['docker', 'run', '--rm', '--user', '10001:10001', '--mount', 'type=volume,source=' + state_volume + ',target=/var/lib/pixels', arguments.image,
+        'bash', '-c', 'printf "console-log-permission-check\\n" >> /var/lib/pixels/logs/console.log'])
+    validation_report['console_log_permissions'] = log_permissions
+    validation_report['console_uid_log_write_passed'] = True
     original_backup_configuration = json.loads(run_server_image(['cat', '/etc/pixels/backup.json']).stdout)
     console_identity_hashes = run_server_image(['sha256sum', '/etc/pixels/console.env', '/etc/pixels/console-ca.crt']).stdout
     backup_ownership = run_server_image(['stat', '--format=%u:%g:%a', '/etc/pixels/backup.json']).stdout

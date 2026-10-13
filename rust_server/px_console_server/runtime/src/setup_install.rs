@@ -404,7 +404,7 @@ pub async fn initialize_single_server(
             &layout.config_root.join("backup.env"),
             b"# Backup loads its settings from backup.json.\n",
         )
-            .map_err(|_| SingleServerSetupError::Private)?;
+        .map_err(|_| SingleServerSetupError::Private)?;
         assign_linux_service_permissions(layout)?;
         let marker = layout.config_root.join("setup.ready");
         fs::write(&marker, b"ready\n").map_err(|_| SingleServerSetupError::Private)?;
@@ -487,6 +487,9 @@ fn assign_linux_service_permissions(
     for relative_path in ["backup/repository", "backup/scheduler", "backup/status"] {
         assign(layout.data_root.join(relative_path), 10003, 0o700)?;
     }
+    let log_directory = layout.data_root.join("logs");
+    fs::create_dir_all(&log_directory).map_err(|_| SingleServerSetupError::Private)?;
+    assign(log_directory, 10001, 0o700)?;
     Ok(())
 }
 

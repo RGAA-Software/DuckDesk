@@ -4,6 +4,13 @@ set -euo pipefail
 configuration_root=/etc/pixels
 administrator=/opt/pixels/bin/px_console_admin
 backup_configuration="$configuration_root/backup.json"
+log_directory=/var/lib/pixels/logs
+
+[[ ! -L "$log_directory" && ( ! -e "$log_directory" || -d "$log_directory" ) ]] || {
+    echo 'Console log directory must be a regular directory.' >&2
+    exit 1
+}
+install -d -m 700 -o 10001 -g 10001 "$log_directory"
 
 # Fresh initialization is performed by setup-server, not by the upgrade path.
 [[ -f "$configuration_root/setup.complete" ]] || exit 0

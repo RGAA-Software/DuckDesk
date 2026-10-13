@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，CN Linux Server 安装和覆盖升级完成
+
+用户选择CN，公网端口已放行。完成Server1.0.56完整fast-release候选安装/同包覆盖，18jobs、41项候选SHA和5程序实际身份通过；完整包SHA ec3ee1fb…，镜像8b88bc98…，项目pixels-server-cn，目录/opt/pixels/server-cn，Console https://49.232.190.218:4600。独立PG18.6/新卷仅127.0.0.1:5432，原7业务容器ID/镜像/启动时间相等；BJ无Server安装，90不迁移。新部署897996a2…使用包内4路授权。
+
+实际发现并修复Linux日志目录未创建/授10001写权限导致Console启动失败，以及deploy.sh对未完成初始化误走Backup升级；完整修复包接续完成，没有重建配置/DB。当前日志10001:10001/700，覆盖42→42/Backup42，18个不可变配置SHA相等，Backup JSON字节格式变化但规范化内容相等。Console/Relay/Backup/PG运行，Backup连接true、告警空、恢复集verified。
+
+按既有配置开启受管理iroh Relay TCP/UDP4605，UFW仅增加相应端口。公网强制Relay的4可靠往返/双向各4数据报及2MiB/20s约0.851Mbps校验通过，所有owned probe退出，Relay连接0/fresh/ready/QAD4605。没有CN真实视频FPS/最大带宽验收或Windows节点迁移，4Mbps接受边界保持。真实Linux UID日志写入、隔离41→42/重复/异常拒绝、清理及脚本/格式检查通过。完整身份、失败样本和限制见[CN报告](20261013_cn_linux_server_report.md)和[交付身份](20261013_cn_linux_server_delivery.json)。Android/Company、短顿/NIC/饱和混传继续排除，Remote独立安装仍待目标。
+
 ## 最新接续：2026-10-13，最新改动的 Windows 完整安装候选验收完成
 
 用户已授权并完成正式包制作及本机/90少量Setup覆盖验证。源码1882ac301、候选network-publication-20261013-1882ac301，优化Release/18jobs：Server1.0.56/35项、Node3.3.97/314项、Client3.3.81/41项、Remote3.3.79/76项完整Setup与SHA通过；90 Server→Node、本机Client首次安装→同版本覆盖均exit0。Remote因桌面产品互斥未独立安装，不卸载已有产品来扩验收；未升版、未发布外部更新源，六开发Client/Panel保持。

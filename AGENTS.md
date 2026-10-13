@@ -1,5 +1,20 @@
 # Workspace delivery rules
 
+- CN Linux Server delivery (2026-10-13): complete fast-release 1.0.56 Compose installation/overwrite accepted
+  on CN with an independent PostgreSQL 18.6 volume and loopback 5432. Reuse
+  docs/validation/iroh_transport/20261013_cn_linux_server_report.md. Log-directory provisioning and partial-setup
+  retry defects are fixed; logs 10001:10001/700, schema 42 and 18 immutable configuration hashes retained.
+  Managed iroh Relay 4605 passed low-rate reliable/datagram checks, not video FPS or throughput capacity.
+  Original 7 business containers unchanged; BJ/90 not migrated. CN is a separate 4-stream starter deployment.
+  Keep Company/Android and paused investigations excluded; do not repeat completed installation gates.
+
+- Linux Server target decision (2026-10-13, latest): the user selected CN instead of BJ for Linux Server.
+  BJ was inspected only; no Server installation or new services were started there. Preserve BJ Relay on 4605
+  and its 90 Console registration/configuration. CN has approximately 4 Mbps bandwidth: use it for Server
+  installation/overwrite and low-bandwidth connectivity, without throughput or 60 FPS acceptance targets.
+  CN needs TCP 4600 for Console, SSH access and TCP/UDP 4605 for bundled Relay connectivity when tested.
+  Keep PostgreSQL 5432 local. Do not migrate or redirect the existing 90 deployment.
+
 - Latest Windows installation candidates (2026-10-13): user-authorized optimized complete Setup candidates
   network-publication-20261013-1882ac301 are accepted: Server then Cloud Node on 90, Client first install then
   same-version overwrite locally. Four Setup exits0, all payload SHA checks and six optimized Client CTest pass.

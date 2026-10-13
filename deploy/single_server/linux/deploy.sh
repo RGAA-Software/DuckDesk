@@ -42,7 +42,7 @@ docker load --input "$archive_name"
 docker image inspect "$(python3 -c 'import json; print(json.load(open("sha256.json"))["image"])')" >/dev/null
 docker compose config --quiet
 docker compose run --rm --no-deps -T --user 0:0 setup \
-    /opt/pixels/bin/px_console_admin upgrade-backup-control /etc/pixels linux
+    /bin/bash -c 'if [[ -f /etc/pixels/setup.complete ]]; then exec /opt/pixels/bin/px_console_admin upgrade-backup-control /etc/pixels linux; fi'
 docker compose stop console backup
 docker compose run --rm --no-deps -T --user 0:0 setup \
     /bin/bash /opt/pixels/upgrade_console_database.sh

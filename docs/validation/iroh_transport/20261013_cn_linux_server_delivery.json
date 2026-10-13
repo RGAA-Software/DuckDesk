@@ -1,0 +1,310 @@
+{
+  "host": "CN",
+  "address": "49.232.190.218",
+  "os": "Ubuntu24.04.4 x86_64",
+  "console": "https://49.232.190.218:4600",
+  "deployment_id": "897996a2-6f29-43a0-ab60-7f5a507404f7",
+  "suite_version": "1.0.56",
+  "build_profile": "fast-release",
+  "build_jobs": 18,
+  "package_path": ".cache/cn-server-20261013/PixelsServer_1.0.56_Linux.tar.gz",
+  "package": {
+    "sha256": "ec3ee1fb17513425f90c0bdb20bff65a55112fca7b5c348b6030faa038d4eced",
+    "bytes": 55744363
+  },
+  "image_archive_sha256": "3dcc74060b571841ba539ea061ab919cc4a940b47627f74cb248a71123faaeb2",
+  "server_image_id": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+  "runtime_hashes": {
+    "bin/px_backup": "97EFECDBB14A74607A7396EF495ABCF7984FB82F168A4C0B2C4979799C8DD1CA",
+    "bin/px_console": "233BC2165C76685345C8790C2D4F247EBBDA2A343CF1E75F1C1CA196903AAF9D",
+    "bin/px_console_admin": "0A3EEF3100DF8EBEBC16EFC9376FE57C0580CCC837ED98094F6D2C6574D6ABD4",
+    "bin/px_db": "F84800DA9D83C2CC30B7D3D02E612F47453A5D07DC5DF4274FB83CC49A76BEF1",
+    "bin/px_relay": "D578FFCC20F18BA89E8F72D7A0B07327D718177272D16CB2A6854B35BD487825"
+  },
+  "candidate_artifacts_verified": 41,
+  "compose_project": "pixels-server-cn",
+  "directory": "/opt/pixels/server-cn",
+  "postgresql": {
+    "version": "18.6",
+    "compose_project": "pixels-server-cn-postgres",
+    "directory": "/opt/pixels/server-cn-postgres",
+    "new_data_volume": "pixels-server-cn-postgres_postgres_data",
+    "binding": "127.0.0.1:5432",
+    "image_id": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+    "existing_auth_database_used": false
+  },
+  "persistent_volumes": [
+    "pixels-server-cn_pixels_config",
+    "pixels-server-cn_pixels_data"
+  ],
+  "ports": {
+    "console_tcp": 4600,
+    "relay_tcp": 4605,
+    "relay_udp": 4605,
+    "postgresql_loopback_only": 5432
+  },
+  "ufw_additions": [
+    "4600/tcp",
+    "4605/tcp",
+    "4605/udp"
+  ],
+  "license": {
+    "id": "255414cd-ae99-492c-8bb5-3eca2cbe2d72",
+    "max_streams": 4,
+    "separate_deployment": true
+  },
+  "backup": {
+    "connected": true,
+    "reported_at_unix": 1791897431,
+    "status": {
+      "active_task": null,
+      "alerts": [],
+      "consecutive_failures": 0,
+      "deployment_id": "897996a2-6f29-43a0-ab60-7f5a507404f7",
+      "last_failure_code": null,
+      "last_local_recovery_set_id": "0bc5f171-df0e-477c-8307-5dade3f54254",
+      "last_offsite_recovery_set_id": null,
+      "last_recovery_set_id": "0bc5f171-df0e-477c-8307-5dade3f54254",
+      "last_success_at_unix": 1791895872,
+      "offsite_configured": false,
+      "offsite_repository_healthy": false,
+      "overdue": false,
+      "recent_recovery_sets": [
+        {
+          "checked_at_unix": 1791897421,
+          "completed_at_unix": 1791895872,
+          "created_at_unix": 1791895872,
+          "kind": "independent",
+          "recovery_set_id": "0bc5f171-df0e-477c-8307-5dade3f54254",
+          "retention": [
+            "daily"
+          ],
+          "status": "verified"
+        }
+      ],
+      "scheduler_revision": 3,
+      "schema_version": 3,
+      "service_started_at_unix": 1791897301,
+      "updated_at_unix": 1791897421
+    }
+  },
+  "relay": {
+    "bandwidth_capacity_mbps": null,
+    "control_epoch": 3,
+    "current_connections": 0,
+    "current_rooms": null,
+    "desired_draining": false,
+    "disabled": false,
+    "forwarded_bytes": 2188020,
+    "forwarded_rate_bps": 0,
+    "fresh": true,
+    "generation": 4,
+    "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+    "iroh_qad_port": 4605,
+    "last_seen": "2026-10-13T13:17:11.302839Z",
+    "max_connections": 4096,
+    "max_rooms": null,
+    "name": "Single Server Relay",
+    "product_version_code": 3002001,
+    "public_host": "49.232.190.218",
+    "public_port": 4605,
+    "report_sequence": 26,
+    "reported_draining": false,
+    "revision": 2,
+    "state": "ready",
+    "uploaded_bytes": 2188081
+  },
+  "native_state": {
+    "original_containers_unchanged": [
+      {
+        "id": "df5d2dba18ef6845fe627767da17836145a7fdb9739ebf929ff75cbbba3fef7d",
+        "name": "/pixels-agent-bridge-site-site-1",
+        "image": "sha256:51137a085ad570d50445868705608538c90bb00e75959cef548b8fb61b384c42",
+        "started_at": "2026-10-13T09:44:45.620025023Z"
+      },
+      {
+        "id": "c5f4f5e8d1127f8c51d0c9791e19f63e1b358758f9cae11e0b6f544b73d97b84",
+        "name": "/pixels-agent-bridge-relay-1",
+        "image": "sha256:deaf862f84c37c42746198e7eb0409701ba5fc7275f7690ca4f153da60cdea99",
+        "started_at": "2026-10-10T01:25:43.776406017Z"
+      },
+      {
+        "id": "3f1bf4cb6fcda283b6cf59eb56d9d53ef864c10bf7e62d1b368487e99809a534",
+        "name": "/pixels-agent-bridge-backend-1",
+        "image": "sha256:deaf862f84c37c42746198e7eb0409701ba5fc7275f7690ca4f153da60cdea99",
+        "started_at": "2026-10-10T01:25:38.109940321Z"
+      },
+      {
+        "id": "90295a9ed616c3d3e2d242b8a70911186762cac28a91d9b31712896da5836029",
+        "name": "/pixels-agent-bridge-postgres-1",
+        "image": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+        "started_at": "2026-09-22T10:26:50.082701809Z"
+      },
+      {
+        "id": "3072e64302972b2cfd6f5ff118db075075cfaae1e38332ffd3205c1104a6a9b7",
+        "name": "/pixels-auth-postgres",
+        "image": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+        "started_at": "2026-09-21T07:57:55.556974921Z"
+      },
+      {
+        "id": "89669615e2894cbafb6119abb37d1faa837d3ab8f44d4361a291e271acd0ff07",
+        "name": "/aini-web-1",
+        "image": "sha256:84eef5b9060cc2aa87fb38d4ec0cda75b47471219324715be3d6f2503f28bd95",
+        "started_at": "2026-09-14T15:45:22.932936464Z"
+      },
+      {
+        "id": "50871f6e271b6ff8bdab40ac7ab6ec89a7027256cf275128a3f6382e9d692fd3",
+        "name": "/aini-api-1",
+        "image": "sha256:fb229584a8f70e0f868553adfa4c5e6ab0b4dec9275de53244df7013a941d3a9",
+        "started_at": "2026-09-14T15:45:22.76414419Z"
+      }
+    ],
+    "server_containers": [
+      {
+        "name": "pixels-server-cn-console-1",
+        "image_id": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:15:01.040221273Z",
+        "state": "running"
+      },
+      {
+        "name": "pixels-server-cn-relay-1",
+        "image_id": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:11:24.149226261Z",
+        "state": "running"
+      },
+      {
+        "name": "pixels-server-cn-backup-1",
+        "image_id": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:15:01.172067734Z",
+        "state": "running"
+      },
+      {
+        "name": "pixels-server-cn-postgres-postgres-1",
+        "image_id": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+        "started_at": "2026-10-13T12:50:38.13569902Z",
+        "state": "running"
+      }
+    ],
+    "package_files_verified": 5,
+    "server_image_id": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+    "cover": {
+      "configurations_retained": true,
+      "immutable_config_count": 18,
+      "backup_semantics_retained": true,
+      "backup_schema": 42,
+      "hashes": {
+        "iroh-relay.json": "ebc7bc2e9ca3c6647684cf030817346cb372845a334dc866edae7b403be13807",
+        "backup.env": "c73b7c940010dae64374376932e30ae035f398ee206792e05cf1b3ea2b911f5c",
+        "backup.json": "8b4c6e054e7e033a4c042eacb30ca5491e4379eb88c9438c75afef429882a171",
+        "relay.env": "b88b38b2cd2dd658c58d7b012cc0e30229833a30a09173ae1863e60236993bd2",
+        "setup.ready": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+        "workspace.key": "5cf2c5f6bc1db7a993a0e692496250e033283a9ce2ca2f4852a635d8294bec98",
+        "console-ca.crt": "2b5e7182f91cdd4c08c4bd808b47cd8b706318b0d48b416734cd8d1a9db50ce0",
+        "license-trust.json": "dfac467036c435aa0d811ce00897d3226836a2c7a2f9d6f48298ab70c4d9a691",
+        "console-tls.key": "80a5ac047824b8daf369b32de46174c2de3c735f2a019d31a75f4cfd56fd77ad",
+        "guest-source.key": "0d4d30d2504ccc07ce00d46be012c4a770482987b2d386b88165ef1d35bbadd7",
+        "relay.ready": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+        "setup.complete": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+        "console.env": "9ba49313fa261bcb3d8aed8bbf0f4254ef9a3829683552139189c76ca2ab46f5",
+        "console-tls.crt": "445e3bee5cf66c8229922a9789ff50a045e8157eb1209d40ba5308c260b58c57",
+        "backup/console.pgpass": "290475c2368fd9b843c2d5aa72d784697a78781b193bb632a0585468a38b58d7",
+        "relay-tls/relay.key": "80a5ac047824b8daf369b32de46174c2de3c735f2a019d31a75f4cfd56fd77ad",
+        "relay-tls/relay.crt": "445e3bee5cf66c8229922a9789ff50a045e8157eb1209d40ba5308c260b58c57",
+        "database-upgrade/console-owner.url": "b5a9c2878fb6ed60aacc3260a4aa24141947a9a102c3260fe307a926a286dd50",
+        "console/license/console.license": "718e645666f34377722226af29c180a83d00b3c35ae74541a0f0b9a384ca8d41"
+      },
+      "raw_backup_hash_changed": true
+    }
+  },
+  "probe": {
+    "scope": "CN public managed Relay low-rate reliable and datagram connectivity",
+    "throughput_capacity_test": false,
+    "owned_pid": 89140,
+    "ready": {
+      "endpoint_address": {
+        "addrs": [
+          {
+            "Relay": "https://49.232.190.218:4605/"
+          }
+        ],
+        "id": "f535af3b11a0e3ced16c51b67fb00c86d77fc0ceefa9d0f84ecf4414517ca78e"
+      },
+      "endpoint_configuration": {
+        "ca_certificates_pem": [
+          "SHA256:2b5e7182f91cdd4c08c4bd808b47cd8b706318b0d48b416734cd8d1a9db50ce0"
+        ],
+        "relay_only": true,
+        "relays": [
+          {
+            "qad_port": 4605,
+            "url": "https://49.232.190.218:4605/"
+          }
+        ]
+      }
+    },
+    "round_trip": {
+      "admission_scope": "console-candidate-filter",
+      "datagrams_each_direction": 4,
+      "home": "https://49.232.190.218:4605/",
+      "new_endpoint_denied": false,
+      "phase": "bandwidth",
+      "reliable_round_trips": 4,
+      "same_endpoint_identities": true,
+      "same_quic_connections": true,
+      "same_reliable_stream": true
+    },
+    "paced_reliable": {
+      "duration_ms": 20000,
+      "reliable_bytes_verified": 2097152
+    },
+    "paced_elapsed_seconds": 19.71876149997115,
+    "released": null,
+    "passed": true,
+    "owned_probe_stopped": true
+  },
+  "regression": {
+    "image": "pixels-server:1.0.56",
+    "scope": "real-linux-image-cli-isolated-postgresql",
+    "remote_linux_installation": false,
+    "console_log_permissions": "10001:10001:700",
+    "console_uid_log_write_passed": true,
+    "upgrade_output": "UPGRADE_READY current=41 target=42\nSCHEMA_READY version=42\n",
+    "from_schema": 41,
+    "to_schema": 42,
+    "backup_schema": 42,
+    "other_backup_fields_equal": true,
+    "console_config_hashes_equal": true,
+    "backup_ownership": "10003:10003:600",
+    "repeat_output": "UPGRADE_READY current=42 target=42\nSCHEMA_READY version=42\n",
+    "invalid_backup_rejected_before_mutation": true,
+    "pass": true,
+    "owned_resources_removed": true
+  },
+  "transfer": {
+    "destination": "/home/ubuntu/pixels-server-stage-20261013/repair-v2/PixelsServer_1.0.56_Linux.tar.gz",
+    "bytes": 55744363,
+    "sha256": "ec3ee1fb17513425f90c0bdb20bff65a55112fca7b5c348b6030faa038d4eced",
+    "verified": true,
+    "host": "49.232.190.218"
+  },
+  "source_base_revision": "3506dedbf69f132b4aaca95b309d26c443191fe8",
+  "changes": [
+    "Linux initial setup creates10001:10001/700 persistent Console log directory",
+    "Linux upgrade helper repairs Console log directory before startup",
+    "Compose only upgrades Backup control configuration after setup.complete; incomplete initialization resumes normally"
+  ],
+  "retained_failure_samples": [
+    "initial Console permission denied: logs directory was not provisioned",
+    "initial repair blocked by completed-install upgrade on partial initialization",
+    "missing cached PostgreSQL tag; exact18.6 image reused in a new independent volume",
+    "build cache mount obscured cargo shim; changed cache mount location",
+    "public Console initially blocked by existing host UFW; additive port rules applied"
+  ],
+  "runtime_credentials_excluded_from_git": true,
+  "bj_server_installed": false,
+  "existing90_migrated": false,
+  "android": false,
+  "company": false,
+  "new_transport_tokens": false,
+  "throughput_or_60fps_acceptance": false
+}
