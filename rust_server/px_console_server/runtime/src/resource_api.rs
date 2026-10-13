@@ -1,13 +1,13 @@
 use crate::{
-    StateData,
     error::ApiError,
     request::{self, Input, Page, Params as Query, Revision, Route as Path},
+    StateData,
 };
 use axum::{
-    Json, Router,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, post},
+    Json, Router,
 };
 use px_console_store::{
     ApplicationInstance, OpenResourceSession, ResourceDescriptor, ResourceSession, SessionTarget,
@@ -44,6 +44,7 @@ struct RelayFrontendBootstrap {
 #[derive(serde::Serialize)]
 struct DescriptorResponse {
     descriptor: ResourceDescriptor,
+    iroh_relay_names: std::collections::BTreeMap<String, String>,
     #[serde(serialize_with = "serialize_secret")]
     token: Zeroizing<String>,
     relay: Option<RelayFrontendBootstrap>,
@@ -320,6 +321,11 @@ async fn descriptor(
         None
     };
     Ok(Json(DescriptorResponse {
+        iroh_relay_names: if descriptor.iroh.is_some() {
+            state.db.relay_nodes().iroh_relay_names().await?
+        } else {
+            std::collections::BTreeMap::new()
+        },
         descriptor,
         token,
         relay,

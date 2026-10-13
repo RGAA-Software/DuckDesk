@@ -1,0 +1,380 @@
+{
+  "date": "2026-10-13",
+  "base_commit_pushed": "7eaeb13a6db78f033375a30f92d546c16cf34ca1",
+  "scope": "Linux upgrade delivery, Relay display metadata and independent Client preference acceptance",
+  "runtime_distribution": "fast Release development updates; no new Windows Setup publication",
+  "local_runtime_delivery": [
+    {
+      "product": "client",
+      "runtime": "px_client.exe",
+      "sha256": "ca46d4ea8284968af3683b4553669e00cbaac2c9fe099da099cc62c2a94ecb82",
+      "matching_build": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe"
+    },
+    {
+      "product": "client",
+      "runtime": "px_panel.exe",
+      "sha256": "5d3f167f1a6f128e3770854bdac5c0aaa4853bd19107885de546831154ae360e",
+      "matching_build": "build_official\\client\\cmake\\src\\px_deps\\px_panel.exe"
+    },
+    {
+      "product": "cloud_node",
+      "runtime": "px_client.exe",
+      "sha256": "eef934b09a531f5306ab89cb0a17295bcea26a0be46f01bdf32a423b6d32853a",
+      "matching_build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe"
+    },
+    {
+      "product": "cloud_node",
+      "runtime": "px_panel.exe",
+      "sha256": "8608295a80ee7ba72daff338cc05766128e60dfd7c211d6a10116d0916ba6ae1",
+      "matching_build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe"
+    },
+    {
+      "product": "remote",
+      "runtime": "px_client.exe",
+      "sha256": "a403443bca15ddbdbefea4355e4b092f84f8bd62948e998cbffdec60e441da33",
+      "matching_build": "build_official\\remote\\cmake\\src\\px_deps\\px_client.exe"
+    },
+    {
+      "product": "remote",
+      "runtime": "px_panel.exe",
+      "sha256": "c42c45cf9ded28082918000679eae7c52e86c61f6fd415c2e1c3f45f2c11aa3c",
+      "matching_build": "build_official\\remote\\cmake\\src\\px_deps\\px_panel.exe"
+    }
+  ],
+  "windows_console_delivery": {
+    "state": "published",
+    "service": "Pixels.Console",
+    "runtime_sha256": "EBC1A4C63942346B01E99FB47058277218D0323DE30491C730179E17A779F6E6",
+    "manifest_sha256": "667D6B98365044FF8B11F6552D50504C677E1704EACF8CD7B4DA61838DE832F5",
+    "verified_artifacts": 36,
+    "backup_directory": "D:\\112233\\network-followup-20261013\\console\\before-8deb258489e24b00a9d6a51dc2491df3",
+    "service_state": "Running"
+  },
+  "windows_node_delivery": {
+    "state": "published",
+    "backup_directory": "D:\\112233\\network-followup-20261013\\node\\before-4aab4f98f2514df292c184a0680698da",
+    "files_verified": 315,
+    "panel_sha256": "8608295A80EE7BA72DAFF338CC05766128E60DFD7C211D6A10116D0916BA6AE1",
+    "manifest_sha256": "E295C2EA3C759536BA431C27321BE8405FF3F3974AED5FABFC64206BA2F0365C"
+  },
+  "final_server_manifest_sha256": "457d8bab2ffdc8047f9614b62a41eb248fa9bbfc0572899e2af5dc288b520932",
+  "database_tool_sha256": "f2c711f55a02eaac5ae99ad3047d5385cc3b2ec56b3d3cd8d771f3fbd5bc1951",
+  "linux": {
+    "image": "pixels-server:1.0.56",
+    "image_id": "sha256:51960340e5b346b2da5844b1ec2ce0593aef3fdea92963d974c1aff8a4294f90",
+    "candidate_verified_files": 41,
+    "candidate_manifest": {
+      "path": ".cache\\linux-server-followup-20261013\\candidate-fixed\\sha256.json",
+      "bytes": 4626,
+      "sha256": "408917d2b712635c17e75d3d3418a9bb247224aaa42ca8658286cfcaa8a49429"
+    },
+    "runtime_binary_hashes": {
+      "px_console": {
+        "path": ".cache\\linux-server-followup-20261013\\bin\\px_console",
+        "bytes": 21620472,
+        "sha256": "099321d1de66fae6fe1d3de96ffb73a63fb7247df67b9526a5f78fa338910d4c"
+      },
+      "px_console_admin": {
+        "path": ".cache\\linux-server-followup-20261013\\bin\\px_console_admin",
+        "bytes": 11918144,
+        "sha256": "f3ccbfd5b1105b8a0c75627cd19b1df4f85899181c92d8b3a2022106ea56a3b2"
+      },
+      "px_db": {
+        "path": ".cache\\linux-server-followup-20261013\\bin\\px_db",
+        "bytes": 6084712,
+        "sha256": "f84800da9d83c2cc30b7d3d02e612f47453a5d07dc5df4274fb83cc49a76bef1"
+      },
+      "px_relay": {
+        "path": ".cache\\linux-server-followup-20261013\\bin\\px_relay",
+        "bytes": 16374656,
+        "sha256": "d578ffcc20f18ba89e8f72d7a0b07327d718177272d16cb2a6854b35bd487825"
+      },
+      "px_backup": {
+        "path": ".cache\\linux-server-followup-20261013\\bin\\px_backup",
+        "bytes": 6028792,
+        "sha256": "97efecdbb14a74607a7396ef495abcf7984fb82f168a4c0b2c4979799c8dd1ca"
+      }
+    },
+    "image_archive": {
+      "path": ".cache\\linux-server-followup-20261013\\pixels-server-1.0.56.tar",
+      "bytes": 56159744,
+      "sha256": "ee27b07f189bd805177cee3d939ea8b25d815e5181d3d1dddd4ca4b623045add"
+    },
+    "compose_bundle": {
+      "path": ".cache\\linux-server-followup-20261013\\PixelsServer_1.0.56_Linux.tar.gz",
+      "bytes": 55744558,
+      "sha256": "989a51b043223343dc9e7b70e732565e7d5d48df311f0a56487c69813561aab9"
+    },
+    "upgrade_acceptance": {
+      "image": "pixels-server:1.0.56",
+      "scope": "real-linux-image-cli-isolated-postgresql",
+      "remote_linux_installation": false,
+      "upgrade_output": "UPGRADE_READY current=41 target=42\nSCHEMA_READY version=42\n",
+      "from_schema": 41,
+      "to_schema": 42,
+      "backup_schema": 42,
+      "other_backup_fields_equal": true,
+      "console_config_hashes_equal": true,
+      "backup_ownership": "10003:10003:600",
+      "repeat_output": "UPGRADE_READY current=42 target=42\nSCHEMA_READY version=42\n",
+      "invalid_backup_rejected_before_mutation": true,
+      "pass": true,
+      "owned_resources_removed": true
+    },
+    "remote_server_upgrade_accepted": false
+  },
+  "relay_names": {
+    "source": "existing authenticated resource descriptor response, separate display dictionary",
+    "known_selected_url": "https://39.71.45.66:4605/",
+    "displayed_name": "Single Server Relay",
+    "does_not_modify_endpoint_configuration": true,
+    "unrelated_or_unknown_name_falls_back_to_actual_address": true,
+    "render_reports_without_names_keep_original_wire_fields": true,
+    "android_descriptor_reader": "JSONObject optional named fields; no Android source modified"
+  },
+  "actual_settings": {
+    "application_id": "145233fd-fee5-4b2d-99ce-b311bd8f4a59",
+    "deployment_id": "2a2443ab-fe7b-42f5-b5e0-4634c1d1c36c",
+    "client_processes": [
+      {
+        "pid": 20608,
+        "created_filetime": 134363615682154271,
+        "instance_id": "121ade0c-0efb-4b52-8bc0-b038741be5da",
+        "resource_id": "9dee894a-fd61-4e6a-8db4-f9573f57b443",
+        "closed": true
+      },
+      {
+        "pid": 7608,
+        "created_filetime": 134363619202759618,
+        "instance_id": "ccacb63f-7d6a-4d7f-9b0e-db1b38ee5d9d",
+        "resource_id": "ceae8f06-d987-4415-8350-19f0e11afc40",
+        "closed": true
+      },
+      {
+        "pid": 70560,
+        "created_filetime": 134363620502955658,
+        "instance_id": "e1a7babb-c718-4445-9d3b-fdf5e964aab3",
+        "resource_id": "c78d8a6b-f9df-43ea-937c-176936849a05",
+        "closed": true
+      }
+    ],
+    "maximum_simultaneous_owned_clients": 2,
+    "client1_statistics_enabled": true,
+    "client2_loaded_enabled": true,
+    "client2_saved_disabled_without_changing_client1": true,
+    "client1_continued_after_client2_closed": true,
+    "client3_loaded_last_saved_disabled_while_client1_remained_enabled": true,
+    "live_settings_broadcast": false,
+    "normal_rendering_widget_observations": [
+      "client1 received/decoded59FPS",
+      "client2 received59/decoded60FPS",
+      "client1 after second preference save received/decoded60FPS"
+    ],
+    "stutter_or_scale_acceptance": false
+  },
+  "cleanup": {
+    "resources": [
+      {
+        "id": "9dee894a-fd61-4e6a-8db4-f9573f57b443",
+        "state": "closed"
+      },
+      {
+        "id": "ceae8f06-d987-4415-8350-19f0e11afc40",
+        "state": "closed"
+      },
+      {
+        "id": "c78d8a6b-f9df-43ea-937c-176936849a05",
+        "state": "closed"
+      }
+    ],
+    "instances": [
+      {
+        "id": "121ade0c-0efb-4b52-8bc0-b038741be5da",
+        "state": "stopped"
+      },
+      {
+        "id": "ccacb63f-7d6a-4d7f-9b0e-db1b38ee5d9d",
+        "state": "stopped"
+      },
+      {
+        "id": "e1a7babb-c718-4445-9d3b-fdf5e964aab3",
+        "state": "stopped"
+      }
+    ],
+    "instance_summary": [],
+    "original_application_specs_equal": true,
+    "original_deployment_configuration_equal": true,
+    "relays": [
+      {
+        "bandwidth_capacity_mbps": null,
+        "control_epoch": 76,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1924679729,
+        "forwarded_rate_bps": 0,
+        "fresh": true,
+        "generation": 22,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T10:50:24.848720Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 162,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1925796957
+      },
+      {
+        "bandwidth_capacity_mbps": null,
+        "control_epoch": 76,
+        "current_connections": 1,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 236163511,
+        "forwarded_rate_bps": 0,
+        "fresh": true,
+        "generation": 97,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T10:50:24.481523Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 162,
+        "reported_draining": false,
+        "revision": 36,
+        "state": "ready",
+        "uploaded_bytes": 236253488
+      }
+    ],
+    "license": {
+      "license_id": "02b71f36-09f4-48ab-a9cd-0a0d0d45f338",
+      "revision": 1,
+      "expires_at": 1823351187,
+      "max_streams": 80,
+      "services": [
+        "cloud_applications",
+        "desktop",
+        "rdp"
+      ],
+      "starter_license": false
+    },
+    "owned_fixture_disabled": true,
+    "guest_logout_status": 204
+  },
+  "remote_final_state": {
+    "listener_count": 0,
+    "panel": [
+      {
+        "Id": 68932,
+        "Path": "C:\\Program Files\\Pixels Cloud Node\\px_panel.exe",
+        "SessionId": 2
+      }
+    ],
+    "services": [
+      {
+        "Name": "Pixels.Backup.2f5b1d676dba",
+        "state": "Running"
+      },
+      {
+        "Name": "Pixels.Console",
+        "state": "Running"
+      },
+      {
+        "Name": "Pixels.Relay",
+        "state": "Running"
+      },
+      {
+        "Name": "px_service",
+        "state": "Running"
+      }
+    ],
+    "clients": []
+  },
+  "images": [
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\first-statistics-on.png",
+      "bytes": 235051,
+      "sha256": "e1d5347fa1274adfed7b7810041f65ca57798c3b21adad032f4b965be0714aa0"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\second-loaded-statistics.png",
+      "bytes": 188162,
+      "sha256": "5cc54747e13236727fbba35f11cc7a90019fb695b4eeb502881dd0630f60f5aa"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\second-statistics-off.png",
+      "bytes": 64856,
+      "sha256": "07bfc7f18d46db85408341027df15559bd28e69218bc3fae469eb07f21a837aa"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\first-statistics-retained.png",
+      "bytes": 234358,
+      "sha256": "9dbe9dd0de9d0a648a8fc572139ed7b0b45dae92d3e99651f961f6a1c77e8e12"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\first-after-second-close.png",
+      "bytes": 234734,
+      "sha256": "f7adda08a8f6fa5a11497dacf607660f5e495352b1a116fcb047734d5cbbf4b2"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\third-loaded-statistics-off.png",
+      "bytes": 64033,
+      "sha256": "b9d72ae9200961e26eb3f982214415b7fba71002d7f5464900107952df575137"
+    },
+    {
+      "path": ".cache\\network-followup-20261013\\ui\\first-after-third-loaded.png",
+      "bytes": 235036,
+      "sha256": "5aeb2864a69cfbba976dee062ce243cd5dbb75b71268ed84a7f4fa2bcfa4f297"
+    }
+  ],
+  "filtered_local_log_gzip": {
+    "path": ".cache\\network-followup-20261013\\client-functional.log.gz",
+    "bytes": 4968,
+    "sha256": "000912829b77cea029f743ffe2dee6ae2998d1ce07db37569e6e30e75ed8d6cd"
+  },
+  "checks": {
+    "cpp_connection_ctest": 6,
+    "cpp_client_and_panel_focused_builds": 6,
+    "cpp_ownership_and_naming": "passed",
+    "cpp_build_tree_dist_pairs": 6,
+    "web_view_tests": 5,
+    "web_bandwidth_tests": 3,
+    "web_typecheck_eslint_and_build": "passed",
+    "web_dist_dev_hashes": 6,
+    "python_package_tests": 13,
+    "linux_real_schema_and_backup_upgrade": "passed",
+    "shell_syntax": "passed",
+    "rustfmt_edition2021": "passed",
+    "strict_clippy": "existing unrelated diagnostics retained; not passed"
+  },
+  "invalid_attempts": [
+    "Docker bash login reset cargo PATH, corrected without changing toolchain dependencies",
+    "Missing explicit Linux PROTOC in first container build; corrected to /usr/bin/protoc",
+    "Owned PostgreSQL fixture did not retain detached stdin; corrected to temporary environment file, removed after startup",
+    "Linux initialize failed on empty backup.env; real project defect fixed and real initialization/upgrade reaccepted",
+    "First Relay view test timing failed under slow initialization; controlled only interval clocks and reran five cases",
+    "ESLint first ran from repository cwd; reran in web project and passed",
+    "MCP upload failed on missing remote parent; acceptance/preflight published nothing, created workspace then confirmed retry transfer completed",
+    "Local foreground/occlusion guards prevented input; observed owned window geometry, waited for activation geometry to settle, clicked only confirmed visible owned window points",
+    "Initial second Client ball coordinate missed the menu; corrected after own-window screenshot, no preference save was claimed"
+  ],
+  "remaining_limits": [
+    "No independent Linux Server target selected; candidate and real isolated Linux container acceptance only",
+    "No new Windows full-release Setup publication",
+    "Complex NAT, large capacity and long stability remain outside accepted evidence",
+    "Android and paused short-stutter/NIC/saturated mixed-load investigations untouched",
+    "Friendly names are connection-description snapshots; newly added unknown URLs fall back to actual addresses"
+  ]
+}

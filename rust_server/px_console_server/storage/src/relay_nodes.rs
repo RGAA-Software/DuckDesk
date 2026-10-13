@@ -11,6 +11,32 @@ pub struct RelayNodeStore {
 }
 
 impl RelayNodeStore {
+    /// Display metadata only. Names must never influence dialing or admission.
+    pub async fn iroh_relay_names(
+        &self,
+    ) -> Result<std::collections::BTreeMap<String, String>, StoreError> {
+        let mut transaction = self.pool.begin().await?;
+        control::read_gate(&mut transaction).await?;
+        let relays: Vec<(String, i32, String)> = sqlx::query_as(
+            "SELECT public_host, public_port, name FROM pixels.relay_nodes \
+             WHERE iroh_qad_port IS NOT NULL AND deleted_at IS NULL ORDER BY id LIMIT 32",
+        )
+        .fetch_all(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(relays
+            .into_iter()
+            .map(|(host, port, name)| {
+                let authority = if host.parse::<std::net::Ipv6Addr>().is_ok() {
+                    format!("[{host}]")
+                } else {
+                    host
+                };
+                (format!("https://{authority}:{port}/"), name)
+            })
+            .collect())
+    }
+
     /// Public endpoints for newly established iroh transports; existing sessions retain their paths.
     pub async fn available_iroh_relays(
         &self,

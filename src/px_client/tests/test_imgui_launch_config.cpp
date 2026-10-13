@@ -8,6 +8,26 @@
 
 namespace px::client::imgui {
 
+TEST(ClientImguiLaunchConfigTest, RelayNamesRemainDisplayMetadataAndDoNotEnterTransportConfiguration) {
+    const nlohmann::json description{{"endpoint_address", {{"id", "endpoint"}, {"addrs", {"route"}}}},
+                                     {"endpoint_configuration", {{"relay_only", false}}}};
+    const auto original = ParseIrohConnectionDescription(description);
+    ASSERT_TRUE(original);
+    EXPECT_FALSE(IrohConnectionDescriptionJson(original).contains("relay_names"));
+    auto named = description;
+    named["relay_names"] = {{"https://relay.example:4605/", "北京中继"}, {"https://unrelated.example/", 42},
+                            {"https://invalid.example/", "invalid\nlabel"}};
+    const auto parsed = ParseIrohConnectionDescription(named);
+    ASSERT_TRUE(parsed);
+    EXPECT_EQ(parsed->endpoint_configuration, original->endpoint_configuration);
+    ASSERT_EQ(parsed->relay_names.size(), 1U);
+    EXPECT_EQ(parsed->relay_names.at("https://relay.example:4605/"), "北京中继");
+    EXPECT_EQ(ParseIrohConnectionDescription(IrohConnectionDescriptionJson(parsed))->relay_names, parsed->relay_names);
+    named["relay_names"] = "invalid-display-metadata";
+    EXPECT_TRUE(ParseIrohConnectionDescription(named));
+    EXPECT_TRUE(ParseIrohConnectionDescription(named)->relay_names.empty());
+}
+
 TEST(ClientConnectionFailureTest, TerminalRecoveryFailuresHaveChineseAndEnglishMessages) {
     EXPECT_EQ(IrohConnectionFailure("IROH_RECONNECT_EXPIRED"), ClientConnectionFailure::ReconnectExpired);
     EXPECT_EQ(IrohConnectionFailure("IROH_SESSION_ENDED"), ClientConnectionFailure::SessionEnded);

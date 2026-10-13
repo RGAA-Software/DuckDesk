@@ -60,6 +60,7 @@ function trafficCell(wrapper: VueWrapper): string {
 
 describe("Relay traffic presentation", () => {
     beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
         vi.clearAllMocks();
         observedAtMs = 0;
         vi.spyOn(performance, "now").mockImplementation(() => observedAtMs);
@@ -73,6 +74,7 @@ describe("Relay traffic presentation", () => {
         mountedViews.splice(0).forEach(wrapper => wrapper.unmount());
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
+        vi.useRealTimers();
     });
 
     it.each(["zh", "en"])("shows unknown until the next report, then both rates in %s", async language => {
@@ -112,6 +114,7 @@ describe("Relay traffic presentation", () => {
         await flushPromises();
         expect(wrapper.text()).toContain(language === "zh" ? "带宽余量不足" : "Insufficient bandwidth headroom");
         expect(wrapper.text()).toContain("20 Mbps");
+        expect(wrapper.text()).toContain("18 Mbps / 90%");
         vi.mocked(listManagedRelays).mockResolvedValue([{ ...saturated, report_sequence: 3, forwarded_rate_bps: null }]);
         await vi.mocked(useManagementRefresh).mock.calls[0]![1]();
         await flushPromises();

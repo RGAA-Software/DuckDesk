@@ -18,9 +18,9 @@ std::string ByteMeasurement(const std::optional<std::uint64_t> bytes) {
 }  // namespace
 
 std::vector<ClientStatisticsRow> BuildClientStatisticsRows(const ClientStatisticsSnapshot& statistics, const bool english) {
-    const ClientText transportLabel{statistics.transport == ClientStatisticsTransport::Iroh ? ClientText::StatisticsIroh
-                                    : statistics.transport == ClientStatisticsTransport::RdpIroh ? ClientText::StatisticsRdpIroh
-                                    : statistics.transport == ClientStatisticsTransport::Rdp               ? ClientText::StatisticsRdp
+    const ClientText transportLabel{statistics.transport == ClientStatisticsTransport::Iroh              ? ClientText::StatisticsIroh
+                                    : statistics.transport == ClientStatisticsTransport::RdpIroh         ? ClientText::StatisticsRdpIroh
+                                    : statistics.transport == ClientStatisticsTransport::Rdp             ? ClientText::StatisticsRdp
                                     : statistics.transport == ClientStatisticsTransport::RelayWebSocket  ? ClientText::StatisticsRelayWebSocket
                                     : statistics.transport == ClientStatisticsTransport::DirectWebSocket ? ClientText::StatisticsDirectWebSocket
                                                                                                          : ClientText::StatisticsDirectUdp};
@@ -77,7 +77,10 @@ std::vector<ClientStatisticsRow> BuildClientStatisticsRows(const ClientStatistic
         rows.insert(rows.begin() + 1,
                     {{ClientText::StatisticsState, std::string{ClientTextValue(stateLabel, english)}},
                      {ClientText::StatisticsPath, std::string{ClientTextValue(pathLabel, english)}},
-                     {ClientText::StatisticsEndpoint, TextOrUnavailable(statistics.selectedAddress)},
+                     {ClientText::StatisticsEndpoint,
+                      statistics.path == ClientStatisticsPath::Relay && !statistics.selectedAddress.empty() && !statistics.selectedRelayName.empty()
+                          ? statistics.selectedRelayName + " (" + statistics.selectedAddress + ")"
+                          : TextOrUnavailable(statistics.selectedAddress)},
                      {ClientText::StatisticsTransportRtt,
                       statistics.transportRoundTripMilliseconds ? std::format("{:.2f} ms", *statistics.transportRoundTripMilliseconds) : "--"}});
     }

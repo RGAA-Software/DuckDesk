@@ -400,7 +400,10 @@ pub async fn initialize_single_server(
     )
     .map_err(|_| SingleServerSetupError::Private)?;
     if layout.linux_container {
-        private::create_private(&layout.config_root.join("backup.env"), b"")
+        private::create_private(
+            &layout.config_root.join("backup.env"),
+            b"# Backup loads its settings from backup.json.\n",
+        )
             .map_err(|_| SingleServerSetupError::Private)?;
         assign_linux_service_permissions(layout)?;
         let marker = layout.config_root.join("setup.ready");

@@ -300,6 +300,7 @@ export default {
     },
     relays: {
         bandwidthCapacity: "可用转发带宽（Mbps）",
+        bandwidthLoad: "当前带宽 / 预算使用率",
         bandwidthUnconfigured: "未设置",
         saveFailed: "Relay 配置保存失败，请刷新状态后重试。",
         bandwidthHelp: "按 Relay 实际可用链路填写，留空按连接容量选择。转发达到 90% 时停止新分配，保留已连接会话；不限制现有流量。",

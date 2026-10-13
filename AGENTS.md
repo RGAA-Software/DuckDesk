@@ -1,5 +1,14 @@
 # Workspace delivery rules
 
+- Post-baseline network follow-up (2026-10-13): baseline 7eaeb13a6 was pushed. Relay names now travel as separate
+  display metadata; Client resolves only its actual selected Relay URL and retains address/RTT and unknown-name
+  fallback. Original Render wire fields remain unchanged when names are absent. Console displays reported bandwidth
+  and budget usage. Linux Compose now stops Console/Backup before schema migration and atomically syncs the Backup
+  schema; Linux empty backup.env initialization failure is fixed. Reuse the real Linux-container schema41→42,
+  idempotency, invalid-plan and real two-Client preference evidence in
+  docs/validation/iroh_transport/20261013_network_followup_report.md. The Linux candidate has not been upgraded on
+  an independent server, and no new Windows Setup publication was made. Do not repeat these passed functional gates.
+
 - Validation host decision (2026-10-13, latest): do not use Company for further tests. Its owned test Client was
   stopped and this MCP session disconnected. Use the local machine, 90 (428358431), or XRServer03 (947158375).
   The user explicitly reauthorized updating Console and small validation on 90, overriding earlier 90 exclusions.

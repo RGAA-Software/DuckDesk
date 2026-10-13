@@ -18,6 +18,7 @@ struct ClientStatisticsSnapshot final {
     ClientStatisticsState state{ClientStatisticsState::Connecting};
     ClientConnectionFailure failure{ClientConnectionFailure::None};
     std::string selectedAddress{};
+    std::string selectedRelayName{};
     std::optional<double> transportRoundTripMilliseconds{};
     int frameWidth{};
     int frameHeight{};

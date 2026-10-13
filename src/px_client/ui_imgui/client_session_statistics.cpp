@@ -79,6 +79,10 @@ ClientStatisticsSnapshot ClientSession::StatisticsSnapshot() const {
                       : transportStatistics->path == transport::PathKind::kRelay ? ClientStatisticsPath::Relay
                                                                                  : ClientStatisticsPath::Unknown;
         result.selectedAddress = transportStatistics->selectedAddress;
+        if (result.path == ClientStatisticsPath::Relay && config_.iroh) {
+            if (const auto name = config_.iroh->relay_names.find(result.selectedAddress); name != config_.iroh->relay_names.end())
+                result.selectedRelayName = name->second;
+        }
         result.transportRoundTripMilliseconds = transportStatistics->roundTripMilliseconds;
     }
     std::shared_ptr<px::SdkStatistics> statistics{};

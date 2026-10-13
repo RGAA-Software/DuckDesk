@@ -184,6 +184,14 @@ function formatTrafficRate(relay: ManagedRelay): string {
     });
 }
 
+function formatBandwidthLoad(relay: ManagedRelay): string {
+    const rate = relay.forwarded_rate_bps;
+    if (!snapshotCurrent.value || !relay.fresh || rate === null || !Number.isSafeInteger(rate) || rate < 0) return t("relays.unknown");
+    const formatter = new Intl.NumberFormat(locale.value, { maximumFractionDigits: 2 });
+    const speed = `${formatter.format(rate / 1_000_000)} Mbps`;
+    return relay.bandwidth_capacity_mbps ? `${speed} / ${formatter.format(rate / (relay.bandwidth_capacity_mbps * 10_000))}%` : speed;
+}
+
 function formatTimestamp(timestamp: string | null): string {
     if (!timestamp) return t("relays.unknown");
     return new Intl.DateTimeFormat(locale.value, {
@@ -246,6 +254,9 @@ useManagementRefresh(["relays"], refresh);
                     {{ record.bandwidth_capacity_mbps === null || record.bandwidth_capacity_mbps === undefined
                         ? t('relays.bandwidthUnconfigured') : `${record.bandwidth_capacity_mbps} Mbps` }}
                 </template>
+            </a-table-column>
+            <a-table-column :title="t('relays.bandwidthLoad')">
+                <template #default="{ record }">{{ formatBandwidthLoad(record) }}</template>
             </a-table-column>
             <a-table-column :title="t('relays.rooms')">
                 <template #default="{ record }">

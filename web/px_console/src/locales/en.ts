@@ -316,6 +316,7 @@ export default {
     },
     relays: {
         bandwidthCapacity: "Available forwarding bandwidth (Mbps)",
+        bandwidthLoad: "Current bandwidth / budget usage",
         bandwidthUnconfigured: "Not set",
         saveFailed: "Relay settings could not be saved. Refresh its status and retry.",
         bandwidthHelp: "Enter available Relay link bandwidth, or leave blank to use connection capacity. At 90% forwarding load, stop new assignments and retain connected sessions; existing traffic is not rate limited.",

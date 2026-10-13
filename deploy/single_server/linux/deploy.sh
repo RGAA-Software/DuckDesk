@@ -43,6 +43,9 @@ docker image inspect "$(python3 -c 'import json; print(json.load(open("sha256.js
 docker compose config --quiet
 docker compose run --rm --no-deps -T --user 0:0 setup \
     /opt/pixels/bin/px_console_admin upgrade-backup-control /etc/pixels linux
+docker compose stop console backup
+docker compose run --rm --no-deps -T --user 0:0 setup \
+    /bin/bash /opt/pixels/upgrade_console_database.sh
 docker compose up -d
 setup_container="$(docker compose ps -a -q setup)"
 if [[ -z "$setup_container" ]]; then

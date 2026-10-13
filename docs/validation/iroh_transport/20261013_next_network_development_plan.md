@@ -2,6 +2,9 @@
 
 2026-10-13，依据用户“规划接下来的事情”。本文件只确定接续任务，不表示已执行提交、构建、部署或新的验证。
 
+执行结果（2026-10-13）：用户授权“开始做吧”后，上轮基线7eaeb13a6已push，步骤2–5的实现、Linux候选/隔离容器升级、本机两Client实测及90增量交付完成。独立Linux Server实机升级未指定目标，正式Windows Setup留在发布批次；两者没有冒充通过。详见[本轮执行报告](20261013_network_followup_report.md)，下文是本批开始前的计划和基线。
+
+
 ## 当前基线
 
 第 0.9 节 Windows/Linux iroh 主线及原完整包交付已完成。追加的 Client 设置持久化、实际路径/RTT 展示、Console Relay 带宽筛选已经开发并在本机/90 验证，90 当前 schema 42。证据见[本轮报告](20261013_settings_bandwidth_rollout_report.md)。这些追加改动仍在未提交工作树；本轮没有生成包含它们的新 Linux Server 镜像或新的 Windows 正式安装包。

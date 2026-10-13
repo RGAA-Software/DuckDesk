@@ -4,6 +4,16 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，后续五步开发与当前可执行交付完成
+
+- 已保存并push上轮基线`7eaeb13a6`。本轮按后续计划完成Linux新增能力候选、Relay名称/预算使用率展示、同应用两Client设置协作及少量实机交付；没有再跑已完成网络主线或暂停专项。
+- Linux发现并修复两个具体缺陷：Compose升级未迁移Console数据库/同步Backup schema；首次初始化创建空backup.env被私有文件接口拒绝。新增停服迁移/原子保存并保留10003:10003/600，非空注释env初始化成功。真实Linux镜像与隔离PG的41→42、重复42、异常计划拒绝通过，其他Backup字段/Console配置相等，资源清理通过。候选41项SHA验证，镜像pixels-server:1.0.56、离线包SHA989a51b0…已生成；无独立Linux Server部署目标，不称远端升级完成。
+- Console现有资源描述新增独立显示名称映射，网络配置/准入不变。Panel传递给Client；统计只按实际selected地址匹配名称，保留地址/RTT，未知/直连不误标；无名称Render报告保持原字段。Android JSONObject消费路径未改。Console新增当前Mbps/预算百分比，中英文同流程。
+- 六Client CTest、三产品Client/Panel focused入口及本批所有权/命名/六build-tree-dist SHA通过；网页5个视图＋3个带宽用例、类型/ESLint/构建通过；13个Python打包回归、Linux CLI实测、shell语法及Rust格式通过。严格Clippy既有告警仍未全通过，未压制或扩无关重构。
+- 90增量Console EBC1A4…/admin/Web index-FbXcqmD7.js/DB工具F2C711…，最终Server清单457D8BAB…/35项SHA通过。Node仅本批Client EEF934…/Panel860829…/元数据，315项核对，清单E295C2…；Service/Render、旧开发DLL和配置沿用，Panel恢复session2/68932，四服务Running。无新Setup、BJ服务或Company操作。
+- 本机同应用三个独立Client进程，总同时最多2路：第二路读取第一路保存的统计开，第二路保存关时第一路保持开；关闭第二路第一路继续出图；第三进程读最后保存的关。真实显示Single Server Relay＋实际URL，59–60FPS仅界面样本，不当长稳。三实例stopped/三资源closed/guest注销204，夹具禁用，临时listener0，原本批10应用/10部署（含前批禁用夹具）配置相等，授权80/RDP10保持，双Relay恢复默认1/BJ0。
+- 完整身份与失败样本见[本轮报告](20261013_network_followup_report.md)及[交付证据](20261013_network_followup_delivery.json)。Linux独立主机升级、正式Windows安装包发布和复杂NAT/规模/长稳分别保留为后续发布/环境项，不回退为未完成核心网络功能；Android与短顿/NIC/饱和混传继续排除。
+
 ## 接续安排：2026-10-13，用户要求规划下一阶段
 
 下一阶段顺序为：保存并提交本轮已验收基线 → 新增Console/schema42/Web的Linux交付准备 → 实际Relay友好名称与预算状态展示 → 同应用两Client设置协作核对 → 少量正常使用及交付汇总。当前仅完成规划，没有执行新的提交/push、构建或部署。详见[后续安排](20261013_next_network_development_plan.md)。主线已完成证据复用；本机/90/XR可用、Company禁用，Android和暂停专项保持原范围。Linux候选与实机升级分别记状态，不把BJ Relay机器擅自改成Console。

@@ -144,6 +144,8 @@ px::Result<ConsoleResourceConnection, ConsoleApiError> OpenPanelResourceConnecti
         if (const auto iroh = descriptor.find("iroh"); iroh != descriptor.end() && !iroh->is_null()) {
             result.iroh = px::ParseIrohConnectionDescription(*iroh);
             if (!result.iroh) return TcErr(ConsoleApiError::kParseJsonFailed);
+            if (const auto names = payload.find("iroh_relay_names"); names != payload.end())
+                result.iroh->relay_names = px::ParseIrohRelayNames(*names);
         }
         if (result.transport == "rdp") {
             const auto rdp = payload.find("rdp");

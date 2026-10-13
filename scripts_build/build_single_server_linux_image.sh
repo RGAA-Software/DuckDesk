@@ -25,6 +25,10 @@ python3 "$source_root/scripts/server_private/verify_pg_toolchain.py" "$candidate
     echo 'Console restore command is missing from the verified candidate.' >&2
     exit 2
 }
+[[ -f "$candidate_directory/tools/upgrade_console_database.sh" && ! -L "$candidate_directory/tools/upgrade_console_database.sh" ]] || {
+    echo 'Console schema upgrade command is missing from the verified candidate.' >&2
+    exit 2
+}
 docker build --pull=false --tag "$image_tag" --file "$source_root/deploy/single_server/linux/Dockerfile" "$candidate_directory"
 docker save --output "$archive_path" "$image_tag"
 sha256sum "$archive_path" > "$archive_path.sha256"

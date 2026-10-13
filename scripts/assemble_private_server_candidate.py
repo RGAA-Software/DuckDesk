@@ -152,6 +152,11 @@ def assemble(arguments: argparse.Namespace) -> dict[str, object]:
             restore_destination = destination / "tools/restore_console.sh"
             restore_destination.parent.mkdir(exist_ok=True)
             shutil.copy2(restore_script, restore_destination)
+            upgrade_script = SOURCE_ROOT / "deploy/single_server/linux/upgrade_console_database.sh"
+            require_regular_file(upgrade_script)
+            upgrade_destination = destination / "tools/upgrade_console_database.sh"
+            shutil.copy2(upgrade_script, upgrade_destination)
+            upgrade_destination.chmod(0o755)
             trust_source = SOURCE_ROOT / "deploy/single_server/assets/license-trust.json"
             require_regular_file(trust_source)
             trust_destination = destination / "assets/license-trust.json"

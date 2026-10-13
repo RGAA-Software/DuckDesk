@@ -133,5 +133,25 @@ TEST(ClientStatistics, TerminalReasonsUseTheExistingBilingualFailureCatalog) {
     }
 }
 
+TEST(ClientStatistics, RelayNamesFollowActualPathAndNeverSurviveAnUnknownOrDirectPath) {
+    ClientStatisticsSnapshot statistics{.transport = ClientStatisticsTransport::Iroh,
+                                        .path = ClientStatisticsPath::Relay,
+                                        .selectedAddress = "https://bj.example:4605/",
+                                        .selectedRelayName = "北京中继"};
+    for (const bool english : {false, true}) {
+        EXPECT_EQ(RowValue(BuildClientStatisticsRows(statistics, english), ClientText::StatisticsEndpoint), "北京中继 (https://bj.example:4605/)");
+    }
+    statistics.path = ClientStatisticsPath::Direct;
+    statistics.selectedAddress = "192.168.1.90:4613";
+    EXPECT_EQ(RowValue(BuildClientStatisticsRows(statistics, true), ClientText::StatisticsEndpoint), "192.168.1.90:4613");
+    statistics.path = ClientStatisticsPath::Unknown;
+    statistics.selectedAddress.clear();
+    EXPECT_EQ(RowValue(BuildClientStatisticsRows(statistics, true), ClientText::StatisticsEndpoint), "--");
+    statistics.path = ClientStatisticsPath::Relay;
+    statistics.selectedAddress = "https://new.example:4605/";
+    statistics.selectedRelayName.clear();
+    EXPECT_EQ(RowValue(BuildClientStatisticsRows(statistics, true), ClientText::StatisticsEndpoint), statistics.selectedAddress);
+}
+
 }  // namespace
 }  // namespace px::client::imgui
