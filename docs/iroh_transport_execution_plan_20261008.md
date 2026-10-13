@@ -1,5 +1,10 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13小规模验收追加：用户允许本机3/Company2。五路真实RDP Relay接入、90排空保留旧连接、
+新源转BJ、恢复双候选和清理通过；只替换一路，接收端上限未提高。见[报告](validation/iroh_transport/20261013_five_rdp_report.md)。
+静态RDP可靠流不能代替GameHook/WebView数据报、高运动、吞吐或长稳；后续保持同样或更小规模，
+不因本批通过重新集中Company十路，不开启已暂停的短顿/NIC/饱和混传专项。
+
 2026-10-13上午修订：用户将RDP上限改为10，并因Company卡顿停止该机多路负载测试。
 真实10用户/10资源/10图形输出及满额拒绝已核对；capacity10/revision3已保存，所有owned连接已清理。
 不再以20路RDP为本轮目标，不再集中使用Company做重负载。见[停测报告](validation/iroh_transport/20261013_rdp_concurrency_report.md)。

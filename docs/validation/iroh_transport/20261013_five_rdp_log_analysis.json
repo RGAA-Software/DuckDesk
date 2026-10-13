@@ -1,0 +1,142 @@
+{
+  "local": {
+    "compressed_sha256": "55c7e442753304a1407e5564cbb6a0ebeb67eccede3ed9cdcbdfa93d6dba6a45",
+    "compressed_bytes": 12484,
+    "selected_log_sha256": "60a59141e94dcf2533e6cf32c31758aaf6727c480931cf9ee8eb97a89f1506fe",
+    "lines": 863,
+    "rdp_threads": {
+      "6528": {
+        "max_published": 69,
+        "display_channel_seen": true
+      },
+      "48408": {
+        "max_published": 100,
+        "display_channel_seen": true
+      },
+      "44124": {
+        "max_published": 84,
+        "display_channel_seen": true
+      },
+      "73872": {
+        "max_published": 56,
+        "display_channel_seen": true
+      }
+    },
+    "paths": [
+      "2"
+    ],
+    "reliable_error_lines": [],
+    "reconnect_lines": [],
+    "slow_ui_draw_count": 52
+  },
+  "company": {
+    "compressed_sha256": "593edf611f5917e019c795ed261a3e386eb5a4abec3294ea5c005b02c899456d",
+    "compressed_bytes": 7831,
+    "selected_log_sha256": "ec8ae7ffce1ebd175fb4431e51ea28d6f42e00ac1865b7492acfd59d6ebbd25a",
+    "lines": 514,
+    "rdp_threads": {
+      "3016": {
+        "max_published": 100,
+        "display_channel_seen": true
+      },
+      "45576": {
+        "max_published": 100,
+        "display_channel_seen": true
+      }
+    },
+    "paths": [
+      "2"
+    ],
+    "reliable_error_lines": [],
+    "reconnect_lines": [],
+    "slow_ui_draw_count": 0
+  },
+  "relay_counter_intervals": [
+    {
+      "elapsed_seconds": 117.58001,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "uploaded_bytes_delta": 0,
+          "forwarded_bytes_delta": 0,
+          "average_forwarded_mbps": 0.0
+        },
+        {
+          "relay": "Single Server Relay",
+          "uploaded_bytes_delta": 1040895,
+          "forwarded_bytes_delta": 1040895,
+          "average_forwarded_mbps": 0.070821
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 58.159427,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "uploaded_bytes_delta": 0,
+          "forwarded_bytes_delta": 0,
+          "average_forwarded_mbps": 0.0
+        },
+        {
+          "relay": "Single Server Relay",
+          "uploaded_bytes_delta": 97722,
+          "forwarded_bytes_delta": 97036,
+          "average_forwarded_mbps": 0.013348
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 135.292611,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "uploaded_bytes_delta": 310339,
+          "forwarded_bytes_delta": 310339,
+          "average_forwarded_mbps": 0.018351
+        },
+        {
+          "relay": "Single Server Relay",
+          "uploaded_bytes_delta": 194835,
+          "forwarded_bytes_delta": 194835,
+          "average_forwarded_mbps": 0.011521
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 6.970418,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "uploaded_bytes_delta": 3170,
+          "forwarded_bytes_delta": 3170,
+          "average_forwarded_mbps": 0.003638
+        },
+        {
+          "relay": "Single Server Relay",
+          "uploaded_bytes_delta": 13727,
+          "forwarded_bytes_delta": 13727,
+          "average_forwarded_mbps": 0.015755
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 129.74308,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "uploaded_bytes_delta": 35494,
+          "forwarded_bytes_delta": 34490,
+          "average_forwarded_mbps": 0.002127
+        },
+        {
+          "relay": "Single Server Relay",
+          "uploaded_bytes_delta": 280162,
+          "forwarded_bytes_delta": 272799,
+          "average_forwarded_mbps": 0.016821
+        }
+      ]
+    }
+  ],
+  "scope": "Static desktop RDP and maintenance functionality; Relay counters include endpoint/control traffic, not a throughput ceiling benchmark."
+}

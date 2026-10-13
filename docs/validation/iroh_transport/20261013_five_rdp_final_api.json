@@ -1,0 +1,27 @@
+{
+  "observed_at_utc": "2026-10-13T01:57:12.627649+00:00",
+  "nonclosed_sessions": 0,
+  "instance_summary": [],
+  "nodes": [
+    {
+      "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+      "state": "ready",
+      "fresh": true,
+      "generation": 25
+    },
+    {
+      "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+      "state": "ready",
+      "fresh": true,
+      "generation": 468
+    }
+  ],
+  "rdp_capacity": [
+    10
+  ],
+  "runtimes": {
+    "local_build_sha256": "c39c17ccec9e0fd4fda93082e8733db6bb575a2ff1af2cc27b2c852317bd3de5",
+    "local_dist_sha256": "c39c17ccec9e0fd4fda93082e8733db6bb575a2ff1af2cc27b2c852317bd3de5",
+    "company_client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466"
+  }
+}

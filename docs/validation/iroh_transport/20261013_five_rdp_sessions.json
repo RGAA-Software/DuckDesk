@@ -1,0 +1,68 @@
+[
+  {
+    "batch": 201,
+    "receiver": "local",
+    "instance_id": "591c4686-d59e-44fe-afb1-286f207d1ecb",
+    "session_id": "16bc1794-c18c-4f96-bbf4-e62c89a5e1f0",
+    "account_name": "pxrdp_2c3153bd5fff41",
+    "endpoint_id": "eb16fb3a42e40abd8c128031dbc17e971356ebf59e0f1b8c663d50a1e3d66377",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 202,
+    "receiver": "local",
+    "instance_id": "16d0412e-89d5-4742-b741-56f0f7df074c",
+    "session_id": "d32982c3-3039-48b2-8b74-3d3eb05cf02c",
+    "account_name": "pxrdp_b0f36cef23c348",
+    "endpoint_id": "3b336be0db9fa13da13f81f3bdd55b30fe5e2b5ab91c69585be9ac351ce297a1",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 203,
+    "receiver": "local",
+    "instance_id": "8d6db277-967e-488f-8603-b8ba6d163836",
+    "session_id": "616441d7-0ed1-4128-a5e3-e9cff29c25dd",
+    "account_name": "pxrdp_705dbd09276447",
+    "endpoint_id": "1cd22db19f43d3cb6e5e0bf813ee395cf34e400f00f91979509d65a600fc4c59",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 204,
+    "receiver": "company",
+    "instance_id": "c92c3ab3-2ca2-482f-be7a-182c82744bfd",
+    "session_id": "cfff1364-64ef-485a-988f-5d2b733586ca",
+    "account_name": "pxrdp_3bf8b1c584864c",
+    "endpoint_id": "2aad44264823a7b5834fe044eed7068937435991a3a9f5005480c9be9a18be26",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 205,
+    "receiver": "company",
+    "instance_id": "35a1e31e-400a-4e67-9148-f439506801e9",
+    "session_id": "d0e81c08-fdf3-4d74-9f15-65a71128bcce",
+    "account_name": "pxrdp_dfb3fa187c384e",
+    "endpoint_id": "aaaa987c27e6220d88f88c0fe3b444de4de65c78a7982fff4121ec11f7833858",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 206,
+    "receiver": "local",
+    "instance_id": "a769bcdc-1627-44b1-a800-61589d9b621e",
+    "session_id": "75670c00-2fe6-4736-b9b9-d9fe4585fd83",
+    "account_name": "pxrdp_705dbd09276447",
+    "endpoint_id": "102efe6381513f15c0fb54b19c4af5afb10384df1ea570342667d2ca1f611661",
+    "advertised_homes": [
+      "https://49.232.233.61:4605/"
+    ]
+  }
+]

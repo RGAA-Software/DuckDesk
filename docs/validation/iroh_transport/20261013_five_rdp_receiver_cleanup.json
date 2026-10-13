@@ -1,0 +1,8 @@
+{
+  "company_operation": "c2b9ce3b-de0c-424d-85e6-fc548ca5af6d",
+  "company": {
+    "remaining_clients": []
+  },
+  "company_owned_close_commands": "{\"pid\":42364,\"instance_id\":\"c92c3ab3-2ca2-482f-be7a-182c82744bfd\",\"session_id\":\"cfff1364-64ef-485a-988f-5d2b733586ca\",\"account_name\":\"pxrdp_3bf8b1c584864c\",\"state\":\"closed\",\"started_at_utc\":\"2026-10-13T01:46:27.3971911+00:00\",\"process_created_utc\":\"2026-10-13T01:46:27.3866137Z\"}\r\n{\"pid\":54708,\"instance_id\":\"35a1e31e-400a-4e67-9148-f439506801e9\",\"session_id\":\"d0e81c08-fdf3-4d74-9f15-65a71128bcce\",\"account_name\":\"pxrdp_dfb3fa187c384e\",\"state\":\"closed\",\"started_at_utc\":\"2026-10-13T01:46:33.3750870+00:00\",\"process_created_utc\":\"2026-10-13T01:46:33.3622953Z\"}\r\n",
+  "collection_sample_note": "Log collection sampled two Client processes before the concurrent cleanup finished; the later Company sample is empty."
+}

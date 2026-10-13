@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，3＋2真实RDP双Relay维护已验证
+
+- 用户新授权本机最多3/Company最多2，覆盖此前Company排除仅限本轮小规模。复用90 Console8DAC/Service6E3/RenderC276及Company FE8；本机开发Client C39C17…与build-tree/dist SHA匹配，无编译、安装或持久节点配置变化。
+- 五路RDP实际path2、各自图形输出；初始源端点全home90，90实际11 Endpoint连接（含默认Render/两端），不称均匀分流。90排空rev23/report true时旧五路资源和Endpoint保持、图形更新；替换本机一路后新源homeBJ/path2，旧四路保持，Windows同账号session5/9:16登录时间复用。
+- 90恢复排空false/rev24，候选count2，五路保持connected；采样可靠日志error0/无reconnect=true，部分tx_lost1正常恢复，不称零丢包。两Relay计数/实际字节增长已记录，不当最大吞吐。约7分钟静态RDP功能样本不代替GameHook/WebView数据报、高运动、60FPS或长稳。
+- Company始终最多2，最终0Client；本机最多3（关闭后替换），最终0。6 owned实例stopped/6资源closed/guest注销/业务活动0；90 Relay恢复原1、BJ0、节点fresh/ready，账号/profile/Windows会话保留。Company筛选log源端gzip7831bytes/SHA593EDF…下载一致，本机gzip12484bytes，原文SHA也记录；首local stdin EOF无启动/早期收集仍列2Client与后来0的时序保留。
+- 本机还有52条约50–99ms draw慢日志，未进行GPU/UI或旧卡帧调查，不称全程流畅；Company同范围0也不当系统性能证明。下一项是同样或更少接收端下的GameHook/WebView可靠控制＋音视频数据报实际内容，不扩十路、不启Android/NIC/饱和混传。见[小规模报告](20261013_five_rdp_report.md)、`20261013_five_rdp_*`证据。
+
 ## 最新接续：2026-10-13上午，RDP限10路／Company负载测试停止
 
 - 用户把RDP上限明确改为10，随后报告Company卡顿并要求减负。90部署现capacity10/revision3/ready，GameHook/WebView20和80路授权保持。Company不再用于多客户端或重负载测试，未经新指示不重启。

@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Distributed validation update (2026-10-13): the user reauthorized a small test with at most three Client
+  processes on the local machine and two on Company. This supersedes the Company exclusion only for this bounded
+  batch; do not increase either receiver's count. Stop Company clients if the user reports load again. The RDP
+  deployment stays at capacity 10, and existing installation/transport evidence remains reusable.
+
 - RDP validation limit and Company load decision (2026-10-13, superseding the 20-route RDP target): the user
   limited RDP to at most 10 and requested relief after Company became sluggish. The 90 RDP deployment is now
   capacity=10/revision=3. Stop this batch's Company test clients and do not use Company for further multi-client
