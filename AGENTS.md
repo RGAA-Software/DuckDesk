@@ -1,5 +1,12 @@
 # Workspace delivery rules
 
+- CN Relay held-connection observation (2026-10-13): reuse the completed 600-second low-load sample in
+  docs/validation/iroh_transport/20261013_cn_relay_soak.md: 484 reliable round trips and 484 datagrams each direction,
+  held QUIC/stream, endpoint release and 0 reported connections. 19 configuration hashes and all 11 containers retained.
+  Initial 90-second exit was the probe deadline, not a Relay fault; bounded timeout is configurable, old defaults retained.
+  This is not media, throughput, complex NAT or long-term stability acceptance. No product/runtime configuration changed.
+  Relay management reads require the Page limit query, e.g. /api/console/managed/relays?limit=100, and return an array.
+
 - CN Linux Server delivery (2026-10-13): complete fast-release 1.0.56 Compose installation/overwrite accepted
   on CN with an independent PostgreSQL 18.6 volume and loopback 5432. Reuse
   docs/validation/iroh_transport/20261013_cn_linux_server_report.md. Log-directory provisioning and partial-setup
@@ -23,7 +30,7 @@
   do not uninstall another product to force its independent acceptance. Versions and external update sources
   were not advanced; development Client/Panel artifacts retained. One first-sample later presentation gap 193 ms
   remains unexplained, and is not a reason to automatically reopen paused tuning during installation delivery.
-  Company/Android remain excluded; independent Linux Server deployment still needs a target, not BJ Relay.
+  Company/Android remain excluded; the latest CN installation entry above supersedes the earlier missing Linux target.
 
 - Post-baseline network follow-up (2026-10-13): baseline 7eaeb13a6 was pushed. Relay names now travel as separate
   display metadata; Client resolves only its actual selected Relay URL and retains address/RTT and unknown-name
@@ -31,8 +38,8 @@
   and budget usage. Linux Compose now stops Console/Backup before schema migration and atomically syncs the Backup
   schema; Linux empty backup.env initialization failure is fixed. Reuse the real Linux-container schema41→42,
   idempotency, invalid-plan and real two-Client preference evidence in
-  docs/validation/iroh_transport/20261013_network_followup_report.md. The Linux candidate has not been upgraded on
-  an independent server, and no new Windows Setup publication was made. Do not repeat these passed functional gates.
+  docs/validation/iroh_transport/20261013_network_followup_report.md. Subsequent Windows candidates and CN Linux
+  installation are recorded above; these earlier missing delivery steps are now complete. Do not repeat passed gates.
 
 - Validation host decision (2026-10-13, latest): do not use Company for further tests. Its owned test Client was
   stopped and this MCP session disconnected. Use the local machine, 90 (428358431), or XRServer03 (947158375).

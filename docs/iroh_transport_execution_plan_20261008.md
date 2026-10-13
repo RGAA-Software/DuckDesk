@@ -1,5 +1,9 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13当前接续：最新Windows完整候选的90 Server/Node及本机Client安装、覆盖已完成；CN独立Linux Server完整安装/覆盖也已完成，schema42、原业务容器和配置保持，低速iroh Relay连通通过。
+复用[Windows报告](validation/iroh_transport/20261013_windows_publication_report.md)和[CN报告](validation/iroh_transport/20261013_cn_linux_server_report.md)，下方早期“待发布/待Linux主机”文字为历史。
+CN低负载持续连接600秒/484可靠往返及双向各484数据报通过，见[观察报告](validation/iroh_transport/20261013_cn_relay_soak.md)；Remote独立Setup仍缺不与现有产品冲突的目标。复杂NAT、规模及长期稳定性未整体通过，Android和暂停专项保持原范围，Company不使用。
+
 2026-10-13完整包收尾：RDP用户池、声音与接入终止等追加改动已汇总为正式优化Windows完整候选，
 90 Server→CloudNode、Company Client三次Setup覆盖/SHA通过，四类安装后接入有真实输出，资源及临时授权已清理。
 正式Client树30项聚焦回归通过；Remote候选已生成但本批未单独安装，BJ/XR既有交付复用。

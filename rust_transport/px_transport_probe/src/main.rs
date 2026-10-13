@@ -90,11 +90,28 @@ async fn main() -> Result<()> {
             .context("allocation probe deadline exceeded")?;
     }
     if matches!(operation, "retention-self-test" | "distribution-self-test") {
-        let deadline = if operation == "distribution-self-test" {
-            Duration::from_secs(120)
+        let default_deadline_seconds = if operation == "distribution-self-test" {
+            120
         } else {
-            Duration::from_secs(90)
+            90
         };
+        let deadline_seconds = arguments
+            .iter()
+            .position(|argument| argument == "--retention-timeout-seconds")
+            .map(|position| {
+                arguments
+                    .get(position + 1)
+                    .context("--retention-timeout-seconds requires a duration")?
+                    .parse::<u64>()
+                    .context("invalid retention timeout")
+            })
+            .transpose()?
+            .unwrap_or(default_deadline_seconds);
+        ensure!(
+            (30..=3660).contains(&deadline_seconds),
+            "retention timeout must be 30..3660 seconds"
+        );
+        let deadline = Duration::from_secs(deadline_seconds);
         return tokio::time::timeout(deadline, retention_probe::run(config))
             .await
             .context("retention probe deadline exceeded")?;

@@ -1,0 +1,1185 @@
+{
+  "scope": "low-load held QUIC connection through a public Relay",
+  "relay_url": "https://49.232.190.218:4605/",
+  "probe_sha256": "7226e20872df9166ea42002dfba219d486777bf8785055bbfcc27af33d128032",
+  "configuration_sha256": "dbbef35eaa7c065df111007334350bf9f09bc55f52fc68c6042586dd8277e3b5",
+  "requested_seconds": 600,
+  "interval_seconds": 5,
+  "started_epoch": 1791898671.1174955,
+  "passed": true,
+  "media_performance_test": false,
+  "throughput_capacity_test": false,
+  "fault_injection": false,
+  "owned_pid": 89064,
+  "observation_seconds": 600.2104340998922,
+  "released": true,
+  "exit_code": 0,
+  "owned_probe_stopped": true,
+  "completed_epoch": 1791899272.0498855,
+  "logs": [
+    {
+      "name": "stdout.log.gz",
+      "bytes": 1086,
+      "sha256": "e3045c1e50e0e644ea96962147dddda2fb48174f106ab00d0b4fd0e47e7a46c3"
+    },
+    {
+      "name": "stderr.log.gz",
+      "bytes": 20,
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    }
+  ],
+  "reliable_round_trips_verified": 484,
+  "datagrams_verified_each_direction": 484,
+  "maximum_exchange_seconds": 0.3201045000459999,
+  "sample_timings": [
+    {
+      "elapsed_seconds": 0.22379059996455908,
+      "exchange_seconds": 0.22378770005889237
+    },
+    {
+      "elapsed_seconds": 5.209633700083941,
+      "exchange_seconds": 0.20948530011810362
+    },
+    {
+      "elapsed_seconds": 10.252146899932995,
+      "exchange_seconds": 0.25183930015191436
+    },
+    {
+      "elapsed_seconds": 15.211157999932766,
+      "exchange_seconds": 0.2105136001482606
+    },
+    {
+      "elapsed_seconds": 20.213226899970323,
+      "exchange_seconds": 0.21244930010288954
+    },
+    {
+      "elapsed_seconds": 25.21084569999948,
+      "exchange_seconds": 0.2103276001289487
+    },
+    {
+      "elapsed_seconds": 30.214168400038034,
+      "exchange_seconds": 0.2137553000357002
+    },
+    {
+      "elapsed_seconds": 35.21821919991635,
+      "exchange_seconds": 0.2178555999416858
+    },
+    {
+      "elapsed_seconds": 40.232935699867085,
+      "exchange_seconds": 0.23247259994968772
+    },
+    {
+      "elapsed_seconds": 45.21189250005409,
+      "exchange_seconds": 0.2117904000915587
+    },
+    {
+      "elapsed_seconds": 50.24307550000958,
+      "exchange_seconds": 0.24249060009606183
+    },
+    {
+      "elapsed_seconds": 55.23382889991626,
+      "exchange_seconds": 0.23306400002911687
+    },
+    {
+      "elapsed_seconds": 60.222068399889395,
+      "exchange_seconds": 0.22184479981660843
+    },
+    {
+      "elapsed_seconds": 65.21747220004909,
+      "exchange_seconds": 0.21648679999634624
+    },
+    {
+      "elapsed_seconds": 70.21169229992665,
+      "exchange_seconds": 0.21096469997428358
+    },
+    {
+      "elapsed_seconds": 75.21834310004488,
+      "exchange_seconds": 0.21784219983965158
+    },
+    {
+      "elapsed_seconds": 80.21230680006556,
+      "exchange_seconds": 0.2116439000237733
+    },
+    {
+      "elapsed_seconds": 85.21415510005318,
+      "exchange_seconds": 0.2136091000866145
+    },
+    {
+      "elapsed_seconds": 90.23560189991258,
+      "exchange_seconds": 0.23476259992457926
+    },
+    {
+      "elapsed_seconds": 95.21169109991752,
+      "exchange_seconds": 0.21076190005987883
+    },
+    {
+      "elapsed_seconds": 100.21377700008452,
+      "exchange_seconds": 0.21351319993846118
+    },
+    {
+      "elapsed_seconds": 105.21280759992078,
+      "exchange_seconds": 0.21172209992073476
+    },
+    {
+      "elapsed_seconds": 110.23774660006166,
+      "exchange_seconds": 0.23703359998762608
+    },
+    {
+      "elapsed_seconds": 115.21202729991637,
+      "exchange_seconds": 0.21199070010334253
+    },
+    {
+      "elapsed_seconds": 120.21567919990048,
+      "exchange_seconds": 0.2149698999710381
+    },
+    {
+      "elapsed_seconds": 125.20966769987717,
+      "exchange_seconds": 0.2092689999844879
+    },
+    {
+      "elapsed_seconds": 130.2390564000234,
+      "exchange_seconds": 0.2384783998131752
+    },
+    {
+      "elapsed_seconds": 135.21376190008596,
+      "exchange_seconds": 0.21336659998632967
+    },
+    {
+      "elapsed_seconds": 140.21796469995752,
+      "exchange_seconds": 0.21721719997003675
+    },
+    {
+      "elapsed_seconds": 145.21688540000468,
+      "exchange_seconds": 0.21631990000605583
+    },
+    {
+      "elapsed_seconds": 150.2130205000285,
+      "exchange_seconds": 0.2127769999206066
+    },
+    {
+      "elapsed_seconds": 155.2337547999341,
+      "exchange_seconds": 0.23286310001276433
+    },
+    {
+      "elapsed_seconds": 160.21200249996036,
+      "exchange_seconds": 0.21180470008403063
+    },
+    {
+      "elapsed_seconds": 165.21074089989997,
+      "exchange_seconds": 0.21044609998352826
+    },
+    {
+      "elapsed_seconds": 170.21295599988662,
+      "exchange_seconds": 0.21221009991131723
+    },
+    {
+      "elapsed_seconds": 175.21365939988755,
+      "exchange_seconds": 0.2129885999020189
+    },
+    {
+      "elapsed_seconds": 180.21344899991527,
+      "exchange_seconds": 0.21333850012160838
+    },
+    {
+      "elapsed_seconds": 185.21639680000953,
+      "exchange_seconds": 0.21595450001768768
+    },
+    {
+      "elapsed_seconds": 190.2292694998905,
+      "exchange_seconds": 0.22850099997594953
+    },
+    {
+      "elapsed_seconds": 195.21908849989995,
+      "exchange_seconds": 0.2184938001446426
+    },
+    {
+      "elapsed_seconds": 200.2419672999531,
+      "exchange_seconds": 0.2416579001583159
+    },
+    {
+      "elapsed_seconds": 205.21975630009547,
+      "exchange_seconds": 0.21886050002649426
+    },
+    {
+      "elapsed_seconds": 210.23562829988077,
+      "exchange_seconds": 0.2353224998805672
+    },
+    {
+      "elapsed_seconds": 215.21635239990428,
+      "exchange_seconds": 0.21544249984435737
+    },
+    {
+      "elapsed_seconds": 220.21274739992805,
+      "exchange_seconds": 0.21209240006282926
+    },
+    {
+      "elapsed_seconds": 225.21179639990442,
+      "exchange_seconds": 0.21141779981553555
+    },
+    {
+      "elapsed_seconds": 230.21321329986677,
+      "exchange_seconds": 0.21276629995554686
+    },
+    {
+      "elapsed_seconds": 235.2190487999469,
+      "exchange_seconds": 0.21866089990362525
+    },
+    {
+      "elapsed_seconds": 240.21127679990605,
+      "exchange_seconds": 0.21121750003658235
+    },
+    {
+      "elapsed_seconds": 245.21033859997988,
+      "exchange_seconds": 0.2094318000599742
+    },
+    {
+      "elapsed_seconds": 250.21300260000862,
+      "exchange_seconds": 0.21225690003484488
+    },
+    {
+      "elapsed_seconds": 255.21291720005684,
+      "exchange_seconds": 0.21210800018161535
+    },
+    {
+      "elapsed_seconds": 260.22190469992347,
+      "exchange_seconds": 0.22086989996023476
+    },
+    {
+      "elapsed_seconds": 265.2135493999813,
+      "exchange_seconds": 0.21300649992190301
+    },
+    {
+      "elapsed_seconds": 270.212310400093,
+      "exchange_seconds": 0.21166669996455312
+    },
+    {
+      "elapsed_seconds": 275.2097324000206,
+      "exchange_seconds": 0.20920309983193874
+    },
+    {
+      "elapsed_seconds": 280.2119001999963,
+      "exchange_seconds": 0.21106690005399287
+    },
+    {
+      "elapsed_seconds": 285.2115225000307,
+      "exchange_seconds": 0.21062150015495718
+    },
+    {
+      "elapsed_seconds": 290.21458830009215,
+      "exchange_seconds": 0.21439470001496375
+    },
+    {
+      "elapsed_seconds": 295.23569069989026,
+      "exchange_seconds": 0.23540739994496107
+    },
+    {
+      "elapsed_seconds": 300.2147122998722,
+      "exchange_seconds": 0.21467029978521168
+    },
+    {
+      "elapsed_seconds": 305.21325640007854,
+      "exchange_seconds": 0.21222670003771782
+    },
+    {
+      "elapsed_seconds": 310.23470519995317,
+      "exchange_seconds": 0.233997100032866
+    },
+    {
+      "elapsed_seconds": 315.34052999992855,
+      "exchange_seconds": 0.3201045000459999
+    },
+    {
+      "elapsed_seconds": 320.2191447999794,
+      "exchange_seconds": 0.2187679000198841
+    },
+    {
+      "elapsed_seconds": 325.2287180998828,
+      "exchange_seconds": 0.22830240009352565
+    },
+    {
+      "elapsed_seconds": 330.2769977999851,
+      "exchange_seconds": 0.2765134999062866
+    },
+    {
+      "elapsed_seconds": 335.22653719992377,
+      "exchange_seconds": 0.22576369997113943
+    },
+    {
+      "elapsed_seconds": 340.22001189994626,
+      "exchange_seconds": 0.2195966001600027
+    },
+    {
+      "elapsed_seconds": 345.2327843999956,
+      "exchange_seconds": 0.23249109997414052
+    },
+    {
+      "elapsed_seconds": 350.21639079996385,
+      "exchange_seconds": 0.2155780999455601
+    },
+    {
+      "elapsed_seconds": 355.2093114000745,
+      "exchange_seconds": 0.20869180001318455
+    },
+    {
+      "elapsed_seconds": 360.21246899990365,
+      "exchange_seconds": 0.21233559981919825
+    },
+    {
+      "elapsed_seconds": 365.21855890005827,
+      "exchange_seconds": 0.21779240015894175
+    },
+    {
+      "elapsed_seconds": 370.21369559993036,
+      "exchange_seconds": 0.2133392000105232
+    },
+    {
+      "elapsed_seconds": 375.261710499879,
+      "exchange_seconds": 0.2611722000874579
+    },
+    {
+      "elapsed_seconds": 380.2125554999802,
+      "exchange_seconds": 0.2119475998915732
+    },
+    {
+      "elapsed_seconds": 385.2170406000223,
+      "exchange_seconds": 0.2167080999352038
+    },
+    {
+      "elapsed_seconds": 390.21175989997573,
+      "exchange_seconds": 0.21155900019221008
+    },
+    {
+      "elapsed_seconds": 395.2231310000643,
+      "exchange_seconds": 0.2228608001023531
+    },
+    {
+      "elapsed_seconds": 400.2135884000454,
+      "exchange_seconds": 0.2126834001392126
+    },
+    {
+      "elapsed_seconds": 405.21142919990234,
+      "exchange_seconds": 0.21095169987529516
+    },
+    {
+      "elapsed_seconds": 410.2103911000304,
+      "exchange_seconds": 0.21021839999593794
+    },
+    {
+      "elapsed_seconds": 415.2137207998894,
+      "exchange_seconds": 0.2134269999805838
+    },
+    {
+      "elapsed_seconds": 420.2180818999186,
+      "exchange_seconds": 0.21793889999389648
+    },
+    {
+      "elapsed_seconds": 425.21068409993313,
+      "exchange_seconds": 0.210570199880749
+    },
+    {
+      "elapsed_seconds": 430.2087938999757,
+      "exchange_seconds": 0.20858330000191927
+    },
+    {
+      "elapsed_seconds": 435.2149388999678,
+      "exchange_seconds": 0.21462949994020164
+    },
+    {
+      "elapsed_seconds": 440.2166526000947,
+      "exchange_seconds": 0.216032600030303
+    },
+    {
+      "elapsed_seconds": 445.21179269999266,
+      "exchange_seconds": 0.21144170011393726
+    },
+    {
+      "elapsed_seconds": 450.2135409999173,
+      "exchange_seconds": 0.21307529998011887
+    },
+    {
+      "elapsed_seconds": 455.21485699992627,
+      "exchange_seconds": 0.2140301000326872
+    },
+    {
+      "elapsed_seconds": 460.2141010998748,
+      "exchange_seconds": 0.21379709988832474
+    },
+    {
+      "elapsed_seconds": 465.2197620999068,
+      "exchange_seconds": 0.21913519990630448
+    },
+    {
+      "elapsed_seconds": 470.2123197000474,
+      "exchange_seconds": 0.21206940012052655
+    },
+    {
+      "elapsed_seconds": 475.21245580003597,
+      "exchange_seconds": 0.2116851001046598
+    },
+    {
+      "elapsed_seconds": 480.21218809997663,
+      "exchange_seconds": 0.21165599999949336
+    },
+    {
+      "elapsed_seconds": 485.2295623999089,
+      "exchange_seconds": 0.2286916000302881
+    },
+    {
+      "elapsed_seconds": 490.2123388000764,
+      "exchange_seconds": 0.211565800011158
+    },
+    {
+      "elapsed_seconds": 495.2194419000298,
+      "exchange_seconds": 0.21903110016137362
+    },
+    {
+      "elapsed_seconds": 500.2121196000371,
+      "exchange_seconds": 0.2120844000019133
+    },
+    {
+      "elapsed_seconds": 505.207171499962,
+      "exchange_seconds": 0.20658190012909472
+    },
+    {
+      "elapsed_seconds": 510.3016929998994,
+      "exchange_seconds": 0.3015757999382913
+    },
+    {
+      "elapsed_seconds": 515.2135252999142,
+      "exchange_seconds": 0.21291759982705116
+    },
+    {
+      "elapsed_seconds": 520.2116956999525,
+      "exchange_seconds": 0.2112273999955505
+    },
+    {
+      "elapsed_seconds": 525.2110297998879,
+      "exchange_seconds": 0.210935200098902
+    },
+    {
+      "elapsed_seconds": 530.2127103998791,
+      "exchange_seconds": 0.21212549996562302
+    },
+    {
+      "elapsed_seconds": 535.2139463000931,
+      "exchange_seconds": 0.213272700086236
+    },
+    {
+      "elapsed_seconds": 540.2237873999402,
+      "exchange_seconds": 0.22360499994829297
+    },
+    {
+      "elapsed_seconds": 545.2121985999402,
+      "exchange_seconds": 0.21202169987373054
+    },
+    {
+      "elapsed_seconds": 550.209988999879,
+      "exchange_seconds": 0.20952409994788468
+    },
+    {
+      "elapsed_seconds": 555.2178324998822,
+      "exchange_seconds": 0.21696499991230667
+    },
+    {
+      "elapsed_seconds": 560.2120451999363,
+      "exchange_seconds": 0.21155139990150928
+    },
+    {
+      "elapsed_seconds": 565.2109387000091,
+      "exchange_seconds": 0.21079739998094738
+    },
+    {
+      "elapsed_seconds": 570.214304999914,
+      "exchange_seconds": 0.21325880009680986
+    },
+    {
+      "elapsed_seconds": 575.2148285000585,
+      "exchange_seconds": 0.21438309992663562
+    },
+    {
+      "elapsed_seconds": 580.2107275999151,
+      "exchange_seconds": 0.21065449994057417
+    },
+    {
+      "elapsed_seconds": 585.2125041000545,
+      "exchange_seconds": 0.21211600000970066
+    },
+    {
+      "elapsed_seconds": 590.2103043999523,
+      "exchange_seconds": 0.20942219998687506
+    },
+    {
+      "elapsed_seconds": 595.2119815999176,
+      "exchange_seconds": 0.2117699000518769
+    },
+    {
+      "elapsed_seconds": 600.2104323999956,
+      "exchange_seconds": 0.21023309999145567
+    }
+  ],
+  "raw_report_sha256": "4a9b2d644ff79ae636aa64456799d4a751244c3ed60cb34229ca9c91010bb9d9",
+  "source_base_revision": "175287792bbcc7dc96dc6e91a3741fda44896e98",
+  "source_hashes": {
+    "scripts\\server_validation\\relay_connection_soak.py": "99b9b0e0f601a448c7b4a7d2ea7a554fd27f342a01bbbda7c747460752b553f5",
+    "rust_transport\\px_transport_probe\\src\\main.rs": "9e9515b5ea60aa5928920eba110b0192e051aa1252ba71102bd7a4b0907bc821"
+  },
+  "health_observations": [
+    {
+      "observed_epoch": 1791898710.436254,
+      "relays": [
+        {
+          "bandwidth_capacity_mbps": null,
+          "control_epoch": 3,
+          "current_connections": 2,
+          "current_rooms": null,
+          "desired_draining": false,
+          "disabled": false,
+          "forwarded_bytes": 2258488,
+          "forwarded_rate_bps": 2155,
+          "fresh": true,
+          "generation": 4,
+          "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+          "iroh_qad_port": 4605,
+          "last_seen": "2026-10-13T13:38:36.303213Z",
+          "max_connections": 4096,
+          "max_rooms": null,
+          "name": "Single Server Relay",
+          "product_version_code": 3002001,
+          "public_host": "49.232.190.218",
+          "public_port": 4605,
+          "report_sequence": 283,
+          "reported_draining": false,
+          "revision": 2,
+          "state": "ready",
+          "uploaded_bytes": 2258653
+        }
+      ],
+      "backup_connected": true,
+      "backup_alerts": []
+    },
+    {
+      "observed_epoch": 1791898841.2269018,
+      "relays": [
+        {
+          "bandwidth_capacity_mbps": null,
+          "control_epoch": 3,
+          "current_connections": 2,
+          "current_rooms": null,
+          "desired_draining": false,
+          "disabled": false,
+          "forwarded_bytes": 2293800,
+          "forwarded_rate_bps": 2155,
+          "fresh": true,
+          "generation": 4,
+          "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+          "iroh_qad_port": 4605,
+          "last_seen": "2026-10-13T13:40:46.302821Z",
+          "max_connections": 4096,
+          "max_rooms": null,
+          "name": "Single Server Relay",
+          "product_version_code": 3002001,
+          "public_host": "49.232.190.218",
+          "public_port": 4605,
+          "report_sequence": 309,
+          "reported_draining": false,
+          "revision": 2,
+          "state": "ready",
+          "uploaded_bytes": 2293965
+        }
+      ],
+      "backup_connected": true,
+      "backup_alerts": []
+    },
+    {
+      "observed_epoch": 1791899017.9254854,
+      "relays": [
+        {
+          "bandwidth_capacity_mbps": null,
+          "control_epoch": 3,
+          "current_connections": 2,
+          "current_rooms": null,
+          "desired_draining": false,
+          "disabled": false,
+          "forwarded_bytes": 2342294,
+          "forwarded_rate_bps": 1999,
+          "fresh": true,
+          "generation": 4,
+          "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+          "iroh_qad_port": 4605,
+          "last_seen": "2026-10-13T13:43:46.302751Z",
+          "max_connections": 4096,
+          "max_rooms": null,
+          "name": "Single Server Relay",
+          "product_version_code": 3002001,
+          "public_host": "49.232.190.218",
+          "public_port": 4605,
+          "report_sequence": 345,
+          "reported_draining": false,
+          "revision": 2,
+          "state": "ready",
+          "uploaded_bytes": 2342459
+        }
+      ],
+      "backup_connected": true,
+      "backup_alerts": []
+    },
+    {
+      "observed_epoch": 1791899127.6821778,
+      "relays": [
+        {
+          "bandwidth_capacity_mbps": null,
+          "control_epoch": 3,
+          "current_connections": 2,
+          "current_rooms": null,
+          "desired_draining": false,
+          "disabled": false,
+          "forwarded_bytes": 2371679,
+          "forwarded_rate_bps": 2155,
+          "fresh": true,
+          "generation": 4,
+          "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+          "iroh_qad_port": 4605,
+          "last_seen": "2026-10-13T13:45:36.303518Z",
+          "max_connections": 4096,
+          "max_rooms": null,
+          "name": "Single Server Relay",
+          "product_version_code": 3002001,
+          "public_host": "49.232.190.218",
+          "public_port": 4605,
+          "report_sequence": 367,
+          "reported_draining": false,
+          "revision": 2,
+          "state": "ready",
+          "uploaded_bytes": 2371844
+        }
+      ],
+      "backup_connected": true,
+      "backup_alerts": []
+    },
+    {
+      "observed_epoch": 1791899290.3741922,
+      "relays": [
+        {
+          "bandwidth_capacity_mbps": null,
+          "control_epoch": 3,
+          "current_connections": 0,
+          "current_rooms": null,
+          "desired_draining": false,
+          "disabled": false,
+          "forwarded_bytes": 2411024,
+          "forwarded_rate_bps": 0,
+          "fresh": true,
+          "generation": 4,
+          "id": "d05aa577-4ddf-49b6-b634-1d21eddc47ff",
+          "iroh_qad_port": 4605,
+          "last_seen": "2026-10-13T13:48:16.305115Z",
+          "max_connections": 4096,
+          "max_rooms": null,
+          "name": "Single Server Relay",
+          "product_version_code": 3002001,
+          "public_host": "49.232.190.218",
+          "public_port": 4605,
+          "report_sequence": 399,
+          "reported_draining": false,
+          "revision": 2,
+          "state": "ready",
+          "uploaded_bytes": 2411189
+        }
+      ],
+      "backup_connected": true,
+      "backup_alerts": []
+    }
+  ],
+  "retained_runtime": {
+    "configuration_hashes": {
+      "backup/console.pgpass": "290475c2368fd9b843c2d5aa72d784697a78781b193bb632a0585468a38b58d7",
+      "backup.env": "c73b7c940010dae64374376932e30ae035f398ee206792e05cf1b3ea2b911f5c",
+      "backup.json": "8b4c6e054e7e033a4c042eacb30ca5491e4379eb88c9438c75afef429882a171",
+      "console/license/console.license": "718e645666f34377722226af29c180a83d00b3c35ae74541a0f0b9a384ca8d41",
+      "console-ca.crt": "2b5e7182f91cdd4c08c4bd808b47cd8b706318b0d48b416734cd8d1a9db50ce0",
+      "console-tls.crt": "445e3bee5cf66c8229922a9789ff50a045e8157eb1209d40ba5308c260b58c57",
+      "console-tls.key": "80a5ac047824b8daf369b32de46174c2de3c735f2a019d31a75f4cfd56fd77ad",
+      "console.env": "9ba49313fa261bcb3d8aed8bbf0f4254ef9a3829683552139189c76ca2ab46f5",
+      "database-upgrade/console-owner.url": "b5a9c2878fb6ed60aacc3260a4aa24141947a9a102c3260fe307a926a286dd50",
+      "guest-source.key": "0d4d30d2504ccc07ce00d46be012c4a770482987b2d386b88165ef1d35bbadd7",
+      "iroh-relay.json": "ebc7bc2e9ca3c6647684cf030817346cb372845a334dc866edae7b403be13807",
+      "license-trust.json": "dfac467036c435aa0d811ce00897d3226836a2c7a2f9d6f48298ab70c4d9a691",
+      "relay-tls/relay.crt": "445e3bee5cf66c8229922a9789ff50a045e8157eb1209d40ba5308c260b58c57",
+      "relay-tls/relay.key": "80a5ac047824b8daf369b32de46174c2de3c735f2a019d31a75f4cfd56fd77ad",
+      "relay.env": "b88b38b2cd2dd658c58d7b012cc0e30229833a30a09173ae1863e60236993bd2",
+      "relay.ready": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+      "setup.complete": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+      "setup.ready": "ed1a545bb85e55816bbf9566b028b2a0bc456b88f49f6f266c0401048824194b",
+      "workspace.key": "5cf2c5f6bc1db7a993a0e692496250e033283a9ce2ca2f4852a635d8294bec98"
+    },
+    "containers": [
+      {
+        "id": "794f2fe5cf8a",
+        "name": "/pixels-server-cn-backup-1",
+        "image": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:15:01.172067734Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "7b48941bdfe4",
+        "name": "/pixels-server-cn-relay-1",
+        "image": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:11:24.149226261Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "ee178e8cd919",
+        "name": "/pixels-server-cn-console-1",
+        "image": "sha256:8b88bc9889d79bdb1b75733145cc5bc1c7426eebf2d45f82e4e355fd0f301177",
+        "started_at": "2026-10-13T13:15:01.040221273Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "45542325bbc5",
+        "name": "/pixels-server-cn-postgres-postgres-1",
+        "image": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+        "started_at": "2026-10-13T12:50:38.13569902Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "df5d2dba18ef",
+        "name": "/pixels-agent-bridge-site-site-1",
+        "image": "sha256:51137a085ad570d50445868705608538c90bb00e75959cef548b8fb61b384c42",
+        "started_at": "2026-10-13T09:44:45.620025023Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "c5f4f5e8d112",
+        "name": "/pixels-agent-bridge-relay-1",
+        "image": "sha256:deaf862f84c37c42746198e7eb0409701ba5fc7275f7690ca4f153da60cdea99",
+        "started_at": "2026-10-10T01:25:43.776406017Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "3f1bf4cb6fcd",
+        "name": "/pixels-agent-bridge-backend-1",
+        "image": "sha256:deaf862f84c37c42746198e7eb0409701ba5fc7275f7690ca4f153da60cdea99",
+        "started_at": "2026-10-10T01:25:38.109940321Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "90295a9ed616",
+        "name": "/pixels-agent-bridge-postgres-1",
+        "image": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+        "started_at": "2026-09-22T10:26:50.082701809Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "3072e6430297",
+        "name": "/pixels-auth-postgres",
+        "image": "sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280",
+        "started_at": "2026-09-21T07:57:55.556974921Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "89669615e289",
+        "name": "/aini-web-1",
+        "image": "sha256:84eef5b9060cc2aa87fb38d4ec0cda75b47471219324715be3d6f2503f28bd95",
+        "started_at": "2026-09-14T15:45:22.932936464Z",
+        "restarts": 0,
+        "running": true
+      },
+      {
+        "id": "50871f6e271b",
+        "name": "/aini-api-1",
+        "image": "sha256:fb229584a8f70e0f868553adfa4c5e6ab0b4dec9275de53244df7013a941d3a9",
+        "started_at": "2026-09-14T15:45:22.76414419Z",
+        "restarts": 0,
+        "running": true
+      }
+    ]
+  },
+  "argument_rejections": [
+    {
+      "arguments": [
+        "--retention-timeout-seconds",
+        "3661"
+      ],
+      "exit_code": 1,
+      "expected_error": "retention timeout must be 30..3660"
+    },
+    {
+      "arguments": [
+        "--retention-timeout-seconds"
+      ],
+      "exit_code": 1,
+      "expected_error": "requires a duration"
+    },
+    {
+      "arguments": [
+        "--retention-timeout-seconds",
+        "invalid"
+      ],
+      "exit_code": 1,
+      "expected_error": "invalid retention timeout"
+    }
+  ],
+  "invalid_sample": {
+    "scope": "low-load held QUIC connection through a public Relay",
+    "relay_url": "https://49.232.190.218:4605/",
+    "probe_sha256": "5080f37fd81d664b44f5216a5d27f1840e09d69363200ae041c22f4219c5bc9b",
+    "configuration_sha256": "dbbef35eaa7c065df111007334350bf9f09bc55f52fc68c6042586dd8277e3b5",
+    "requested_seconds": 600,
+    "interval_seconds": 5,
+    "started_epoch": 1791898398.5078592,
+    "samples": [
+      {
+        "elapsed_seconds": 0.21303230011835694,
+        "exchange_seconds": 0.2130293999798596,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 5.2105564000085,
+        "exchange_seconds": 0.20977549999952316,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 10.210226299939677,
+        "exchange_seconds": 0.20970800006762147,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 15.213256400078535,
+        "exchange_seconds": 0.2130909999832511,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 20.211601099930704,
+        "exchange_seconds": 0.21141479979269207,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 25.211765700019896,
+        "exchange_seconds": 0.21155250002630055,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 30.2214039999526,
+        "exchange_seconds": 0.22110760002397,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 35.213768100133166,
+        "exchange_seconds": 0.21301519987173378,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 40.21044020005502,
+        "exchange_seconds": 0.20971009996719658,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 45.20861390000209,
+        "exchange_seconds": 0.2082987001631409,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 50.208942000055686,
+        "exchange_seconds": 0.20803670003078878,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 55.21065580006689,
+        "exchange_seconds": 0.2103705001063645,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 60.21274739992805,
+        "exchange_seconds": 0.2117813997901976,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 65.20455130003393,
+        "exchange_seconds": 0.20415330003015697,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 70.21114500006661,
+        "exchange_seconds": 0.21011879993602633,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 75.21642019995488,
+        "exchange_seconds": 0.21613229997456074,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 80.21416059997864,
+        "exchange_seconds": 0.21356489998288453,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      },
+      {
+        "elapsed_seconds": 85.20842169993557,
+        "exchange_seconds": 0.2080843998119235,
+        "result": {
+          "admission_scope": "console-candidate-filter",
+          "datagrams_each_direction": 4,
+          "home": "https://49.232.190.218:4605/",
+          "new_endpoint_denied": false,
+          "phase": "bandwidth",
+          "reliable_round_trips": 4,
+          "same_endpoint_identities": true,
+          "same_quic_connections": true,
+          "same_reliable_stream": true
+        }
+      }
+    ],
+    "passed": false,
+    "media_performance_test": false,
+    "throughput_capacity_test": false,
+    "fault_injection": false,
+    "owned_pid": 89792,
+    "endpoint_address": {
+      "addrs": [
+        {
+          "Relay": "https://49.232.190.218:4605/"
+        }
+      ],
+      "id": "3f82e927ca482912c16fb4beef773a491c820f4bd625ceb789630f274a0bf4fd"
+    },
+    "observation_seconds": 85.20842309994623,
+    "failure": "Owned probe exited before RETENTION_PHASE ",
+    "exit_code": 1,
+    "owned_probe_stopped": true,
+    "completed_epoch": 1791898490.1994183,
+    "logs": [
+      {
+        "name": "stdout.log.gz",
+        "bytes": 889,
+        "sha256": "582da962b4c3abf5dbb78d87a2e784698a4e5bb9cd07b5ed91de1de2a3ab5dad"
+      },
+      {
+        "name": "stderr.log.gz",
+        "bytes": 186,
+        "sha256": "2ca838341b7a69c62ca54e50d5d5efb377d7dff1ee38a67c8f39a5147a70710f"
+      }
+    ],
+    "reliable_round_trips_verified": 72,
+    "datagrams_verified_each_direction": 72,
+    "maximum_exchange_seconds": 0.22110760002397
+  },
+  "invalid_sample_reason": "Initial test tool retained its default90-second total deadline; this was not a Relay disconnect",
+  "observer_failure": "Initial managed Relay query omitted mandatory limit and returned400; corrected query passed",
+  "product_runtime_changes": false,
+  "persistent_configuration_changes": false,
+  "normal_default_probe_deadlines_retained": {
+    "retention_seconds": 90,
+    "distribution_seconds": 120
+  },
+  "release_probe_sha256": "a4cafb2835be82a9e3f0cd2681f578ae9d5e06ffac7da2d4962f3b57f2abda3d",
+  "scope_exclusions": [
+    "Android",
+    "Company",
+    "90/XR deployment or tests",
+    "media/NIC/saturated mixed-load tuning",
+    "throughput capacity",
+    "complex NAT acceptance"
+  ],
+  "build_jobs": 18,
+  "compressed_evidence": [
+    {
+      "path": "docs/validation/iroh_transport/20261013_cn_relay_soak_stdout.log.gz",
+      "sha256": "e3045c1e50e0e644ea96962147dddda2fb48174f106ab00d0b4fd0e47e7a46c3",
+      "bytes": 1086
+    },
+    {
+      "path": "docs/validation/iroh_transport/20261013_cn_relay_soak_stderr.log.gz",
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64",
+      "bytes": 20
+    },
+    {
+      "path": "docs/validation/iroh_transport/20261013_cn_relay_soak_initial_stdout.log.gz",
+      "sha256": "582da962b4c3abf5dbb78d87a2e784698a4e5bb9cd07b5ed91de1de2a3ab5dad",
+      "bytes": 889
+    },
+    {
+      "path": "docs/validation/iroh_transport/20261013_cn_relay_soak_initial_stderr.log.gz",
+      "sha256": "2ca838341b7a69c62ca54e50d5d5efb377d7dff1ee38a67c8f39a5147a70710f",
+      "bytes": 186
+    }
+  ]
+}
