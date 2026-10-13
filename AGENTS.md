@@ -1,5 +1,15 @@
 # Workspace delivery rules
 
+- Unified acceptance current checkpoint (2026-10-13 late night): T3a media observation collected full1800.499s,
+  logs through23:36:25.971, steady59.99FPS/max49.482ms, gzip354091 bytes SHA verified. Resource/instance terminal,
+  but normal Client exit unverified (native task interrupted, no error); do not call this a normal-close pass.
+  Supervisor v2 keeps its parent alive after the sample until normal Client close. T3b-r1 operation
+  3cd7f2ef-8b16-4f1c-8ed7-b4856f4345ba/task1e06c2c9-f566-4a34-a2b6-d79c79c7fc04 is running from15:47:59Z,
+  Client6532/creation15:47:59.265136Z, actualWindows Relay39.71.45.66:4605. Do not restart; observe then normal close.
+  Re-query PAB user execution contexts immediately before launch; the earlier T3b rejected stale context and was
+  cleaned, with no remote native task. XR dedicated app7edfe1e…/deploymentb89b6da… can be reused; source scripts
+  are staged under the required XR workspace only, with no XR configuration or running workloads changed yet.
+
 - Unified acceptance live checkpoint (2026-10-13 night): T1/T2 passed; Company Client E849DAD0… and Panel0BBF191A…
   are incrementally aligned,44 candidate files checked and317 settings-file hashes retained. T3a original command
   136e708d-1a3b-4c14-b233-5d43949fb70a/task f3aac060-0f9a-43dd-a808-607906832969 remains running for1800 seconds.

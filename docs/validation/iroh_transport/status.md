@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13夜间，完整T3a已收集，T3b Windows Relay正在运行
+
+T3a原1800.499秒观测结束，gzip354091字节/原4,384,067字节SHA相等；日志覆盖23:06:25.562–23:36:25.971，稳定348窗口/1743.495秒/104591帧约59.99FPS/最大49.482ms，actualLAN direct10.0.0.90:4613，全日志错误/接入拒绝筛查空。60个进程采样，1770秒工作集209.97MB/私有176.74MB/句柄832。命令任务状态interrupted无error且脚本输出sample_completed=true，退出后Client消失；正常退出未核验，不能写exit0/正常关闭。资源0a0aa0…closed/实例c521…stopped，已清理；样本数据见[完整直连记录](20261013_acceptance_direct_sample.json)。观察脚本v2增加采样结束后等待正常关闭，保留工具结束问题并在下一条验证关闭流程。
+
+首次T3b命令因旧user context未知而未创建远端task，已对原operation查询并保存错误；其资源9d2e…closed/实例8488…stopped，不计媒体失败或通过。重新取current user context后，T3b-r1原operation3cd7f2ef…/task1e06c2c9…running，supervisor39088/Client6532/创建2026-10-13T15:47:59.265136Z，实例489dad44…/资源8821aeeb…，预计00:18之后观察完成；实际selected Windows Relay https39.71.45.66:4605，初步窗口约60FPS，仅中途数据。结束时先正常关闭Client再让v2监督进程退出，不能提前结束父进程。
+
+XR旧专用验证应用7edfe1e…/部署b89b6da…仍禁用，已找到可复用场景；仅上传页面/服务脚本到D:\uploadsoft\rd\pixels\unified-acceptance-20261013，未启动该页面或改XR配置，后续BJ路径用真实选择证据。当前唯一下一步继续原T3b-r1并正常关闭/压缩取证。Goal控制器查询曾显示blocked，但用户继续指令有效、实际工作在推进；不将任务整体标完成。完整矩阵T3c/T4/T5/T6/T7/T8仍未完成。
+
 ## 最新接续：2026-10-13夜间，T1/T2通过，Company单路UDP直连30分钟样本正在运行
 
 Company完整候选比对44文件，仅Client/Panel及两清单共4文件变化；37,617,005字节差异ZIP上传7.159秒/SHA相等，复用40文件。增量verify/publish exit0，44文件最终SHA通过、317个Public设置文件SHA相等，旧文件保留delta/before-e3b6…；原Uninstall/edition及日志保留，不称新Setup安装。ClientE849DAD0…/Panel0BBF191A…已运行。90四服务Running、两Relayfresh/ready/未排空，原19Server配置及Node配置基线已存，授权80/RDP10保持。签名策略拒绝首次helper与desktop_user命令参数拒绝都发生于对应操作前，改当前进程策略/正确user选择后通过，全局策略不变。

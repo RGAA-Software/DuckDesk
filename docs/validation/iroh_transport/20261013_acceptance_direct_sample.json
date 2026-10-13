@@ -1,0 +1,63 @@
+{
+  "report": {
+    "state": "awaiting_normal_close",
+    "instance_id": "c52120e4-94e4-4897-9d6e-cbccbf22f852",
+    "resource_id": "0a0aa0e1-ab9b-4352-a81d-fe8582515e2d",
+    "expected_seconds": 1800,
+    "sample_completed": true,
+    "supervisor_pid": 49200,
+    "supervisor_created_utc": "2026-10-13T15:06:24.2580312Z",
+    "pid": 53952,
+    "process_created_utc": "2026-10-13T15:06:25.4737890Z",
+    "started_at_utc": "2026-10-13T15:06:25.4854583+00:00",
+    "hold_seconds": 1800.4995195,
+    "sample_completed_at_utc": "2026-10-13T15:36:26.0072109+00:00"
+  },
+  "archive_path": "D:\\112233\\unified-acceptance-20261013\\T3a\\client.log.gz",
+  "archive_sha256": "4EB433C2226BB2C2695A0CD83DB005BB1C57E4BD35E439A06F24EB783068A6CD",
+  "archive_bytes": 354091,
+  "written_lines": 13670,
+  "first_log_utc_local": "2026-10-13T23:06:25.5620000",
+  "last_log_utc_local": "2026-10-13T23:36:25.9710000",
+  "steady_window_count": 348,
+  "steady_frames": 104591,
+  "steady_elapsed_us": 1743494822,
+  "steady_maximum_gap_us": 49482,
+  "path_details": [
+    "[2026-10-13 23:06:32.142][thread 19112][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Ip\":\"10.0.0.90:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+    "[2026-10-13 23:36:25.871][thread 19112][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Ip\":\"10.0.0.90:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+  ],
+  "failures": [],
+  "process_observations": [
+    {
+      "elapsed_seconds": 0.0051062,
+      "working_set_bytes": 2060288,
+      "private_bytes": 12693504,
+      "handle_count": 10,
+      "total_cpu_seconds": 0,
+      "main_window_handle": "0"
+    },
+    {
+      "elapsed_seconds": 1770.0819872,
+      "working_set_bytes": 209969152,
+      "private_bytes": 176742400,
+      "handle_count": 832,
+      "total_cpu_seconds": 204.203125,
+      "main_window_handle": "215358552"
+    }
+  ],
+  "client_alive": false,
+  "command_completion": {
+    "state": "interrupted",
+    "error": null,
+    "full_sample_reported": true,
+    "normal_client_exit_unverified": true
+  },
+  "cleanup": {
+    "resource_state": "closed",
+    "instance_state": "stopped",
+    "client_alive": false
+  },
+  "steady_fps": 59.98928054172334,
+  "note": "Observed complete1800.5-second LAN direct media sample. Final native-helper task state interrupted and Client gone; normal exit was not verified. Supervisor amended before next path, with affected close lifecycle still to validate."
+}
