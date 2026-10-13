@@ -30,10 +30,11 @@ try {
         $client.StartInfo = $options
         if (-not $client.Start()) { $client.Dispose(); throw 'RDP Client failed to start' }
         $ownedClients.Add($client)
+        $reports.Add([ordered]@{pid=$client.Id;instance_id=$launch.connection_instance_id;session_id=$launch.frontend_session_id;
+            account_name=$launch.rdp.account_name;state='started';started_at_utc=[DateTimeOffset]::UtcNow.ToString('o');
+            process_created_utc=$client.StartTime.ToUniversalTime().ToString('o')})
         $client.StandardInput.Write(($launch | ConvertTo-Json -Depth 12 -Compress))
         $client.StandardInput.Close()
-        $reports.Add([ordered]@{pid=$client.Id;instance_id=$launch.connection_instance_id;session_id=$launch.frontend_session_id;
-            account_name=$launch.rdp.account_name;state='started';started_at_utc=[DateTimeOffset]::UtcNow.ToString('o')})
     }
     $launches = $null
     [IO.File]::WriteAllText($resultPath,($reports.ToArray() | ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))

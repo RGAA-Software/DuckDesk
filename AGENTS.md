@@ -1,5 +1,12 @@
 # Workspace delivery rules
 
+- RDP validation limit and Company load decision (2026-10-13, superseding the 20-route RDP target): the user
+  limited RDP to at most 10 and requested relief after Company became sluggish. The 90 RDP deployment is now
+  capacity=10/revision=3. Stop this batch's Company test clients and do not use Company for further multi-client
+  or heavy load validation without new user direction. Preserve the passed ten-user connection/frame evidence;
+  do not expand RDP back to 20 or restart this load test. GameHook/WebView capacities and the 80-stream license
+  remain unchanged. Existing Windows accounts and disconnected sessions are retained.
+
 - RDP workspace pool update (2026-10-13, superseding the singleton notes below): the same RDP application/node
   now owns persistent slots `(application_id, node_id, workspace_slot)`, each with a distinct Windows user.
   Capacity is configurable from 1 to 64; the current 90 deployment is configured for 20. Each workspace still

@@ -1,0 +1,3692 @@
+[
+  {
+    "observed_at_utc": "2026-10-13T01:13:47.366348+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:13:46.647168Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:13:46.602897Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:13:46.647168Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:13:46.602897Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:13:46.647168Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:13:46.602897Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:13:46.647168Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:13:46.602897Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:13:46.646769Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2047,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429162192896,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122215739392,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:13:46.647168Z",
+          "report_sequence": 2047,
+          "sampled_at": "2026-10-13T01:13:46.602897Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:13:56.239551Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:13:56.233053Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 714768384,
+            "utilization_per_mille": 30
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:13:56.238991Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2048,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 0,
+          "disk_free_bytes": 164072607744,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 60274737152,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:13:56.239551Z",
+          "report_sequence": 2048,
+          "sampled_at": "2026-10-13T01:13:56.233053Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:13:55.541867Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6658,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 6,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255665977,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:13:55.311968Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6658,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 255761203
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:15:39.242634+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:15:46.640026Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:15:46.596356Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:15:46.640026Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:15:46.596356Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:15:46.640026Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:15:46.596356Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:15:46.640026Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:15:46.596356Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:15:46.639640Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2055,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429162049536,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122211225600,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:15:46.640026Z",
+          "report_sequence": 2055,
+          "sampled_at": "2026-10-13T01:15:46.596356Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:15:39.329691Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:15:39.323429Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 796176384,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:15:39.328944Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2055,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 30,
+          "disk_free_bytes": 164071944192,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 60043526144,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:15:39.329691Z",
+          "report_sequence": 2055,
+          "sampled_at": "2026-10-13T01:15:39.323429Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:15:45.540860Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6680,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255682071,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:15:45.312573Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6680,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 255777777
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:16:59.356517+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:17:01.642175Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:17:01.597915Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:17:01.642175Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:17:01.597915Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 20,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:17:01.642175Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:17:01.597915Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:17:01.642175Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:17:01.597915Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:17:01.641698Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2060,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429161902080,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122214354944,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:17:01.642175Z",
+          "report_sequence": 2060,
+          "sampled_at": "2026-10-13T01:17:01.597915Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:17:03.437645Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:17:03.429979Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 1456689152,
+            "utilization_per_mille": 20
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:17:03.436605Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2064,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 129,
+          "disk_free_bytes": 163817484288,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 58156371968,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:17:03.437645Z",
+          "report_sequence": 2064,
+          "sampled_at": "2026-10-13T01:17:03.429979Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:17:05.540989Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6696,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 11,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255763111,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:17:05.313777Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6696,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 255858817
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:18:11.828635+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "pending",
+        "revision": 2,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:18:16.640021Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:18:16.595099Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:18:16.640021Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:18:16.595099Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 20,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:18:16.640021Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:18:16.595099Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:18:16.640021Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:18:16.595099Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:18:16.639029Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2065,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429161562112,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122214625280,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:18:16.640021Z",
+          "report_sequence": 2065,
+          "sampled_at": "2026-10-13T01:18:16.595099Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 10,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:18:17.633339Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:18:17.623616Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 1981157376,
+            "utilization_per_mille": 30
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:18:17.631541Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2072,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 295,
+          "disk_free_bytes": 163578388480,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 56217505792,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:18:17.633339Z",
+          "report_sequence": 2072,
+          "sampled_at": "2026-10-13T01:18:17.623616Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:18:20.541445Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6711,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 20,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255832407,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:18:20.357952Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6711,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 255928113
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:20:23.237946+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "d4cdc807-554c-4d40-8fcd-2ee678a90321",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8b45944c-ab9f-4d7b-8a75-53be9ce210ee",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e71cd74b-0e70-438c-aef8-4ae233e9468e",
+        "state": "stopping",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "aab4c032-5626-467e-94ba-b0092b6ff829",
+        "state": "stopping",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "313d5851-d778-43d7-827a-d3eeb7ba68ad",
+        "state": "stopping",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "0780f6ca-5015-4b7d-8453-72511695f96d",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "4e0d6bf7-cb8a-4160-91af-006a7e481d2c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "27943330-5ab5-4f16-a82b-f0947139eb24",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8364e845-b41a-47df-b7e8-e1404c84f7a5",
+        "state": "closing",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "e5accc30-fc27-4586-87e0-0e92d15a1806",
+        "state": "closing",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "01a165ca-4eca-42ed-833c-7072a634748a",
+        "state": "closing",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "41d12284-6546-498c-b815-d4bab1f4e991",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:20:31.637692Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:20:31.592965Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:20:31.637692Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:20:31.592965Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:20:31.637692Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:20:31.592965Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:20:31.637692Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:20:31.592965Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:20:31.637075Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2074,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429160669184,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122202247168,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:20:31.637692Z",
+          "report_sequence": 2074,
+          "sampled_at": "2026-10-13T01:20:31.592965Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:20:25.739430Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:20:25.728291Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 2791763968,
+            "utilization_per_mille": 30
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:20:25.737510Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2085,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 20,
+          "disk_free_bytes": 162745233408,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 51843166208,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:20:25.739430Z",
+          "report_sequence": 2085,
+          "sampled_at": "2026-10-13T01:20:25.728291Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:20:30.539928Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6737,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 27,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255949938,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:20:30.314442Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6737,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 256046934
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:21:45.708013+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "d4cdc807-554c-4d40-8fcd-2ee678a90321",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8b45944c-ab9f-4d7b-8a75-53be9ce210ee",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e71cd74b-0e70-438c-aef8-4ae233e9468e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "aab4c032-5626-467e-94ba-b0092b6ff829",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "313d5851-d778-43d7-827a-d3eeb7ba68ad",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "0780f6ca-5015-4b7d-8453-72511695f96d",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "4e0d6bf7-cb8a-4160-91af-006a7e481d2c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "27943330-5ab5-4f16-a82b-f0947139eb24",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8364e845-b41a-47df-b7e8-e1404c84f7a5",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e5accc30-fc27-4586-87e0-0e92d15a1806",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "01a165ca-4eca-42ed-833c-7072a634748a",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "41d12284-6546-498c-b815-d4bab1f4e991",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:21:46.636221Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:21:46.591354Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:21:46.636221Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:21:46.591354Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 20,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:21:46.636221Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:21:46.591354Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:21:46.636221Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:21:46.591354Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:21:46.635708Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2079,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429162205184,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122203947008,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:21:46.636221Z",
+          "report_sequence": 2079,
+          "sampled_at": "2026-10-13T01:21:46.591354Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:21:53.336070Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:21:53.325195Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 2554490880,
+            "utilization_per_mille": 40
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:21:53.334489Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2093,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 33,
+          "disk_free_bytes": 162743173120,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 51757764608,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:21:53.336070Z",
+          "report_sequence": 2093,
+          "sampled_at": "2026-10-13T01:21:53.325195Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:21:50.540378Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6753,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 21,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 255960198,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:21:50.314677Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6753,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 256057314
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:27:04.071854+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "d4cdc807-554c-4d40-8fcd-2ee678a90321",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8b45944c-ab9f-4d7b-8a75-53be9ce210ee",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e71cd74b-0e70-438c-aef8-4ae233e9468e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "aab4c032-5626-467e-94ba-b0092b6ff829",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "313d5851-d778-43d7-827a-d3eeb7ba68ad",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "0780f6ca-5015-4b7d-8453-72511695f96d",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "03eb8815-d04e-4d30-b3b4-68c77c2bedf6",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "4e0d6bf7-cb8a-4160-91af-006a7e481d2c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "27943330-5ab5-4f16-a82b-f0947139eb24",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8364e845-b41a-47df-b7e8-e1404c84f7a5",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e5accc30-fc27-4586-87e0-0e92d15a1806",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "01a165ca-4eca-42ed-833c-7072a634748a",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "41d12284-6546-498c-b815-d4bab1f4e991",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "5f399926-9624-40e6-b421-17a0333c75fb",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:01.702604Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:01.658924Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:01.702604Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:01.658924Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:01.702604Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:01.658924Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:01.702604Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:01.658924Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:27:01.702183Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2100,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429161472000,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122218254336,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:27:01.702604Z",
+          "report_sequence": 2100,
+          "sampled_at": "2026-10-13T01:27:01.658924Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:27:07.635116Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:07.625020Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 2614628352,
+            "utilization_per_mille": 40
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:27:07.633511Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2115,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 66,
+          "disk_free_bytes": 162657824768,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 53324439552,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:27:07.635116Z",
+          "report_sequence": 2115,
+          "sampled_at": "2026-10-13T01:27:07.625020Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:27:10.539965Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6817,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 19,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 256000638,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:27:10.316700Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6817,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 256097754
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:27:44.403180+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "d4cdc807-554c-4d40-8fcd-2ee678a90321",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8b45944c-ab9f-4d7b-8a75-53be9ce210ee",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e71cd74b-0e70-438c-aef8-4ae233e9468e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "aab4c032-5626-467e-94ba-b0092b6ff829",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "313d5851-d778-43d7-827a-d3eeb7ba68ad",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "0780f6ca-5015-4b7d-8453-72511695f96d",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "03eb8815-d04e-4d30-b3b4-68c77c2bedf6",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "45734b1a-bd0e-401f-b400-bcb5d4b5a0f8",
+        "state": "running",
+        "revision": 3,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "connected",
+        "revision": 2,
+        "error_code": null
+      },
+      {
+        "id": "4e0d6bf7-cb8a-4160-91af-006a7e481d2c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "27943330-5ab5-4f16-a82b-f0947139eb24",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8364e845-b41a-47df-b7e8-e1404c84f7a5",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e5accc30-fc27-4586-87e0-0e92d15a1806",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "01a165ca-4eca-42ed-833c-7072a634748a",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "41d12284-6546-498c-b815-d4bab1f4e991",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "5f399926-9624-40e6-b421-17a0333c75fb",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "64edb3a7-e4c2-4705-aabe-20cbdfbbb4af",
+        "state": "pending",
+        "revision": 2,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:46.703724Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:46.660048Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:46.703724Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:46.660048Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:46.703724Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:46.660048Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:27:46.703724Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:46.660048Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:27:46.703343Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2103,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429161472000,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122215084032,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:27:46.703724Z",
+          "report_sequence": 2103,
+          "sampled_at": "2026-10-13T01:27:46.660048Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:27:50.635745Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:27:50.626227Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 2612137984,
+            "utilization_per_mille": 20
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:27:50.634249Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2118,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 66,
+          "disk_free_bytes": 162717175808,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 53322702848,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:27:50.635745Z",
+          "report_sequence": 2118,
+          "sampled_at": "2026-10-13T01:27:50.626227Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:27:50.540207Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6825,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 21,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 256005198,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:27:50.317371Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6825,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 256110714
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T01:29:35.011072+00:00",
+    "instances": [
+      {
+        "id": "6aa13c30-7418-403d-ba5f-96df15da2d45",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "345d557a-d0dc-4fc9-a315-16d2ead7252f",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6439091f-8345-4a31-9690-532ea1441d35",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6093c10a-aa93-4d7b-bc64-8f2ff100deb3",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6423220-382d-4e58-89f8-d9d928dc67e7",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "b6295a63-fff1-4386-a5a2-9928ce9f66cd",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "a71aef42-6001-4895-b298-ba407634c65e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "d4cdc807-554c-4d40-8fcd-2ee678a90321",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8b45944c-ab9f-4d7b-8a75-53be9ce210ee",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e71cd74b-0e70-438c-aef8-4ae233e9468e",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "aab4c032-5626-467e-94ba-b0092b6ff829",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "313d5851-d778-43d7-827a-d3eeb7ba68ad",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "0780f6ca-5015-4b7d-8453-72511695f96d",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "03eb8815-d04e-4d30-b3b4-68c77c2bedf6",
+        "state": "stopped",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "45734b1a-bd0e-401f-b400-bcb5d4b5a0f8",
+        "state": "stopped",
+        "revision": 5,
+        "error_code": null
+      }
+    ],
+    "resources": [
+      {
+        "id": "fb3caa9f-5b73-4995-999f-8d88cd066d7a",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "7f340431-b768-49a8-90cf-676ed190b54f",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "75771fef-29be-4590-baa3-4c992b7e0ddf",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "126ab70d-ec3e-4130-9f63-b43d545ef70b",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "283dbc4c-ed03-4fc4-a57f-a3620d910a19",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "13ce2478-9840-465a-b0c5-fbdc9a1b280c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "9920d390-35e7-4520-aed2-a07153886c69",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "4e0d6bf7-cb8a-4160-91af-006a7e481d2c",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "27943330-5ab5-4f16-a82b-f0947139eb24",
+        "state": "closed",
+        "revision": 4,
+        "error_code": null
+      },
+      {
+        "id": "8364e845-b41a-47df-b7e8-e1404c84f7a5",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "e5accc30-fc27-4586-87e0-0e92d15a1806",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "01a165ca-4eca-42ed-833c-7072a634748a",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      },
+      {
+        "id": "41d12284-6546-498c-b815-d4bab1f4e991",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "5f399926-9624-40e6-b421-17a0333c75fb",
+        "state": "closed",
+        "revision": 3,
+        "error_code": null
+      },
+      {
+        "id": "64edb3a7-e4c2-4705-aabe-20cbdfbbb4af",
+        "state": "closed",
+        "revision": 5,
+        "error_code": null
+      }
+    ],
+    "nodes": [
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "f16deb06-16a2-4004-9edf-aa81a72423ab",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 2,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 25,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:29:31.627385Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:29:31.583414Z",
+            "stable_key": "pnp-sha256:0dae388f9d17e104d7b4faeafe9ff1c8055f3bc1a5068316ef2d8b791a698139",
+            "used_memory_bytes": 177364992,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:29:31.627385Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:29:31.583414Z",
+            "stable_key": "pnp-sha256:7d28b9041c4ed51712ca68333929c0957034902cf73866645a457520a34dd88d",
+            "used_memory_bytes": 101191680,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 30,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:29:31.627385Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:29:31.583414Z",
+            "stable_key": "pnp-sha256:8d726d4c6903c8d22cbbc4fcb77f83c6834b5930eb4101df77af566490b488f9",
+            "used_memory_bytes": 794263552,
+            "utilization_per_mille": 0
+          },
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 570158591423296772,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+            "received_at": "2026-10-13T01:29:31.627385Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:29:31.583414Z",
+            "stable_key": "pnp-sha256:b84ac2ada9d7b21fb074cb82608e5416fdc29f78749bd73328cd537a48a8dfb4",
+            "used_memory_bytes": 76890112,
+            "utilization_per_mille": 0
+          }
+        ],
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "last_seen": "2026-10-13T01:29:31.626976Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "112.27.225.224",
+        "rdp": false,
+        "report_sequence": 2110,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": null,
+          "disk_free_bytes": 55429160677376,
+          "disk_total_bytes": 55998624632832,
+          "gpu_inventory_revision": 570158591423296772,
+          "logical_processors": 240,
+          "memory_available_bytes": 122218864640,
+          "memory_total_bytes": 137070247936,
+          "node_generation": 25,
+          "node_id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:29:31.627385Z",
+          "report_sequence": 2110,
+          "sampled_at": "2026-10-13T01:29:31.583414Z"
+        },
+        "webview": true
+      },
+      {
+        "application_port_end": 4998,
+        "application_port_start": 4613,
+        "control_epoch": 73,
+        "desktop_port": 4601,
+        "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+        "disabled": false,
+        "draining": false,
+        "endpoint_revision": 3,
+        "fresh": true,
+        "game_hook": true,
+        "generation": 468,
+        "gpus": [
+          {
+            "dedicated_memory_bytes": 25757220864,
+            "encoder_utilization_per_mille": 0,
+            "inventory_revision": 5363341783457731066,
+            "name": "NVIDIA GeForce RTX 4090",
+            "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+            "received_at": "2026-10-13T01:29:32.328670Z",
+            "runtime_binding_ready": true,
+            "sampled_at": "2026-10-13T01:29:32.306765Z",
+            "stable_key": "pnp-sha256:7c06f3b2c17018cd1749cb70bfd8386748d03c49d01af8b8aa122ef74155a986",
+            "used_memory_bytes": 2227224576,
+            "utilization_per_mille": 40
+          }
+        ],
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "last_seen": "2026-10-13T01:29:32.327955Z",
+        "max_instances": 64,
+        "product": "cloud_node",
+        "product_version_code": 30397,
+        "public_host": "39.71.45.66",
+        "rdp": true,
+        "report_sequence": 2128,
+        "revision": 2,
+        "state": "ready",
+        "telemetry": {
+          "cpu_utilization_per_mille": 108,
+          "disk_free_bytes": 162709692416,
+          "disk_total_bytes": 999872753664,
+          "gpu_inventory_revision": 5363341783457731066,
+          "logical_processors": 24,
+          "memory_available_bytes": 53617070080,
+          "memory_total_bytes": 68448202752,
+          "node_generation": 468,
+          "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "probe_state": "ready",
+          "received_at": "2026-10-13T01:29:32.328670Z",
+          "report_sequence": 2128,
+          "sampled_at": "2026-10-13T01:29:32.306765Z"
+        },
+        "webview": true
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877286451,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:29:40.540383Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 6847,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878327552
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 11,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 256032470,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T01:29:40.317096Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 6847,
+        "reported_draining": false,
+        "revision": 22,
+        "state": "ready",
+        "uploaded_bytes": 256138066
+      }
+    ]
+  }
+]

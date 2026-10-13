@@ -1,5 +1,10 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13上午修订：用户将RDP上限改为10，并因Company卡顿停止该机多路负载测试。
+真实10用户/10资源/10图形输出及满额拒绝已核对；capacity10/revision3已保存，所有owned连接已清理。
+不再以20路RDP为本轮目标，不再集中使用Company做重负载。见[停测报告](validation/iroh_transport/20261013_rdp_concurrency_report.md)。
+后续双Relay验收采用其他对端或少量分布连接，不把本批当长期性能或Relay吞吐通过。
+
 2026-10-13并发准备：Auth正式80路授权、节点64/部署20容量及RDP多用户slot池已交付，
 20slot数据库并发回归和两个真实Windows用户/桌面图形确认；20路Windows实机同时连接未完成。
 见[交付报告](validation/iroh_transport/20261013_rdp_workspace_pool.md)。下一项正常多路/多Relay分配验收，

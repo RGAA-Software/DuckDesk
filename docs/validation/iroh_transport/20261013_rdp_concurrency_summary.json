@@ -1,0 +1,174 @@
+{
+  "scope": "User limited RDP to 10 and stopped Company load test",
+  "receiver_device": "559038160",
+  "source_device": "428358431",
+  "ten_clients": [
+    {
+      "batch": 103,
+      "pid": 28732,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:16:30.1553110Z",
+      "instance_id": "9aebcf4e-5ed2-4f6b-a526-4c2d84f2e5d8",
+      "session_id": "113fa101-bfa0-4cb0-91de-64e0e8b9f448",
+      "account_name": "pxrdp_2c3153bd5fff41"
+    },
+    {
+      "batch": 104,
+      "pid": 46660,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:16:35.3112002Z",
+      "instance_id": "657cdaab-a2b0-4316-8774-3e3e77da3a67",
+      "session_id": "7997eafc-7b2f-476e-86a1-a01e4a8a9cf6",
+      "account_name": "pxrdp_b0f36cef23c348"
+    },
+    {
+      "batch": 105,
+      "pid": 39944,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:16:40.3196243Z",
+      "instance_id": "4176dd14-6364-40f3-9461-1ab791fd275e",
+      "session_id": "cc32ebd7-376d-4f6e-8957-c0029e9e8fe5",
+      "account_name": "pxrdp_705dbd09276447"
+    },
+    {
+      "batch": 106,
+      "pid": 34080,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:16:45.9466967Z",
+      "instance_id": "a71aef42-6001-4895-b298-ba407634c65e",
+      "session_id": "9f672d3c-80c5-4d46-b234-470a30d6aadd",
+      "account_name": "pxrdp_3bf8b1c584864c"
+    },
+    {
+      "batch": 107,
+      "pid": 2636,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:16:51.3091633Z",
+      "instance_id": "61b52b0d-9e1b-47bb-ae6c-8a755c9a61fe",
+      "session_id": "3e869f6d-4429-4208-a12e-506b440e7f77",
+      "account_name": "pxrdp_dfb3fa187c384e"
+    },
+    {
+      "batch": 108,
+      "pid": 28212,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:17:57.2138634Z",
+      "instance_id": "8fc99d5e-f9e9-47b5-8a9f-48d360842cb6",
+      "session_id": "6a343832-4ae8-4d79-b152-6da1a03e4372",
+      "account_name": "pxrdp_a1def23ad7af4b"
+    },
+    {
+      "batch": 109,
+      "pid": 46140,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:18:02.8086210Z",
+      "instance_id": "2159c979-168e-4cc9-80ee-b7841d135bf6",
+      "session_id": "9920d390-35e7-4520-aed2-a07153886c69",
+      "account_name": "pxrdp_b42f5c027f424d"
+    },
+    {
+      "batch": 110,
+      "pid": 12960,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:18:08.1413124Z",
+      "instance_id": "2f8134eb-de7b-4fde-8708-b8795422f826",
+      "session_id": "ed6b7854-4fdd-46a4-b48e-31f39d15d3d7",
+      "account_name": "pxrdp_36a5bae934654d"
+    },
+    {
+      "batch": 111,
+      "pid": 43664,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:18:14.4449528Z",
+      "instance_id": "25837444-dbd0-4ca0-8b9e-aad0a578baae",
+      "session_id": "0c65a9d7-0876-4eb7-8ca6-2579642a6234",
+      "account_name": "pxrdp_6ce0e0bf5efc41"
+    },
+    {
+      "batch": 112,
+      "pid": 2360,
+      "title": "",
+      "window_handle": 0,
+      "created_utc": "2026-10-13T01:18:20.7193467Z",
+      "instance_id": "bb871f6e-5693-4289-97bc-ca04ee9fb4b3",
+      "session_id": "f25e3e4d-cdf1-4b57-a268-fc77ac5bbfbf",
+      "account_name": "pxrdp_e993834d943549"
+    }
+  ],
+  "ten_frame_progress": [
+    "[2026-10-13 09:23:08.857][thread 52552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=398 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:09.290][thread 42000][rdp_session.cpp:524][info] : event=rdp.frame.progress published=123 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:11.078][thread 31640][rdp_session.cpp:524][info] : event=rdp.frame.progress published=136 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:13.083][thread 51336][rdp_session.cpp:524][info] : event=rdp.frame.progress published=163 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:13.129][thread 40160][rdp_session.cpp:524][info] : event=rdp.frame.progress published=139 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:13.159][thread 7432][rdp_session.cpp:524][info] : event=rdp.frame.progress published=119 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:14.563][thread 3056][rdp_session.cpp:524][info] : event=rdp.frame.progress published=187 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:15.801][thread 10088][rdp_session.cpp:524][info] : event=rdp.frame.progress published=125 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:16.903][thread 26100][rdp_session.cpp:524][info] : event=rdp.frame.progress published=134 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:18.232][thread 47188][rdp_session.cpp:524][info] : event=rdp.frame.progress published=52 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:18.954][thread 52552][rdp_session.cpp:524][info] : event=rdp.frame.progress published=398 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:19.382][thread 42000][rdp_session.cpp:524][info] : event=rdp.frame.progress published=123 in_flight=0 dirty=false display_channel=true\r",
+    "[2026-10-13 09:23:21.100][thread 31640][rdp_session.cpp:524][info] : event=rdp.frame.progress published=138 in_flight=0 dirty=false display_channel=true\r"
+  ],
+  "final_client_stop": {
+    "closed": [
+      {
+        "batch": 104,
+        "pid": 46660,
+        "state": "closed"
+      },
+      {
+        "batch": 105,
+        "pid": 39944,
+        "state": "closed"
+      },
+      {
+        "batch": 106,
+        "pid": 34080,
+        "state": "closed"
+      },
+      {
+        "batch": 108,
+        "pid": 28212,
+        "state": "closed"
+      },
+      {
+        "batch": 109,
+        "pid": 46140,
+        "state": "closed"
+      },
+      {
+        "batch": 110,
+        "pid": 12960,
+        "state": "closed"
+      },
+      {
+        "batch": 111,
+        "pid": 43664,
+        "state": "closed"
+      },
+      {
+        "batch": 112,
+        "pid": 2360,
+        "state": "closed"
+      },
+      {
+        "batch": 124,
+        "pid": 51396,
+        "state": "closed"
+      }
+    ],
+    "remaining_clients": []
+  },
+  "context_reuse_attempt": "Batch123 rejected stale user context before acceptance; later launch expired source. Batch124 accepted; reuse validation cut short by user load-stop request.",
+  "no_twenty_client_acceptance": true
+}

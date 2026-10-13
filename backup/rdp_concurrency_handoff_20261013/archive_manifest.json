@@ -1,0 +1,8 @@
+{
+  "reference_only": true,
+  "original_path": "scripts/server_validation/run_rdp_pool_clients.ps1",
+  "base_revision": "c6c417033d31b90b261f0b7988a0309425f7f585",
+  "local_modification_status": "modified_uncommitted",
+  "sha256": "D1C6F8D83A0D9875DF157A181BFBCA505B4DC42487F54249468B5FB4F24326BE",
+  "reason": "Retire unused LaunchOnly handoff experiment; keep bounded owned-process tests"
+}

@@ -4,6 +4,15 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13上午，RDP限10路／Company负载测试停止
+
+- 用户把RDP上限明确改为10，随后报告Company卡顿并要求减负。90部署现capacity10/revision3/ready，GameHook/WebView20和80路授权保持。Company不再用于多客户端或重负载测试，未经新指示不重启。
+- 已真实确认10个不同Windows用户session3–12、10个资源connected、10个独立Client图形线程均published>0/display_channel=true，以及10个Client窗口的JPEG画面。第11路请求503 unavailable，调度预览deployment_slots0、deployment_capacity_exhausted/rdp_workspace_busy。原用户session3/4沿用凌晨登录时间，身份保留。
+- 扩至20的执行单元在用户限10时立即终止；此前已有5个额外Client及第6个仅准备实例，均关闭、实例停止；额外账号及Disc会话保留，不logoff。初始5路夹具先批量准备后统一启动超过无连接宽限，属于无效样本；改为每路准备完成立即启动，复用现有授权。
+- 单slot断开后重新分配同账号已确认，完整重连输入验收被Company减负打断，未称该项全通过。一次旧MCP上下文拒绝发生在接受前，确认无task后刷新上下文；随后的过期源连接为无效样本，不当网络回归。
+- 用户停测后只按本批PID/完整路径/.NET创建时间关闭Company Client，最终remaining_clients=[]。首次清理将CIM微秒时间与.NET 100ns时间直接比较导致中断；已用同一.NET时间来源核对后清理完毕。全部24 owned实例stopped/24资源closed，guest注销；未重启服务、改媒体、抓包或编译。
+- 本批是10路连接/画面功能证据；用户机器负载过高，不能称10路流畅、长稳或20路验收。双Relay正常业务并发/维护验收仍未执行，应改用其他对端或少量分布连接，不能继续集中Company。见`20261013_rdp_concurrency_*`和[批次报告](20261013_rdp_concurrency_report.md)。
+
 ## 最新接续：2026-10-13，RDP多用户池已实现并交付
 
 - 用户确认同一应用可用多个Windows用户多开。schema41将工作区和活动实例唯一约束改为应用/节点/slot，容量1–64；Console、Service、Web、Panel同步修改，单工作区仍单前端。90现有RDP capacity20/revision2，不需20个应用或机器，原workspace保留slot1及SID/凭证。
