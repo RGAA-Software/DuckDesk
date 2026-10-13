@@ -128,5 +128,31 @@
   },
   "scope": "One low-motion WebView on Windows Relay; configured2000kbps, actual media rates separately recorded; no capacity or saturated-load claim",
   "source_send_window_failed_total": 0,
-  "source_joystick_driver_limitation": "Startup ViGEm unavailable; recorded ancillary driver limitation, not a transport failure; no joystick acceptance claim"
+  "source_joystick_driver_limitation": "Startup ViGEm unavailable; recorded ancillary driver limitation, not a transport failure; no joystick acceptance claim",
+  "process_trend": {
+    "sample_count": 60,
+    "steady_count": 58,
+    "first_steady": {
+      "elapsed_seconds": 60.412186299999995,
+      "working_set_bytes": 204148736,
+      "private_bytes": 171868160,
+      "handle_count": 837,
+      "total_cpu_seconds": 8.109375,
+      "main_window_handle": "2689110"
+    },
+    "last": {
+      "elapsed_seconds": 1770.1763271999998,
+      "working_set_bytes": 209096704,
+      "private_bytes": 176476160,
+      "handle_count": 828,
+      "total_cpu_seconds": 222.8125,
+      "main_window_handle": "2689110"
+    },
+    "steady_working_set_min_bytes": 204148736,
+    "steady_working_set_max_bytes": 209096704,
+    "steady_private_min_bytes": 171868160,
+    "steady_private_max_bytes": 176476160,
+    "steady_handle_min": 828,
+    "steady_handle_max": 840
+  }
 }

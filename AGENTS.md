@@ -1,5 +1,19 @@
 # Workspace delivery rules
 
+- Unified acceptance live checkpoint (2026-10-14 02:08): T4 passed default-auto360416ms under exact-probe UDP restriction,
+  357 reliable round trips/7201 echoed datagrams, all raw paths Relay;4 filters removed/helper exit0, profiles remained off,
+  direct controls passed before/after. T5 Company2 receivers overlapped1958.329s, actualLAN direct90 plusWindows RelayXR;
+  normal exit0 both/resource and instance terminal, closing one did not stop the other. Endpoint count5->3->baseline,
+  no even-distribution/capacity claim. T5a followup closes T3a normal-exit gap; original interrupted native task retained.
+  XR has recovered1s(BJ) and397ms(Windows) media gaps; no session failure, no root-cause claim or paused tuning reopened.
+  T6 original operation69a058a8-a549-4378-9d8d-64d0bd1544ea/taskcec33e5c-2889-45db-8a96-fa9aa38ba668 is running,
+  Company Client27352/created2026-10-13T18:03:59.3627769Z, supervisor43156, instance4fdcbda4…/resource63817cb3…,
+  actualWindows Relay39.71.45.66:4605. Full14400s due06:04 Beijing; then normalclose before06:14, never end parent first.
+  Do not restart this sample or transfer new programs/run other test loads during it. Only bounded light observations.
+  Collect every rotated Client/Render log; current helpers are observe-client-v3.ps1/collect-sample-v3.ps1 under Company workspace.
+  Keep90 owned page65500/created15:03:30.0252770Z alive (deadline about07:03). Final owned cleanup/fixture restore and report remain.
+  T5 logs were collected to normalclose (IncludeCloseInterval) to prove full simultaneous overlap; original hold markers remain.
+
 - Unified acceptance checkpoint (2026-10-14 00:27): T3b Windows Relay completed1800.167s, steady59.993FPS/max55.274ms,
   both-end selected39.71.45.66:4605, send failures0, Client normal exit0 and owned resources terminal. Two compressed logs SHA verified;
   low-motion source averages0.054Mbps, not a capacity test. Source ViGEm unavailable is retained ancillary driver evidence.

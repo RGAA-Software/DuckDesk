@@ -104,5 +104,31 @@
     "archive_bytes": 386205,
     "download_sha_verified": true,
     "error_count": 2
+  },
+  "process_trend": {
+    "sample_count": 60,
+    "steady_count": 58,
+    "first_steady": {
+      "elapsed_seconds": 60.4441116,
+      "working_set_bytes": 204795904,
+      "private_bytes": 172040192,
+      "handle_count": 839,
+      "total_cpu_seconds": 7.828125,
+      "main_window_handle": "215358552"
+    },
+    "last": {
+      "elapsed_seconds": 1770.0819872,
+      "working_set_bytes": 209969152,
+      "private_bytes": 176742400,
+      "handle_count": 832,
+      "total_cpu_seconds": 204.203125,
+      "main_window_handle": "215358552"
+    },
+    "steady_working_set_min_bytes": 204795904,
+    "steady_working_set_max_bytes": 209969152,
+    "steady_private_min_bytes": 172040192,
+    "steady_private_max_bytes": 176742400,
+    "steady_handle_min": 830,
+    "steady_handle_max": 845
   }
 }

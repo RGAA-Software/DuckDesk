@@ -1,0 +1,463 @@
+{
+  "status": "passed",
+  "helper_sha256": "D9D4C8577146A06285CC6338E6C7126DCA0A315F9640BE34FD69AB094F21665D",
+  "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+  "filter_output": "{\"dynamic_session\":true,\"filter_ids\":[67904,67905,67906,67907],\"ipv4_ipv6\":true,\"maximum_seconds\":900,\"pid\":33052,\"program\":\"\\\\\\\\?\\\\D:\\\\112233\\\\unified-acceptance-20261013\\\\T4-tools\\\\px_nat_probe.exe\",\"protocol\":17,\"state\":\"active\"}\n{\"elapsed_seconds\":839.1792477,\"remaining_filter_ids\":[],\"requested_stop\":true,\"state\":\"closed\"}\n",
+  "reports": {
+    "T4_baseline_client": {
+      "phase": "baseline",
+      "role": "connect",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 16912,
+      "pid": 47148,
+      "created_utc": "2026-10-13T16:57:35.4264639Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T16:57:46.6684060Z",
+      "results": [
+        {
+          "datagrams_sent": 201,
+          "datagrams_verified": 201,
+          "elapsed_ms": 10110,
+          "event": "nat_probe.result",
+          "late_datagrams": 0,
+          "maximum_datagram_round_trip_us": 14868,
+          "maximum_datagram_success_gap_ms": 75,
+          "maximum_reliable_round_trip_ms": 1,
+          "peer_id": "ecab9e9e122d7d9aa55efdb9837cf248e1be99ea77d35953ec0cccdbefaea2ca",
+          "reliable_messages_verified": 10
+        }
+      ],
+      "path_sample_count": 12,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.90:57738)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "ecab9e9e122d7d9aa55efdb9837cf248e1be99ea77d35953ec0cccdbefaea2ca",
+          "phase": "connected",
+          "selected": {
+            "Ip": "10.0.0.90:57738"
+          },
+          "selected_is_ip": true
+        },
+        {
+          "elapsed_ms": 10111,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.90:57738)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "ecab9e9e122d7d9aa55efdb9837cf248e1be99ea77d35953ec0cccdbefaea2ca",
+          "phase": "finished",
+          "selected": {
+            "Ip": "10.0.0.90:57738"
+          },
+          "selected_is_ip": true
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\baseline-connect.log.gz",
+      "archive_sha256": "54EFF9B919E4D2D08A5379BDCDC85160F83FDAA3554078B1A00CED6DD265319C",
+      "archive_bytes": 646,
+      "stderr_last_lines": [
+        "2026-10-13T16:57:46.618673Z ERROR iroh::socket::transports::relay: relay_recv_channel closed"
+      ]
+    },
+    "T4_negative_client": {
+      "phase": "negative",
+      "role": "connect",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": true,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 44128,
+      "pid": 52300,
+      "created_utc": "2026-10-13T17:02:02.6377659Z",
+      "child_exit_code": 1,
+      "completed_utc": "2026-10-13T17:02:11.7509243Z",
+      "results": [],
+      "path_sample_count": 0,
+      "selected_paths": [],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\negative-connect.log.gz",
+      "archive_sha256": "E14F8827E7DF62722DDC84B47BC1DA8F009A2C20CDB417EF6662CFE5B6964B8D",
+      "archive_bytes": 243,
+      "stderr_last_lines": [
+        "Error: connect Pixels transport",
+        "Caused by:",
+        "    0: timed out",
+        "    1: timed out",
+        "    2: timed out"
+      ]
+    },
+    "T4_auto_client": {
+      "phase": "auto",
+      "role": "connect",
+      "configured_seconds": 360,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 12880,
+      "pid": 22916,
+      "created_utc": "2026-10-13T17:07:18.8672615Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T17:13:23.4990002Z",
+      "results": [
+        {
+          "datagrams_sent": 7201,
+          "datagrams_verified": 7201,
+          "elapsed_ms": 360416,
+          "event": "nat_probe.result",
+          "late_datagrams": 0,
+          "maximum_datagram_round_trip_us": 30620,
+          "maximum_datagram_success_gap_ms": 76,
+          "maximum_reliable_round_trip_ms": 13,
+          "peer_id": "134facde6c2ed442d501cf7704fcb3b317fe95e697c85d21e6ea5bd4d96933a1",
+          "reliable_messages_verified": 357
+        }
+      ],
+      "path_sample_count": 359,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4605/)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "134facde6c2ed442d501cf7704fcb3b317fe95e697c85d21e6ea5bd4d96933a1",
+          "phase": "connected",
+          "selected": {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          "selected_is_ip": false
+        },
+        {
+          "elapsed_ms": 360416,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4605/)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "134facde6c2ed442d501cf7704fcb3b317fe95e697c85d21e6ea5bd4d96933a1",
+          "phase": "finished",
+          "selected": {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          "selected_is_ip": false
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\auto-connect.log.gz",
+      "archive_sha256": "8A04D2338EE62BFAC11561E8DB5837E458606561C1E1F2DC4094252BA255207B",
+      "archive_bytes": 2608,
+      "stderr_last_lines": []
+    },
+    "T4_restored_client": {
+      "phase": "restored",
+      "role": "connect",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 20340,
+      "pid": 52964,
+      "created_utc": "2026-10-13T17:17:48.2328788Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T17:17:59.4228666Z",
+      "results": [
+        {
+          "datagrams_sent": 201,
+          "datagrams_verified": 201,
+          "elapsed_ms": 10084,
+          "event": "nat_probe.result",
+          "late_datagrams": 0,
+          "maximum_datagram_round_trip_us": 5779,
+          "maximum_datagram_success_gap_ms": 64,
+          "maximum_reliable_round_trip_ms": 0,
+          "peer_id": "ad5762be9ff87dd056cf27c43e543f4429c87b20ca9609644758c7483e95e969",
+          "reliable_messages_verified": 10
+        }
+      ],
+      "path_sample_count": 12,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.90:61652)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "ad5762be9ff87dd056cf27c43e543f4429c87b20ca9609644758c7483e95e969",
+          "phase": "connected",
+          "selected": {
+            "Ip": "10.0.0.90:61652"
+          },
+          "selected_is_ip": true
+        },
+        {
+          "elapsed_ms": 10084,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.90:61652)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "ad5762be9ff87dd056cf27c43e543f4429c87b20ca9609644758c7483e95e969",
+          "phase": "finished",
+          "selected": {
+            "Ip": "10.0.0.90:61652"
+          },
+          "selected_is_ip": true
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\restored-connect.log.gz",
+      "archive_sha256": "D720CAE6680D575035EB1E477907806071356D37DE979B8EFE1BFE413C1ED54D",
+      "archive_bytes": 649,
+      "stderr_last_lines": [
+        "2026-10-13T17:17:59.389941Z ERROR iroh::socket::transports::relay: relay_recv_channel closed"
+      ]
+    },
+    "baseline_source": {
+      "phase": "baseline",
+      "role": "serve",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 41856,
+      "pid": 30360,
+      "created_utc": "2026-10-13T16:57:08.3856709Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T16:57:46.4438043Z",
+      "results": [],
+      "path_sample_count": 12,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.16:54364)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "154ee0dbbbaa39863f4f03426ec2d36a71af2fe9779863883a48880ce788ff4c",
+          "phase": "connected",
+          "selected": {
+            "Ip": "10.0.0.16:54364"
+          },
+          "selected_is_ip": true
+        },
+        {
+          "elapsed_ms": 10110,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.16:54364)], selected: Some(PathId(0)), closed: true }, .. }",
+          "peer_id": "154ee0dbbbaa39863f4f03426ec2d36a71af2fe9779863883a48880ce788ff4c",
+          "phase": "finished",
+          "selected": {
+            "Ip": "10.0.0.16:54364"
+          },
+          "selected_is_ip": true
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\baseline-serve.log.gz",
+      "archive_sha256": "1EEEBED183F217329CA4BF85FFE37F520CCD57CD642596455CD0542FB38F8D3B",
+      "archive_bytes": 513,
+      "stderr_last_lines": [
+        "2026-10-13T16:57:46.414675Z ERROR iroh::socket::transports::relay: relay_recv_channel closed"
+      ]
+    },
+    "negative_source": {
+      "phase": "negative",
+      "role": "serve",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": true,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 41004,
+      "pid": 43372,
+      "created_utc": "2026-10-13T17:01:29.8069793Z",
+      "child_exit_code": 1,
+      "completed_utc": "2026-10-13T17:03:00.8734851Z",
+      "results": [],
+      "path_sample_count": 0,
+      "selected_paths": [],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\negative-serve.log.gz",
+      "archive_sha256": "68799AE0A0A3CDEF5E67A6AA4514B9653F582549ECFBD69D8AC40832A80E876A",
+      "archive_bytes": 215,
+      "stderr_last_lines": [
+        "Error: no peer connected before deadline",
+        "Caused by:",
+        "    deadline has elapsed"
+      ]
+    },
+    "auto_source": {
+      "phase": "auto",
+      "role": "serve",
+      "configured_seconds": 360,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 76332,
+      "pid": 22472,
+      "created_utc": "2026-10-13T17:06:20.9239948Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T17:13:23.2524819Z",
+      "results": [],
+      "path_sample_count": 361,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4605/)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "a56ffa5e8e3b108eea30b7181e2693d91eef1613af556db122e5329a1ab1bb73",
+          "phase": "connected",
+          "selected": {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          "selected_is_ip": false
+        },
+        {
+          "elapsed_ms": 360412,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, relay:https://39.71.45.66:4605/)], selected: Some(PathId(0)), closed: true }, .. }",
+          "peer_id": "a56ffa5e8e3b108eea30b7181e2693d91eef1613af556db122e5329a1ab1bb73",
+          "phase": "finished",
+          "selected": {
+            "Relay": "https://39.71.45.66:4605/"
+          },
+          "selected_is_ip": false
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\auto-serve.log.gz",
+      "archive_sha256": "41902B84F4A7D5DA2BDD46229A86D6F68A7D281C662EFC7F6A06E839FEF3F270",
+      "archive_bytes": 2468,
+      "stderr_last_lines": []
+    },
+    "restored_source": {
+      "phase": "restored",
+      "role": "serve",
+      "configured_seconds": 10,
+      "state": "closed",
+      "expected_failure": false,
+      "probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048",
+      "relay_only": false,
+      "supervisor_pid": 72384,
+      "pid": 20552,
+      "created_utc": "2026-10-13T17:17:22.8627609Z",
+      "child_exit_code": 0,
+      "completed_utc": "2026-10-13T17:17:59.2057425Z",
+      "results": [],
+      "path_sample_count": 12,
+      "selected_paths": [
+        {
+          "elapsed_ms": 0,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.16:62722)], selected: Some(PathId(0)), closed: false }, .. }",
+          "peer_id": "e5d66f4b27ce4c850f79595f19bd9da1e44a00fa96b7293a211069da3a3073ec",
+          "phase": "connected",
+          "selected": {
+            "Ip": "10.0.0.16:62722"
+          },
+          "selected_is_ip": true
+        },
+        {
+          "elapsed_ms": 10083,
+          "event": "nat_probe.path",
+          "paths": "PathList { snapshot: State { list: [PathData(0, ip:10.0.0.16:62722)], selected: Some(PathId(0)), closed: true }, .. }",
+          "peer_id": "e5d66f4b27ce4c850f79595f19bd9da1e44a00fa96b7293a211069da3a3073ec",
+          "phase": "finished",
+          "selected": {
+            "Ip": "10.0.0.16:62722"
+          },
+          "selected_is_ip": true
+        }
+      ],
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T4-tools\\restored-serve.log.gz",
+      "archive_sha256": "F27AA37D644FF2979FA4E20BCD6D1AD948D2680448504CEB500AA6FC09D549B6",
+      "archive_bytes": 517,
+      "stderr_last_lines": [
+        "2026-10-13T17:17:59.177388Z ERROR iroh::socket::transports::relay: relay_recv_channel closed"
+      ]
+    }
+  },
+  "archive_checks": [
+    {
+      "phase": "baseline",
+      "role": "connect",
+      "sha_verified": true,
+      "path_samples": 12,
+      "selected_ips": 12,
+      "selected_relays": 0,
+      "compressed_bytes": 646
+    },
+    {
+      "phase": "baseline",
+      "role": "serve",
+      "sha_verified": true,
+      "path_samples": 12,
+      "selected_ips": 12,
+      "selected_relays": 0,
+      "compressed_bytes": 513
+    },
+    {
+      "phase": "negative",
+      "role": "connect",
+      "sha_verified": true,
+      "path_samples": 0,
+      "selected_ips": 0,
+      "selected_relays": 0,
+      "compressed_bytes": 243
+    },
+    {
+      "phase": "negative",
+      "role": "serve",
+      "sha_verified": true,
+      "path_samples": 0,
+      "selected_ips": 0,
+      "selected_relays": 0,
+      "compressed_bytes": 215
+    },
+    {
+      "phase": "auto",
+      "role": "connect",
+      "sha_verified": true,
+      "path_samples": 359,
+      "selected_ips": 0,
+      "selected_relays": 359,
+      "compressed_bytes": 2608
+    },
+    {
+      "phase": "auto",
+      "role": "serve",
+      "sha_verified": true,
+      "path_samples": 361,
+      "selected_ips": 0,
+      "selected_relays": 361,
+      "compressed_bytes": 2468
+    },
+    {
+      "phase": "restored",
+      "role": "connect",
+      "sha_verified": true,
+      "path_samples": 12,
+      "selected_ips": 12,
+      "selected_relays": 0,
+      "compressed_bytes": 649
+    },
+    {
+      "phase": "restored",
+      "role": "serve",
+      "sha_verified": true,
+      "path_samples": 12,
+      "selected_ips": 12,
+      "selected_relays": 0,
+      "compressed_bytes": 517
+    }
+  ],
+  "scope": "Default auto, same cross-host connection for360416ms under exact-program UDP deny; raw paths all Relay; direct works before/after;4 dynamic filter IDs removed, helper exit0",
+  "tool_issues": [
+    "Live .NET ReadAllText sharing violation was fixed with FileShare.ReadWrite; original probes continued.",
+    "Four source PAB download streams confirmed failed before any bytes;3713 compressed bytes recovered through native read with SHA verification, original failed operation IDs retained."
+  ],
+  "failed_source_download_operations": [
+    "17245de7-b5bc-40da-8ff2-8e34dcbba701",
+    "59c1e66d-fdf6-4fe3-9be2-f058fc75a35e",
+    "83fa13f9-d564-4a87-9cdf-51e4463aabf9",
+    "ed316982-8430-482b-b686-868f245385e9"
+  ],
+  "shutdown_log_limitation": "No-Relay direct probe emits upstream relay_recv_channel closed during endpoint teardown after successful checks; retained raw diagnostic, child exit0. No dependency patch.",
+  "profiles_after": {
+    "Domain": false,
+    "Private": false,
+    "Public": false
+  },
+  "owned_probe_alive_after": []
+}

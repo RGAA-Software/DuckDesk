@@ -4,8 +4,8 @@
   "source_base_revision": "58594d64a",
   "continuous_execution": true,
   "status": "active",
-  "current_step": "T3c",
-  "next_action": "Observe original T3c operation5dfb0c5a for1800s to00:50:43 Beijing, normal close before supervisor deadline and collect both compressed logs",
+  "current_step": "T6",
+  "next_action": "Keep original4h task69a058a8 and Client27352/created18:03:59.3627769Z, bounded observations only; at sample_completed normalclose before10min supervisor window, collect all rotated logs and final owned cleanup",
   "hosts": {
     "primary_receiver": {
       "name": "Company",
@@ -76,7 +76,18 @@
       "instance_stopped": true,
       "client_alive": false,
       "evidence": "docs/validation/iroh_transport/20261013_acceptance_direct_sample.json",
-      "normal_exit_verified": false
+      "normal_exit_verified": false,
+      "normal_close_followup": {
+        "sample": "T5a",
+        "client_sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+        "actual_path": "Ip10.0.0.90:4613",
+        "hold_seconds": 1800.112529,
+        "client_exit_code": 0,
+        "resource_closed": true,
+        "instance_stopped": true,
+        "evidence": "docs/validation/iroh_transport/20261014_acceptance_two_business_sessions.json"
+      },
+      "gate_status": "passed_with_followup_direct_normal_close; original task interruption retained"
     },
     {
       "id": "T3b",
@@ -106,7 +117,7 @@
     },
     {
       "id": "T3c",
-      "status": "running",
+      "status": "functional_pass_with_recovered_media_gap",
       "observation_seconds": 1800,
       "operation_id": "5dfb0c5a-28da-4c13-b5d2-67fb4a312a22",
       "task_id": "5c7115bf-ea66-4ab8-9f33-14ab32d69a53",
@@ -118,11 +129,19 @@
       "resource_id": "711c3979-4c4a-44a6-a525-600405e0514a",
       "actual_path": "Relayhttps://49.232.233.61:4605/",
       "visible_output_verified": true,
-      "source_node_configuration_changed": false
+      "source_node_configuration_changed": false,
+      "hold_seconds": 1800.3226201,
+      "normal_exit_verified": true,
+      "client_exit_code": 0,
+      "resource_closed": true,
+      "instance_stopped": true,
+      "steady_maximum_gap_us": 1005107,
+      "evidence": "docs/validation/iroh_transport/20261014_acceptance_bj_relay_sample.json",
+      "recovered_gap_underlying_cause": "unlocated; observed receive gap and RTT/feedback rise; no session failure or readmission; parked performance limitation"
     },
     {
       "id": "T4",
-      "status": "planned",
+      "status": "passed",
       "maximum_observation_seconds": 600,
       "preparation": {
         "firewall_profiles_originally_disabled": [
@@ -137,17 +156,107 @@
         "build_jobs": 18,
         "validation_observation": "One default-auto low-rate cross-host NAT probe connection for360s; reliable8-byte messages and128-byte datagrams",
         "nat_probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048"
-      }
+      },
+      "filter_operation_id": "88ac3b71-3244-4889-8334-6ac5288116ef",
+      "filter_task_id": "adb9896f-2bfd-432c-ac05-998913a8f9d2",
+      "filter_pid": 33052,
+      "filter_ids": [
+        67904,
+        67905,
+        67906,
+        67907
+      ],
+      "negative_operation_id": "d9339d7a-a597-45c5-8d07-755a6d4940dc",
+      "negative_source_operation_id": "3e1e7c98-6d75-4c9a-bdda-644cc38de638",
+      "auto_operation_id": "4ba257d2-71e5-4b2e-b8e4-f0b8da4d2cc0",
+      "auto_source_operation_id": "8c9b44fc-48a9-40e1-ac48-94b2ee60f2a2",
+      "baseline_direct_passed": true,
+      "negative_udp_failed_as_expected": true,
+      "observation_seconds": 360.416,
+      "reliable_messages_verified": 357,
+      "datagrams_sent": 7201,
+      "datagrams_verified": 7201,
+      "direct_restored": true,
+      "filters_removed": true,
+      "filter_remaining_ids": [],
+      "filter_exit_code": 0,
+      "evidence": "docs/validation/iroh_transport/20261014_acceptance_udp_restricted_auto_relay.json"
     },
     {
       "id": "T5",
-      "status": "planned",
-      "observation_seconds": 1800
+      "status": "functional_pass_with_recovered_XR_media_gaps",
+      "observation_seconds": 1800,
+      "maximum_receiver_clients": 2,
+      "observation_method": "Two isolated runtime folders copied on Company from verified installed candidate;44 SHA each; separate logs; owned windows snapped side by side",
+      "samples": [
+        {
+          "state": "running",
+          "instance_id": "38df2426-b01c-4108-a498-2635cf599f11",
+          "resource_id": "4f74d4d3-e542-4fe5-a004-54be1ea8a3c3",
+          "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct",
+          "client_path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct\\px_client.exe",
+          "expected_seconds": 1800,
+          "sample_completed": false,
+          "supervisor_pid": 44708,
+          "supervisor_created_utc": "2026-10-13T17:21:07.8019919Z",
+          "pid": 51100,
+          "process_created_utc": "2026-10-13T17:21:08.9305669Z",
+          "started_at_utc": "2026-10-13T17:21:08.9454193+00:00"
+        },
+        {
+          "state": "running",
+          "instance_id": "617074d5-b6d3-43c0-81ae-3b8b06a2fa07",
+          "resource_id": "1e48dcf5-1834-4ff4-bf21-210e8eac7264",
+          "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj",
+          "client_path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj\\px_client.exe",
+          "expected_seconds": 1860,
+          "sample_completed": false,
+          "supervisor_pid": 21632,
+          "supervisor_created_utc": "2026-10-13T17:21:13.6701183Z",
+          "pid": 43532,
+          "process_created_utc": "2026-10-13T17:21:15.1886269Z",
+          "started_at_utc": "2026-10-13T17:21:15.2053594+00:00"
+        }
+      ],
+      "sample_operations": {
+        "T5a": {
+          "operation_id": "8a4e1e26-4b9b-4930-9e2a-dd9b1e5f1c0a",
+          "task_id": "19d9384f-1e3d-498e-9da4-0060ae27409d"
+        },
+        "T5b": {
+          "operation_id": "406d687b-a9d9-448a-a26a-62d2c2c14017",
+          "task_id": "d4c26fba-62ff-4c94-8861-3afb2a9dd25a"
+        }
+      },
+      "initial_actual_distribution": "Windows Relay5 endpoints/BJ0; one direct90 source, XR advertised Windows Relay; no balancing/forcedBJ claim",
+      "overlap_seconds": 1958.328977,
+      "both_clients_normal_exit": true,
+      "closed_one_other_survived": true,
+      "both_resources_closed": true,
+      "both_instances_stopped": true,
+      "evidence": "docs/validation/iroh_transport/20261014_acceptance_two_business_sessions.json"
     },
     {
       "id": "T6",
-      "status": "planned",
-      "observation_seconds": 14400
+      "status": "running",
+      "observation_seconds": 14400,
+      "state": "running",
+      "instance_id": "4fdcbda4-2736-49b1-a8c1-1f244adde9b3",
+      "resource_id": "63817cb3-d484-490f-bff6-ba1c32bc9bc3",
+      "runtime_root": "C:\\Program Files\\Pixels Client",
+      "client_path": "C:\\Program Files\\Pixels Client\\px_client.exe",
+      "expected_seconds": 14400,
+      "sample_completed": false,
+      "supervisor_pid": 43156,
+      "supervisor_created_utc": "2026-10-13T18:03:58.7068727Z",
+      "pid": 27352,
+      "process_created_utc": "2026-10-13T18:03:59.3627769Z",
+      "started_at_utc": "2026-10-13T18:03:59.3718163+00:00",
+      "operation_id": "69a058a8-a549-4378-9d8d-64d0bd1544ea",
+      "task_id": "cec33e5c-2889-45db-8a96-fa9aa38ba668",
+      "actual_path": "Relayhttps://39.71.45.66:4605/",
+      "expected_completed_utc": "2026-10-13T22:03:59Z",
+      "normal_close_required_before_utc": "2026-10-13T22:13:59Z"
     },
     {
       "id": "T7",
@@ -233,7 +342,10 @@
     "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json",
     "docs/validation/iroh_transport/20261013_acceptance_company_alignment.json",
     "docs/validation/iroh_transport/20261013_acceptance_direct_sample.json",
-    "docs/validation/iroh_transport/20261014_acceptance_windows_relay_sample.json"
+    "docs/validation/iroh_transport/20261014_acceptance_windows_relay_sample.json",
+    "docs/validation/iroh_transport/20261014_acceptance_bj_relay_sample.json",
+    "docs/validation/iroh_transport/20261014_acceptance_udp_restricted_auto_relay.json",
+    "docs/validation/iroh_transport/20261014_acceptance_two_business_sessions.json"
   ],
   "controller_status_observed": "blocked; user continue messages authorize ongoing work; actual execution continues. No goal completion claimed.",
   "xr_preparation": {

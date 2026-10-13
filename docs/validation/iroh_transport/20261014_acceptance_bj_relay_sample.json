@@ -1,0 +1,125 @@
+{
+  "report": {
+    "state": "closed",
+    "instance_id": "25617600-ad21-4f25-93fa-828000b9d88c",
+    "resource_id": "711c3979-4c4a-44a6-a525-600405e0514a",
+    "expected_seconds": 1800,
+    "sample_completed": true,
+    "supervisor_pid": 52692,
+    "supervisor_created_utc": "2026-10-13T16:20:42.7772336Z",
+    "pid": 47696,
+    "process_created_utc": "2026-10-13T16:20:43.4155715Z",
+    "started_at_utc": "2026-10-13T16:20:43.4265729+00:00",
+    "hold_seconds": 1800.3226201,
+    "sample_completed_at_utc": "2026-10-13T16:50:43.7669808+00:00",
+    "closed_at_utc": "2026-10-13T16:51:24.3323522+00:00",
+    "client_exit_code": 0
+  },
+  "archive_path": "D:\\112233\\unified-acceptance-20261013\\T3c\\client.log.gz",
+  "archive_sha256": "204436E21A13CEA02AB47889990252C7592C69B0FD42382EF26DDA2EDE289330",
+  "archive_bytes": 304598,
+  "written_lines": 13705,
+  "first_log_utc_local": "2026-10-14T00:20:43.4670000",
+  "last_log_utc_local": "2026-10-14T00:50:41.8370000",
+  "source_files": [
+    {
+      "name": "px_client.log",
+      "selected_lines": 13705,
+      "actual_bytes": 21462827
+    }
+  ],
+  "steady_window_count": 347,
+  "steady_frames": 104241,
+  "steady_elapsed_us": 1738726090,
+  "steady_maximum_gap_us": 1005107,
+  "path_details": [
+    "[2026-10-14 00:20:50.508][thread 27676][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://49.232.233.61:4605/\"} cwnd_bytes=8400 datagram_buffer_space=65536 congestion_events=1 log_overruns=0",
+    "[2026-10-14 00:50:39.296][thread 27676][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://49.232.233.61:4605/\"} cwnd_bytes=17112 datagram_buffer_space=65536 congestion_events=1 log_overruns=0"
+  ],
+  "failures": [],
+  "process_observations": [
+    {
+      "elapsed_seconds": 0.0072648999999999995,
+      "working_set_bytes": 9977856,
+      "private_bytes": 15564800,
+      "handle_count": 109,
+      "total_cpu_seconds": 0.078125,
+      "main_window_handle": "0"
+    },
+    {
+      "elapsed_seconds": 1770.4026506999999,
+      "working_set_bytes": 224903168,
+      "private_bytes": 189308928,
+      "handle_count": 829,
+      "total_cpu_seconds": 220,
+      "main_window_handle": "4396744"
+    }
+  ],
+  "client_alive": false,
+  "source_log": {
+    "completed_utc": "2026-10-13T16:50:43.7669808+00:00",
+    "archive_sha256": "E5D3B9673F1C930DEF6F4353A62425F0BD04DE649421B41BB7652A241D7A3738",
+    "archive_path": "D:\\uploadsoft\\rd\\pixels\\unified-acceptance-20261013\\T3c-source\\source.log.gz",
+    "started_utc": "2026-10-13T16:20:43.4265729+00:00",
+    "last_local": "2026-10-14T00:50:43.2410000",
+    "render_port": 4613,
+    "selected_lines": 18329,
+    "first_local": "2026-10-14T00:20:44.1770000",
+    "source_files": [
+      {
+        "name": "pixels_render_4613.log",
+        "selected_lines": 18329,
+        "actual_bytes": 31494018
+      }
+    ],
+    "archive_bytes": 405210
+  },
+  "status": "functional_pass_with_recovered_media_gap",
+  "source_send_failed_total": 0,
+  "client_errors": [],
+  "source_error_samples": [
+    "[2026-10-14 00:20:46.187][thread 45632][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9",
+    "[2026-10-14 00:20:46.187][thread 45632][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable"
+  ],
+  "present_windows_over_100ms": [
+    "[2026-10-14 00:27:31.538][thread 38092][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=245 elapsed_us=5014717 fps=48.86 maximum_gap_us=1005107 maximum_upload_age_us=5198 maximum_render_us=5165 log_overruns=0",
+    "[2026-10-14 00:28:11.604][thread 38092][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=294 elapsed_us=5002539 fps=58.77 maximum_gap_us=208796 maximum_upload_age_us=9158 maximum_render_us=9137 log_overruns=0",
+    "[2026-10-14 00:28:51.686][thread 38092][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=295 elapsed_us=5002467 fps=58.97 maximum_gap_us=183980 maximum_upload_age_us=10921 maximum_render_us=10857 log_overruns=0",
+    "[2026-10-14 00:29:06.716][thread 38092][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=295 elapsed_us=5015135 fps=58.82 maximum_gap_us=174656 maximum_upload_age_us=6577 maximum_render_us=6557 log_overruns=0"
+  ],
+  "recovered_media_gap": {
+    "received_frame_gap_ms": 1004.1,
+    "present_gap_us": 1005107,
+    "source_feedback_oldest_us": 1029783,
+    "source_reliable_rtt_us": 445967,
+    "time_local": "2026-10-14 00:27:30",
+    "same_connection_recovered": true,
+    "underlying_delay_cause": "unlocated; no packet-capture/NIC/stutter investigation reopened"
+  },
+  "process_trend": {
+    "sample_count": 60,
+    "first_steady": {
+      "elapsed_seconds": 60.3656833,
+      "working_set_bytes": 210628608,
+      "private_bytes": 175415296,
+      "handle_count": 838,
+      "total_cpu_seconds": 8.96875,
+      "main_window_handle": "4396744"
+    },
+    "last": {
+      "elapsed_seconds": 1770.4026506999999,
+      "working_set_bytes": 224903168,
+      "private_bytes": 189308928,
+      "handle_count": 829,
+      "total_cpu_seconds": 220,
+      "main_window_handle": "4396744"
+    },
+    "steady_working_set_min_bytes": 210628608,
+    "steady_working_set_max_bytes": 224903168,
+    "steady_handle_min": 829,
+    "steady_handle_max": 840
+  },
+  "normal_exit_verified": true,
+  "compressed_download_sha_verified": true,
+  "scope": "Single low-motion XR WebView through actual BJ Linux Relay; 30 minutes, no session failure; recovered1s gap and3 short gaps retained; not zero-stutter/capacity acceptance. Validation-tool transfers occurred during this sample."
+}

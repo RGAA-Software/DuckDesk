@@ -1,0 +1,410 @@
+{
+  "status": "functional_pass_with_recovered_XR_media_gaps",
+  "samples": {
+    "T5a": {
+      "report": {
+        "state": "closed",
+        "instance_id": "38df2426-b01c-4108-a498-2635cf599f11",
+        "resource_id": "4f74d4d3-e542-4fe5-a004-54be1ea8a3c3",
+        "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct",
+        "client_path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct\\px_client.exe",
+        "expected_seconds": 1800,
+        "sample_completed": true,
+        "supervisor_pid": 44708,
+        "supervisor_created_utc": "2026-10-13T17:21:07.8019919Z",
+        "pid": 51100,
+        "process_created_utc": "2026-10-13T17:21:08.9305669Z",
+        "started_at_utc": "2026-10-13T17:21:08.9454193+00:00",
+        "hold_seconds": 1800.112529,
+        "sample_completed_at_utc": "2026-10-13T17:51:09.0741241+00:00",
+        "closed_at_utc": "2026-10-13T17:53:53.5343364+00:00",
+        "client_exit_code": 0
+      },
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T5a\\client.log.gz",
+      "archive_sha256": "96DA8EFFDE61FC3F2FD04525D89A6795A7C818E7AD5DCAD70FD38D141D089007",
+      "archive_bytes": 358991,
+      "written_lines": 13895,
+      "first_log_utc_local": "2026-10-14T01:21:08.9680000",
+      "last_log_utc_local": "2026-10-14T01:53:53.2360000",
+      "source_files": [
+        {
+          "name": "px_client.log",
+          "selected_lines": 13895,
+          "actual_bytes": 4418673
+        }
+      ],
+      "steady_window_count": 380,
+      "steady_frames": 114170,
+      "steady_elapsed_us": 1903733061,
+      "steady_maximum_gap_us": 67144,
+      "path_details": [
+        "[2026-10-14 01:21:14.881][thread 44648][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Ip\":\"10.0.0.90:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+        "[2026-10-14 01:53:48.949][thread 44648][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Ip\":\"10.0.0.90:4613\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+      ],
+      "failures": [],
+      "process_observations": [
+        {
+          "elapsed_seconds": 0.0062634,
+          "working_set_bytes": 21479424,
+          "private_bytes": 19709952,
+          "handle_count": 222,
+          "total_cpu_seconds": 0.03125,
+          "main_window_handle": "0"
+        },
+        {
+          "elapsed_seconds": 1770.1497249,
+          "working_set_bytes": 421240832,
+          "private_bytes": 180400128,
+          "handle_count": 835,
+          "total_cpu_seconds": 273.828125,
+          "main_window_handle": "7015836"
+        }
+      ],
+      "client_alive": false,
+      "source_log": {
+        "completed_utc": "2026-10-13T17:53:53.5343364+00:00",
+        "archive_sha256": "709B21A266C73CD9CDD10A45B8913AA09CAB189E3D971CACAE49B267A8638476",
+        "archive_path": "D:\\112233\\unified-acceptance-20261013\\T5a-source\\source.log.gz",
+        "started_utc": "2026-10-13T17:21:08.9454193+00:00",
+        "last_local": "2026-10-14T01:53:53.0170000",
+        "render_port": 4613,
+        "selected_lines": 17467,
+        "first_local": "2026-10-14T01:21:09.2910000",
+        "source_files": [
+          {
+            "name": "pixels_render_4613.1.log",
+            "selected_lines": 0,
+            "actual_bytes": 52428757
+          },
+          {
+            "name": "pixels_render_4613.2.log",
+            "selected_lines": 0,
+            "actual_bytes": 52428695
+          },
+          {
+            "name": "pixels_render_4613.3.log",
+            "selected_lines": 0,
+            "actual_bytes": 52428255
+          },
+          {
+            "name": "pixels_render_4613.4.log",
+            "selected_lines": 0,
+            "actual_bytes": 52428239
+          },
+          {
+            "name": "pixels_render_4613.5.log",
+            "selected_lines": 0,
+            "actual_bytes": 52428635
+          },
+          {
+            "name": "pixels_render_4613.log",
+            "selected_lines": 17467,
+            "actual_bytes": 11684519
+          }
+        ],
+        "archive_bytes": 388243
+      },
+      "raw_error_samples": {
+        "client": [],
+        "source": [
+          "[2026-10-14 01:21:10.592][thread 41912][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9",
+          "[2026-10-14 01:21:10.592][thread 41912][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable"
+        ]
+      },
+      "downloads_sha_verified": true,
+      "received_frame_gaps": [
+        "[2026-10-14 01:21:10.755][thread 44648][iroh_connection.cpp:47][info] : event=iroh.received_frame phase=gap stream=0 frame=4 gap_ms=880.2"
+      ],
+      "normal_exit_verified": true,
+      "source_send_failed_total": 0
+    },
+    "T5b": {
+      "report": {
+        "state": "closed",
+        "instance_id": "617074d5-b6d3-43c0-81ae-3b8b06a2fa07",
+        "resource_id": "1e48dcf5-1834-4ff4-bf21-210e8eac7264",
+        "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj",
+        "client_path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj\\px_client.exe",
+        "expected_seconds": 1860,
+        "sample_completed": true,
+        "supervisor_pid": 21632,
+        "supervisor_created_utc": "2026-10-13T17:21:13.6701183Z",
+        "pid": 43532,
+        "process_created_utc": "2026-10-13T17:21:15.1886269Z",
+        "started_at_utc": "2026-10-13T17:21:15.2053594+00:00",
+        "hold_seconds": 1860.3442625,
+        "sample_completed_at_utc": "2026-10-13T17:52:15.5739801+00:00",
+        "closed_at_utc": "2026-10-13T17:56:16.5968615+00:00",
+        "client_exit_code": 0
+      },
+      "archive_path": "D:\\112233\\unified-acceptance-20261013\\T5b\\client.log.gz",
+      "archive_sha256": "B9A624B4A64D958E913D94236F01037656EAC0457CAF0DBEE297E492CCCC2525",
+      "archive_bytes": 317978,
+      "written_lines": 14239,
+      "first_log_utc_local": "2026-10-14T01:21:15.2500000",
+      "last_log_utc_local": "2026-10-14T01:56:16.1670000",
+      "source_files": [
+        {
+          "name": "px_client.log",
+          "selected_lines": 14239,
+          "actual_bytes": 4391293
+        }
+      ],
+      "steady_window_count": 408,
+      "steady_frames": 122532,
+      "steady_elapsed_us": 2044010508,
+      "steady_maximum_gap_us": 397530,
+      "path_details": [
+        "[2026-10-14 01:21:21.417][thread 34640][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+        "[2026-10-14 01:56:15.993][thread 34640][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+      ],
+      "failures": [],
+      "process_observations": [
+        {
+          "elapsed_seconds": 0.0050008,
+          "working_set_bytes": 20086784,
+          "private_bytes": 19488768,
+          "handle_count": 204,
+          "total_cpu_seconds": 0.046875,
+          "main_window_handle": "0"
+        },
+        {
+          "elapsed_seconds": 1830.4458932999999,
+          "working_set_bytes": 437178368,
+          "private_bytes": 195850240,
+          "handle_count": 839,
+          "total_cpu_seconds": 296.765625,
+          "main_window_handle": "209068844"
+        }
+      ],
+      "client_alive": false,
+      "source_log": {
+        "completed_utc": "2026-10-13T17:56:16.5968615+00:00",
+        "archive_sha256": "8165A981BFE62036ACBFDB2F65EEEBFA7B40D258D6F232785968E581906A77B3",
+        "archive_path": "D:\\uploadsoft\\rd\\pixels\\unified-acceptance-20261013\\T5b-source\\source.log.gz",
+        "started_utc": "2026-10-13T17:21:15.2053594+00:00",
+        "last_local": "2026-10-14T01:56:15.9300000",
+        "render_port": 4613,
+        "selected_lines": 19199,
+        "first_local": "2026-10-14T01:21:15.7470000",
+        "source_files": [
+          {
+            "name": "pixels_render_4613.log",
+            "selected_lines": 19199,
+            "actual_bytes": 36916217
+          }
+        ],
+        "archive_bytes": 415412
+      },
+      "raw_error_samples": {
+        "client": [],
+        "source": [
+          "[2026-10-14 01:21:17.090][thread 46536][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9",
+          "[2026-10-14 01:21:17.090][thread 46536][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable"
+        ]
+      },
+      "downloads_sha_verified": true,
+      "received_frame_gaps": [
+        "[2026-10-14 01:32:14.681][thread 34640][iroh_connection.cpp:47][info] : event=iroh.received_frame phase=gap stream=0 frame=39481 gap_ms=397.1",
+        "[2026-10-14 01:34:25.722][thread 34640][iroh_connection.cpp:47][info] : event=iroh.received_frame phase=gap stream=0 frame=47355 gap_ms=203.0",
+        "[2026-10-14 01:35:05.794][thread 34640][iroh_connection.cpp:47][info] : event=iroh.received_frame phase=gap stream=0 frame=49764 gap_ms=135.9"
+      ],
+      "normal_exit_verified": true,
+      "source_send_failed_total": 0
+    }
+  },
+  "after_first_close": {
+    "path": [
+      "[2026-10-14 01:54:50.780][thread 34640][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+    ],
+    "utc": "2026-10-13T17:54:51.2448133Z",
+    "present": [
+      "[2026-10-14 01:54:45.599][thread 6352][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=301 elapsed_us=5015979 fps=60.01 maximum_gap_us=22582 maximum_upload_age_us=5053 maximum_render_us=5033 log_overruns=0",
+      "[2026-10-14 01:54:50.599][thread 6352][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=300 elapsed_us=5000711 fps=59.99 maximum_gap_us=31032 maximum_upload_age_us=5455 maximum_render_us=5411 log_overruns=0"
+    ],
+    "report": {
+      "state": "awaiting_normal_close",
+      "instance_id": "617074d5-b6d3-43c0-81ae-3b8b06a2fa07",
+      "resource_id": "1e48dcf5-1834-4ff4-bf21-210e8eac7264",
+      "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj",
+      "client_path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj\\px_client.exe",
+      "expected_seconds": 1860,
+      "sample_completed": true,
+      "supervisor_pid": 21632,
+      "supervisor_created_utc": "2026-10-13T17:21:13.6701183Z",
+      "pid": 43532,
+      "process_created_utc": "2026-10-13T17:21:15.1886269Z",
+      "started_at_utc": "2026-10-13T17:21:15.2053594+00:00",
+      "hold_seconds": 1860.3442625,
+      "sample_completed_at_utc": "2026-10-13T17:52:15.5739801+00:00"
+    }
+  },
+  "receiver_runtime_identities": [
+    {
+      "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct",
+      "verified_files": 44,
+      "client_sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+      "installed_copy_only": true
+    },
+    {
+      "runtime_root": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj",
+      "verified_files": 44,
+      "client_sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+      "installed_copy_only": true
+    }
+  ],
+  "simultaneous_process_overlap_seconds": 1958.328977,
+  "relay_control_observations": [
+    {
+      "phase": "T5-after-first-close",
+      "observed_epoch": 1791914083.9275386,
+      "relays": [
+        {
+          "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+          "name": "BJ-200M Relay",
+          "public_host": "49.232.233.61",
+          "current_connections": 0,
+          "forwarded_bytes": 2070284144,
+          "forwarded_rate_bps": 0,
+          "uploaded_bytes": 2071401372,
+          "fresh": true,
+          "state": "ready",
+          "generation": 23,
+          "desired_draining": false,
+          "reported_draining": false
+        },
+        {
+          "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+          "name": "Single Server Relay",
+          "public_host": "39.71.45.66",
+          "current_connections": 3,
+          "forwarded_bytes": 332416835,
+          "forwarded_rate_bps": 638375,
+          "uploaded_bytes": 332442337,
+          "fresh": true,
+          "state": "ready",
+          "generation": 98,
+          "desired_draining": false,
+          "reported_draining": false
+        }
+      ],
+      "nodes": [
+        {
+          "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "fresh": true,
+          "state": "ready",
+          "generation": 29,
+          "report_sequence": 1426
+        },
+        {
+          "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "fresh": true,
+          "state": "ready",
+          "generation": 474,
+          "report_sequence": 1396
+        }
+      ]
+    },
+    {
+      "phase": "T5-initial",
+      "observed_epoch": 1791912445.5138679,
+      "relays": [
+        {
+          "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+          "name": "BJ-200M Relay",
+          "public_host": "49.232.233.61",
+          "current_connections": 0,
+          "forwarded_bytes": 2070284144,
+          "forwarded_rate_bps": 0,
+          "uploaded_bytes": 2071401372,
+          "fresh": true,
+          "state": "ready",
+          "generation": 23,
+          "desired_draining": false,
+          "reported_draining": false
+        },
+        {
+          "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+          "name": "Single Server Relay",
+          "public_host": "39.71.45.66",
+          "current_connections": 5,
+          "forwarded_bytes": 202882421,
+          "forwarded_rate_bps": 629549,
+          "uploaded_bytes": 202907923,
+          "fresh": true,
+          "state": "ready",
+          "generation": 98,
+          "desired_draining": false,
+          "reported_draining": false
+        }
+      ],
+      "nodes": [
+        {
+          "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "fresh": true,
+          "state": "ready",
+          "generation": 29,
+          "report_sequence": 1317
+        },
+        {
+          "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "fresh": true,
+          "state": "ready",
+          "generation": 474,
+          "report_sequence": 1286
+        }
+      ]
+    },
+    {
+      "phase": "T5-near-end",
+      "observed_epoch": 1791913703.2599208,
+      "relays": [
+        {
+          "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+          "name": "BJ-200M Relay",
+          "public_host": "49.232.233.61",
+          "current_connections": 0,
+          "forwarded_bytes": 2070284144,
+          "forwarded_rate_bps": 0,
+          "uploaded_bytes": 2071401372,
+          "fresh": true,
+          "state": "ready",
+          "generation": 23,
+          "desired_draining": false,
+          "reported_draining": false
+        },
+        {
+          "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+          "name": "Single Server Relay",
+          "public_host": "39.71.45.66",
+          "current_connections": 5,
+          "forwarded_bytes": 302307429,
+          "forwarded_rate_bps": 638317,
+          "uploaded_bytes": 302332931,
+          "fresh": true,
+          "state": "ready",
+          "generation": 98,
+          "desired_draining": false,
+          "reported_draining": false
+        }
+      ],
+      "nodes": [
+        {
+          "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+          "fresh": true,
+          "state": "ready",
+          "generation": 29,
+          "report_sequence": 1401
+        },
+        {
+          "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+          "fresh": true,
+          "state": "ready",
+          "generation": 474,
+          "report_sequence": 1370
+        }
+      ]
+    }
+  ],
+  "scope": "Company2 receivers,90/XR1 application source each; configured2000kbps each; actualLAN direct andWindows Relay. No full-capacity/even-distribution/zero-stutter claim. XR397ms andsmaller recovered gaps retained; sourceViGEm unavailable ancillary limitation."
+}

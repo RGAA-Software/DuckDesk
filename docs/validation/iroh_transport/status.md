@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-14 02:08，UDP受限和两路通过，单路4小时保持已经启动
+
+T4默认`relay_only=false`，限制前直连10可靠往返/201数据报，受限无候选连接超时，受限有私有候选同连接360.416秒/357可靠往返/7201数据报逐字节校验、两端720个路径采样全Relay39.71.45.66:4605、exit0；4个动态过滤器67904–67907移除查询空/限制工具exit0、原三profile关闭保持，移除后再次直连10/201通过。八gzip源/收SHA验证；四源文件PAB下载offset0超时保留，通过原生读3.7KB压缩内容恢复，后续fresh connect正常。活动报告共享写句柄的只读观察失败也保留/改FileShare.ReadWrite，未重启探针。No-Relay退出时上游relay_recv_channel closed诊断只发生成功检查后，未改依赖。见[自动中继](20261014_acceptance_udp_restricted_auto_relay.json)。
+
+T3c两端gzipSHA通过/30分钟同BJ路径/连接退出正确，但最大1.005s接收＋呈现间隔/RTT445ms/反馈帧积压约1.03s后同连接恢复，无接入/重拨失败，底层延迟未定因，作为XR性能限制保留，未重开暂停专项。T5同Company2个独立运行目录，各44文件SHA等于安装候选E849…、分开日志/窗口并排；实际90 LAN direct及XR Windows Relay，完整同时1958.329秒，各稳定约59.97/59.95FPS/最大67.144/397.530ms，XR还有少量较小间隔自动恢复，源启动ViGEm错误单列。关闭T5a后T5b一分钟后仍出图/同Relay，端点5→3，两路均正常exit0/资源closed/实例stopped。T5a补齐直连正常退出验证，原T3a工具interrupted记录保留。见[两路](20261014_acceptance_two_business_sessions.json)及[BJ样本](20261014_acceptance_bj_relay_sample.json)；不称满容量/均分或零短顿。
+
+T6已运行：原operation69a058a8…/taskcec33e5c…，Company Client27352/session1/创建2026-10-13T18:03:59.3627769Z，监督43156，实例4fdcbda4…/资源63817cb3…，14400秒，实际Windows Relay39.71.45.66:4605，预计06:04北京观测完成，必须在其后10分钟正常关闭Client才能结束监督进程。02:07中途约60FPS/最大22–28ms，不是完整4h结果。Source90页面65500/48778仍HTTP200，deadline约07:03；全部样本Source/Client身份固定。当前唯一下一步保留原T6，轻量有界观察，然后全轮转日志压缩＋SHA、清理owned资源、恢复两夹具原配置和总结push。本机无测试负载，Android/暂停专项仍排除，整体任务未完成。
+
 ## 最新接续：2026-10-14，Windows Relay完整样本通过，BJ实际媒体运行中
 
 T3b-r1观测1800.167秒/稳定348窗口1743.533秒/104600帧约59.993FPS，最大55.274ms；Client正常确认退出0、监督命令succeeded/exit0，资源8821…closed/实例489d…stopped。两端selected均Windows Relay39.71.45.66:4605；gzip Client303600字节SHA9322867E…/Source357659字节SHAF861FF8D…下载相等，源发送失败0。低运动页面配置2000kbps，但实测视频0.035–0.074Mbps/均0.054Mbps，不称容量或2Mbps持续负载通过。源启动2条ViGEm不可用错误单列驱动限制，不称手柄通过。见[完整Windows Relay记录](20261014_acceptance_windows_relay_sample.json)。T3a源日志也已补齐，gzip386205字节SHA A944593E…相等/选17090行，正常退出工具问题仍保留。
