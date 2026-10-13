@@ -122,6 +122,16 @@ scripts_build\build_remote_product.bat
 
 这些都是发布级完整构建；每条命令一次升版并生成一个 Pixels 安装包，不接受旧的 `full`、`incremental` 或 `reconfigure` 参数。
 
+完整安装候选验收可以复用已存在的正式优化树，使用当前版本但隔离安装器输出：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build/build_windows_product_matrix.ps1 -Product client -Incremental -Jobs 18 -CandidateId validation-20261013
+```
+
+`CandidateId`需要`Incremental`，只接受小写字母、数字和连字符，不能重复；结果位于`official/candidates/<CandidateId>/installer/<版本>/`。
+这是完整产品构建和Setup制作，不是普通开发增量入口；候选不升版、不覆盖原发行安装器、不发布更新源或复制到development dist。
+未指定候选时，原发行入口仍独立升版。`Jobs`明确传给C++、RDP SDK、Rust传输及嵌套Cargo/vcpkg，默认18。
+
 Cloud Node、Client、Remote 都由用户或运维运行对应的完整安装包完成安装、同版覆盖或升级；Console 不向 Windows Service 下发、暂存或激活安装包。
 安装、覆盖升级和卸载共用一个全局安装互斥锁；并发操作返回 Windows Installer busy（1618），不会同时改写安装目录。
 失败恢复由运维使用已验证的上一版本完整包再次覆盖；不存在 Service 激活记录、自动回滚 runner 或跨节点提交事务。

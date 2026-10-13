@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([string]$FreeRdpSource, [string]$BuildDirectory, [string]$SdkDirectory, [string]$VcpkgDirectory)
+param([string]$FreeRdpSource, [string]$BuildDirectory, [string]$SdkDirectory, [string]$VcpkgDirectory,
+    [ValidateRange(1, 256)] [int]$Jobs = 18)
 $ErrorActionPreference = 'Stop'
 function Get-SdkHash([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
@@ -86,7 +87,7 @@ $source = $patchedSource
     -DWITH_FFMPEG=OFF -DWITH_SWSCALE=OFF -DWITH_OPENH264=ON -DWITH_OPUS=OFF -DWITH_JPEG=OFF `
     -DWITH_WINPR_TOOLS=OFF -DWITH_WINPR_TOOLS_CLI=OFF -DWITH_PROXY_MODULES=OFF
 if ($LASTEXITCODE -ne 0) { throw 'FreeRDP configure failed' }
-& cmake --build $BuildDirectory --config Release --target freerdp-proxy --parallel 6
+& cmake --build $BuildDirectory --config Release --target freerdp-proxy --parallel $Jobs
 if ($LASTEXITCODE -ne 0) { throw 'FreeRDP SDK build failed' }
 if ($SdkDirectory -eq $repo -or $SdkDirectory -eq [IO.Path]::GetPathRoot($SdkDirectory) -or
     $SdkDirectory -eq $source -or $SdkDirectory -eq $BuildDirectory -or $SdkDirectory -eq $VcpkgDirectory) {

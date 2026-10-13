@@ -34,7 +34,9 @@ if "%~2"=="" (
 )
 cmake -S "%RDP_POLICY_ROOT%\src\px_deps\px_rdp\proxy_policy" -B "%RDP_POLICY_BUILD%" -G "Visual Studio 17 2022" -A x64 -DPX_FREERDP_SOURCE_DIR="%RDP_POLICY_SDK%" -DPX_FREERDP_BINARY_DIR="%RDP_POLICY_HEADERS%"
 if errorlevel 1 exit /b %errorlevel%
-cmake --build "%RDP_POLICY_BUILD%" --config Release --target rdp_proxy_policy --parallel 4
+set "RDP_POLICY_JOBS=%CPP_BUILD_JOBS%"
+if not defined RDP_POLICY_JOBS set "RDP_POLICY_JOBS=18"
+cmake --build "%RDP_POLICY_BUILD%" --config Release --target rdp_proxy_policy --parallel %RDP_POLICY_JOBS%
 exit /b %errorlevel%
 
 :validate_oem_id

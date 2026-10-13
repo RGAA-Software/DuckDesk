@@ -4,7 +4,13 @@ param(
     [ValidateSet('cloud_node', 'client', 'remote')]
     [string]$Product,
 
-    [switch]$Incremental
+    [switch]$Incremental,
+
+    [ValidateRange(1, 256)]
+    [int]$Jobs = 18,
+
+    [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')]
+    [string]$CandidateId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,6 +18,12 @@ Set-StrictMode -Version Latest
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $buildRoot = Join-Path $repoRoot "build_official\$Product"
+if ($CandidateId -and -not $Incremental) {
+    throw 'CandidateId requires Incremental so existing release installers and candidates are preserved.'
+}
+if ($CandidateId -and (Test-Path -LiteralPath (Join-Path $buildRoot "official/candidates/$CandidateId"))) {
+    throw "Candidate output already exists and will not be overwritten: $CandidateId"
+}
 $python = Get-Command python -ErrorAction Stop
 $nodeRequired = $Product -in @('cloud_node', 'remote')
 $officialConsoleUrl = [Environment]::GetEnvironmentVariable('PIXELS_OFFICIAL_CONSOLE_URL')
@@ -19,6 +31,9 @@ if (-not [string]::IsNullOrWhiteSpace($officialConsoleUrl)) {
     throw 'All Pixels Windows products configure Console after installation; clear PIXELS_OFFICIAL_CONSOLE_URL before packaging.'
 }
 $officialConsoleUrl = ''
+$env:CARGO_BUILD_JOBS = [string]$Jobs
+$env:VCPKG_MAX_CONCURRENCY = [string]$Jobs
+$env:CPP_BUILD_JOBS = [string]$Jobs
 $target = switch ($Product) {
     'cloud_node' { 'px_build_cloud_node_all' }
     'client' { 'px_build_client_all' }
@@ -71,12 +86,16 @@ if ($Product -eq 'cloud_node') {
 }
 Invoke-NativeChecked -FilePath $python.Source -Arguments @((Join-Path $repoRoot 'scripts\validate_product_manifests.py'))
 Invoke-NativeChecked -FilePath $python.Source -Arguments @((Join-Path $repoRoot 'scripts\validate_product_branding.py'))
-Invoke-NativeChecked -FilePath 'cmd.exe' -Arguments @('/d', '/c', (Join-Path $PSScriptRoot 'build_cpp_rdp_sdk.bat'))
 Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
-    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_transport.ps1'), '-Profile', 'Publication'
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $repoRoot 'scripts/prepare_rdp_sdk.ps1'), '-Jobs', [string]$Jobs
+)
+Invoke-NativeChecked -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'build_transport.ps1'), '-Profile', 'Publication',
+    '-Jobs', [string]$Jobs
 )
 
-$versionOutput = & $python.Source (Join-Path $repoRoot 'set_product_version.py') '--product' $Product '--bump' '--json'
+$versionAction = if ($CandidateId) { '--show' } else { '--bump' }
+$versionOutput = & $python.Source (Join-Path $repoRoot 'set_product_version.py') '--product' $Product $versionAction '--json'
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to assign the $Product version; the distribution build did not start."
 }
@@ -119,7 +138,7 @@ foreach ($distribution in @('official')) {
     $env:CPP_PRODUCT = $Product
     $env:CPP_DISTRIBUTION = $distribution
     $env:CPP_BUILD_DIR = "build_official\$Product\$distribution\cmake"
-    $env:CPP_BUILD_JOBS = if ([string]::IsNullOrWhiteSpace($env:CPP_BUILD_JOBS)) { '12' } else { $env:CPP_BUILD_JOBS }
+    $env:CPP_BUILD_JOBS = [string]$Jobs
     $env:CPP_CMAKE_DISTRIBUTION_ARGS =
         "-DPX_UPDATE_ROOT_FILE=build_official/$Product/$distribution/update/update-root.json " +
         "-DPX_OFFICIAL_CONSOLE_ORIGIN:STRING=`"$officialConsoleUrl`""
@@ -131,9 +150,11 @@ foreach ($distribution in @('official')) {
         Remove-Item Env:CPP_PRODUCT, Env:CPP_DISTRIBUTION, Env:CPP_BUILD_DIR, Env:CPP_BUILD_JOBS, Env:CPP_CMAKE_DISTRIBUTION_ARGS `
             -ErrorAction SilentlyContinue
     }
-    Invoke-NativeChecked -FilePath $python.Source -Arguments @(
+    $setupArguments = @(
         (Join-Path $repoRoot 'setup\make_setup.py'), '--product', $Product, '--distribution', $distribution
     )
+    if ($CandidateId) { $setupArguments += @('--candidate-id', $CandidateId) }
+    Invoke-NativeChecked -FilePath $python.Source -Arguments $setupArguments
 }
 
 Write-Host "Completed Pixels $Product $($version.product_version) single-package release."

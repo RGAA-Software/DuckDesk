@@ -1,0 +1,485 @@
+{
+  "candidate": "network-publication-20261013-1882ac301",
+  "runtime_base_revision": "1882ac3016576e3359506da235bfa2eee0715559",
+  "scope": "optimized complete Windows candidates and bounded Setup acceptance",
+  "product_versions_bumped": false,
+  "external_update_source_published": false,
+  "windows_code_signing": "unsigned",
+  "packaging_changes": [
+    "explicit 18 jobs in nested SDK/transport/policy builds",
+    "isolated current-version full candidates via CandidateId"
+  ],
+  "candidate_preservation_guards": {
+    "requires_incremental": true,
+    "rejects_existing_output": true,
+    "real_invocation_checks_passed": true
+  },
+  "server": {
+    "product": "server",
+    "version": "1.0.56",
+    "build_profile": "optimized-release",
+    "verified_files": 35,
+    "setup_sha256": "77356b06912f51620fd739ec4ca21abc85c30ca5fa8c90cf60d1b382f8274c7e",
+    "manifest_sha256": "11edb394a03b4e28a27263171d91e26de04ecd288d4d5d885de6519e21e3aafa",
+    "bytes": 13747711,
+    "setup_path": "build_official/private_server/candidates/network-publication-20261013-1882ac301/PixelsServer_1.0.56_Setup.exe",
+    "runtime_hashes": {
+      "bin/px_backup.exe": "5614154d48bba3fc01cb439b39dd0d2ff48dd31abcc8e60ff1d58e11183473bc",
+      "bin/px_console.exe": "94c31068a9d5c214f3e758460fda9c8283e218667f9cba8b0508ba00a2cde41f",
+      "bin/px_console_admin.exe": "db46f336f5ec18bb33dfbbd49d82725cf325830a996afc78a372de2eae333a40",
+      "bin/px_db.exe": "2c59b95ce5fed650873d9a9ea92221056aed1535c227b1cb1b35859646ddf694",
+      "bin/px_relay.exe": "fd3d96a9dfc734a395e5a4c7f06425fb4fd1da57c21207651020a5120c7365a4",
+      "bin/px_server_tray.exe": "7dd3e771755df4ecc4bf7b7a9145d50a12a1331e526f8405f58278a859d75548"
+    },
+    "installed_on": "90",
+    "jobs": 18
+  },
+  "products": [
+    {
+      "product": "client",
+      "version": "3.3.81",
+      "jobs": 18,
+      "profile": "optimized-release",
+      "setup_path": "build_official/client/official/candidates/network-publication-20261013-1882ac301/installer/3.3.81/PixelsClient_official_3.3.81_Setup.exe",
+      "setup_sha256": "EB65DAFAFE6BC9FEC5A3B5DD4EE3EDB573129D2942F61F9CA080CEF8ECD2D8FF",
+      "setup_bytes": 47979985,
+      "manifest_sha256": "C6B8DBF57451F89D2CD597869187B81CE3E695487BE72CCF7B9FA83376D09F18",
+      "artifact_count": 41,
+      "inventory_count": 41,
+      "runtimes": [
+        {
+          "path": "px_client.exe",
+          "sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "0BBF191ADE5C2896EE9A9E86AE00F5A7CA938318CFE0A59F9645809E9B538B9E",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": "local"
+    },
+    {
+      "product": "cloud_node",
+      "version": "3.3.97",
+      "jobs": 18,
+      "profile": "optimized-release",
+      "setup_path": "build_official/cloud_node/official/candidates/network-publication-20261013-1882ac301/installer/3.3.97/PixelsCloudNode_official_3.3.97_Setup.exe",
+      "setup_sha256": "969E0B8A1015066CB1510F5615AB90AC3501A222820CC8AB2A18D0EDFE77E90D",
+      "setup_bytes": 278574523,
+      "manifest_sha256": "F7EEC70B396945FA4DA6C91299AE15862E59E2FA7ACFF91FC1D93F17D70EBF8D",
+      "artifact_count": 314,
+      "inventory_count": 314,
+      "runtimes": [
+        {
+          "path": "px_client.exe",
+          "sha256": "9186FC68D91302171FB4047AE6B59CBC514FC078043BA88EE2D240BCAE45410C",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "74840D796CF2048F6BC252DAD08D0D2D80E89F7E07AAF60C0E3D260A887E56CB",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_render.exe",
+          "sha256": "FEE6ED1F2C8DF7C9E36028D7E724C7F892F56B10DBFABCFAA5AFA25EDFF4D5B0",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_service.exe",
+          "sha256": "4CE0F74BE753B4B380E9B57569C8B7217BF31DB1E57D35CCF511853351D8BB4D",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": "90"
+    },
+    {
+      "product": "remote",
+      "version": "3.3.79",
+      "jobs": 18,
+      "profile": "optimized-release",
+      "setup_path": "build_official/remote/official/candidates/network-publication-20261013-1882ac301/installer/3.3.79/PixelsRemote_official_3.3.79_Setup.exe",
+      "setup_sha256": "32F4E0C8631E7782DB08C7F1B17B882E89FD8011AF28A504534C3AF22BD56D63",
+      "setup_bytes": 92201153,
+      "manifest_sha256": "9617424B35E0A80C7E2C66B886BBB73302A706FB739FB2D33787C1E9CB3CA712",
+      "artifact_count": 76,
+      "inventory_count": 76,
+      "runtimes": [
+        {
+          "path": "px_client.exe",
+          "sha256": "812F8AE12833EE93BEFCBF9698E94A235544999B27219DCA52F0A22D2C72A964",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "24F1CE3F4DCC5E0D06DF6C15668A6CB91AF92003E82714BFED44CAA660198DE8",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_render.exe",
+          "sha256": "61CB41DB47529154DD6539E30857AB3434A4D50562AF40907D6C54DDF2E0900A",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_service.exe",
+          "sha256": "4CE0F74BE753B4B380E9B57569C8B7217BF31DB1E57D35CCF511853351D8BB4D",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": null
+    }
+  ],
+  "installation_order": [
+    "90 Server",
+    "90 Cloud Node",
+    "local Client first installation",
+    "local Client same-version covering installation"
+  ],
+  "installation_receipts": [
+    {
+      "product": "server",
+      "host": "90",
+      "setup_exit": 0,
+      "mcp_operation_id": "10e0c087-9d6b-4146-828c-871f64a2d46c",
+      "verified_artifacts": 35
+    },
+    {
+      "product": "cloud_node",
+      "host": "90",
+      "setup_exit": 0,
+      "mcp_operation_id": "c2fb55cc-e6a5-47d9-ab56-b1a58b028e88",
+      "verified_artifacts": 314
+    },
+    {
+      "product": "client",
+      "host": "local",
+      "mode": "first",
+      "setup_exit": 0,
+      "installer_pid": 86372,
+      "verified_artifacts": 41
+    },
+    {
+      "product": "client",
+      "host": "local",
+      "mode": "cover",
+      "setup_exit": 0,
+      "installer_pid": 80828,
+      "verified_artifacts": 41
+    }
+  ],
+  "remote_independent_setup_acceptance": false,
+  "remote_acceptance_limitation": "Windows Client, Cloud Node and Remote are mutually exclusive; no existing product was uninstalled to create another target",
+  "server_config_hashes": {
+    "backup.json": "72786F0A918DB0B5561E21BEF5FD5FB92D76EFD0C2BB4300DD130AF5F595EEB6",
+    "console-before-bj-20261010.env": "0EECD9304D4E32478576500261FB385CC680968B8EE7D5FBD13BB3F9C02CCBA8",
+    "console-before-two-relays-20261010.env": "03352CEEAB08C7B89A342505D398629A6847757A617E19478849BBB567DD4438",
+    "console-ca.crt": "4B6F9607EADBD5000F4AD3486B377FD72AC8E1874335F6B0DEB27F8B37F5630D",
+    "console-tls.crt": "C3B4FD26BD6414A69829B597BC1A4746FB427357B4E11D9B6B2729B9E986D054",
+    "console-tls.key": "0E891770BC1713767C04C26B4C52B3C4497B392250F51FD47EA87A2640CDFEE3",
+    "console.env": "872CAC22E6D6B4849D7A314BC7F2311D349D3B7960E75CCD57E530F007B26C8D",
+    "guest-source.key": "246CEE8691D7BA4939413E4977B160DA85315AC2A286A74EA4CC6EC87C529828",
+    "iroh-relay.json": "415C64CB9FDC508068DBE6F43035D8F3FB6B57B2BAE9EBBCFFD33BD2AD283EA8",
+    "license-trust.json": "DFAC467036C435AA0D811CE00897D3226836A2C7A2F9D6F48298AB70C4D9A691",
+    "relay-before-iroh-20261010.env": "B94B954A4E6B79EB844BA9BC39A2B5A7E146881F2D4C194FF70AF68F70E79BB0",
+    "relay-before-iroh-key-acl-20261010.txt": "E284E4DB63F7F104EF5E666978325AA66E2289EC757C7733666AC763BC98668C",
+    "relay-before-iroh-key-acl-retry-20261010.txt": "E284E4DB63F7F104EF5E666978325AA66E2289EC757C7733666AC763BC98668C",
+    "relay.env": "3DCBB74703D4843427E7C92ADDBC2CB8FFE1E60B98ABB05B7420AAEB172BDBB1",
+    "setup.complete": "ED1A545BB85E55816BBF9566B028B2A0BC456B88F49F6F266C0401048824194B",
+    "workspace.key": "FA81C9C43C4B9861B244E32D9CFB0793FABBA869FDED38FB15BA4BFAD01CCC9B",
+    "backup\\console.pgpass": "48A1A213253C99D9C87E46222B9AE4130DDA4601CE9DFC26F54F2DC9E2E58A03",
+    "console\\license\\console.license": "90882AA859F0BC84AA5358548674D01770E5E5F3D36BEE1BEDE2E52D9D61457E",
+    "database-upgrade\\console-owner.url": "AE585D3D77B6F56B1C402397B408AC9E7516EF7965709426D35819C2C17F983A"
+  },
+  "node_config_hashes": {
+    "px_service.toml": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+    "settings.toml": "E3AB48AE27A2EC0FCB0DE5B94C6496DB58F8CAD41AF46ECF9CD49E3BF2A274C4"
+  },
+  "sessions_before": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " administrator         console             2  Active       8:19  2026/10/12 11:06",
+    " pxrdp_2c3153bd5fff41                      3  Disc         6:23  2026/10/13 0:19",
+    " pxrdp_b0f36cef23c348                      4  Disc        10:02  2026/10/13 0:19",
+    " pxrdp_705dbd09276447                      5  Disc        10:02  2026/10/13 9:16",
+    " pxrdp_3bf8b1c584864c                      6  Disc        10:02  2026/10/13 9:16",
+    " pxrdp_dfb3fa187c384e                      7  Disc         8:19  2026/10/13 9:16",
+    " pxrdp_a1def23ad7af4b                      8  Disc        10:26  2026/10/13 9:18",
+    " pxrdp_b42f5c027f424d                      9  Disc        10:26  2026/10/13 9:18",
+    " pxrdp_36a5bae934654d                     10  Disc        10:26  2026/10/13 9:18",
+    " pxrdp_6ce0e0bf5efc41                     11  Disc        10:26  2026/10/13 9:18",
+    " pxrdp_e993834d943549                     12  Disc        10:26  2026/10/13 9:18",
+    " pxrdp_cbe0d56affed42                     13  Disc        10:35  2026/10/13 9:18",
+    " pxrdp_77533ce822bd40                     14  Disc        10:35  2026/10/13 9:19",
+    " pxrdp_cba09bbd94cd4e                     15  Disc        10:35  2026/10/13 9:19",
+    " pxrdp_f854966f911541                     16  Disc        10:35  2026/10/13 9:19",
+    " pxrdp_d04c0bb8790c40                     17  Disc        10:35  2026/10/13 9:19"
+  ],
+  "sessions_after": [
+    " USERNAME              SESSIONNAME        ID  STATE   IDLE TIME  LOGON TIME",
+    " administrator         console             2  Active       8:40  2026/10/12 11:06",
+    " pxrdp_2c3153bd5fff41                      3  Disc         6:45  2026/10/13 0:19",
+    " pxrdp_b0f36cef23c348                      4  Disc        10:23  2026/10/13 0:19",
+    " pxrdp_705dbd09276447                      5  Disc        10:23  2026/10/13 9:16",
+    " pxrdp_3bf8b1c584864c                      6  Disc        10:23  2026/10/13 9:16",
+    " pxrdp_dfb3fa187c384e                      7  Disc         8:41  2026/10/13 9:16",
+    " pxrdp_a1def23ad7af4b                      8  Disc        10:47  2026/10/13 9:18",
+    " pxrdp_b42f5c027f424d                      9  Disc        10:47  2026/10/13 9:18",
+    " pxrdp_36a5bae934654d                     10  Disc        10:47  2026/10/13 9:18",
+    " pxrdp_6ce0e0bf5efc41                     11  Disc        10:47  2026/10/13 9:18",
+    " pxrdp_e993834d943549                     12  Disc        10:47  2026/10/13 9:18",
+    " pxrdp_cbe0d56affed42                     13  Disc        10:56  2026/10/13 9:18",
+    " pxrdp_77533ce822bd40                     14  Disc        10:56  2026/10/13 9:19",
+    " pxrdp_cba09bbd94cd4e                     15  Disc        10:56  2026/10/13 9:19",
+    " pxrdp_f854966f911541                     16  Disc        10:56  2026/10/13 9:19",
+    " pxrdp_d04c0bb8790c40                     17  Disc        10:56  2026/10/13 9:19"
+  ],
+  "services_after": [
+    {
+      "Name": "Pixels.Backup.2f5b1d676dba",
+      "State": "Running"
+    },
+    {
+      "Name": "Pixels.Console",
+      "State": "Running"
+    },
+    {
+      "Name": "Pixels.Relay",
+      "State": "Running"
+    },
+    {
+      "Name": "px_service",
+      "State": "Running"
+    }
+  ],
+  "analysis": {
+    "application_specs_equal": true,
+    "deployment_configuration_equal_except_owned_fixture_revision": true,
+    "application_count": 11,
+    "deployment_count": 11,
+    "server_config_hashes_equal": true,
+    "server_config_file_count": 19,
+    "node_config_hashes_equal": true,
+    "backup_console_database_schema": 42,
+    "license_equal": true,
+    "max_streams": 80,
+    "rdp_capacity": 10,
+    "relays": [
+      {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "fresh": true,
+        "state": "ready",
+        "current_connections": 0,
+        "desired_draining": false,
+        "reported_draining": false,
+        "bandwidth_capacity_mbps": null
+      },
+      {
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "fresh": true,
+        "state": "ready",
+        "current_connections": 1,
+        "desired_draining": false,
+        "reported_draining": false,
+        "bandwidth_capacity_mbps": null
+      }
+    ],
+    "samples": [
+      {
+        "log": ".cache/windows-publication-20261013/first-client.log.gz",
+        "sha256": "3591301e137bbeb86237ac36958c0db2b2b525824d389031b36962ea2e33e254",
+        "compressed_bytes": 257422,
+        "original_bytes": 3763906,
+        "presentation_windows": 32,
+        "first_window": {
+          "event": "video.present",
+          "phase": "window",
+          "backend": "vulkan",
+          "frames": "292",
+          "elapsed_us": "5011984",
+          "fps": "58.26",
+          "maximum_gap_us": "166562",
+          "maximum_upload_age_us": "5659",
+          "maximum_render_us": "5616",
+          "log_overruns": "0"
+        },
+        "all_window_frames": 9574,
+        "all_window_seconds": 160.2885,
+        "later_window_maximum_gap_ms": 193.36,
+        "admission_rejections": 0,
+        "connection_failures": 0,
+        "actual_relay_path_samples": 32
+      },
+      {
+        "log": ".cache/windows-publication-20261013/covered-client.log.gz",
+        "sha256": "fdf512b92213e0c2bc569e0c309fbce19dd745ad894e3550b7128ec94e6d0521",
+        "compressed_bytes": 253087,
+        "original_bytes": 3747466,
+        "presentation_windows": 24,
+        "first_window": {
+          "event": "video.present",
+          "phase": "window",
+          "backend": "vulkan",
+          "frames": "281",
+          "elapsed_us": "5016445",
+          "fps": "56.02",
+          "maximum_gap_us": "365571",
+          "maximum_upload_age_us": "1899",
+          "maximum_render_us": "1804",
+          "log_overruns": "0"
+        },
+        "all_window_frames": 7191,
+        "all_window_seconds": 120.171878,
+        "later_window_maximum_gap_ms": 33.884,
+        "admission_rejections": 0,
+        "connection_failures": 0,
+        "actual_relay_path_samples": 24
+      }
+    ],
+    "ui_artifacts": [
+      {
+        "path": ".cache/windows-publication-20261013/ui/covered-client-connected.png",
+        "sha256": "59cd04a6a3cb1bf6006dfebc02ccbd3933d046a6220265957c9a867632c7cb82"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/covered-client-statistics-restored.png",
+        "sha256": "09314dd2cfc9ef4633cd873526db56d52ca1a3066c3d563b941cb7812a392f9d"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/first-ball-menu.png",
+        "sha256": "f2ef123ace3200ab38657806d1f4d66fe9ec6376fc81449348cec9b1725a4a68"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/first-statistics-on.png",
+        "sha256": "78ab6aa38392b4078fbc70aa2c6aef3008f814c291a80e16cdab83c8784b2e17"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/first-statistics-running.png",
+        "sha256": "a99633dd03aedb2a290237f5bee29a550a692c54e44eeb29eb5f3a9ef9b6e55c"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/first-tools-menu.png",
+        "sha256": "8545ff97e19c31ee8b9c6fce7a285468dd1a5d5198fdb31de3a9a64c04921806"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/launch-1.png",
+        "sha256": "becd1b02c33ef0a8599bfa1076ac329a1c90e284da1a017bcf3f134cdc1c4919"
+      },
+      {
+        "path": ".cache/windows-publication-20261013/ui/launch-2.png",
+        "sha256": "7e3bee6f9b53d51eb8a09b8dfdb7874ade21c0d205d62f538cee5c1191bb80b6"
+      }
+    ],
+    "focused_ctest_targets": 6,
+    "focused_ctest_passed": true,
+    "settings_files_retained_on_first_install": 7,
+    "settings_files_retained_on_cover": 7,
+    "statistics_restored_in_new_process": true,
+    "maximum_simultaneous_clients": 1
+  },
+  "cleanup": {
+    "resources": [
+      {
+        "id": "d570fdf2-7d6b-4bc0-bd8d-f228b28510c4",
+        "state": "closed"
+      },
+      {
+        "id": "2d1335fd-bb5d-4c24-bd24-6ad88de5456c",
+        "state": "closed"
+      }
+    ],
+    "instances": [
+      {
+        "id": "9fbea4ce-072a-4b7c-bf58-ac90ae487c55",
+        "state": "stopped"
+      },
+      {
+        "id": "95b351a2-c7b1-47ca-b9df-99011db4df38",
+        "state": "stopped"
+      }
+    ],
+    "guest_logout_status": 204,
+    "fixture_specs_restored": true,
+    "owned_clients": [
+      {
+        "pid": 14184,
+        "closed": true
+      },
+      {
+        "pid": 88132,
+        "closed": true
+      }
+    ]
+  },
+  "local_owned_clients_remaining": 0,
+  "native90_cleanup": {
+    "page_pid": 73320,
+    "listener_count": 0,
+    "client_count": 0,
+    "panel_pid": 57984,
+    "panel_session": 2,
+    "default_render_pid": 56256
+  },
+  "development_client_panel_files_unchanged": true,
+  "reused_evidence": [
+    "20261013_network_followup_report.md",
+    "20261013_transport_final_report.md",
+    "20261013_settings_bandwidth_rollout_report.md"
+  ],
+  "excluded": [
+    "Company",
+    "Android",
+    "NIC investigation",
+    "saturated mixed-load investigation",
+    "active short-stutter tuning",
+    "new Linux Server deployment"
+  ],
+  "failures_retained": [
+    "initial product preflight lacked approved update-root environment, rejected before compilation",
+    "fixture helper import path corrected before API mutation",
+    "snapshot initially read Backup configuration version 2 instead of target schema 42, corrected v2 retained",
+    "one output read used an incorrect task ID; corrected by reading original operation task ID without replaying cleanup"
+  ],
+  "receipt_files": [
+    {
+      "path": ".cache/windows-publication-20261013/server-install90.log",
+      "sha256": "c26eb2c7e57a6db528265f10305b006bc9325151aa649bf3f83d86a7eb967dc7"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/cloud-node-install90.log",
+      "sha256": "3c5c963ce02b27ab379ec018366f3521de9e222e5d4ec5f0f064178febb3e811"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/client-install-first.log",
+      "sha256": "45919ad29134a1b16a4a5bdf9ea1833db71ffc710d0820aa27cc2ffb6515802e"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/client-install-cover.log",
+      "sha256": "517a783c5de364f810bf0688b02f040559db5117a639d189c5c3417e99f7ab59"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/focused-ctest.log",
+      "sha256": "b82db8b46570f6780f9b68ece9909490751c4db45e2dd3756b315eb0b5461c21"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/server-build.log",
+      "sha256": "270524eaae68223ff97f84ff28379a04e5b814dae10e645c6e001e198f54824a"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/cloud-node-build.log",
+      "sha256": "482324bc73092575428084cab05ea86f7aecec5221acfc79997407fa445b1066"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/client-build.log",
+      "sha256": "ede337e026723362abe07b992a5e18655b046f04e64c271f7cb5fc1f29808eff"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/remote-build.log",
+      "sha256": "04f88b576a14a94b2adf50c5016e45b0a5ef3094494ad9dd4dad13a648ca5f38"
+    },
+    {
+      "path": ".cache/windows-publication-20261013/candidate-guard.log",
+      "sha256": "a5cd37522b5742cc7fb0aa00d9657958a9a23c605ba8945d6a729b772fd54c48"
+    }
+  ]
+}

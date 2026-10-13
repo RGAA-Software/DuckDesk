@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，最新改动的 Windows 完整安装候选验收完成
+
+用户已授权并完成正式包制作及本机/90少量Setup覆盖验证。源码1882ac301、候选network-publication-20261013-1882ac301，优化Release/18jobs：Server1.0.56/35项、Node3.3.97/314项、Client3.3.81/41项、Remote3.3.79/76项完整Setup与SHA通过；90 Server→Node、本机Client首次安装→同版本覆盖均exit0。Remote因桌面产品互斥未独立安装，不卸载已有产品来扩验收；未升版、未发布外部更新源，六开发Client/Panel保持。
+
+90最终Console94C310…/NodeClient9186FC…/Panel74840D…，四服务Running，真实Panel57984/session2、默认Render56256。19个Server配置及2个Node TOML SHA不变，schema42/Backup42、授权80/RDP10、11应用spec/11部署配置、原Windows会话保留。两次本机安装分别保持7个设置数据库文件；真实保存统计开→覆盖→新进程自动恢复开。单路两Client进程依次Relay出图/真实名称地址RTT，两个资源closed/实例stopped、guest204、夹具恢复禁用、owned Client0/临时listener0、双Relay fresh/ready/未排空/默认1/BJ0。
+
+6个优化树聚焦CTest、PS解析/品牌清单/diff检查通过；编排新增隔离候选和18jobs传递，原SDK/策略6/4并发已修正。首路与编译重叠，后续呈现间隔最大193.360ms原因未定位；覆盖后后续最大33.884ms，启动窗口单列，不称零短顿或旧卡帧已定因。本批为安装/功能保持，不恢复专项。完整路径、SHA、失败样本与边界见[报告](20261013_windows_publication_report.md)和[交付身份](20261013_windows_publication_delivery.json)。Company/Android未用，BJ/XR不部署，独立Linux Server目标仍未指定。
+
 ## 最新接续：2026-10-13，后续五步开发与当前可执行交付完成
 
 - 已保存并push上轮基线`7eaeb13a6`。本轮按后续计划完成Linux新增能力候选、Relay名称/预算使用率展示、同应用两Client设置协作及少量实机交付；没有再跑已完成网络主线或暂停专项。

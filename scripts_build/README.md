@@ -47,6 +47,16 @@ schema 4 development manifest 并逐件验证 SHA-256。
 服务端和 Console Web 的独立构建入口也在本目录：`build_px_*_server.bat`、`build_console_web.bat`。
 根目录的 `run_official_tests.bat` 和版本维护工具不属于产品发布入口。
 
+已有优化发行树的完整安装候选可复用缓存，不升版或覆盖正式发行安装器：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build/build_windows_product_matrix.ps1 -Product client -Incremental -Jobs 18 -CandidateId validation-20261013
+```
+
+该入口仍构建完整产品、验证发行载荷并生成Setup；输出在产品的`official/candidates/<CandidateId>/installer/<版本>/`，
+不是普通开发增量入口。候选要求Incremental，标识不能重复；默认发行流程未指定候选时仍递增一次版本。Jobs传给C++、RDP SDK和Rust传输构建，
+嵌套Cargo/vcpkg使用相同显式并发值。候选不写回开发dist，不自动发布更新源。
+
 Web Client 单独修改时，先在 `web/px_web_client` 执行 `npm.cmd run test` 和 `npm.cmd run build`，再运行
 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts_build/publish_web_client_development.ps1 -Product all`。该入口只同步 Cloud Node/Remote
 各自的 development `web` 与 `dist/web_client`，逐文件核对 SHA-256、刷新 manifest 并执行完整 dist 验证；它不升版、不构建 C++/Rust，

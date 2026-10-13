@@ -1,5 +1,15 @@
 # Workspace delivery rules
 
+- Latest Windows installation candidates (2026-10-13): user-authorized optimized complete Setup candidates
+  network-publication-20261013-1882ac301 are accepted: Server then Cloud Node on 90, Client first install then
+  same-version overwrite locally. Four Setup exits0, all payload SHA checks and six optimized Client CTest pass.
+  Reuse docs/validation/iroh_transport/20261013_windows_publication_report.md; Server/Node configuration hashes,
+  schema42,80-stream license,RDP10 and saved Client preferences retained. Remote has a complete candidate only;
+  do not uninstall another product to force its independent acceptance. Versions and external update sources
+  were not advanced; development Client/Panel artifacts retained. One first-sample later presentation gap 193 ms
+  remains unexplained, and is not a reason to automatically reopen paused tuning during installation delivery.
+  Company/Android remain excluded; independent Linux Server deployment still needs a target, not BJ Relay.
+
 - Post-baseline network follow-up (2026-10-13): baseline 7eaeb13a6 was pushed. Relay names now travel as separate
   display metadata; Client resolves only its actual selected Relay URL and retains address/RTT and unknown-name
   fallback. Original Render wire fields remain unchanged when names are absent. Console displays reported bandwidth
