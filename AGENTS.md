@@ -1,5 +1,15 @@
 # Workspace delivery rules
 
+- Unified acceptance checkpoint (2026-10-14 00:27): T3b Windows Relay completed1800.167s, steady59.993FPS/max55.274ms,
+  both-end selected39.71.45.66:4605, send failures0, Client normal exit0 and owned resources terminal. Two compressed logs SHA verified;
+  low-motion source averages0.054Mbps, not a capacity test. Source ViGEm unavailable is retained ancillary driver evidence.
+  T3c original operation5dfb0c5a-28da-4c13-b5d2-67fb4a312a22/task5c7115bf-ea66-4ab8-9f33-14ab32d69a53 is running,
+  Company Client47696/created16:20:43.4155715Z, actualBJ49.232.233.61:4605, due00:50:43 Beijing. Keep this original sample.
+  XR owned page13680/created16:00:20.9496675Z/loopback48778 and dedicated fixture are active; original URL/10Mbps/disabled profiles
+  must be restored at cleanup. XR node TOML/global Relay configuration unchanged. T4 is prepared only: both Windows firewalls were
+  originally disabled; use exact isolated-probe WFP dynamic filters, never enable global profiles. Low-rate NAT probe supports600s
+  and no-Relay direct control; Release18jobs compiled as a validation attachment, no product rebuilt and no local transport test.
+
 - Unified acceptance current checkpoint (2026-10-13 late night): T3a media observation collected full1800.499s,
   logs through23:36:25.971, steady59.99FPS/max49.482ms, gzip354091 bytes SHA verified. Resource/instance terminal,
   but normal Client exit unverified (native task interrupted, no error); do not call this a normal-close pass.

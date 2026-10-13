@@ -1,0 +1,16 @@
+[package]
+name = "px_udp_program_filter"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+serde_json = "1"
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Rpc", "Win32_NetworkManagement_WindowsFilteringPlatform"] }
+
+[profile.release]
+opt-level = 1
+codegen-units = 18
+panic = "unwind"

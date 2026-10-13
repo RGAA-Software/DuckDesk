@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-14，Windows Relay完整样本通过，BJ实际媒体运行中
+
+T3b-r1观测1800.167秒/稳定348窗口1743.533秒/104600帧约59.993FPS，最大55.274ms；Client正常确认退出0、监督命令succeeded/exit0，资源8821…closed/实例489d…stopped。两端selected均Windows Relay39.71.45.66:4605；gzip Client303600字节SHA9322867E…/Source357659字节SHAF861FF8D…下载相等，源发送失败0。低运动页面配置2000kbps，但实测视频0.035–0.074Mbps/均0.054Mbps，不称容量或2Mbps持续负载通过。源启动2条ViGEm不可用错误单列驱动限制，不称手柄通过。见[完整Windows Relay记录](20261014_acceptance_windows_relay_sample.json)。T3a源日志也已补齐，gzip386205字节SHA A944593E…相等/选17090行，正常退出工具问题仍保留。
+
+T3c使用XR原专用夹具，保持Node TOML及生产Relay状态，实际home自然为BJ；Company单路Client47696/session1/创建16:20:43.4155715Z，监督52692，原operation5dfb0c5a…/task5c7115bf…running，实例256176…/资源711c…；中途约60FPS/最大26–30ms，只是部分数据，预计00:50:43后收集。XR自有页面13680/创建16:00:20.9496675Z/48778/HTTP200，原测试URL48777/10000kbps/禁用已保存，当前临时48778/2000kbps/启用，必须恢复。尚未启动第二个Company Client。
+
+T4前置发现Company/90三防火墙profile原关闭；不启全机策略，新增独立WFP动态会话工具，限定工作区探针路径/UDP/IPv4与IPv6双向，退出移除并查ID。现有低速跨机NAT探针只扩期限600秒并修正无Relay等待，准备同连接360秒小报文验证；两工具Release18jobs/格式检查，限制工具严格Clippy通过，首次Clippy参数借用告警已修正，没有产品重编译或本机网络测试。工具已暂存但没有运行/过滤器，T4仍未通过。T5/T6/T7/T8待执行，当前唯一动作继续原T3c，然后正常关闭/两端压缩取证。
+
 ## 最新接续：2026-10-13夜间，完整T3a已收集，T3b Windows Relay正在运行
 
 T3a原1800.499秒观测结束，gzip354091字节/原4,384,067字节SHA相等；日志覆盖23:06:25.562–23:36:25.971，稳定348窗口/1743.495秒/104591帧约59.99FPS/最大49.482ms，actualLAN direct10.0.0.90:4613，全日志错误/接入拒绝筛查空。60个进程采样，1770秒工作集209.97MB/私有176.74MB/句柄832。命令任务状态interrupted无error且脚本输出sample_completed=true，退出后Client消失；正常退出未核验，不能写exit0/正常关闭。资源0a0aa0…closed/实例c521…stopped，已清理；样本数据见[完整直连记录](20261013_acceptance_direct_sample.json)。观察脚本v2增加采样结束后等待正常关闭，保留工具结束问题并在下一条验证关闭流程。

@@ -59,5 +59,50 @@
     "client_alive": false
   },
   "steady_fps": 59.98928054172334,
-  "note": "Observed complete1800.5-second LAN direct media sample. Final native-helper task state interrupted and Client gone; normal exit was not verified. Supervisor amended before next path, with affected close lifecycle still to validate."
+  "note": "Observed complete1800.5-second LAN direct media sample. Final native-helper task state interrupted and Client gone; normal exit was not verified. Supervisor amended before next path, with affected close lifecycle still to validate.",
+  "source_log": {
+    "completed_utc": "2026-10-13T15:36:26.0072109+00:00",
+    "archive_sha256": "A944593EB9236F0B17056DD17D3D04A1023A7B97977DE140D7ADA2D513EC8FF8",
+    "archive_path": "D:\\112233\\unified-acceptance-20261013\\T3a-source\\source.log.gz",
+    "started_utc": "2026-10-13T15:06:25.4854583+00:00",
+    "last_local": "2026-10-13T23:36:25.7780000",
+    "render_port": 4613,
+    "selected_lines": 17090,
+    "first_local": "2026-10-13T23:06:26.9070000",
+    "source_files": [
+      {
+        "name": "pixels_render_4613.1.log",
+        "selected_lines": 10536,
+        "actual_bytes": 52428757
+      },
+      {
+        "name": "pixels_render_4613.2.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428695
+      },
+      {
+        "name": "pixels_render_4613.3.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428255
+      },
+      {
+        "name": "pixels_render_4613.4.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428239
+      },
+      {
+        "name": "pixels_render_4613.5.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428635
+      },
+      {
+        "name": "pixels_render_4613.log",
+        "selected_lines": 6554,
+        "actual_bytes": 6157231
+      }
+    ],
+    "archive_bytes": 386205,
+    "download_sha_verified": true,
+    "error_count": 2
+  }
 }

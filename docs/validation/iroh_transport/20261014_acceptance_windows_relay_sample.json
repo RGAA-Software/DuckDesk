@@ -1,0 +1,132 @@
+{
+  "report": {
+    "state": "closed",
+    "instance_id": "489dad44-55a0-4354-886a-628716ea00c8",
+    "resource_id": "8821aeeb-ef5a-4084-9640-e7d54787df45",
+    "expected_seconds": 1800,
+    "sample_completed": true,
+    "supervisor_pid": 39088,
+    "supervisor_created_utc": "2026-10-13T15:47:58.5904695Z",
+    "pid": 6532,
+    "process_created_utc": "2026-10-13T15:47:59.2651361Z",
+    "started_at_utc": "2026-10-13T15:47:59.2729716+00:00",
+    "hold_seconds": 1800.1673947,
+    "sample_completed_at_utc": "2026-10-13T16:17:59.4674214+00:00",
+    "closed_at_utc": "2026-10-13T16:19:01.8077083+00:00",
+    "client_exit_code": 0
+  },
+  "archive_path": "D:\\112233\\unified-acceptance-20261013\\T3b-r1\\client.log.gz",
+  "archive_sha256": "9322867E0C47B58DF9EF91E4CC5876FDB0FC2B84B453ABD41A466B82FC373223",
+  "archive_bytes": 303600,
+  "written_lines": 13660,
+  "first_log_utc_local": "2026-10-13T23:47:59.3150000",
+  "last_log_utc_local": "2026-10-14T00:17:59.1010000",
+  "steady_window_count": 348,
+  "steady_frames": 104600,
+  "steady_elapsed_us": 1743533075,
+  "steady_maximum_gap_us": 55274,
+  "path_details": [
+    "[2026-10-13 23:48:05.194][thread 46544][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=13708 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+    "[2026-10-14 00:17:58.924][thread 46544][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=13708 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+  ],
+  "failures": [],
+  "process_observations": [
+    {
+      "elapsed_seconds": 0.0045379,
+      "working_set_bytes": 13508608,
+      "private_bytes": 15704064,
+      "handle_count": 176,
+      "total_cpu_seconds": 0.0625,
+      "main_window_handle": "0"
+    },
+    {
+      "elapsed_seconds": 1770.1763271999998,
+      "working_set_bytes": 209096704,
+      "private_bytes": 176476160,
+      "handle_count": 828,
+      "total_cpu_seconds": 222.8125,
+      "main_window_handle": "2689110"
+    }
+  ],
+  "client_alive": false,
+  "source_log": {
+    "completed_utc": "2026-10-13T16:17:59.4674214+00:00",
+    "archive_sha256": "F861FF8DCC6147BE3DFE53C0B928DF1980F9FE58C18CDAB419E631D637E71335",
+    "archive_path": "D:\\112233\\unified-acceptance-20261013\\T3b-r1-source\\source.log.gz",
+    "started_utc": "2026-10-13T15:47:59.2729716+00:00",
+    "last_local": "2026-10-14T00:17:59.0690000",
+    "render_port": 4613,
+    "selected_lines": 17090,
+    "first_local": "2026-10-13T23:47:59.9210000",
+    "source_files": [
+      {
+        "name": "pixels_render_4613.1.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428757
+      },
+      {
+        "name": "pixels_render_4613.2.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428695
+      },
+      {
+        "name": "pixels_render_4613.3.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428255
+      },
+      {
+        "name": "pixels_render_4613.4.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428239
+      },
+      {
+        "name": "pixels_render_4613.5.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428635
+      },
+      {
+        "name": "pixels_render_4613.log",
+        "selected_lines": 17090,
+        "actual_bytes": 6641754
+      }
+    ],
+    "archive_bytes": 357659
+  },
+  "status": "passed",
+  "compressed_download_verification": {
+    "client": {
+      "sha_verified": true,
+      "raw_bytes": 4267617,
+      "line_count": 13660
+    },
+    "source": {
+      "sha_verified": true,
+      "raw_bytes": 4820258,
+      "line_count": 17090
+    }
+  },
+  "error_samples": {
+    "client": [],
+    "source": [
+      "[2026-10-13 23:48:00.922][thread 6548][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9",
+      "[2026-10-13 23:48:00.922][thread 6548][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable"
+    ]
+  },
+  "actual_selected_paths": {
+    "client": [
+      "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+    ],
+    "source": [
+      "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+    ]
+  },
+  "normal_exit_verified": true,
+  "actual_source_video_mbps": {
+    "minimum": 0.035,
+    "maximum": 0.074,
+    "mean": 0.05410833333333333
+  },
+  "scope": "One low-motion WebView on Windows Relay; configured2000kbps, actual media rates separately recorded; no capacity or saturated-load claim",
+  "source_send_window_failed_total": 0,
+  "source_joystick_driver_limitation": "Startup ViGEm unavailable; recorded ancillary driver limitation, not a transport failure; no joystick acceptance claim"
+}

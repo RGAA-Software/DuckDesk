@@ -29,8 +29,8 @@ impl Options {
             .parse::<u64>()
             .context("parse probe duration")?;
         ensure!(
-            (5..=120).contains(&seconds),
-            "duration must be 5..120 seconds"
+            (5..=600).contains(&seconds),
+            "duration must be 5..600 seconds"
         );
         Ok(Self {
             role: arguments[0].clone(),
@@ -190,9 +190,12 @@ async fn main() -> Result<()> {
     let options = Options::parse()?;
     let configuration: EndpointConfig =
         serde_json::from_slice(&std::fs::read(&options.config_path)?)?;
+    let has_relay_candidates = !configuration.relays.is_empty();
     let endpoint = TransportEndpoint::bind(configuration).await?;
     let outcome = async {
-        endpoint.online(Duration::from_secs(20)).await?;
+        if has_relay_candidates {
+            endpoint.online(Duration::from_secs(20)).await?;
+        }
         // Give private QAD a bounded opportunity to publish the ephemeral mapping.
         tokio::time::sleep(Duration::from_secs(1)).await;
         println!(

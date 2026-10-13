@@ -4,8 +4,8 @@
   "source_base_revision": "58594d64a",
   "continuous_execution": true,
   "status": "active",
-  "current_step": "T3b",
-  "next_action": "Observe original T3b-r1 native task3cd7f2ef-8b16-4f1c-8ed7-b4856f4345ba for full1800 seconds, then normal close and compressed collection",
+  "current_step": "T3c",
+  "next_action": "Observe original T3c operation5dfb0c5a for1800s to00:50:43 Beijing, normal close before supervisor deadline and collect both compressed logs",
   "hosts": {
     "primary_receiver": {
       "name": "Company",
@@ -80,7 +80,7 @@
     },
     {
       "id": "T3b",
-      "status": "running",
+      "status": "passed",
       "observation_seconds": 1800,
       "sample": "T3b-r1",
       "operation_id": "3cd7f2ef-8b16-4f1c-8ed7-b4856f4345ba",
@@ -92,17 +92,52 @@
         "reason": "stale user execution context rejected before remote task creation",
         "resource_closed": true,
         "instance_stopped": true
-      }
+      },
+      "hold_seconds": 1800.1673947,
+      "normal_exit_verified": true,
+      "client_exit_code": 0,
+      "resource_closed": true,
+      "instance_stopped": true,
+      "evidence": "docs/validation/iroh_transport/20261014_acceptance_windows_relay_sample.json",
+      "steady_frames": 104600,
+      "steady_elapsed_us": 1743533075,
+      "steady_maximum_gap_us": 55274,
+      "actual_source_video_mbps_mean": 0.05410833333333333
     },
     {
       "id": "T3c",
-      "status": "planned",
-      "observation_seconds": 1800
+      "status": "running",
+      "observation_seconds": 1800,
+      "operation_id": "5dfb0c5a-28da-4c13-b5d2-67fb4a312a22",
+      "task_id": "5c7115bf-ea66-4ab8-9f33-14ab32d69a53",
+      "client_pid": 47696,
+      "process_created_utc": "2026-10-13T16:20:43.4155715Z",
+      "supervisor_pid": 52692,
+      "started_at_utc": "2026-10-13T16:20:43.4265729+00:00",
+      "instance_id": "25617600-ad21-4f25-93fa-828000b9d88c",
+      "resource_id": "711c3979-4c4a-44a6-a525-600405e0514a",
+      "actual_path": "Relayhttps://49.232.233.61:4605/",
+      "visible_output_verified": true,
+      "source_node_configuration_changed": false
     },
     {
       "id": "T4",
       "status": "planned",
-      "maximum_observation_seconds": 600
+      "maximum_observation_seconds": 600,
+      "preparation": {
+        "firewall_profiles_originally_disabled": [
+          "Company",
+          "90"
+        ],
+        "method": "program-specific dynamic WFP session; no global profile enable",
+        "helper_sha256": "D9D4C8577146A06285CC6338E6C7126DCA0A315F9640BE34FD69AB094F21665D",
+        "probe_sha256": "7226E20872DF9166EA42002DFBA219D486777BF8785055BBFCC27AF33D128032",
+        "helper_run": false,
+        "products_rebuilt": false,
+        "build_jobs": 18,
+        "validation_observation": "One default-auto low-rate cross-host NAT probe connection for360s; reliable8-byte messages and128-byte datagrams",
+        "nat_probe_sha256": "871F192877849BF63959D143DA2679EB70FD146662A56F96F97B84534053E048"
+      }
     },
     {
       "id": "T5",
@@ -175,12 +210,37 @@
       "application_id": "145233fd-fee5-4b2d-99ce-b311bd8f4a59",
       "deployment_id": "2a2443ab-fe7b-42f5-b5e0-4634c1d1c36c",
       "originally_disabled": true
+    },
+    {
+      "kind": "source_page",
+      "device_code": "947158375",
+      "pid": 13680,
+      "created_utc": "2026-10-13T16:00:20.9496675Z",
+      "port": 48778
+    },
+    {
+      "kind": "fixture",
+      "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+      "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294",
+      "originally_disabled": true,
+      "temporary_bitrate_kbps": 2000,
+      "baseline_bitrate_kbps": 10000,
+      "temporary_entry_port": 48778,
+      "baseline_entry_port": 48777
     }
   ],
   "evidence": [
     "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json",
     "docs/validation/iroh_transport/20261013_acceptance_company_alignment.json",
-    "docs/validation/iroh_transport/20261013_acceptance_direct_sample.json"
+    "docs/validation/iroh_transport/20261013_acceptance_direct_sample.json",
+    "docs/validation/iroh_transport/20261014_acceptance_windows_relay_sample.json"
   ],
-  "controller_status_observed": "blocked; user continue messages authorize ongoing work; actual execution continues. No goal completion claimed."
+  "controller_status_observed": "blocked; user continue messages authorize ongoing work; actual execution continues. No goal completion claimed.",
+  "xr_preparation": {
+    "status": "ready",
+    "page_http": 200,
+    "service_configuration_changed": false,
+    "render_started": false,
+    "page_operation_id": "b2ce211f-8588-42de-b7d1-288c49c03f28"
+  }
 }
