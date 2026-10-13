@@ -1,5 +1,7 @@
 # 后续网络开发安排
 
+2026-10-13晚间，本文件的五步已完成，剩余工作已汇总到[新计划](../../iroh_transport_remaining_work_plan_20261013.md)。Company恢复可用，本机暂不作为验证对端；下方旧机器安排为历史，不再适用。
+
 2026-10-13，依据用户“规划接下来的事情”。本文件只确定接续任务，不表示已执行提交、构建、部署或新的验证。
 
 最新接续（2026-10-13）：下列五步已完成并提交；新增Windows完整候选已在90安装Server/Node、在本机安装及覆盖Client，CN独立Linux Server完整安装和覆盖也已完成。见[Windows报告](20261013_windows_publication_report.md)和[CN报告](20261013_cn_linux_server_report.md)。下方基线及“未指定Linux目标/未提交/未发布Setup”是执行前记录，不再作为当前待办。

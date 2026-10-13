@@ -1,5 +1,13 @@
 # Workspace delivery rules
 
+- Latest validation-host / remaining-work planning decision (2026-10-13 evening): Company (559038160) is available
+  again and is the primary receiving peer; start with one Client, at most two if there is headroom. Do not use the
+  local machine as a validation peer or start local Client/probe/test workloads. 90 and XR remain available under
+  their existing workspace constraints; BJ remains the Linux Relay, CN remains an independent low-bandwidth Server.
+  The remaining-work plan is docs/iroh_transport_remaining_work_plan_20261013.md. It is planning only: Company
+  has not yet been reconnected or updated. Read its installed identity before incremental delivery; reuse passed gates.
+  Do not uninstall Company's existing Client to force Remote installation. Android and paused investigations remain excluded.
+
 - CN Relay held-connection observation (2026-10-13): reuse the completed 600-second low-load sample in
   docs/validation/iroh_transport/20261013_cn_relay_soak.md: 484 reliable round trips and 484 datagrams each direction,
   held QUIC/stream, endpoint release and 0 reported connections. 19 configuration hashes and all 11 containers retained.

@@ -1,5 +1,7 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13晚间最新安排：Company恢复为主要接收端，本机暂停作为验证对端。所有剩余工作统一见[后续总计划](iroh_transport_remaining_work_plan_20261013.md)，从Company真实身份核对开始；本条仅规划，未启动远端更新或测试。以下Company禁用/本机验证文字为当时历史。
+
 2026-10-13当前接续：最新Windows完整候选的90 Server/Node及本机Client安装、覆盖已完成；CN独立Linux Server完整安装/覆盖也已完成，schema42、原业务容器和配置保持，低速iroh Relay连通通过。
 复用[Windows报告](validation/iroh_transport/20261013_windows_publication_report.md)和[CN报告](validation/iroh_transport/20261013_cn_linux_server_report.md)，下方早期“待发布/待Linux主机”文字为历史。
 CN低负载持续连接600秒/484可靠往返及双向各484数据报通过，见[观察报告](validation/iroh_transport/20261013_cn_relay_soak.md)；Remote独立Setup仍缺不与现有产品冲突的目标。复杂NAT、规模及长期稳定性未整体通过，Android和暂停专项保持原范围，Company不使用。
