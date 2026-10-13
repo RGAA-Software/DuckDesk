@@ -1,0 +1,498 @@
+{
+  "removed": [
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client_sdk\\test_udp_media_failure.exe",
+      "bytes": 22832128,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client_sdk\\test_sdk_websocket_reconnect.exe",
+      "bytes": 11258368,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client_sdk\\test_iroh_sdk_connection.exe",
+      "bytes": 19289088,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client_sdk\\test_encoded_video_delivery.exe",
+      "bytes": 2504704,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client_sdk\\media_transport\\test_upstream_media_reference.exe",
+      "bytes": 1065472,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_rdp_clipboard_channel.exe",
+      "bytes": 940544,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_statistics.exe",
+      "bytes": 1048064,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_local_file_system.exe",
+      "bytes": 892928,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_instance_guard.exe",
+      "bytes": 1037312,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_input_mapper.exe",
+      "bytes": 844800,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_imgui_launch_config.exe",
+      "bytes": 1230848,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_file_transfer_format.exe",
+      "bytes": 1016832,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_client\\test_client_file_browser_model.exe",
+      "bytes": 840192,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\architecture\\test_voice_call_service.exe",
+      "bytes": 7528960,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\architecture\\test_voice_call_runtime.exe",
+      "bytes": 9248768,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_ws_realtime_media_queue.exe",
+      "bytes": 2383872,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_ws_frontend_admission.exe",
+      "bytes": 6954496,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_ws_callback_workflow.exe",
+      "bytes": 5315072,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_webrtc_transport_lifecycle.exe",
+      "bytes": 5519872,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_was_audio_capture_source.exe",
+      "bytes": 5559296,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_was_audio_capture_runtime.exe",
+      "bytes": 4993536,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_udp_transport_shutdown.exe",
+      "bytes": 6221312,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_udp_paced_batch.exe",
+      "bytes": 5225984,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_rtc_heartbeat_watchdog.exe",
+      "bytes": 811520,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_render_service_rpc_state.exe",
+      "bytes": 5605888,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_render_execution_context_lifecycle.exe",
+      "bytes": 5755392,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_render_context_shutdown.exe",
+      "bytes": 56783360,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_render_builtin_linkage.exe",
+      "bytes": 51984896,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_render_architecture_core.exe",
+      "bytes": 6063616,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_relay_transport_reconnect_owner.exe",
+      "bytes": 8446464,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_relay_resource_channel.exe",
+      "bytes": 2380800,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_rdp_route_close.exe",
+      "bytes": 9158144,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_process_loopback_lifecycle.exe",
+      "bytes": 4792832,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_opus_encoder_runtime.exe",
+      "bytes": 5773312,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_opus_encoder_processor.exe",
+      "bytes": 5790208,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_network_transport_hub.exe",
+      "bytes": 837632,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_miniaudio_reinit_cancel.exe",
+      "bytes": 563712,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_media_recorder_sink.exe",
+      "bytes": 53621248,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_logical_session_registry.exe",
+      "bytes": 984064,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_joystick_service.exe",
+      "bytes": 7020544,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_iroh_frontend.exe",
+      "bytes": 24508416,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_input_replay_service.exe",
+      "bytes": 6887936,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_game_process_identity.exe",
+      "bytes": 856064,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_game_owned_process.exe",
+      "bytes": 898048,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_game_display_power.exe",
+      "bytes": 809984,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_frame_resizer_processor.exe",
+      "bytes": 5319168,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_frame_carrier_processor.exe",
+      "bytes": 5579264,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_file_transfer_service.exe",
+      "bytes": 7378432,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_file_transfer_report_delivery.exe",
+      "bytes": 830464,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_encoder_frame_sequence.exe",
+      "bytes": 2382336,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_captured_media_pipeline.exe",
+      "bytes": 912384,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_application_idle_lifecycle.exe",
+      "bytes": 852480,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_render\\tests\\test_application_clipboard.exe",
+      "bytes": 834560,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_transport\\test_iroh_transport.exe",
+      "bytes": 12302848,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_transport\\test_iroh_media_datagrams.exe",
+      "bytes": 18734080,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_transport\\test_iroh_file_flow.exe",
+      "bytes": 18249728,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_udp_media_failure.exe",
+      "bytes": 11923968,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_sdk_voice_call.exe",
+      "bytes": 6983680,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_sdk_stream_helper.exe",
+      "bytes": 841216,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_sdk_recording_session.exe",
+      "bytes": 55011328,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_sdk_decoder_factory.exe",
+      "bytes": 64026624,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_sdk_connection_params.exe",
+      "bytes": 11225600,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_iroh_sdk_connection.exe",
+      "bytes": 19518464,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\test_encoded_video_delivery.exe",
+      "bytes": 2555392,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client_sdk\\media_transport\\test_upstream_media_reference.exe",
+      "bytes": 1065472,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_transport\\test_iroh_transport.exe",
+      "bytes": 11281920,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_transport\\test_iroh_media_datagrams.exe",
+      "bytes": 18713600,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_rdp_clipboard_channel.exe",
+      "bytes": 940544,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_statistics.exe",
+      "bytes": 1048064,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_screenshot.exe",
+      "bytes": 9193472,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_recording_feedback.exe",
+      "bytes": 1427456,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_local_file_system.exe",
+      "bytes": 892928,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_instance_guard.exe",
+      "bytes": 1037312,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_input_mapper.exe",
+      "bytes": 844800,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_imgui_launch_config.exe",
+      "bytes": 1230848,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_file_transfer_format.exe",
+      "bytes": 1016832,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_file_browser_model.exe",
+      "bytes": 840192,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_client\\test_client_controller_position.exe",
+      "bytes": 5729280,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_desktop_shell\\test_video_presentation_progress.exe",
+      "bytes": 219136,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_desktop_shell\\test_title_bar_maximize.exe",
+      "bytes": 2772992,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_desktop_shell\\test_live_resize_refresh.exe",
+      "bytes": 2771968,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_desktop_shell\\test_desktop_shell_fullscreen.exe",
+      "bytes": 49655296,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\test_ws_ipc_client_lifecycle.exe",
+      "bytes": 7190528,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\test_client_rdp_lifecycle.exe",
+      "bytes": 73222656,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_webrtc_client\\test_rtc_client_dll_lifecycle.exe",
+      "bytes": 809472,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\test_client_rdp_lifecycle.exe",
+      "bytes": 73259008,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_voice_call\\test_voice_call.exe",
+      "bytes": 9124864,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_common\\tests\\test_media_logging.exe",
+      "bytes": 1096192,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_media_record\\tests\\test_record_writer.exe",
+      "bytes": 53283840,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_relay_client\\test\\test_relay_ws_reconnect.exe",
+      "bytes": 8455168,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_common\\tests\\test_reconnect_supervisor.exe",
+      "bytes": 5556224,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_common\\tests\\test_callback_quiescence.exe",
+      "bytes": 5302272,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_common\\tests\\test_async_runtime.exe",
+      "bytes": 5377536,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_rdp\\test_rdp_stream.exe",
+      "bytes": 7333888,
+      "category": "old generated test executable/debug artifact"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\console-dev\\release\\incremental",
+      "bytes": 445508378.0,
+      "category": "Rust generated incremental compilation cache"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\relay-dev\\release\\incremental",
+      "bytes": null,
+      "category": "Rust generated incremental compilation cache"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\single-server-windows\\release\\incremental",
+      "bytes": 11170659624.0,
+      "category": "Rust generated incremental compilation cache"
+    },
+    {
+      "path": "D:\\GoCloud\\GammaRayPremium\\.cache\\audio-input-20261013\\baseline-client.exe",
+      "bytes": 75966464,
+      "category": "temporary pre-fix test executable; before SHA retained in audio report"
+    }
+  ],
+  "removed_entries": 98,
+  "total_removed_bytes": 12682376770,
+  "preserved": "all product dist, source and backup, validation logs, environment configuration, current audio test executable",
+  "total_removed_gib": 11.811
+}

@@ -1,5 +1,11 @@
 # Workspace delivery rules
 
+- Native audio completion (2026-10-13): SDL audio initialization and owned subsystem lifetime are fixed in
+  Client. WebView output frequencies/input passed over actual Relay and UDP direct; GameHook playback and
+  Company installed-Client PCM submission were verified. Reuse `docs/validation/iroh_transport/20261013_native_audio_input_report.md`.
+  Old test executables and Rust incremental caches were cleaned at the user's request; product dist, current
+  audio regression target, source/backup, environment configuration and validation evidence remain intact.
+
 - Connection warm-up decision (2026-10-13): the user accepts temporary picture instability immediately after
   connection. Record startup and first-frame statistics separately; do not require them to meet steady-state
   smoothness thresholds. Continue to report gaps during established, normally rendering sessions honestly.

@@ -46,6 +46,7 @@ void ClientSession::Start() {
             rdpNetwork_->Start();
             rdpTimer_->StartTimers();
         } else if (sdk_) {
+            if (config_.audio && audio_) static_cast<void>(audio_->Start());
             sdk_->Start();
         }
     }

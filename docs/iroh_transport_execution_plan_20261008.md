@@ -1,5 +1,10 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13 11:15追加：定位并修复Native Client未初始化SDL音频、播放失败不记录的问题。
+WebView实际Relay/UDP声音频率与输入往返、Company增量更新后的PCM播放提交、Game408声音输出确认；
+三个Windows产品Client Release18jobs/dist SHA核对、4聚焦回归通过。清理owned及用户要求的旧测试编译产物11.811GiB。
+见[声音与输入报告](validation/iroh_transport/20261013_native_audio_input_report.md)；无效夹具及NAT/规模/长稳限制保留，不启动Android或暂停专项。
+
 2026-10-13 10:20追加：本机2/Company1正常Native视频，90排空保留旧Game/Company画面，
 替换本机Web新源与实际路径均BJ，恢复双候选及owned清理完成。显示平均约59–60FPS，
 仍有运行期150–398ms短间隔；用户接受启动阶段波动，473/512ms单独记录、不作稳态强制条件；不称长期零卡顿，不重开暂停专项。

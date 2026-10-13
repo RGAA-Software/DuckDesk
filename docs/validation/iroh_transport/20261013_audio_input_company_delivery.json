@@ -1,0 +1,80 @@
+{
+  "delivery": {
+    "state": "published",
+    "client_sha256": "B7DEB80B2B8CA270AA80559BB81FFB12165565041452B8A259F5F368853C0272",
+    "archive_sha256": "C5A140A3D2BFA574A7469A298FADFD7FDCFB4C1AEABF02604BEB7E30C6F15E20",
+    "before_client_sha256": "FE8B82574E133D765D2FA2E7838370F2AEC761E0FCA8363DF9C701DB96B92466",
+    "backup_directory": "D:\\112233\\audio-input-20261013\\before",
+    "files_verified": 41,
+    "inventory_sha256": "F0DBD7E812809F327819327C591716DF7A87BCA1821BB3C346994F95267B5746",
+    "product_manifest_sha256": "5E83BCFCC0F4E4952E7684F533F6173E126624F557BD41AC5057FD3D807DDB56",
+    "changed_runtime_files": 1,
+    "installation_test": false
+  },
+  "validation": {
+    "pid": 53824,
+    "instance_id": "e042d9f8-22b3-4b11-b279-25906910352e",
+    "session_id": "85bca43e-5c08-4944-a6e5-d6f3ec05247f",
+    "state": "closed",
+    "started_at_utc": "2026-10-13T02:58:38.1021590+00:00",
+    "process_created_utc": "2026-10-13T02:58:38.0920133Z",
+    "closed_at_utc": "2026-10-13T02:59:25.4263696+00:00"
+  },
+  "validation_exit": {
+    "exit_code": 0,
+    "summary": "process exited successfully"
+  },
+  "upload": {
+    "destination": "D:\\112233\\audio-input-20261013\\company-client-update.zip",
+    "device_code": "559038160",
+    "device_ref": {
+      "device_id": "778a6cc3-94f6-4ffd-9e10-8c6154e350e5",
+      "tenant_id": "1a8419fd-ec26-4be6-baef-c287a189e5d0"
+    },
+    "direction": "upload",
+    "execution": {
+      "mode": "service"
+    },
+    "execution_context": {
+      "architecture": "x86_64",
+      "cwd": "C:\\WINDOWS\\system32",
+      "environment_revision": "native-v2:a077108a3c929aca823de87a93349ddf50bf421adf7d725243122860e2215b89",
+      "execution_scope": "native",
+      "identity": {
+        "account_id": "S-1-5-18",
+        "account_name": "NT AUTHORITY\\SYSTEM",
+        "environment_source": "service_process",
+        "home": "C:\\WINDOWS\\system32\\config\\systemprofile",
+        "logon_id": "00000000:000003e7",
+        "mode": "service",
+        "primary_group": null,
+        "session_id": "0"
+      },
+      "interpreter": null,
+      "os_family": "windows",
+      "os_name": "Windows",
+      "os_version": "10.0.26200",
+      "path_style": "windows"
+    },
+    "execution_observation": null,
+    "finished_at_unix_ms": 1791859789780,
+    "id": "4c44f06a-009c-4c35-a43c-626850d670e5",
+    "initiated_by": "guest",
+    "initiating_user": {
+      "user_id": "78e7862f-93c8-4757-8d62-20b8acb78102",
+      "username": "home"
+    },
+    "kind": "file_transfer",
+    "message": null,
+    "offset": 31859088,
+    "overwrite": false,
+    "owned": true,
+    "phase": "completed",
+    "sha256": "c5a140a3d2bfa574a7469a298fadfd7fdcfb4c1aeabf02604beb7e30c6f15e20",
+    "size": 31859088,
+    "source": "D:\\GoCloud\\GammaRayPremium\\.cache\\audio-input-20261013\\company-client-update.zip",
+    "started_at_unix_ms": 1791859780897,
+    "state": "completed",
+    "updated_at_unix_ms": 1791859789781
+  }
+}

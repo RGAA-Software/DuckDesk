@@ -1,0 +1,67 @@
+[
+  {
+    "batch": 401,
+    "kind": "webview",
+    "application_id": "8d0b029a-a211-4a67-8ad4-25fd65357a08",
+    "instance_id": "8883b7ca-ac21-4129-aae6-9a76fe48ab29",
+    "session_id": "4d0a7e7f-e310-450d-a101-6feb540274bb",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "14f0a7acd4ec1df3f39e85a2a724343a4c2265cd6417fa02c288f4ea4248a6d8",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 402,
+    "kind": "webview",
+    "application_id": "8d0b029a-a211-4a67-8ad4-25fd65357a08",
+    "instance_id": "0f67632e-4ab7-455d-85c8-55b18ce3a1b1",
+    "session_id": "3dff8d05-111a-44db-9999-b21b32bc578a",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "f39d27729703afe726eb17823d23aa6d4ab9ded717b3053cbe863ac4a0b1941f",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 403,
+    "kind": "webview",
+    "application_id": "8d0b029a-a211-4a67-8ad4-25fd65357a08",
+    "instance_id": "4c626de3-7df3-4ef9-a645-8b04511ef9ae",
+    "session_id": "9e6683aa-3d7e-49ad-876f-8052f1240000",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "5ddbf6909fd8d607cd137f66a82286b7228291d60c8be9b636e7c64d9a02909f",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 405,
+    "kind": "webview",
+    "application_id": "8d0b029a-a211-4a67-8ad4-25fd65357a08",
+    "instance_id": "481c41dd-4f1e-4adb-bcb8-c8398201642e",
+    "session_id": "7b36134a-b6b1-4571-95c3-76758aca6bb6",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "22ed69dea52377ae7f7222197bd050b8459c095fcfcff3eb080e9a8efec59af9",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 406,
+    "kind": "webview",
+    "application_id": "8d0b029a-a211-4a67-8ad4-25fd65357a08",
+    "instance_id": "e042d9f8-22b3-4b11-b279-25906910352e",
+    "session_id": "85bca43e-5c08-4944-a6e5-d6f3ec05247f",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "73cebb99d2b72566758e7b97bd9251a6a31e87bf02cea5297cf3b155b69dcbe4",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  }
+]

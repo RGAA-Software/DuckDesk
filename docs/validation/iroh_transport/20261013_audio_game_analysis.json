@@ -1,0 +1,43 @@
+{
+  "local": {
+    "compressed_sha256": "fd29299eebe619003ae6bb27ef7ab662216e35e1cce57cbc294a2cc879b19ed9",
+    "compressed_bytes": 440366,
+    "selected_sha256": "0ea2f6f2c1038dc0d7ebba4260cb15dd404974f9e01444165fe054ba94e8e692",
+    "audio_output_events": [
+      "[2026-10-13 11:07:51.956][thread 88928][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+      "[2026-10-13 11:11:51.534][thread 12948][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+      "[2026-10-13 11:11:52.037][thread 76620][client_audio_output.cpp:85][info] : event=client.audio_output phase=open outcome=success sample_rate=48000 channels=2",
+      "[2026-10-13 11:11:52.037][thread 76620][client_audio_output.cpp:96][info] : event=client.audio_output phase=first_write outcome=success bytes=3840"
+    ],
+    "selected_paths": [
+      "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+    ],
+    "audio_budget_samples": []
+  },
+  "source": {
+    "compressed_sha256": "a9a4ec22cc8a3d984687ac0be4084e8aacb92a175ea4c3d79c87f3337d026cef",
+    "compressed_bytes": 617270,
+    "selected_sha256": "0632ebeb14f1d8f6aebb97b943a505b96d7c938e5dc3bcf903faf594a590be9c",
+    "audio_output_events": [],
+    "selected_paths": [
+      "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+    ],
+    "audio_budget_samples": [
+      "[2026-10-13 11:14:00.890][thread 52472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2748685 video_datagram_bps=3141587 opus_bps=46228 audio_datagram_bps=88830 flight_bytes=13200 flight_limited=0",
+      "[2026-10-13 11:14:05.891][thread 52472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2680857 video_datagram_bps=3058774 opus_bps=46319 audio_datagram_bps=89366 flight_bytes=8800 flight_limited=0",
+      "[2026-10-13 11:14:10.891][thread 52472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2765981 video_datagram_bps=3153708 opus_bps=46238 audio_datagram_bps=88829 flight_bytes=4400 flight_limited=0"
+    ]
+  },
+  "playback_session": [
+    {
+      "pid": 72736,
+      "endpoint": "Realtek HD Audio 2nd output (Realtek High Definition Audio)",
+      "state": 1,
+      "muted": false,
+      "volume": 1.0,
+      "endpoint_muted": false,
+      "endpoint_volume": 0.25999999046325684
+    }
+  ],
+  "invalid_sample": "407: source never admitted a peer, Client hello enqueue failed, resource later closed. Not an audio playback pass or a diagnosed network root cause. 408 prepared and launched immediately in one orchestration call; actual admission, video and playback verified."
+}

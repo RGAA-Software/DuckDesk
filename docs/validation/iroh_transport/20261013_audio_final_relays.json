@@ -1,0 +1,20 @@
+[
+  {
+    "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+    "name": "BJ-200M Relay",
+    "current_connections": 0,
+    "fresh": true,
+    "state": "ready",
+    "desired_draining": false,
+    "reported_draining": false
+  },
+  {
+    "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+    "name": "Single Server Relay",
+    "current_connections": 1,
+    "fresh": true,
+    "state": "ready",
+    "desired_draining": false,
+    "reported_draining": false
+  }
+]

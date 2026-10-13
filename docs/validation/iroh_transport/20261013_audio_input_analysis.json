@@ -1,0 +1,280 @@
+{
+  "audio_output": {
+    "baseline": {
+      "label": "baseline",
+      "started_epoch": 1791858667.514212,
+      "ended_epoch": 1791858670.5519848,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.10606652498245239,
+      "peak_frequency_hz": 46.87500000000001,
+      "tone_amplitudes": {
+        "523.25": 0.00041107126140999087,
+        "997.0": 0.0001738823635260104
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "tone-a": {
+      "label": "tone-a",
+      "started_epoch": 1791858773.756411,
+      "ended_epoch": 1791858776.7615323,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.11284146457910538,
+      "peak_frequency_hz": 46.87500000000001,
+      "tone_amplitudes": {
+        "523.25": 0.0002898770026677467,
+        "997.0": 0.00012740763996956157
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "native-b": {
+      "label": "native-b",
+      "started_epoch": 1791858965.4500308,
+      "ended_epoch": 1791858968.4766338,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.028601625934243202,
+      "peak_frequency_hz": 329.12946428571433,
+      "tone_amplitudes": {
+        "523.25": 8.553898070101064e-05,
+        "997.0": 0.0003098027750273619
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "fixed-a": {
+      "label": "fixed-a",
+      "started_epoch": 1791859416.1984127,
+      "ended_epoch": 1791859419.217321,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.06850249320268631,
+      "peak_frequency_hz": 522.9910714285714,
+      "tone_amplitudes": {
+        "523.25": 0.016683503514020197,
+        "997.0": 0.00023990632083231082
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "fixed-b": {
+      "label": "fixed-b",
+      "started_epoch": 1791859422.2960403,
+      "ended_epoch": 1791859425.315305,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.12360721081495285,
+      "peak_frequency_hz": 997.0982142857143,
+      "tone_amplitudes": {
+        "523.25": 0.00029203585391707426,
+        "997.0": 0.018905306777530703
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "fixed-silent": {
+      "label": "fixed-silent",
+      "started_epoch": 1791859427.63248,
+      "ended_epoch": 1791859430.651818,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.11012429744005203,
+      "peak_frequency_hz": 46.87500000000001,
+      "tone_amplitudes": {
+        "523.25": 0.0003537353487343368,
+        "997.0": 0.0002737287005063537
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "direct-a": {
+      "label": "direct-a",
+      "started_epoch": 1791859617.4610622,
+      "ended_epoch": 1791859620.707214,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.06905444711446762,
+      "peak_frequency_hz": 523.3258928571429,
+      "tone_amplitudes": {
+        "523.25": 0.018779287816900487,
+        "997.0": 7.586098963865864e-05
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "direct-b": {
+      "label": "direct-b",
+      "started_epoch": 1791859628.8421242,
+      "ended_epoch": 1791859633.281835,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.06294410675764084,
+      "peak_frequency_hz": 997.0982142857143,
+      "tone_amplitudes": {
+        "523.25": 3.0298723695543176e-05,
+        "997.0": 0.01498795149145371
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    },
+    "direct-silent": {
+      "label": "direct-silent",
+      "started_epoch": 1791859675.5221071,
+      "ended_epoch": 1791859678.5359292,
+      "rate": 48000,
+      "channels": 2,
+      "sample_frames": 143360,
+      "rms": 0.026895985007286072,
+      "peak_frequency_hz": 293.6383928571429,
+      "tone_amplitudes": {
+        "523.25": 3.966328967498389e-05,
+        "997.0": 0.00036092975223318016
+      },
+      "measurement": "default Windows render endpoint loopback; frequency aggregates only; no microphone and no recording retained"
+    }
+  },
+  "input": {
+    "fixed-a": {
+      "pid": 87776,
+      "zone": 0,
+      "label": "fixed-a",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 523.25,
+      "sampled_epoch": 1791859415.2302558,
+      "screenshot_sha256": "83cb415fdf8c5e6ecc4987e56686d332c30acd0655caf1f9c1f72d6c307e781e"
+    },
+    "fixed-b": {
+      "pid": 87776,
+      "zone": 1,
+      "label": "fixed-b",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 997,
+      "sampled_epoch": 1791859421.856835,
+      "screenshot_sha256": "a788aeede6ef9ab3e7b80df8cd57006bfe4cda9ec97b21950af98f33aa57cc1b"
+    },
+    "fixed-silent": {
+      "pid": 87776,
+      "zone": 2,
+      "label": "fixed-silent",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 0,
+      "sampled_epoch": 1791859427.0927026,
+      "screenshot_sha256": "03ca0c3cf42ac22ce308d73558a39efbd857f0ef83077ae495e39630c289e75f"
+    },
+    "direct-a": {
+      "pid": 17376,
+      "zone": 0,
+      "label": "direct-a",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 523.25,
+      "sampled_epoch": 1791859616.6095073,
+      "screenshot_sha256": "676c52a2e659c10980a587baaf1a686bbab51f668409559b714ef59f6ce417b6"
+    },
+    "direct-b": {
+      "pid": 17376,
+      "zone": 1,
+      "label": "direct-b",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 997,
+      "sampled_epoch": 1791859622.789729,
+      "screenshot_sha256": "efa34f508606673d2d9c3ca10f9662550321086c12e3b55feaed7313869307bf"
+    },
+    "direct-silent": {
+      "pid": 17376,
+      "zone": 2,
+      "label": "direct-silent",
+      "method": "native mouse on PID-verified owned window; cursor and foreground restored",
+      "expected_tone_hz": 0,
+      "sampled_epoch": 1791859675.0770812,
+      "screenshot_sha256": "5668de2167cc3951dfaf38ca444b100bed3ee5720e26323a66bbcf5126388e07"
+    }
+  },
+  "logs": {
+    "local": {
+      "compressed_bytes": 829396,
+      "compressed_sha256": "6628c13aad5a313a152834abee51aa83cbfd8cd9675f70dc336fe1f7adf7f05a",
+      "selected_sha256": "f667d9198969429b2c4c3178eedc471999bae9beb0bda064e22799a1488f1e82",
+      "audio_output_events": [
+        "[2026-10-13 10:43:02.149][thread 69236][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+        "[2026-10-13 10:43:34.679][thread 62492][client_audio_output.cpp:85][info] : event=client.audio_output phase=open outcome=success sample_rate=48000 channels=2",
+        "[2026-10-13 10:43:34.679][thread 62492][client_audio_output.cpp:96][info] : event=client.audio_output phase=first_write outcome=success bytes=3840",
+        "[2026-10-13 10:45:51.583][thread 15860][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+        "[2026-10-13 10:46:56.085][thread 75580][client_audio_output.cpp:85][info] : event=client.audio_output phase=open outcome=success sample_rate=48000 channels=2",
+        "[2026-10-13 10:46:56.085][thread 75580][client_audio_output.cpp:96][info] : event=client.audio_output phase=first_write outcome=success bytes=3840"
+      ],
+      "selected_paths": [
+        "{\"Ip\":\"39.71.45.66:4613\"}",
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "button_events": [
+        "[2026-10-13 10:31:51.428][thread 86032][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.282,0.572) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:31:51.472][thread 86032][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.282,0.572) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:36:03.921][thread 86032][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:36:04.044][thread 86032][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:34.442][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.167,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:34.564][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.167,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:41.092][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:41.213][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:46.275][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.833,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:43:46.399][thread 69236][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.833,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:46:55.804][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.167,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:46:55.926][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.167,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:47:01.651][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:47:01.850][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.500,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:47:54.304][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.833,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:47:54.425][thread 15860][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.833,0.634) sent=true state=1 monitor=[webview]"
+      ],
+      "reconnect_count": 0
+    },
+    "company": {
+      "compressed_bytes": 342542,
+      "compressed_sha256": "a21940aa5cdb82fb4f03c1c7349e6f0d467eea35cbcb9be5914232fcb05d15dd",
+      "selected_sha256": "5b053321b08fab982a763130ba37be63fe4f8e8b15fd4e32789746273ea51e34",
+      "audio_output_events": [
+        "[2026-10-13 10:53:42.931][thread 53432][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+        "[2026-10-13 10:58:38.554][thread 33732][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+        "[2026-10-13 10:58:45.010][thread 54972][client_audio_output.cpp:85][info] : event=client.audio_output phase=open outcome=success sample_rate=48000 channels=2",
+        "[2026-10-13 10:58:45.010][thread 54972][client_audio_output.cpp:96][info] : event=client.audio_output phase=first_write outcome=success bytes=3840"
+      ],
+      "selected_paths": [
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "button_events": [
+        "[2026-10-13 10:58:44.787][thread 33732][client_window.cpp:285][info] : Client input route: mouse button=1 down=true remote=(0.167,0.634) sent=true state=1 monitor=[webview]",
+        "[2026-10-13 10:58:44.922][thread 33732][client_window.cpp:285][info] : Client input route: mouse button=1 down=false remote=(0.167,0.634) sent=true state=1 monitor=[webview]"
+      ],
+      "reconnect_count": 0
+    },
+    "source": {
+      "compressed_bytes": 1025567,
+      "compressed_sha256": "65863019d9065f5273abb71a0a262f4532873d36c7cb0558fd9dc3de39cdee97",
+      "selected_sha256": "14d7927bc53a38394965d011b5566d42a3ac84ab4c13bffd6f9c33d2d1a76235",
+      "audio_output_events": [],
+      "selected_paths": [
+        "{\"Ip\":\"39.82.198.244:50485\"}",
+        "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+      ],
+      "button_events": [],
+      "reconnect_count": 0
+    }
+  },
+  "runtime_identities": {
+    "client": "b7deb80b2b8ca270aa80559bb81ffb12165565041452b8a259f5f368853c0272",
+    "remote": "43978d5acc1427c25d01be71f5022fe4c775bfc6e11167f3daf0705c09a4531b",
+    "cloud_node": "dbace47dae8ba6e29c7236ab5e4b133c75daf067992e2f7559582d80df13a69e"
+  },
+  "fixed_amplitude_ratios_vs_stopped": {
+    "523.25_hz": 47.16380077284807,
+    "997_hz": 69.06585514255156
+  },
+  "direct_amplitude_ratios_vs_stopped": {
+    "523.25_hz": 473.46773227296893,
+    "997_hz": 41.52595179177881
+  },
+  "owned_instances": 6,
+  "owned_resources": 5,
+  "measurement_scope": "Default Windows playback loopback FFT aggregates only. Background audio remains; target-frequency changes are compared against stopped source. No microphone or retained sound recording."
+}

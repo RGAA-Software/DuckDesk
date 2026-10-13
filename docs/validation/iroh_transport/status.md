@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，Native声音输出缺陷已修复并验证
+
+- 定位Client未初始化SDL音频子系统，播放流打开失败且旧返回值被忽略。新增显式Start/UI线程初始化、RAII引用释放及初始化/打开/首PCM/失败日志；静音恢复保留引用，RDP原生流程不改。
+- WebView本机实际90 Relay和公网UDP直连，523/997Hz声音随远端输入切换、停止后目标频率幅度下降；默认播放设备FFT仅存汇总。Company仅更新exe FE8→B7、全41SHA核对，406真实点击后设备打开/PCM提交，30秒保持脚本exit0。Game408实际Relay、源Opus及Client播放会话active；407无peer样本不当通过。
+- 4音频生命周期/失败重试测试、所有权/命名/格式检查通过。Release18jobs三个Client都同步dist、build-tree SHA相等：client B7DEB80B…/remote43978D5A…/cloud_nodeDBACE47D…。Company安装B7，其余远端Node服务/Render不更新；没有新Setup、Android或语音通话。
+- 全8owned实例stopped/7资源closed，guest注销，2owned应用/部署禁用，两端Client0、页面listener0，仅默认Render；Relay恢复90 1/BJ0。原应用、RDP10/授权80不改。源/Company日志先压缩再下载SHA一致；404页面期限到达、405点击结束弹窗、407hello enqueue失败和夹具磁盘不足均保留，不掩盖为成功。
+- 用户授权清理旧测试产物：98项/11.811GiB（另有已上传ZIP31.86MB），产品dist、当前音频测试、源码/backup/.env/证据保留。网络核心/交付证据复用，真实NAT/规模/长稳继续按缺口记录，暂停短顿不自动重启。见[声音与输入报告](20261013_native_audio_input_report.md)。
+
 ## 最新接续：2026-10-13，2＋1 Native视频双Relay维护已验证
 
 - 本机2/Company1，独立Game4000kbps＋两Web3000kbps，源90 loopback动画；原应用spec逐项保持，RDP10/授权80不改。复用Client C39本机SHA一致/CompanyFE8与90既有包，无编译安装。

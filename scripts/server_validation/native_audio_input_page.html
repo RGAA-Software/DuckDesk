@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Pixels transport audio/input validation</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#101a2b;color:#fff;font:24px sans-serif}canvas{width:100%;height:100%}</style>
+<canvas id="scene"></canvas>
+<script>
+const scene = document.getElementById('scene');
+const drawing = scene.getContext('2d');
+let audioContext;
+let oscillator;
+let gain;
+let toneFrequency = 0;
+let inputCount = 0;
+let pointerPosition = {x:0,y:0};
+let frameNumber = 0;
+let audioStatus = 'silent';
+window.addEventListener('pointermove', event => pointerPosition = {x:event.clientX,y:event.clientY});
+window.addEventListener('pointerdown', async event => {
+    inputCount += 1;
+    const selectedZone = Math.min(2, Math.floor(event.clientX / window.innerWidth * 3));
+    try {
+        if (!audioContext) {
+            audioContext = new AudioContext();
+            oscillator = audioContext.createOscillator();
+            gain = audioContext.createGain();
+            gain.gain.value = 0;
+            oscillator.connect(gain); gain.connect(audioContext.destination); oscillator.start();
+        }
+        await audioContext.resume();
+        toneFrequency = [523.25, 997, 0][selectedZone];
+        oscillator.frequency.setValueAtTime(toneFrequency || 523.25, audioContext.currentTime);
+        gain.gain.setTargetAtTime(toneFrequency ? 0.08 : 0, audioContext.currentTime, 0.015);
+        audioStatus = audioContext.state;
+    } catch (failure) { audioStatus = String(failure); }
+});
+function renderScene(timestamp) {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    if (scene.width !== width || scene.height !== height) {scene.width = width; scene.height = height;}
+    frameNumber += 1;
+    drawing.fillStyle = '#101a2b'; drawing.fillRect(0,0,width,height);
+    drawing.fillStyle = '#fff'; drawing.font = '32px sans-serif';
+    drawing.fillText('Pixels / source 90 / remote application sound', 32, 55);
+    drawing.fillText(`Page frame ${frameNumber} / input count ${inputCount}`,32,105);
+    drawing.fillText(`Tone ${toneFrequency.toFixed(2)} Hz / audio ${audioStatus}`,32,155);
+    drawing.fillText(`Pointer ${pointerPosition.x}, ${pointerPosition.y}`,32,205);
+    for (let zoneIndex = 0; zoneIndex < 3; zoneIndex += 1) {
+        drawing.fillStyle = ['#175c89','#226942','#7a3339'][zoneIndex];
+        drawing.fillRect(zoneIndex*width/3+5,height*0.4,width/3-10,height*0.45);
+        drawing.fillStyle = '#fff'; drawing.fillText(['523.25 Hz','997 Hz','Stop tone'][zoneIndex],zoneIndex*width/3+30,height*0.6);
+    }
+    drawing.fillStyle = '#f6c843'; drawing.fillRect((timestamp/10)%(width-80),height*0.9,80,30);
+    requestAnimationFrame(renderScene);
+}
+requestAnimationFrame(renderScene);
+</script></html>

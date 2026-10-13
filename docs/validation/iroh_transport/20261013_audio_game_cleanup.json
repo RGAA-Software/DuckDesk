@@ -1,0 +1,47 @@
+{
+  "owned_applications_disabled": [
+    {
+      "access_revision": 4,
+      "id": "743f6b5d-410a-404b-aad9-fa17b1e7fae3",
+      "revision": 4,
+      "spec": {
+        "access": "public",
+        "allow_observer": false,
+        "allow_takeover": false,
+        "disabled": true,
+        "disconnect_grace_seconds": 10,
+        "launch": {
+          "arguments": "-force-d3d11-bltblt-mode",
+          "executable_path": "D:\\software\\\u5fc3\u810f\u533b\u5b66\u53ef\u6267\u884c\\\u5fc3\u810f\u533b\u5b66\u53ef\u6267\u884c\\\u5fc3\u810f-\u533b\u5b66\u52a8\u6001\u5c55\u793a.exe",
+          "kind": "game_hook",
+          "video": {
+            "bitrate_kbps": 4000,
+            "codec": "h264"
+          }
+        },
+        "name": "Audio game 20261013 game_hook"
+      }
+    }
+  ],
+  "owned_deployments_disabled": [
+    {
+      "application_id": "743f6b5d-410a-404b-aad9-fa17b1e7fae3",
+      "application_revision": 4,
+      "capacity": 1,
+      "disabled": true,
+      "gpu_key": null,
+      "id": "69331419-6f99-448d-b181-e659ea48aa24",
+      "kind": "game_hook",
+      "node_id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+      "observed_at": null,
+      "observed_endpoint_revision": null,
+      "observed_epoch": null,
+      "observed_generation": null,
+      "observed_reason": null,
+      "observed_sequence": 0,
+      "observed_state": "pending",
+      "revision": 4
+    }
+  ],
+  "original_application_specs_unchanged": true
+}

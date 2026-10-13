@@ -77,6 +77,11 @@ add_custom_command(TARGET px_client POST_BUILD
 pixels_stage_rdp_client(px_client)
 
 if(BUILD_TESTING AND TARGET GTest::gtest)
+    add_executable(test_client_audio_output tests/test_client_audio_output.cpp ui_imgui/client_audio_output.cpp)
+    target_include_directories(test_client_audio_output PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/ui_imgui)
+    target_link_libraries(test_client_audio_output PRIVATE px_common SDL3::SDL3-static GTest::gtest GTest::gtest_main)
+    add_test(NAME client_audio_output COMMAND test_client_audio_output)
+
     add_executable(test_client_rdp_lifecycle tests/test_client_rdp_lifecycle.cpp)
     target_link_libraries(test_client_rdp_lifecycle PRIVATE px_client_imgui_runtime GTest::gtest GTest::gtest_main)
     set_target_properties(test_client_rdp_lifecycle PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PX_PROJECT_BINARY_PATH}")

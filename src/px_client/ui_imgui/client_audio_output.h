@@ -10,18 +10,19 @@ class Data;
 namespace px::client::imgui {
 
 class ClientAudioOutput final {
-  public:
+public:
     ClientAudioOutput();
     ~ClientAudioOutput();
     ClientAudioOutput(const ClientAudioOutput&) = delete;
     ClientAudioOutput& operator=(const ClientAudioOutput&) = delete;
 
-    bool Write(const std::shared_ptr<px::Data>& data, int sampleRate, int channels, int bitsPerSample);
+    [[nodiscard]] bool Start();
+    bool Write(const std::shared_ptr<px::Data>& pcmData, int sampleRate, int channels, int bitsPerSample);
     void Stop();
 
-  private:
+private:
     struct Impl;
     std::unique_ptr<Impl> impl_{};
 };
 
-} // namespace px::client::imgui
+}  // namespace px::client::imgui

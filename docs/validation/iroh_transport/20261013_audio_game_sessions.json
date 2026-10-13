@@ -1,0 +1,28 @@
+[
+  {
+    "batch": 407,
+    "kind": "game_hook",
+    "application_id": "743f6b5d-410a-404b-aad9-fa17b1e7fae3",
+    "instance_id": "955065c4-d7dc-44de-9f28-35e70e8d7000",
+    "session_id": "3790fa9d-ac21-404d-bc88-c2ec38e754c0",
+    "codec": "h264",
+    "bitrate_kbps": 4000,
+    "endpoint_id": "a5fd66557251e24bd900e6a59da7f475903af82103f3ea50b53acaaf3bb68f20",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 408,
+    "kind": "game_hook",
+    "application_id": "743f6b5d-410a-404b-aad9-fa17b1e7fae3",
+    "instance_id": "a5121272-4498-4e47-8f38-cf0d07003bdd",
+    "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+    "codec": "h264",
+    "bitrate_kbps": 4000,
+    "endpoint_id": "769948e042ca5ddc5f5964b57a381c0caf7e08345ae6052bb808f09f31648870",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  }
+]
