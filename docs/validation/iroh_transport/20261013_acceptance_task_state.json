@@ -1,0 +1,43 @@
+{
+  "task": "Windows/Linux network unified acceptance",
+  "plan": "docs/iroh_transport_acceptance_task_20261013.md",
+  "source_base_revision": "58594d64a",
+  "continuous_execution": true,
+  "status": "active",
+  "current_step": "T1",
+  "next_action": "Finish T1 product-manifest/configuration baseline and90/BJ health checks, then compare complete candidate artifacts for T2 incremental alignment",
+  "hosts": {
+    "primary_receiver": {"name": "Company", "device_code": "559038160", "maximum_clients": 2},
+    "source": {"name": "90", "device_code": "428358431", "workspace": "D:\\112233"},
+    "optional_peer": {"name": "XRServer03", "device_code": "947158375", "workspace": "D:\\uploadsoft\\rd\\pixels"},
+    "linux_relay": {"name": "BJ", "address": "49.232.233.61:4605"},
+    "independent_server": {"name": "CN", "address": "49.232.190.218:4600", "evidence_reused": true},
+    "local_validation_enabled": false
+  },
+  "stages": [
+    {"id": "T1", "status": "in_progress", "action": "Company connected; read-only inventory exit0: no px processes,20 logical CPUs/load6%,13600036KiB free RAM, existing D:\\112233; product/configuration baseline and90/BJ checks remain", "evidence": "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json"},
+    {"id": "T2", "status": "planned"},
+    {"id": "T3a", "status": "planned", "observation_seconds": 1800},
+    {"id": "T3b", "status": "planned", "observation_seconds": 1800},
+    {"id": "T3c", "status": "planned", "observation_seconds": 1800},
+    {"id": "T4", "status": "planned", "maximum_observation_seconds": 600},
+    {"id": "T5", "status": "planned", "observation_seconds": 1800},
+    {"id": "T6", "status": "planned", "observation_seconds": 14400},
+    {"id": "T7", "status": "planned", "condition": "Repair only evidenced new functional failures; repeat affected acceptance"},
+    {"id": "T8", "status": "planned"}
+  ],
+  "conditional_items": [
+    {"id": "Remote independent Setup", "status": "unvalidated", "condition": "Available independent Windows target without mutually exclusive installed products"},
+    {"id": "complex NAT/CGNAT", "status": "unvalidated", "condition": "Actual additional topology"},
+    {"id": "capacity limits", "status": "unvalidated", "condition": "Additional independent peers, bandwidth and test window"},
+    {"id": "external publication", "status": "not_started", "condition": "Separate concrete release candidate and publication decision"},
+    {"id": "existing strict Clippy warnings", "status": "retained_limitation"}
+  ],
+  "android_enabled": false,
+  "paused_investigations_enabled": false,
+  "new_transport_tokens": false,
+  "company_updated_this_task": false,
+  "validation_started": false,
+  "owned_resources": [],
+  "evidence": ["docs/validation/iroh_transport/20261013_acceptance_company_inventory.json"]
+}

@@ -1,5 +1,7 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13晚间统一长任务：用户要求连续完成一次验收，已建立[当前环境验收任务](iroh_transport_acceptance_task_20261013.md)与阶段台账，从Company只读准备开始。历史功能开发完成状态保持，Android/本机测试/暂停专项不进入新矩阵。
+
 2026-10-13晚间最新安排：Company恢复为主要接收端，本机暂停作为验证对端。所有剩余工作统一见[后续总计划](iroh_transport_remaining_work_plan_20261013.md)，从Company真实身份核对开始；本条仅规划，未启动远端更新或测试。以下Company禁用/本机验证文字为当时历史。
 
 2026-10-13当前接续：最新Windows完整候选的90 Server/Node及本机Client安装、覆盖已完成；CN独立Linux Server完整安装/覆盖也已完成，schema42、原业务容器和配置保持，低速iroh Relay连通通过。

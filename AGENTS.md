@@ -1,5 +1,16 @@
 # Workspace delivery rules
 
+- Unified acceptance long-task decision (2026-10-13 evening): the user requested one continuous, complete
+  acceptance task. Execute docs/iroh_transport_acceptance_task_20261013.md; resume from
+  docs/validation/iroh_transport/20261013_acceptance_task_state.json and status.md. T1 Company identity preparation
+  is current; Company connected and initial read-only inventory passed, with no update/test yet. Its Client
+  90703A5B…/Panel A96F421B… differs from the latest candidate; inspect manifest/configuration before T2.
+  Workspace is D:\112233\unified-acceptance-20261013. Proceed through the matrix,
+  fix evidenced functional failures, repeat only affected gates, and deliver one final classified report/cleanup.
+  Reuse passed evidence; Company starts with one Client, at most two, optional XR one. Local validation/Android
+  and paused investigations stay excluded. Missing mandatory environment is not a pass; conditional Remote,
+  complex-NAT, scale and external-publication items retain explicit separate statuses.
+
 - Latest validation-host / remaining-work planning decision (2026-10-13 evening): Company (559038160) is available
   again and is the primary receiving peer; start with one Client, at most two if there is headroom. Do not use the
   local machine as a validation peer or start local Client/probe/test workloads. 90 and XR remain available under

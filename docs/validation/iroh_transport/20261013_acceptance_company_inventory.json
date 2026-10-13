@@ -1,0 +1,91 @@
+{
+  "device_code": "559038160",
+  "read_only": true,
+  "operation_id": "25e653fb-2f94-43e3-b2ca-79fd9079b7a1",
+  "task_id": "2e8dc072-8f5b-4ca2-80ba-18a6d72ec30b",
+  "exit_code": 0,
+  "output_decoding_replacements": true,
+  "inventory": {
+    "ObservedUtc": "2026-10-13T14:28:45.9184770Z",
+    "Os": "Windows (verified native context; localized caption decoding was not lossless)",
+    "Version": "10.0.26200",
+    "TotalMemoryKiB": 33368992,
+    "FreeMemoryKiB": 13600036,
+    "Products": [
+      {
+        "DisplayName": "Pixels Agent Bridge",
+        "DisplayVersion": "1.2.93 release",
+        "InstallLocation": "C:\\Program Files\\PixelsAgentBridge"
+      },
+      {
+        "DisplayName": "Pixels Client",
+        "DisplayVersion": "3.3.81",
+        "InstallLocation": "C:\\Program Files\\Pixels Client"
+      },
+      {
+        "DisplayName": "Pixels Yun",
+        "DisplayVersion": "3.1.46",
+        "InstallLocation": "C:\\Program Files\\Pixels\\Pixels Yun"
+      }
+    ],
+    "Processors": [
+      {
+        "Name": "Intel(R) Core(TM) i9-10900 CPU @ 2.80GHz",
+        "NumberOfLogicalProcessors": 20,
+        "LoadPercentage": 6
+      }
+    ],
+    "Processes": [],
+    "RuntimeHashes": [
+      {
+        "Path": "C:\\Program Files\\Pixels Client\\px_client.exe",
+        "Sha256": "90703A5B796D9D8184952A1CCD198E19726D7E8834A57E102755247E004D42E0",
+        "Version": "3.3.81"
+      },
+      {
+        "Path": "C:\\Program Files\\Pixels Client\\px_panel.exe",
+        "Sha256": "A96F421B547F64D931D932F332F49992F04210EAB992B340E404D7A2C329045B",
+        "Version": "3.3.81"
+      }
+    ],
+    "WorkDirectories": [
+      {
+        "Path": "D:\\112233",
+        "Exists": true
+      },
+      {
+        "Path": "D:\\pixels",
+        "Exists": false
+      },
+      {
+        "Path": "D:\\uploadsoft\\rd\\pixels",
+        "Exists": false
+      },
+      {
+        "Path": "D:\\PixelsMCP",
+        "Exists": false
+      }
+    ],
+    "Disks": [
+      {
+        "DeviceID": "C:",
+        "Size": 1022750617600,
+        "FreeSpace": 31596883968
+      },
+      {
+        "DeviceID": "D:",
+        "Size": 2000381014016,
+        "FreeSpace": 78653468672
+      },
+      {
+        "DeviceID": "E:",
+        "Size": 239726018560,
+        "FreeSpace": 6374551552
+      }
+    ]
+  },
+  "workspace_for_this_task": "D:\\112233\\unified-acceptance-20261013",
+  "latest_client_candidate_sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+  "software_updated": false,
+  "test_client_started": false
+}

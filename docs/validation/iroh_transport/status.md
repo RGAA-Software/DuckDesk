@@ -4,6 +4,10 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13晚间，统一验收长任务已建立并开始T1
+
+用户要求一个完整长任务、一次性验收。已建立持续目标，合并为[统一任务](../../iroh_transport_acceptance_task_20261013.md)及[阶段台账](20261013_acceptance_task_state.json)：T1 Company只读身份/负载 → T2必要增量 → T3直连/Windows Relay/BJ Relay各30分钟 → T4程序级UDP受限自动Relay → T5最多Company2＋XR1的30分钟观察 → T6单路连续4小时 → T7按实际失败修复/受影响复验 → T8统一清理和报告。Company连接/初步inventory exit0，20逻辑核/CPU6%/可用内存约13GiB/px进程0，已有D:\112233；Client90703A5B…/PanelA96F421B…不同于最新候选。见[只读证据](20261013_acceptance_company_inventory.json)，尚无更新或新测试。下一步补齐T1清单/配置与90/BJ健康，再T2逐项对齐；workspace D:\112233\unified-acceptance-20261013。本机不参加测试；必测缺环境不得勾通过，Remote独立Setup/复杂NAT/规模/外部发行单列条件，已有证据复用。阶段自动接续，Android/暂停专项不启动。
+
 ## 最新接续：2026-10-13晚间，剩余工作统一规划，Company恢复可用
 
 用户要求集中规划剩余工作并恢复Company559038160，本机暂不参与验证；90/XR可用、BJ Relay/CN独立部署角色保持。当前只保存计划，未连接Company、部署或启动新测试。见[统一剩余计划](../../iroh_transport_remaining_work_plan_20261013.md)：A1核对Company真实身份/必要增量 → A2三路径单路各30分钟 → A3独立probe的UDP受限自动Relay → A4最多Company2＋XR1的小负载观察 → A5单路4小时 → A6汇总；原已通过安装/功能证据复用。Remote独立Setup、复杂NAT、规模、对外发行及既有Clippy告警另列条件，不强行卸载Company Client或重开暂停专项。Android仍排除，编译仍18jobs，远端日志压缩后下载。唯一下一项A1，主线完成状态不回退。
