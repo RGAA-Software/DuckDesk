@@ -1,0 +1,385 @@
+{
+  "status": "passed",
+  "observed_utc": "2026-10-13T22:29:25.018020+00:00",
+  "api": {
+    "restored": [
+      {
+        "application_id": "145233fd-fee5-4b2d-99ce-b311bd8f4a59",
+        "deployment_id": "2a2443ab-fe7b-42f5-b5e0-4634c1d1c36c"
+      },
+      {
+        "application_id": "7edfe1e0-7901-4172-81fd-1f1ebb105d53",
+        "deployment_id": "b89b6da7-365f-41d6-aa1a-5d5e83d09294"
+      }
+    ],
+    "resources": [
+      {
+        "id": "0a0aa0e1-ab9b-4352-a81d-fe8582515e2d",
+        "state": "closed"
+      },
+      {
+        "id": "9d2e9304-8ae0-4b2b-8e8a-db6e7ab848aa",
+        "state": "closed"
+      },
+      {
+        "id": "8821aeeb-ef5a-4084-9640-e7d54787df45",
+        "state": "closed"
+      },
+      {
+        "id": "711c3979-4c4a-44a6-a525-600405e0514a",
+        "state": "closed"
+      },
+      {
+        "id": "4f74d4d3-e542-4fe5-a004-54be1ea8a3c3",
+        "state": "closed"
+      },
+      {
+        "id": "1e48dcf5-1834-4ff4-bf21-210e8eac7264",
+        "state": "closed"
+      },
+      {
+        "id": "63817cb3-d484-490f-bff6-ba1c32bc9bc3",
+        "state": "closed"
+      }
+    ],
+    "instances": [
+      {
+        "id": "c52120e4-94e4-4897-9d6e-cbccbf22f852",
+        "state": "stopped"
+      },
+      {
+        "id": "84883ed6-7e42-4b3e-a2ff-90f2be0a9c3c",
+        "state": "stopped"
+      },
+      {
+        "id": "489dad44-55a0-4354-886a-628716ea00c8",
+        "state": "stopped"
+      },
+      {
+        "id": "25617600-ad21-4f25-93fa-828000b9d88c",
+        "state": "stopped"
+      },
+      {
+        "id": "38df2426-b01c-4108-a498-2635cf599f11",
+        "state": "stopped"
+      },
+      {
+        "id": "617074d5-b6d3-43c0-81ae-3b8b06a2fa07",
+        "state": "stopped"
+      },
+      {
+        "id": "4fdcbda4-2736-49b1-a8c1-1f244adde9b3",
+        "state": "stopped"
+      }
+    ],
+    "application_count": 11,
+    "deployment_count": 11,
+    "all_original_application_specs_equal": true,
+    "all_original_deployment_configuration_equal": true,
+    "guest_logout_status": 204
+  },
+  "source_90": {
+    "configuration_files_sha_equal": true,
+    "configuration_file_count": 19,
+    "runtime_hashes_unchanged": {
+      "C:\\Program Files\\Pixels\\Server\\current\\bin\\px_console.exe": "94C31068A9D5C214F3E758460FDA9C8283E218667F9CBA8B0508BA00A2CDE41F",
+      "C:\\Program Files\\Pixels Cloud Node\\px_render.exe": "FEE6ED1F2C8DF7C9E36028D7E724C7F892F56B10DBFABCFAA5AFA25EDFF4D5B0",
+      "C:\\Program Files\\Pixels Cloud Node\\px_service.exe": "4CE0F74BE753B4B380E9B57569C8B7217BF31DB1E57D35CCF511853351D8BB4D",
+      "C:\\Program Files\\Pixels\\Server\\current\\bin\\px_relay.exe": "FD3D96A9DFC734A395E5A4C7F06425FB4FD1DA57C21207651020A5120C7365A4"
+    },
+    "node_configuration_hashes_unchanged": {
+      "px_service.toml": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+      "settings.toml": "E3AB48AE27A2EC0FCB0DE5B94C6496DB58F8CAD41AF46ECF9CD49E3BF2A274C4"
+    },
+    "services": [
+      {
+        "state": "Running",
+        "name": "Pixels.Console"
+      },
+      {
+        "state": "Running",
+        "name": "Pixels.Relay"
+      },
+      {
+        "state": "Running",
+        "name": "Pixels.Backup.2f5b1d676dba"
+      },
+      {
+        "state": "Running",
+        "name": "px_service"
+      }
+    ],
+    "remaining_owned_app_renders": [],
+    "remaining_probe_processes": [],
+    "page_pid": 65500,
+    "page_alive": false,
+    "page_listener_count": 0,
+    "page_cleanup_operation_id": "c75c59aa-10ad-42a8-9f8e-f5ae5a22fabc",
+    "default_desktop": {
+      "baseline_pid": 56256,
+      "current": {
+        "pid": 49192,
+        "created_utc": "2026-10-13T18:07:39.4663170Z",
+        "parent_pid": 74748,
+        "desktop_mode": true,
+        "port_4601": true,
+        "port_4613": false
+      },
+      "preserved": true,
+      "classification": "Existing six-hour unconnected desktop watchdog restart; independent WebView4613 sample unaffected",
+      "render_log": "[2026-10-14 02:07:37.167][thread 33040][rd_app.cpp:1219][warning] : ** Don't have connected clients, will restart render now.",
+      "service_log": [
+        "2026-10-13T18:07:39.035258Z WARN px_service::service_host: desktop render missing, restarting",
+        "2026-10-13T18:07:39.932365Z INFO px_service::service_host: start desktop finished, desktop_alive=true, desktop_pid=Some(49192)"
+      ],
+      "implementation": "src/px_render/rd_app.cpp:1213; one-minute counter60*6, no connected peer; excludes managed application modes",
+      "log_query_operation_id": "e0e4f379-a5d0-4659-8ff4-a24dfc45cd1f"
+    },
+    "final_node_query_operation_id": "0c15219d-88a1-4161-87df-f60d7c49059b"
+  },
+  "xr": {
+    "render_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+    "remaining_renders": [],
+    "service_sha256": "6E3C56A6FB7F05B1AA41A9B6288CC7BC9877287781CB6E5623E2357D471B912B",
+    "service_config_sha256": "38363D78CC868921F46EF19885312F3BA0130088AFCFEA5C73342A78B1E2B028",
+    "service_status": "Running",
+    "settings_sha256": "E3AB48AE27A2EC0FCB0DE5B94C6496DB58F8CAD41AF46ECF9CD49E3BF2A274C4",
+    "runtime_and_node_configuration_hashes_equal": true,
+    "page_pid": 13680,
+    "page_alive": false,
+    "page_listener_count": 0,
+    "page_cleanup_operation_id": "c90bb4d8-ac6d-40b6-b950-14b49386209c"
+  },
+  "company": {
+    "remaining_clients": [],
+    "installed_panel_sha256": "0BBF191ADE5C2896EE9A9E86AE00F5A7CA938318CFE0A59F9645809E9B538B9E",
+    "installed_client_sha256": "E849DAD0B08F7B662AB8C6EC6DF70F38330E5856D542868459B75788E5CB3489",
+    "removed_runtimes": [
+      {
+        "path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-direct",
+        "exists_after": false
+      },
+      {
+        "path": "D:\\112233\\unified-acceptance-20261013\\T5-runtime-bj",
+        "exists_after": false
+      }
+    ]
+  },
+  "udp_restriction": {
+    "filter_ids": [
+      67904,
+      67905,
+      67906,
+      67907
+    ],
+    "remaining_filter_ids": [],
+    "filter_exit_code": 0,
+    "original_disabled_profiles_preserved": {
+      "Domain": false,
+      "Private": false,
+      "Public": false
+    },
+    "remaining_owned_probe_processes": []
+  },
+  "control": {
+    "phase": "final-cleanup",
+    "observed_epoch": 1791929518.4940617,
+    "relays": [
+      {
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "name": "BJ-200M Relay",
+        "public_host": "49.232.233.61",
+        "current_connections": 0,
+        "forwarded_bytes": 2070284144,
+        "forwarded_rate_bps": 0,
+        "uploaded_bytes": 2071401372,
+        "fresh": true,
+        "state": "ready",
+        "generation": 23,
+        "desired_draining": false,
+        "reported_draining": false
+      },
+      {
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "name": "Single Server Relay",
+        "public_host": "39.71.45.66",
+        "current_connections": 1,
+        "forwarded_bytes": 1485027377,
+        "forwarded_rate_bps": 0,
+        "uploaded_bytes": 1485052879,
+        "fresh": true,
+        "state": "ready",
+        "generation": 98,
+        "desired_draining": false,
+        "reported_draining": false
+      }
+    ],
+    "nodes": [
+      {
+        "id": "74884567-39ad-4e68-bde8-dea211f05cba",
+        "fresh": true,
+        "state": "ready",
+        "generation": 29,
+        "report_sequence": 2455
+      },
+      {
+        "id": "ef783b80-2834-47e7-ae28-6e00aef4a3b1",
+        "fresh": true,
+        "state": "ready",
+        "generation": 474,
+        "report_sequence": 2426
+      }
+    ]
+  },
+  "relay_endpoint_counts_equal_baseline": true,
+  "licensed_streams_baseline": 80,
+  "rdp_capacity_baseline": [
+    10
+  ],
+  "license_file_sha256_unchanged": "90882AA859F0BC84AA5358548674D01770E5E5F3D36BEE1BEDE2E52D9D61457E",
+  "archive_checks": [
+    {
+      "phase": "T3a",
+      "role": "client",
+      "bytes": 354091,
+      "sha256": "4EB433C2226BB2C2695A0CD83DB005BB1C57E4BD35E439A06F24EB783068A6CD",
+      "verified": true
+    },
+    {
+      "phase": "T3a",
+      "role": "source",
+      "bytes": 386205,
+      "sha256": "A944593EB9236F0B17056DD17D3D04A1023A7B97977DE140D7ADA2D513EC8FF8",
+      "verified": true
+    },
+    {
+      "phase": "T3b-r1",
+      "role": "client",
+      "bytes": 303600,
+      "sha256": "9322867E0C47B58DF9EF91E4CC5876FDB0FC2B84B453ABD41A466B82FC373223",
+      "verified": true
+    },
+    {
+      "phase": "T3b-r1",
+      "role": "source",
+      "bytes": 357659,
+      "sha256": "F861FF8DCC6147BE3DFE53C0B928DF1980F9FE58C18CDAB419E631D637E71335",
+      "verified": true
+    },
+    {
+      "phase": "T3c",
+      "role": "client",
+      "bytes": 304598,
+      "sha256": "204436E21A13CEA02AB47889990252C7592C69B0FD42382EF26DDA2EDE289330",
+      "verified": true
+    },
+    {
+      "phase": "T3c",
+      "role": "source",
+      "bytes": 405210,
+      "sha256": "E5D3B9673F1C930DEF6F4353A62425F0BD04DE649421B41BB7652A241D7A3738",
+      "verified": true
+    },
+    {
+      "phase": "T6",
+      "role": "client",
+      "bytes": 2157607,
+      "sha256": "86B35818F154FF08E7E15F7F9009EDA2A4CF1BE480819C06927977530436B2D4",
+      "verified": true
+    },
+    {
+      "phase": "T6",
+      "role": "source",
+      "bytes": 1066499,
+      "sha256": "B4E823F2C957B3A72B16165AB1F89C3AB11AB30654BA7FEEB68506A623CC983C",
+      "verified": true
+    },
+    {
+      "phase": "T5a",
+      "role": "client",
+      "bytes": 358991,
+      "sha256": "96DA8EFFDE61FC3F2FD04525D89A6795A7C818E7AD5DCAD70FD38D141D089007",
+      "verified": true
+    },
+    {
+      "phase": "T5a",
+      "role": "source",
+      "bytes": 388243,
+      "sha256": "709B21A266C73CD9CDD10A45B8913AA09CAB189E3D971CACAE49B267A8638476",
+      "verified": true
+    },
+    {
+      "phase": "T5b",
+      "role": "client",
+      "bytes": 317978,
+      "sha256": "B9A624B4A64D958E913D94236F01037656EAC0457CAF0DBEE297E492CCCC2525",
+      "verified": true
+    },
+    {
+      "phase": "T5b",
+      "role": "source",
+      "bytes": 415412,
+      "sha256": "8165A981BFE62036ACBFDB2F65EEEBFA7B40D258D6F232785968E581906A77B3",
+      "verified": true
+    },
+    {
+      "phase": "T4-baseline",
+      "role": "connect",
+      "bytes": 646,
+      "sha256": "54EFF9B919E4D2D08A5379BDCDC85160F83FDAA3554078B1A00CED6DD265319C",
+      "verified": true
+    },
+    {
+      "phase": "T4-negative",
+      "role": "connect",
+      "bytes": 243,
+      "sha256": "E14F8827E7DF62722DDC84B47BC1DA8F009A2C20CDB417EF6662CFE5B6964B8D",
+      "verified": true
+    },
+    {
+      "phase": "T4-auto",
+      "role": "connect",
+      "bytes": 2608,
+      "sha256": "8A04D2338EE62BFAC11561E8DB5837E458606561C1E1F2DC4094252BA255207B",
+      "verified": true
+    },
+    {
+      "phase": "T4-restored",
+      "role": "connect",
+      "bytes": 649,
+      "sha256": "D720CAE6680D575035EB1E477907806071356D37DE979B8EFE1BFE413C1ED54D",
+      "verified": true
+    },
+    {
+      "phase": "T4-baseline",
+      "role": "serve",
+      "bytes": 513,
+      "sha256": "1EEEBED183F217329CA4BF85FFE37F520CCD57CD642596455CD0542FB38F8D3B",
+      "verified": true
+    },
+    {
+      "phase": "T4-negative",
+      "role": "serve",
+      "bytes": 215,
+      "sha256": "68799AE0A0A3CDEF5E67A6AA4514B9653F582549ECFBD69D8AC40832A80E876A",
+      "verified": true
+    },
+    {
+      "phase": "T4-auto",
+      "role": "serve",
+      "bytes": 2468,
+      "sha256": "41902B84F4A7D5DA2BDD46229A86D6F68A7D281C662EFC7F6A06E839FEF3F270",
+      "verified": true
+    },
+    {
+      "phase": "T4-restored",
+      "role": "serve",
+      "bytes": 517,
+      "sha256": "F27AA37D644FF2979FA4E20BCD6D1AD948D2680448504CEB500AA6FC09D549B6",
+      "verified": true
+    }
+  ],
+  "new_product_builds": false,
+  "windows_sessions_and_workspaces_preserved": true,
+  "scope": "Owned cleanup only; default desktop watchdog replacement preserved, no all-baseline-PIDs-unchanged claim; Company settings byte equality applies to incremental update only"
+}

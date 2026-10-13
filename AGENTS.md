@@ -1,5 +1,20 @@
 # Workspace delivery rules
 
+- Unified acceptance completion (2026-10-14): T1–T8 in docs/iroh_transport_acceptance_task_20261013.md are complete.
+  Read docs/validation/iroh_transport/20261014_unified_acceptance_report.md and the completed stage ledger before any new work.
+  Direct/Windows Relay/BJ each30min, default-auto360s under exact-probe UDP restriction, two Company receivers overlapping1958s,
+  and one original Windows Relay Client14400.466s are collected; all valid final clients exited normally0.
+  Original T3a supervisor interruption remains recorded; T5a supplied the same-version direct normal-close followup.
+  Four-hour steady59.913FPS/max141.483ms; XR recovered1.005s(BJ)/397.530ms(Windows) gaps remain, not zero-stutter/99.9% claims.
+  Low-motion actual video about0.054Mbps despite2Mbps configured; not throughput/full-capacity acceptance.
+  20 gzip archives SHA verified,7 resources closed/7 instances stopped,11 app/deployment configs restored,guest logout204,
+  owned pages/listeners/filter IDs/runtime clones removed. Company Client0/XR Render0;90 only default desktop4601 preserved.
+  Default Render56256 became49192 through existing six-hour unconnected watchdog; Service74748 retained,4613 sample unaffected.
+  Server19 config hashes/four runtime identities and both nodes' TOML hashes unchanged; relays fresh/ready/not draining,WIN1/BJ0.
+  Earlier live checkpoint instructions below are historical, including their running PID/next-action statements. Do not restart samples.
+  Android/local test peer and paused short-stutter/NIC/saturated investigation remain excluded. Conditional complex NAT/capacity,
+  independent Remote Setup/external publication remain explicitly unvalidated; reuse prior installation/consumer evidence.
+
 - Unified acceptance live checkpoint (2026-10-14 02:08): T4 passed default-auto360416ms under exact-probe UDP restriction,
   357 reliable round trips/7201 echoed datagrams, all raw paths Relay;4 filters removed/helper exit0, profiles remained off,
   direct controls passed before/after. T5 Company2 receivers overlapped1958.329s, actualLAN direct90 plusWindows RelayXR;

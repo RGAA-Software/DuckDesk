@@ -3,9 +3,9 @@
   "plan": "docs/iroh_transport_acceptance_task_20261013.md",
   "source_base_revision": "58594d64a",
   "continuous_execution": true,
-  "status": "active",
-  "current_step": "T6",
-  "next_action": "Keep original4h task69a058a8 and Client27352/created18:03:59.3627769Z, bounded observations only; at sample_completed normalclose before10min supervisor window, collect all rotated logs and final owned cleanup",
+  "status": "completed_with_documented_performance_and_environment_limits",
+  "current_step": "complete",
+  "next_action": "No unfinished mandatory gate; reuse completed evidence. Conditional topology/capacity/Remote/publication and paused performance scope remain separate.",
   "hosts": {
     "primary_receiver": {
       "name": "Company",
@@ -65,9 +65,9 @@
       "started_at_utc": "2026-10-13T15:06:25.4854583+00:00",
       "supervisor_pid": 49200,
       "supervisor_created_utc": "2026-10-13T15:06:24.2580312Z",
-      "initial_present_fps": "59.96\u201360.06",
+      "initial_present_fps": "59.96–60.06",
       "initial_steady_maximum_gap_us": 29855,
-      "initial_interval_scope": "23:07:57\u201323:09:12; partial sample only",
+      "initial_interval_scope": "23:07:57–23:09:12; partial sample only",
       "hold_seconds": 1800.4995195,
       "steady_elapsed_us": 1743494822,
       "steady_frames": 104591,
@@ -238,15 +238,15 @@
     },
     {
       "id": "T6",
-      "status": "running",
+      "status": "functional_pass_with_retained_short_media_gaps",
       "observation_seconds": 14400,
-      "state": "running",
+      "state": "closed",
       "instance_id": "4fdcbda4-2736-49b1-a8c1-1f244adde9b3",
       "resource_id": "63817cb3-d484-490f-bff6-ba1c32bc9bc3",
       "runtime_root": "C:\\Program Files\\Pixels Client",
       "client_path": "C:\\Program Files\\Pixels Client\\px_client.exe",
       "expected_seconds": 14400,
-      "sample_completed": false,
+      "sample_completed": true,
       "supervisor_pid": 43156,
       "supervisor_created_utc": "2026-10-13T18:03:58.7068727Z",
       "pid": 27352,
@@ -256,16 +256,62 @@
       "task_id": "cec33e5c-2889-45db-8a96-fa9aa38ba668",
       "actual_path": "Relayhttps://39.71.45.66:4605/",
       "expected_completed_utc": "2026-10-13T22:03:59Z",
-      "normal_close_required_before_utc": "2026-10-13T22:13:59Z"
+      "normal_close_required_before_utc": "2026-10-13T22:13:59Z",
+      "latest_partial_observation": {
+        "last_observed_utc": "2026-10-13T19:30:14.2389194Z",
+        "elapsed_seconds": 5160.391624299999,
+        "working_set_bytes": 222420992,
+        "private_bytes": 186490880,
+        "handle_count": 831,
+        "path": "[2026-10-14 03:30:10.808][thread 24468][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+        "last_present": "[2026-10-14 03:30:10.760][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=300 elapsed_us=5001554 fps=59.98 maximum_gap_us=22805 maximum_upload_age_us=2855 maximum_render_us=2841 log_overruns=0",
+        "original_operation_id": "69a058a8-a549-4378-9d8d-64d0bd1544ea",
+        "scope": "Historical partial observation; superseded by full four-hour evidence"
+      },
+      "hold_seconds": 14400.4660904,
+      "sample_completed_at_utc": "2026-10-13T22:03:59.8556952+00:00",
+      "closed_at_utc": "2026-10-13T22:04:46.5659071+00:00",
+      "client_exit_code": 0,
+      "evidence": "docs/validation/iroh_transport/20261014_acceptance_four_hour_session.json",
+      "normal_exit_verified": true,
+      "resource_closed": true,
+      "instance_stopped": true,
+      "steady_window_count": 2863,
+      "steady_frames": 859403,
+      "steady_elapsed_us": 14344267948,
+      "steady_maximum_gap_us": 141483,
+      "present_windows_over_100ms": 24,
+      "process_sample_count": 480,
+      "last_hour_private_growth_bytes": 434176,
+      "actual_source_video_mbps": {
+        "minimum": 0.034,
+        "maximum": 0.074,
+        "mean": 0.05413963181660299
+      },
+      "source_send_failed_total": 0,
+      "native_task_final_state": "succeeded",
+      "native_task_exit_code": 0
     },
     {
       "id": "T7",
-      "status": "planned",
-      "condition": "Repair only evidenced new functional failures; repeat affected acceptance"
+      "status": "passed",
+      "condition": "Repair only evidenced new functional failures; repeat affected acceptance",
+      "open_new_functional_defects": [],
+      "product_binaries_modified_this_batch": false,
+      "validation_attachments_fixed_and_checked": true,
+      "retained_limitations": [
+        "Recovered XR/BJ and XR/Windows media gaps",
+        "Four-hour short media gaps",
+        "ViGEm unavailable",
+        "No-Relay upstream teardown diagnostic"
+      ],
+      "evidence": "docs/validation/iroh_transport/20261014_unified_acceptance_report.md"
     },
     {
       "id": "T8",
-      "status": "planned"
+      "status": "passed",
+      "cleanup_evidence": "docs/validation/iroh_transport/20261014_acceptance_cleanup.json",
+      "report": "docs/validation/iroh_transport/20261014_unified_acceptance_report.md"
     }
   ],
   "conditional_items": [
@@ -305,27 +351,31 @@
       "device_code": "428358431",
       "pid": 65500,
       "created_utc": "2026-10-13T15:03:30.0252770Z",
-      "port": 48778
+      "port": 48778,
+      "cleanup_status": "process_exited"
     },
     {
       "kind": "client",
       "device_code": "559038160",
       "pid": 53952,
       "sample": "T3a",
-      "created_utc": "2026-10-13T15:06:25.4737890Z"
+      "created_utc": "2026-10-13T15:06:25.4737890Z",
+      "cleanup_status": "process_exited"
     },
     {
       "kind": "fixture",
       "application_id": "145233fd-fee5-4b2d-99ce-b311bd8f4a59",
       "deployment_id": "2a2443ab-fe7b-42f5-b5e0-4634c1d1c36c",
-      "originally_disabled": true
+      "originally_disabled": true,
+      "cleanup_status": "original_fixture_restored"
     },
     {
       "kind": "source_page",
       "device_code": "947158375",
       "pid": 13680,
       "created_utc": "2026-10-13T16:00:20.9496675Z",
-      "port": 48778
+      "port": 48778,
+      "cleanup_status": "process_exited"
     },
     {
       "kind": "fixture",
@@ -335,7 +385,8 @@
       "temporary_bitrate_kbps": 2000,
       "baseline_bitrate_kbps": 10000,
       "temporary_entry_port": 48778,
-      "baseline_entry_port": 48777
+      "baseline_entry_port": 48777,
+      "cleanup_status": "original_fixture_restored"
     }
   ],
   "evidence": [
@@ -345,14 +396,24 @@
     "docs/validation/iroh_transport/20261014_acceptance_windows_relay_sample.json",
     "docs/validation/iroh_transport/20261014_acceptance_bj_relay_sample.json",
     "docs/validation/iroh_transport/20261014_acceptance_udp_restricted_auto_relay.json",
-    "docs/validation/iroh_transport/20261014_acceptance_two_business_sessions.json"
+    "docs/validation/iroh_transport/20261014_acceptance_two_business_sessions.json",
+    "docs/validation/iroh_transport/20261014_acceptance_four_hour_session.json",
+    "docs/validation/iroh_transport/20261014_acceptance_cleanup.json",
+    "docs/validation/iroh_transport/20261014_unified_acceptance_report.md"
   ],
-  "controller_status_observed": "blocked; user continue messages authorize ongoing work; actual execution continues. No goal completion claimed.",
+  "controller_status_observed": "Historical controller blocked observation retained; all mandatory work now actually complete, controller completion follows final push.",
   "xr_preparation": {
-    "status": "ready",
+    "status": "completed_and_cleaned",
     "page_http": 200,
     "service_configuration_changed": false,
     "render_started": false,
-    "page_operation_id": "b2ce211f-8588-42de-b7d1-288c49c03f28"
-  }
+    "page_operation_id": "b2ce211f-8588-42de-b7d1-288c49c03f28",
+    "scope": "Historical before T3c; completed acceptance and final cleanup recorded separately",
+    "acceptance_render_started": true,
+    "final_page_listener_count": 0,
+    "final_remaining_renders": []
+  },
+  "completed_at_utc": "2026-10-13T22:29:25.018641+00:00",
+  "report": "docs/validation/iroh_transport/20261014_unified_acceptance_report.md",
+  "delivery": "Final documentation/evidence commit and push; no new product publication"
 }

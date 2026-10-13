@@ -1,0 +1,177 @@
+{
+  "report": {
+    "state": "closed",
+    "instance_id": "4fdcbda4-2736-49b1-a8c1-1f244adde9b3",
+    "resource_id": "63817cb3-d484-490f-bff6-ba1c32bc9bc3",
+    "runtime_root": "C:\\Program Files\\Pixels Client",
+    "client_path": "C:\\Program Files\\Pixels Client\\px_client.exe",
+    "expected_seconds": 14400,
+    "sample_completed": true,
+    "supervisor_pid": 43156,
+    "supervisor_created_utc": "2026-10-13T18:03:58.7068727Z",
+    "pid": 27352,
+    "process_created_utc": "2026-10-13T18:03:59.3627769Z",
+    "started_at_utc": "2026-10-13T18:03:59.3718163+00:00",
+    "hold_seconds": 14400.4660904,
+    "sample_completed_at_utc": "2026-10-13T22:03:59.8556952+00:00",
+    "closed_at_utc": "2026-10-13T22:04:46.5659071+00:00",
+    "client_exit_code": 0
+  },
+  "archive_path": "D:\\112233\\unified-acceptance-20261013\\T6\\client.log.gz",
+  "archive_sha256": "86B35818F154FF08E7E15F7F9009EDA2A4CF1BE480819C06927977530436B2D4",
+  "archive_bytes": 2157607,
+  "written_lines": 91945,
+  "first_log_utc_local": "2026-10-14T02:03:59.4180000",
+  "last_log_utc_local": "2026-10-14T06:03:59.8480000",
+  "source_files": [
+    {
+      "name": "px_client.log",
+      "selected_lines": 91945,
+      "actual_bytes": 48146539
+    }
+  ],
+  "steady_window_count": 2863,
+  "steady_frames": 859403,
+  "steady_elapsed_us": 14344267948,
+  "steady_maximum_gap_us": 141483,
+  "path_details": [
+    "[2026-10-14 02:04:05.298][thread 24468][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+    "[2026-10-14 06:03:55.031][thread 24468][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://39.71.45.66:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0"
+  ],
+  "failures": [],
+  "process_observations": [
+    {
+      "elapsed_seconds": 0.0069945,
+      "working_set_bytes": 9560064,
+      "private_bytes": 15532032,
+      "handle_count": 98,
+      "total_cpu_seconds": 0.015625,
+      "main_window_handle": "0"
+    },
+    {
+      "elapsed_seconds": 14370.5039495,
+      "working_set_bytes": 232828928,
+      "private_bytes": 196603904,
+      "handle_count": 835,
+      "total_cpu_seconds": 1710.078125,
+      "main_window_handle": "3283788"
+    }
+  ],
+  "client_alive": false,
+  "source_log": {
+    "completed_utc": "2026-10-13T22:03:59.8556952+00:00",
+    "archive_sha256": "B4E823F2C957B3A72B16165AB1F89C3AB11AB30654BA7FEEB68506A623CC983C",
+    "archive_path": "D:\\112233\\unified-acceptance-20261013\\T6-source\\source.log.gz",
+    "started_utc": "2026-10-13T18:03:59.3718163+00:00",
+    "last_local": "2026-10-14T06:03:59.4120000",
+    "render_port": 4613,
+    "selected_lines": 58431,
+    "first_local": "2026-10-14T02:04:00.0030000",
+    "source_files": [
+      {
+        "name": "pixels_render_4613.1.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428757
+      },
+      {
+        "name": "pixels_render_4613.2.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428695
+      },
+      {
+        "name": "pixels_render_4613.3.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428255
+      },
+      {
+        "name": "pixels_render_4613.4.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428239
+      },
+      {
+        "name": "pixels_render_4613.5.log",
+        "selected_lines": 0,
+        "actual_bytes": 52428635
+      },
+      {
+        "name": "pixels_render_4613.log",
+        "selected_lines": 58431,
+        "actual_bytes": 28165304
+      }
+    ],
+    "archive_bytes": 1066499
+  },
+  "status": "functional_pass_with_retained_short_media_gaps",
+  "client_raw_bytes": 26533519,
+  "client_error_samples": [],
+  "steady_present_windows_over_100ms": [
+    "[2026-10-14 03:54:13.834][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=266 elapsed_us=5008391 fps=53.11 maximum_gap_us=125482 maximum_upload_age_us=8208 maximum_render_us=8180 log_overruns=0",
+    "[2026-10-14 03:54:18.837][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=272 elapsed_us=5003324 fps=54.36 maximum_gap_us=119577 maximum_upload_age_us=8128 maximum_render_us=8107 log_overruns=0",
+    "[2026-10-14 03:54:23.843][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=269 elapsed_us=5005759 fps=53.74 maximum_gap_us=108565 maximum_upload_age_us=12580 maximum_render_us=12528 log_overruns=0",
+    "[2026-10-14 03:54:28.861][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=267 elapsed_us=5017974 fps=53.21 maximum_gap_us=118426 maximum_upload_age_us=8938 maximum_render_us=8926 log_overruns=0",
+    "[2026-10-14 03:54:33.869][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=272 elapsed_us=5008117 fps=54.31 maximum_gap_us=120638 maximum_upload_age_us=10962 maximum_render_us=10908 log_overruns=0",
+    "[2026-10-14 03:54:48.898][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=296 elapsed_us=5006847 fps=59.12 maximum_gap_us=109480 maximum_upload_age_us=9381 maximum_render_us=9336 log_overruns=0",
+    "[2026-10-14 03:56:14.067][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=292 elapsed_us=5002683 fps=58.37 maximum_gap_us=141483 maximum_upload_age_us=7216 maximum_render_us=7197 log_overruns=0",
+    "[2026-10-14 03:56:19.079][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=280 elapsed_us=5011812 fps=55.87 maximum_gap_us=131369 maximum_upload_age_us=9399 maximum_render_us=9379 log_overruns=0",
+    "[2026-10-14 03:56:24.093][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=270 elapsed_us=5013362 fps=53.86 maximum_gap_us=130210 maximum_upload_age_us=8707 maximum_render_us=8674 log_overruns=0",
+    "[2026-10-14 05:05:57.592][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=280 elapsed_us=5013217 fps=55.85 maximum_gap_us=100444 maximum_upload_age_us=9197 maximum_render_us=9177 log_overruns=0",
+    "[2026-10-14 05:06:27.680][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=281 elapsed_us=5004161 fps=56.15 maximum_gap_us=106982 maximum_upload_age_us=9072 maximum_render_us=9033 log_overruns=0",
+    "[2026-10-14 05:06:32.686][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=277 elapsed_us=5006489 fps=55.33 maximum_gap_us=103767 maximum_upload_age_us=11481 maximum_render_us=11437 log_overruns=0",
+    "[2026-10-14 05:07:27.849][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=287 elapsed_us=5011517 fps=57.27 maximum_gap_us=100252 maximum_upload_age_us=9012 maximum_render_us=8961 log_overruns=0",
+    "[2026-10-14 05:07:32.857][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=278 elapsed_us=5008561 fps=55.50 maximum_gap_us=109858 maximum_upload_age_us=6256 maximum_render_us=6210 log_overruns=0",
+    "[2026-10-14 05:07:37.871][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=288 elapsed_us=5013707 fps=57.44 maximum_gap_us=101356 maximum_upload_age_us=11681 maximum_render_us=11664 log_overruns=0",
+    "[2026-10-14 05:07:52.897][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=290 elapsed_us=5005774 fps=57.93 maximum_gap_us=102055 maximum_upload_age_us=8324 maximum_render_us=8303 log_overruns=0",
+    "[2026-10-14 05:08:07.925][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=292 elapsed_us=5015877 fps=58.22 maximum_gap_us=125150 maximum_upload_age_us=9812 maximum_render_us=9798 log_overruns=0",
+    "[2026-10-14 05:08:27.957][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=287 elapsed_us=5003931 fps=57.35 maximum_gap_us=105201 maximum_upload_age_us=12548 maximum_render_us=12495 log_overruns=0",
+    "[2026-10-14 05:10:53.247][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=286 elapsed_us=5013094 fps=57.05 maximum_gap_us=100299 maximum_upload_age_us=9518 maximum_render_us=9491 log_overruns=0",
+    "[2026-10-14 05:11:13.287][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=291 elapsed_us=5015810 fps=58.02 maximum_gap_us=103553 maximum_upload_age_us=10634 maximum_render_us=10582 log_overruns=0",
+    "[2026-10-14 05:11:18.289][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=284 elapsed_us=5002226 fps=56.77 maximum_gap_us=100386 maximum_upload_age_us=11508 maximum_render_us=11495 log_overruns=0",
+    "[2026-10-14 05:12:08.394][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=283 elapsed_us=5051304 fps=56.03 maximum_gap_us=106711 maximum_upload_age_us=6326 maximum_render_us=6310 log_overruns=0",
+    "[2026-10-14 05:12:18.415][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=284 elapsed_us=5010784 fps=56.68 maximum_gap_us=112249 maximum_upload_age_us=5524 maximum_render_us=5503 log_overruns=0",
+    "[2026-10-14 05:12:33.436][thread 15028][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=295 elapsed_us=5004125 fps=58.95 maximum_gap_us=102231 maximum_upload_age_us=10339 maximum_render_us=10289 log_overruns=0"
+  ],
+  "all_actual_selected_paths": [
+    "{\"Relay\":\"https://39.71.45.66:4605/\"}"
+  ],
+  "source_raw_bytes": 16419644,
+  "source_error_samples": [
+    "[2026-10-14 02:04:01.003][thread 66024][vigem_controller.cpp:140][error] : vigem_target_add joystick failed: 0x-1ffffff9",
+    "[2026-10-14 02:04:01.003][thread 66024][joystick_service.cpp:255][error] : event=joystick.allocate component=joystick outcome=failed code=JOYSTICK_VIGEM_UNAVAILABLE operation=allocate_target recoverable=true reason=vigem_unavailable"
+  ],
+  "source_send_failed_total": 0,
+  "process_trend": {
+    "sample_count": 480,
+    "steady_count": 478,
+    "first_steady": {
+      "elapsed_seconds": 60.3474059,
+      "working_set_bytes": 210796544,
+      "private_bytes": 175394816,
+      "handle_count": 837,
+      "total_cpu_seconds": 8.734375,
+      "main_window_handle": "3283788"
+    },
+    "last": {
+      "elapsed_seconds": 14370.5039495,
+      "working_set_bytes": 232828928,
+      "private_bytes": 196603904,
+      "handle_count": 835,
+      "total_cpu_seconds": 1710.078125,
+      "main_window_handle": "3283788"
+    },
+    "steady_private_min_bytes": 175394816,
+    "steady_private_max_bytes": 196603904,
+    "steady_working_set_min_bytes": 210796544,
+    "steady_working_set_max_bytes": 232828928,
+    "steady_handle_min": 828,
+    "steady_handle_max": 839,
+    "last_hour_private_growth_bytes": 434176
+  },
+  "normal_exit_verified": true,
+  "compressed_download_sha_verified": true,
+  "scope": "One original Client process/oneWindows Relay connection for14400.466s; low-motion2Mbps configured WebView, actual media load separately bounded; no zero-stutter/throughput/capacity/99.9% claim.",
+  "actual_source_video_mbps": {
+    "minimum": 0.034,
+    "maximum": 0.074,
+    "mean": 0.05413963181660299
+  }
+}

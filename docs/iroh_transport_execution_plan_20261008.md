@@ -1,5 +1,10 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-14当前结果：Windows/Linux开发交付主线及[当前环境统一验收](validation/iroh_transport/20261014_unified_acceptance_report.md)均已完成。
+Company增量身份、三路径各30分钟、程序级UDP受限默认Relay360秒、两路同时约32.6分钟/独立退出、单进程同连接完整4小时及清理都有实际证据。
+四小时约59.913FPS/最大141.483ms；XR约1秒/398ms已恢复间隔保留，低运动实际视频约0.054Mbps不称吞吐/容量通过。
+Android和暂停专项排除；复杂NAT/CGNAT、规模/多地域、Remote独立Setup和外部发布仍单列条件。下方早期长稳缺口及运行中动作是历史，不重新执行。
+
 2026-10-13晚间统一长任务：用户要求连续完成一次验收，已建立[当前环境验收任务](iroh_transport_acceptance_task_20261013.md)与阶段台账，从Company只读准备开始。历史功能开发完成状态保持，Android/本机测试/暂停专项不进入新矩阵。
 
 2026-10-13晚间最新安排：Company恢复为主要接收端，本机暂停作为验证对端。所有剩余工作统一见[后续总计划](iroh_transport_remaining_work_plan_20261013.md)，从Company真实身份核对开始；本条仅规划，未启动远端更新或测试。以下Company禁用/本机验证文字为当时历史。
@@ -248,6 +253,9 @@ Relay 必须支持 Windows 和 Linux，复用 Windows Service、Linux systemd/�
 无需重新做 iroh 选型、首个 Relay 原型、BJ 登记或整套旧容量测试。
 
 ### 0.9 本次完整任务：Windows/Linux iroh 网络交付（不含 Android）
+
+2026-10-14持续验收补齐：当前可执行T1–T8已经完成，完整身份、正常退出、保留画面间隔、清理和条件项目见[统一报告](validation/iroh_transport/20261014_unified_acceptance_report.md)。
+新增证据证明本环境三路径30分钟/默认自动Relay/两路/四小时；不扩大为所有网络、满容量或零短顿保证，已有安装与消费者证据复用。
 
 2026-10-13追加收束：在10-11功能基线上，补齐真实双NAT、双Relay负载/分配、RDP多用户池及小规模业务、Native声音/接入终止修复；
 最终Server/Node/Client完整候选覆盖与四类网络消费者验收通过，当前安装身份和限制见[最终追加报告](validation/iroh_transport/20261013_transport_final_report.md)。

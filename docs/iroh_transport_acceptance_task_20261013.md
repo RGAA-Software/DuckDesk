@@ -1,6 +1,8 @@
 # Windows/Linux 网络统一验收长任务
 
-2026-10-13，用户要求“规划一个长任务，完整的，一次性验收完”。本文件把[剩余工作总安排](iroh_transport_remaining_work_plan_20261013.md)合并为一个连续执行任务；起始基线`58594d64a`。已创建持续目标，Company连接及初步只读检查通过，尚未更新其软件或启动测试。
+2026-10-13，用户要求“规划一个长任务，完整的，一次性验收完”。本文件把[剩余工作总安排](iroh_transport_remaining_work_plan_20261013.md)合并为一个连续执行任务；起始基线`58594d64a`。
+
+2026-10-14：T1–T8当前环境必测项、缺陷记录/补验和清理已经完成，见[最终报告](validation/iroh_transport/20261014_unified_acceptance_report.md)及[完成台账](validation/iroh_transport/20261013_acceptance_task_state.json)。三路径各30分钟、受限默认自动Relay、两路独立退出和单路完整四小时均已取证。短时画面间隔与缺环境条件明确保留，不称完全无卡顿/满容量/全部拓扑通过；以下为执行约定及历史准备记录。
 
 ## 目标及任务边界
 
@@ -64,9 +66,9 @@ T3串行执行，合计90分钟；T4最多10分钟、T5为30分钟、T6为4小�
 
 执行状态保存在[任务台账](validation/iroh_transport/20261013_acceptance_task_state.json)，每阶段记录状态、准确SHA、真实操作ID、有效/无效样本和清理结果；报告链接归入[status](validation/iroh_transport/status.md)。每个阶段自动进入下一未完成项，失败先定位，用户无需逐段重新授权。
 
-当前T1初步检查已通过，见[Company身份记录](validation/iroh_transport/20261013_acceptance_company_inventory.json)：Windows10.0.26200，20逻辑核/CPU约6%，可用内存13600036KiB，当前px进程0，`D:\112233`已存在。已有Client3.3.81的实际SHA90703A5B…/PanelA96F421B…，不同于最新候选；这是文件身份差异，不把同版本号当作已经对齐。后续workspace为`D:\112233\unified-acceptance-20261013`，尚未创建或上传。
+历史T1初步检查见[Company身份记录](validation/iroh_transport/20261013_acceptance_company_inventory.json)：Windows10.0.26200，20逻辑核/CPU约6%，可用内存13600036KiB，初始px进程0，`D:\112233`已存在。当时Client3.3.81的实际SHA90703A5B…/PanelA96F421B…不同于最新候选；随后T2已增量对齐为E849DAD0…/0BBF191A…，见增量证据。工作区`D:\112233\unified-acceptance-20261013`已经用于实际执行，压缩证据和备份保留。
 
-接续以任务台账为准：T1/T2已通过，T3a完整媒体样本已取回、退出工具问题保留，T3b-r1正在运行。XR专用夹具和页面已经准备，但未启动XR媒体实例。本机不作为测试对端。
+接续以完成台账为准：T1–T8已完成，无待续的活样本。原T3a退出工具问题保留且T5a补验；XR夹具、两页面、资源/实例、过滤器及Company独立运行目录已清理，原配置恢复。本机未作为测试对端。条件项目不能按本轮功能通过自动勾选。
 
 ### T4环境适配（2026-10-14）
 
