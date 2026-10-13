@@ -1,0 +1,78 @@
+{
+  "capacity_released": true,
+  "cleanup_complete": true,
+  "new_endpoint_restored": true,
+  "phases": [
+    {
+      "busy_profile": {
+        "bandwidth_capacity_mbps": 1,
+        "control_epoch": 1,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 2179388,
+        "forwarded_rate_bps": 3462547,
+        "fresh": true,
+        "generation": 2,
+        "id": "55d06509-3867-4071-9c7f-707726824f31",
+        "iroh_qad_port": 50372,
+        "last_seen": "2026-10-13T07:59:31.306369Z",
+        "max_connections": 16,
+        "max_rooms": null,
+        "name": "real-bandwidth-home",
+        "product_version_code": 3002001,
+        "public_host": "127.0.0.1",
+        "public_port": 45440,
+        "report_sequence": 3,
+        "reported_draining": false,
+        "revision": 3,
+        "state": "ready",
+        "uploaded_bytes": 2372170
+      },
+      "held_connection": {
+        "admission_scope": "console-candidate-filter",
+        "datagrams_each_direction": 4,
+        "home": "https://127.0.0.1:45440/",
+        "new_endpoint_denied": false,
+        "phase": "bandwidth",
+        "reliable_round_trips": 4,
+        "same_endpoint_identities": true,
+        "same_quic_connections": true,
+        "same_reliable_stream": true
+      },
+      "idle_profile": {
+        "bandwidth_capacity_mbps": 1,
+        "control_epoch": 1,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 2180704,
+        "forwarded_rate_bps": 2100,
+        "fresh": true,
+        "generation": 2,
+        "id": "55d06509-3867-4071-9c7f-707726824f31",
+        "iroh_qad_port": 50372,
+        "last_seen": "2026-10-13T07:59:36.319165Z",
+        "max_connections": 16,
+        "max_rooms": null,
+        "name": "real-bandwidth-home",
+        "product_version_code": 3002001,
+        "public_host": "127.0.0.1",
+        "public_port": 45440,
+        "report_sequence": 4,
+        "reported_draining": false,
+        "revision": 3,
+        "state": "ready",
+        "uploaded_bytes": 2373486
+      },
+      "load": {
+        "reliable_bytes_verified": 2097152
+      },
+      "new_candidates_restored": true
+    }
+  ],
+  "remote_deployment": false,
+  "scope": "isolated-loopback-real-relay-console-service-heartbeat"
+}

@@ -71,7 +71,7 @@ bool ClientSession::InitializeRdp() {
         if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
             opened->store(false);
             self->ResetRdpTransport();
-            self->SetState(ClientConnectionState::Disconnected, "RDP transport disconnected");
+            self->SetState(ClientConnectionState::Recovering, "RDP transport disconnected; retrying");
         }
     });
     listener_->Listen<px::SdkMsgWsConnectionRejected>([weakSelf](const px::SdkMsgWsConnectionRejected& event) {
@@ -110,7 +110,12 @@ bool ClientSession::InitializeRdp() {
                 self->SetState(ClientConnectionState::Rejected, "The RDP channel returned invalid session data", ClientConnectionFailure::Transport);
                 return;
             }
-            const std::weak_ptr<px::NetClient> weakNetwork{self->rdpNetwork_};
+            std::weak_ptr<px::NetClient> weakNetwork{};
+            {
+                const std::scoped_lock lock{self->mutex_};
+                if (self->stopped_) return;
+                weakNetwork = self->rdpNetwork_;
+            }
             auto endpoint = px::rdp::RdpClientEndpoint::Create(
                 self->notifier_->GetAsyncRuntime()->Executor(px::PxAsyncLane::kWorker), *binding,
                 [weakNetwork](std::shared_ptr<px::Data> bytes, px::rdp::RdpTcpBridge::SendCompletion completion) {

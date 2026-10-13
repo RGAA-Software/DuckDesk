@@ -30,6 +30,7 @@ struct ClientLaunchConfig final {
     std::string streamName{};
     std::string localDeviceId{};
     std::string remoteDeviceId{};
+    std::string applicationId{};
     std::string consoleOrigin{};
     std::string remotePlatform{};
     std::string remotePasswordHash{};
@@ -73,5 +74,7 @@ struct ClientLaunchConfig final {
 [[nodiscard]] std::optional<px::IrohDialParameters> BuildClientIrohParameters(const ClientLaunchConfig& config);
 [[nodiscard]] std::string BuildClientMediaPath(const ClientLaunchConfig& config);
 [[nodiscard]] std::string BuildClientFileTransferPath(const ClientLaunchConfig& config);
+[[nodiscard]] std::string ClientSettingsTarget(const ClientLaunchConfig& config);
+[[nodiscard]] bool UsesClientIrohTransport(const ClientLaunchConfig& config) noexcept;
 
 }  // namespace px::client::imgui

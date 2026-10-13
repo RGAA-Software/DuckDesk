@@ -390,6 +390,7 @@ async fn ready_relay(
             created.id,
             created.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: false,
                 disabled: false,
             },
@@ -573,6 +574,7 @@ async fn two_nodes_and_two_relays_spread_new_work_without_migrating_existing_bin
             quieter_relay.id,
             quieter_relay.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: true,
                 disabled: false,
             },

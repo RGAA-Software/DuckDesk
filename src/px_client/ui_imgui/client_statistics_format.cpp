@@ -25,29 +25,63 @@ std::vector<ClientStatisticsRow> BuildClientStatisticsRows(const ClientStatistic
                                     : statistics.transport == ClientStatisticsTransport::DirectWebSocket ? ClientText::StatisticsDirectWebSocket
                                                                                                          : ClientText::StatisticsDirectUdp};
     const auto frameRate = [](const std::optional<int> value) { return value ? std::format("{} FPS", *value) : "--"; };
-    return {{ClientText::StatisticsTransport, std::string{ClientTextValue(transportLabel, english)}},
-            {ClientText::Resolution,
-             statistics.frameWidth > 0 && statistics.frameHeight > 0 ? std::format("{} x {}", statistics.frameWidth, statistics.frameHeight) : "--"},
-            {ClientText::StatisticsDecodedFps, frameRate(statistics.decodedFps > 0 ? std::optional{statistics.decodedFps} : std::nullopt)},
-            {ClientText::StatisticsReceivedFps, DecimalMeasurement(statistics.receivedFps, "FPS")},
-            {ClientText::StatisticsLatency, std::format("{} ms", statistics.latencyMilliseconds)},
-            {ClientText::StatisticsBitrate, std::format("{} Kbps", statistics.bitrateKbps)},
-            {ClientText::StatisticsReceiveSpeed, DecimalMeasurement(statistics.receiveMegabytesPerSecond, "MiB/s")},
-            {ClientText::StatisticsSendSpeed, DecimalMeasurement(statistics.sendMegabytesPerSecond, "MiB/s")},
-            {ClientText::StatisticsReceivedTotal, ByteMeasurement(statistics.receivedBytes)},
-            {ClientText::StatisticsSentTotal, ByteMeasurement(statistics.sentBytes)},
-            {ClientText::StatisticsDecodeTime, DecimalMeasurement(statistics.decodeMilliseconds, "ms")},
-            {ClientText::StatisticsReceiveGap, DecimalMeasurement(statistics.receiveGapMilliseconds, "ms")},
-            {ClientText::StatisticsVideoFormat, TextOrUnavailable(statistics.videoFormat) + " / " + TextOrUnavailable(statistics.videoColor)},
-            {ClientText::StatisticsDecoder, TextOrUnavailable(statistics.decoder)},
-            {ClientText::StatisticsEncoder, TextOrUnavailable(statistics.encoder)},
-            {ClientText::StatisticsCaptureFps, frameRate(statistics.captureFps)},
-            {ClientText::StatisticsEncodeFps, frameRate(statistics.encodeFps)},
-            {ClientText::StatisticsVideoCapture, TextOrUnavailable(statistics.videoCapture)},
-            {ClientText::StatisticsAudioCapture, TextOrUnavailable(statistics.audioCapture)},
-            {ClientText::StatisticsAudioCodec, TextOrUnavailable(statistics.audioCodec)},
-            {ClientText::StatisticsAudioFrames, std::to_string(statistics.decodedAudioFrames)},
-            {ClientText::StatisticsAudioBytes, ByteMeasurement(statistics.decodedAudioBytes)}};
+    ClientText stateLabel{ClientText::StatisticsConnecting};
+    switch (statistics.state) {
+        case ClientStatisticsState::Connecting:
+            break;
+        case ClientStatisticsState::Connected:
+            stateLabel = ClientText::StatisticsConnected;
+            break;
+        case ClientStatisticsState::Recovering:
+            stateLabel = ClientText::StatisticsRecovering;
+            break;
+        case ClientStatisticsState::MediaUnavailable:
+            stateLabel = ClientText::MediaUnavailable;
+            break;
+        case ClientStatisticsState::Ended:
+            stateLabel = ClientText::StatisticsEnded;
+            break;
+        case ClientStatisticsState::Rejected:
+            stateLabel =
+                statistics.failure == ClientConnectionFailure::None ? ClientText::StatisticsRejected : ConnectionFailureText(statistics.failure);
+            break;
+    }
+    const auto pathLabel = statistics.path == ClientStatisticsPath::Direct  ? ClientText::StatisticsPathDirect
+                           : statistics.path == ClientStatisticsPath::Relay ? ClientText::StatisticsPathRelay
+                                                                            : ClientText::StatisticsPathUnknown;
+    std::vector<ClientStatisticsRow> rows{
+        {ClientText::StatisticsTransport, std::string{ClientTextValue(transportLabel, english)}},
+        {ClientText::Resolution,
+         statistics.frameWidth > 0 && statistics.frameHeight > 0 ? std::format("{} x {}", statistics.frameWidth, statistics.frameHeight) : "--"},
+        {ClientText::StatisticsDecodedFps, frameRate(statistics.decodedFps > 0 ? std::optional{statistics.decodedFps} : std::nullopt)},
+        {ClientText::StatisticsReceivedFps, DecimalMeasurement(statistics.receivedFps, "FPS")},
+        {ClientText::StatisticsLatency, std::format("{} ms", statistics.latencyMilliseconds)},
+        {ClientText::StatisticsBitrate, std::format("{} Kbps", statistics.bitrateKbps)},
+        {ClientText::StatisticsReceiveSpeed, DecimalMeasurement(statistics.receiveMegabytesPerSecond, "MiB/s")},
+        {ClientText::StatisticsSendSpeed, DecimalMeasurement(statistics.sendMegabytesPerSecond, "MiB/s")},
+        {ClientText::StatisticsReceivedTotal, ByteMeasurement(statistics.receivedBytes)},
+        {ClientText::StatisticsSentTotal, ByteMeasurement(statistics.sentBytes)},
+        {ClientText::StatisticsDecodeTime, DecimalMeasurement(statistics.decodeMilliseconds, "ms")},
+        {ClientText::StatisticsReceiveGap, DecimalMeasurement(statistics.receiveGapMilliseconds, "ms")},
+        {ClientText::StatisticsVideoFormat, TextOrUnavailable(statistics.videoFormat) + " / " + TextOrUnavailable(statistics.videoColor)},
+        {ClientText::StatisticsDecoder, TextOrUnavailable(statistics.decoder)},
+        {ClientText::StatisticsEncoder, TextOrUnavailable(statistics.encoder)},
+        {ClientText::StatisticsCaptureFps, frameRate(statistics.captureFps)},
+        {ClientText::StatisticsEncodeFps, frameRate(statistics.encodeFps)},
+        {ClientText::StatisticsVideoCapture, TextOrUnavailable(statistics.videoCapture)},
+        {ClientText::StatisticsAudioCapture, TextOrUnavailable(statistics.audioCapture)},
+        {ClientText::StatisticsAudioCodec, TextOrUnavailable(statistics.audioCodec)},
+        {ClientText::StatisticsAudioFrames, std::to_string(statistics.decodedAudioFrames)},
+        {ClientText::StatisticsAudioBytes, ByteMeasurement(statistics.decodedAudioBytes)}};
+    if (statistics.transport == ClientStatisticsTransport::Iroh || statistics.transport == ClientStatisticsTransport::RdpIroh) {
+        rows.insert(rows.begin() + 1,
+                    {{ClientText::StatisticsState, std::string{ClientTextValue(stateLabel, english)}},
+                     {ClientText::StatisticsPath, std::string{ClientTextValue(pathLabel, english)}},
+                     {ClientText::StatisticsEndpoint, TextOrUnavailable(statistics.selectedAddress)},
+                     {ClientText::StatisticsTransportRtt,
+                      statistics.transportRoundTripMilliseconds ? std::format("{:.2f} ms", *statistics.transportRoundTripMilliseconds) : "--"}});
+    }
+    return rows;
 }
 
 }  // namespace px::client::imgui

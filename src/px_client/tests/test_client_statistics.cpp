@@ -94,5 +94,44 @@ TEST(ClientStatistics, ClientCatalogsHaveCompleteBilingualCoverage) {
     EXPECT_EQ(ClientTextValue(ClientText::SecureAttention, false), "Ctrl+Alt+Del");
 }
 
+TEST(ClientStatistics, ActualIrohPathAndRttAreIndependentOfRequestedPolicyAndVideoFrames) {
+    for (const bool english : {false, true}) {
+        for (const auto transport : {ClientStatisticsTransport::Iroh, ClientStatisticsTransport::RdpIroh}) {
+            ClientStatisticsSnapshot statistics{.transport = transport,
+                                                .path = ClientStatisticsPath::Relay,
+                                                .state = ClientStatisticsState::Connected,
+                                                .selectedAddress = "https://relay.example:4605/",
+                                                .transportRoundTripMilliseconds = 12.25};
+            auto rows = BuildClientStatisticsRows(statistics, english);
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsPath), ClientTextValue(ClientText::StatisticsPathRelay, english));
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsEndpoint), statistics.selectedAddress);
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsTransportRtt), "12.25 ms");
+            statistics.path = ClientStatisticsPath::Direct;
+            statistics.selectedAddress = "192.168.1.90:4613";
+            rows = BuildClientStatisticsRows(statistics, english);
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsPath), ClientTextValue(ClientText::StatisticsPathDirect, english));
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsEndpoint), statistics.selectedAddress);
+            statistics.path = ClientStatisticsPath::Unknown;
+            statistics.state = ClientStatisticsState::Recovering;
+            statistics.selectedAddress.clear();
+            statistics.transportRoundTripMilliseconds.reset();
+            rows = BuildClientStatisticsRows(statistics, english);
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsState), ClientTextValue(ClientText::StatisticsRecovering, english));
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsEndpoint), "--");
+            EXPECT_EQ(RowValue(rows, ClientText::StatisticsTransportRtt), "--");
+        }
+    }
+}
+
+TEST(ClientStatistics, TerminalReasonsUseTheExistingBilingualFailureCatalog) {
+    for (const bool english : {false, true}) {
+        const auto rows = BuildClientStatisticsRows({.transport = ClientStatisticsTransport::Iroh,
+                                                     .state = ClientStatisticsState::Rejected,
+                                                     .failure = ClientConnectionFailure::ReconnectExpired},
+                                                    english);
+        EXPECT_EQ(RowValue(rows, ClientText::StatisticsState), ClientTextValue(ClientText::ReconnectExpired, english));
+    }
+}
+
 }  // namespace
 }  // namespace px::client::imgui

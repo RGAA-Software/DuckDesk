@@ -315,6 +315,10 @@ export default {
         validation: { device: "Select a device that is not already bound to a node" },
     },
     relays: {
+        bandwidthCapacity: "Available forwarding bandwidth (Mbps)",
+        bandwidthUnconfigured: "Not set",
+        saveFailed: "Relay settings could not be saved. Refresh its status and retry.",
+        bandwidthHelp: "Enter available Relay link bandwidth, or leave blank to use connection capacity. At 90% forwarding load, stop new assignments and retain connected sessions; existing traffic is not rate limited.",
         qadPort: "QAD / UDP port",
         notApplicable: "Not applicable",
         connections: "Connections",
@@ -348,8 +352,10 @@ export default {
         unknown: "Unknown",
         version: "Version code",
         messages: { copied: "Relay token copied" },
-        validation: { identity: "Name and public host are required" },
+        validation: { identity: "Name and public host are required", bandwidth: "Enter an integer from 1 to 100000 Mbps, or leave blank." },
         reasons: {
+            bandwidthUnknown: "Bandwidth load awaiting confirmation",
+            bandwidthBusy: "Insufficient bandwidth headroom",
             desiredDraining: "Draining requested",
             disabled: "Disabled",
             eligible: "Eligible",

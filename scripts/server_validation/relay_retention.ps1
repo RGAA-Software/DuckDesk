@@ -60,6 +60,7 @@ try {
         }
     }
     if (-not (Test-Path -LiteralPath $testEnvironment.PIXELS_TEST_RELAY_RETENTION_RESULT)) { throw 'Integration result missing' }
+    if (-not $Distribution -and -not (Test-Path -LiteralPath (Join-Path $EvidenceDirectory 'bandwidth-result.json'))) { throw 'Bandwidth integration result missing' }
     $identities | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $EvidenceDirectory 'identities.json') -Encoding utf8
     Write-Host "PASS RELAY RETENTION: Console policy, actual Service heartbeat and held QUIC streams/datagrams; evidence $EvidenceDirectory"
 } finally {

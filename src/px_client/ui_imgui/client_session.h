@@ -44,8 +44,7 @@ namespace px::client::imgui {
 
 class ClientAudioOutput;
 
-enum class ClientConnectionState : std::uint8_t { Connecting, Connected, MediaUnavailable, Rejected, Disconnected };
-
+enum class ClientConnectionState : std::uint8_t { Connecting, Connected, MediaUnavailable, Rejected, Disconnected, Recovering };
 
 struct ClientResolution final {
     int width{};
@@ -143,6 +142,7 @@ public:
     bool SendRdpClipboard(px::rdp::ClipboardContent content);
     [[nodiscard]] std::optional<px::rdp::ClipboardContent> TakeRemoteRdpClipboard();
     [[nodiscard]] bool UsesRdp() const noexcept;
+    [[nodiscard]] bool CanConfigureDisplay() const noexcept { return !config_.viewOnly && !config_.fileTransferOnly; }
     bool SendSecureAttention();
     bool SwitchMonitor(const std::string& name);
     bool ChangeResolution(int width, int height);

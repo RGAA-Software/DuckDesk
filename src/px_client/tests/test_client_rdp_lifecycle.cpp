@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <thread>
 
 #include <asio2/websocket/ws_server.hpp>
 #include <chrono>
@@ -81,8 +82,17 @@ TEST(ClientRdpLifecycle, IdleConnectionProducesHeartbeatsAndReleasesEachSession)
             EXPECT_EQ(fixture.observations->streamId, "rdp-lifecycle-workspace");
         }
         const std::weak_ptr<ClientSession> weakSession{fixture.client};
+        std::jthread statisticsReader{[owner = weakSession](const std::stop_token stop) {
+            while (!stop.stop_requested()) {
+                if (const auto session = owner.lock()) static_cast<void>(session->StatisticsSnapshot());
+                std::this_thread::sleep_for(1ms);
+            }
+        }};
         fixture.client->Stop();
         fixture.client->Stop();
+        EXPECT_EQ(fixture.client->StatisticsSnapshot().state, ClientStatisticsState::Ended);
+        statisticsReader.request_stop();
+        statisticsReader.join();
         fixture.client.reset();
         EXPECT_TRUE(weakSession.expired());
     }

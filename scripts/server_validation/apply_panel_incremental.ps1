@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 $bundleDirectory = [IO.Path]::GetFullPath($BundleRoot)
 $plan = Get-Content -LiteralPath (Join-Path $bundleDirectory 'update-plan.json') -Raw | ConvertFrom-Json
 $installedDirectory = [IO.Path]::GetFullPath([string]$plan.installed_root)
-if ($installedDirectory -ine 'C:\Program Files\Pixels Client' -or $null -ne $plan.service_name -or
+if ($installedDirectory -notin @('C:\Program Files\Pixels Client','C:\Program Files\Pixels Cloud Node') -or $null -ne $plan.service_name -or
     $plan.manifest_name -ne 'sha256sums.json' -or @($plan.removals).Count -ne 0) { throw 'Unsupported Panel update scope' }
 function Resolve-ContainedFile([string]$Root,[string]$RelativePath) {
     $resolvedPath = [IO.Path]::GetFullPath((Join-Path $Root $RelativePath))
@@ -27,19 +27,22 @@ $manifestPath = Resolve-ContainedFile $installedDirectory 'sha256sums.json'
 Assert-FileHash $manifestPath ([string]$plan.baseline_manifest_sha256)
 $desiredPath = Resolve-ContainedFile $bundleDirectory 'desired-manifest.json'
 Assert-FileHash $desiredPath ([string]$plan.desired_manifest_sha256)
-if (@($plan.replacements).Count -ne 2) { throw 'Expected only Panel and its product metadata' }
+if (@($plan.replacements).Count -notin @(2,3)) { throw 'Expected Panel, optional Client and product metadata' }
+foreach ($requiredPath in @('px_panel.exe','product-manifest.json')) {
+    if (@($plan.replacements | Where-Object {$_.path -eq $requiredPath}).Count -ne 1) { throw 'Required UI update identity is ambiguous' }
+}
 foreach ($replacement in $plan.replacements) {
-    if ($replacement.path -notin @('px_panel.exe','product-manifest.json')) { throw 'Unexpected changed runtime' }
+    if ($replacement.path -notin @('px_panel.exe','px_client.exe','product-manifest.json')) { throw 'Unexpected changed runtime' }
     Assert-FileHash (Resolve-ContainedFile $installedDirectory $replacement.path) $replacement.before_sha256
     Assert-FileHash (Resolve-ContainedFile $bundleDirectory ('payload\' + $replacement.path)) $replacement.after_sha256
 }
 foreach ($runtime in @($plan.runtime_processes)) {
-    if ($runtime.path -ne 'px_panel.exe') { throw 'Unexpected process shutdown scope' }
+    if ($runtime.path -notin @('px_panel.exe','px_client.exe')) { throw 'Unexpected process shutdown scope' }
     $process = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)
-    if ($process -and ($process.ExecutablePath -ine (Join-Path $installedDirectory 'px_panel.exe') -or
+    if ($process -and ($process.ExecutablePath -ine (Join-Path $installedDirectory $runtime.path) -or
         $process.CreationDate.ToUniversalTime().ToString('o') -ne $runtime.created_utc)) { throw 'Panel PID identity changed' }
 }
-if ($VerifyOnly) { [ordered]@{state='verified';changed_files=2}|ConvertTo-Json -Compress; return }
+if ($VerifyOnly) { [ordered]@{state='verified';changed_files=@($plan.replacements).Count}|ConvertTo-Json -Compress; return }
 $backupDirectory = Join-Path $bundleDirectory ('before-' + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($backupDirectory)
 Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $backupDirectory 'sha256sums.json')
@@ -49,7 +52,7 @@ foreach ($replacement in $plan.replacements) {
 foreach ($runtime in @($plan.runtime_processes)) {
     $process = Get-CimInstance Win32_Process -Filter ('ProcessId=' + [int]$runtime.pid)
     if (-not $process) { continue }
-    if ($process.ExecutablePath -ine (Join-Path $installedDirectory 'px_panel.exe') -or
+    if ($process.ExecutablePath -ine (Join-Path $installedDirectory $runtime.path) -or
         $process.CreationDate.ToUniversalTime().ToString('o') -ne $runtime.created_utc) { throw 'Panel identity changed before publication' }
     $processHandle = [Diagnostics.Process]::GetProcessById([int]$runtime.pid)
     try {

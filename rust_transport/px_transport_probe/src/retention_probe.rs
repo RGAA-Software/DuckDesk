@@ -1,10 +1,10 @@
 //! Small held-connection checks driven by an isolated Console/Service harness.
 use std::time::Duration;
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use bytes::Bytes;
-use px_transport::{send_media, Connection, EndpointConfig, TransportEndpoint};
-use serde_json::{json, Value};
+use px_transport::{Connection, EndpointConfig, TransportEndpoint, send_media};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 const WAIT: Duration = Duration::from_secs(8);
@@ -101,6 +101,44 @@ pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
         let phase = request["phase"]
             .as_str()
             .context("retention phase missing")?;
+        if phase == "bandwidth-load" {
+            let duration_milliseconds = request["duration_ms"].as_u64().unwrap_or(0);
+            ensure!(
+                duration_milliseconds <= 20_000,
+                "bandwidth sample exceeds bounded duration"
+            );
+            let duration = Duration::from_millis(duration_milliseconds);
+            let sent_payload = vec![0x5a_u8; 2 * 1024 * 1024];
+            let mut received_payload = vec![0_u8; sent_payload.len()];
+            tokio::time::timeout(WAIT + duration, async {
+                tokio::try_join!(
+                    async {
+                        let started = tokio::time::Instant::now();
+                        for (chunk_index, chunk) in sent_payload.chunks(32 * 1024).enumerate() {
+                            tokio::time::sleep_until(started + duration * chunk_index as u32 / 64)
+                                .await;
+                            peer_sender.write_all(chunk).await?;
+                        }
+                        Ok::<(), anyhow::Error>(())
+                    },
+                    async {
+                        source_receiver.read_exact(&mut received_payload).await?;
+                        Ok::<(), anyhow::Error>(())
+                    }
+                )?;
+                Ok::<(), anyhow::Error>(())
+            })
+            .await??;
+            ensure!(
+                received_payload == sent_payload,
+                "bandwidth payload mismatch"
+            );
+            println!(
+                "RETENTION_LOAD {}",
+                json!({"reliable_bytes_verified":sent_payload.len(),"duration_ms":duration_milliseconds})
+            );
+            continue;
+        }
         if phase == "new-endpoints" || phase == "allocate-restored" {
             ensure!(
                 new_endpoints.is_empty(),
@@ -188,7 +226,7 @@ pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
             return Ok(());
         }
         ensure!(
-            matches!(phase, "full" | "draining"),
+            matches!(phase, "full" | "draining" | "bandwidth"),
             "unknown retention phase"
         );
         let relays = serde_json::from_value(request["relays"].clone())?;
@@ -212,6 +250,16 @@ pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
             ensure!(payload == expected);
             check_messages(&source_connection, &peer_connection, sequence).await?;
         }
+        if phase == "bandwidth" {
+            println!(
+                "RETENTION_PHASE {}",
+                json!({"phase":phase,"home":home,"same_endpoint_identities":true,
+                    "same_quic_connections":true,"same_reliable_stream":true,
+                    "reliable_round_trips":4,"datagrams_each_direction":4,
+                    "new_endpoint_denied":false,"admission_scope":"console-candidate-filter"})
+            );
+            continue;
+        }
         let rejected = TransportEndpoint::bind(configuration.clone()).await?;
         tokio::time::timeout(WAIT, async {
             loop {
@@ -227,10 +275,12 @@ pub(crate) async fn run(configuration: EndpointConfig) -> Result<()> {
         })
         .await
         .context("new endpoint was not denied")?;
-        ensure!(!rejected
-            .relay_status()
-            .iter()
-            .any(|status| status.is_connected()));
+        ensure!(
+            !rejected
+                .relay_status()
+                .iter()
+                .any(|status| status.is_connected())
+        );
         rejected.close().await;
         println!(
             "RETENTION_PHASE {}",

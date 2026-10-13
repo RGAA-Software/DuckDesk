@@ -1,13 +1,16 @@
 #include <Windows.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <limits>
+#include <thread>
 
 #include "client_controller_position.h"
 #include "client_ui_settings.h"
 #include "px_common/shared_preference.h"
+#include "px_common/win32/unique_win_handle.h"
 
 namespace px::client::imgui {
 namespace {
@@ -96,6 +99,125 @@ protected:
 
 TEST_F(ClientUiSettingsTest, FirstLaunchHasNoStoredPosition) { EXPECT_FALSE(settings_.LoadControllerPosition()); }
 
+TEST_F(ClientUiSettingsTest, PreferencesSurviveDatabaseCloseAndReopenWithoutChangingPosition) {
+    ASSERT_TRUE(settings_.SaveControllerPosition({0.25F, 0.75F}));
+    for (const auto preference : {ClientUiPreference::StatisticsVisible, ClientUiPreference::AudioEnabled, ClientUiPreference::English,
+                                  ClientUiPreference::DarkTheme, ClientUiPreference::Fullscreen}) {
+        EXPECT_FALSE(settings_.LoadPreference(preference));
+        ASSERT_TRUE(settings_.SavePreference(preference, true));
+    }
+    preferences_->Release();
+    ASSERT_TRUE(preferences_->Init(settingsDirectory_, "app.test-connection.dat"));
+    for (const auto preference : {ClientUiPreference::StatisticsVisible, ClientUiPreference::AudioEnabled, ClientUiPreference::English,
+                                  ClientUiPreference::DarkTheme, ClientUiPreference::Fullscreen}) {
+        EXPECT_EQ(settings_.LoadPreference(preference), true);
+        ASSERT_TRUE(settings_.SavePreference(preference, false));
+    }
+    preferences_->Release();
+    ASSERT_TRUE(preferences_->Init(settingsDirectory_, "app.test-connection.dat"));
+    EXPECT_EQ(settings_.LoadPreference(ClientUiPreference::StatisticsVisible), false);
+    ASSERT_TRUE(settings_.LoadControllerPosition());
+    EXPECT_FLOAT_EQ(settings_.LoadControllerPosition()->horizontalRatio, 0.25F);
+}
+
+TEST_F(ClientUiSettingsTest, InvalidBooleanUsesLaunchDefaultAndDoesNotBecomeFalse) {
+    for (const std::string encoded : {"", "invalid", "2", "true", "-1"}) {
+        ASSERT_TRUE(preferences_->Put("show_statistics", encoded));
+        EXPECT_FALSE(settings_.LoadPreference(ClientUiPreference::StatisticsVisible));
+    }
+}
+
+TEST_F(ClientUiSettingsTest, DisplayPreferencesSurviveReopenAndRejectInvalidValues) {
+    ASSERT_TRUE(settings_.SaveFrameRate(90));
+    ASSERT_TRUE(settings_.SaveResolution({1920, 1080}));
+    EXPECT_FALSE(settings_.SaveFrameRate(0));
+    EXPECT_FALSE(settings_.SaveFrameRate(47));
+    EXPECT_FALSE(settings_.SaveResolution({0, 1080}));
+    preferences_->Release();
+    ASSERT_TRUE(preferences_->Init(settingsDirectory_, "app.test-connection.dat"));
+    EXPECT_EQ(settings_.LoadFrameRate(), 90);
+    const auto restored = settings_.LoadResolution();
+    ASSERT_TRUE(restored);
+    EXPECT_EQ(restored->width, 1920);
+    EXPECT_EQ(restored->height, 1080);
+    for (const std::string encoded : {"1920", "1920,", "1920,1080,1", "0,1080", "9000,1080"}) {
+        ASSERT_TRUE(preferences_->Put("display_resolution", encoded));
+        EXPECT_FALSE(settings_.LoadResolution());
+    }
+    for (const std::string encoded : {"", "60fps", "-1", "200", "47"}) {
+        ASSERT_TRUE(preferences_->Put("display_frame_rate", encoded));
+        EXPECT_FALSE(settings_.LoadFrameRate());
+    }
+}
+
+TEST_F(ClientUiSettingsTest, LiveClientsShareTheDatabaseWithoutHoldingItsLevelDbLock) {
+    preferences_->Release();
+    const auto firstClient = ClientUiSettings::Open(settingsDirectory_, "app.test-connection.dat");
+    const auto secondClient = ClientUiSettings::Open(settingsDirectory_, "app.test-connection.dat");
+    ASSERT_TRUE(firstClient.SavePreference(ClientUiPreference::StatisticsVisible, true));
+    EXPECT_EQ(secondClient.LoadPreference(ClientUiPreference::StatisticsVisible), true);
+    ASSERT_TRUE(secondClient.SavePreference(ClientUiPreference::AudioEnabled, false));
+    ASSERT_TRUE(secondClient.SaveControllerPosition({0.75F, 0.5F}));
+    EXPECT_EQ(firstClient.LoadPreference(ClientUiPreference::AudioEnabled), false);
+    EXPECT_EQ(firstClient.LoadPreference(ClientUiPreference::StatisticsVisible), true);
+    ASSERT_TRUE(firstClient.LoadControllerPosition());
+    EXPECT_FLOAT_EQ(firstClient.LoadControllerPosition()->horizontalRatio, 0.75F);
+    EXPECT_EQ(ClientUiSettings::Open(settingsDirectory_, "app.test-connection.dat").LoadPreference(ClientUiPreference::StatisticsVisible), true);
+}
+
+TEST(ClientUiSettingsProcess, ChildWritesSharedTarget) {
+    std::array<wchar_t, 32768> directoryBuffer{};
+    const auto length =
+        GetEnvironmentVariableW(L"PIXELS_TEST_UI_SETTINGS_DIRECTORY", directoryBuffer.data(), static_cast<DWORD>(directoryBuffer.size()));
+    if (length == 0) GTEST_SKIP() << "Only executed by the interprocess settings fixture";
+    ASSERT_LT(length, directoryBuffer.size());
+    const auto settings = ClientUiSettings::Open(std::filesystem::path{std::wstring{directoryBuffer.data(), length}}, "app.shared.dat");
+    for (int writeIndex{}; writeIndex < 20; ++writeIndex) {
+        ASSERT_TRUE(settings.SavePreference(ClientUiPreference::AudioEnabled, false));
+        EXPECT_EQ(settings.LoadPreference(ClientUiPreference::StatisticsVisible), true);
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+}
+
+TEST_F(ClientUiSettingsTest, SeparateProcessesWriteAndReopenTheSameTargetDatabase) {
+    const auto parentSettings = ClientUiSettings::Open(settingsDirectory_, "app.shared.dat");
+    ASSERT_TRUE(parentSettings.SavePreference(ClientUiPreference::StatisticsVisible, true));
+    std::array<wchar_t, 32768> executableBuffer{};
+    const auto length = GetModuleFileNameW(nullptr, executableBuffer.data(), static_cast<DWORD>(executableBuffer.size()));
+    ASSERT_GT(length, 0U);
+    ASSERT_LT(length, executableBuffer.size());
+    std::wstring command =
+        L"\"" + std::wstring{executableBuffer.data(), length} + L"\" --gtest_filter=ClientUiSettingsProcess.ChildWritesSharedTarget";
+    ASSERT_TRUE(SetEnvironmentVariableW(L"PIXELS_TEST_UI_SETTINGS_DIRECTORY", settingsDirectory_.c_str()));
+    STARTUPINFOW startup{.cb = sizeof(STARTUPINFOW)};
+    PROCESS_INFORMATION processInformation{};
+    const bool created =
+        CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &processInformation) != FALSE;
+    px::UniqueWinHandle childProcess{processInformation.hProcess};
+    px::UniqueWinHandle childThread{processInformation.hThread};
+    processInformation = {};
+    static_cast<void>(SetEnvironmentVariableW(L"PIXELS_TEST_UI_SETTINGS_DIRECTORY", nullptr));
+    ASSERT_TRUE(created);
+    for (int writeIndex{}; writeIndex < 20; ++writeIndex) {
+        EXPECT_TRUE(parentSettings.SaveControllerPosition({0.25F, 0.75F}));
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+    const auto completion = WaitForSingleObject(childProcess.get(), 5000);
+    if (completion != WAIT_OBJECT_0) {
+        static_cast<void>(TerminateProcess(childProcess.get(), 1));
+        static_cast<void>(WaitForSingleObject(childProcess.get(), 1000));
+    }
+    ASSERT_EQ(completion, WAIT_OBJECT_0);
+    DWORD exitCode{};
+    ASSERT_TRUE(GetExitCodeProcess(childProcess.get(), &exitCode));
+    ASSERT_EQ(exitCode, 0U);
+    const auto reopened = ClientUiSettings::Open(settingsDirectory_, "app.shared.dat");
+    EXPECT_EQ(reopened.LoadPreference(ClientUiPreference::StatisticsVisible), true);
+    EXPECT_EQ(reopened.LoadPreference(ClientUiPreference::AudioEnabled), false);
+    ASSERT_TRUE(reopened.LoadControllerPosition());
+    EXPECT_FLOAT_EQ(reopened.LoadControllerPosition()->horizontalRatio, 0.25F);
+}
+
 TEST_F(ClientUiSettingsTest, SavedPositionSurvivesNewSettingsInstanceAndOverwrite) {
     ASSERT_TRUE(settings_.SaveControllerPosition({0.25F, 0.75F}));
     preferences_->Release();
@@ -158,6 +280,8 @@ TEST(ClientUiSettings, UnavailablePathIsNonFatal) {
     const ClientUiSettings settings{std::shared_ptr<px::SharedPreference>{}};
     EXPECT_FALSE(settings.LoadControllerPosition());
     EXPECT_FALSE(settings.SaveControllerPosition({0.5F, 0.5F}));
+    EXPECT_FALSE(settings.LoadPreference(ClientUiPreference::StatisticsVisible));
+    EXPECT_FALSE(settings.SavePreference(ClientUiPreference::StatisticsVisible, true));
 }
 
 }  // namespace

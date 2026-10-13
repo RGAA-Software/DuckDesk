@@ -171,6 +171,7 @@ async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots
                 profile.id,
                 profile.revision,
                 RelayNodeConfiguration {
+                    bandwidth_capacity_mbps: None,
                     draining: false,
                     disabled: false,
                 },
@@ -232,6 +233,7 @@ async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots
             registered[1].0.id,
             registered[1].0.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: true,
                 disabled: false,
             },
@@ -250,6 +252,7 @@ async fn ten_iroh_relays_exclude_unavailable_capacity_and_restore_released_slots
             registered[3].0.id,
             registered[3].0.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: false,
                 disabled: true,
             },
@@ -324,6 +327,7 @@ async fn authenticated_reports_are_ordered_bounded_and_fenced_by_connection_gene
             relay_node.id,
             relay_node.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: false,
                 disabled: false,
             },
@@ -473,6 +477,7 @@ async fn disable_is_revision_checked_and_immediately_invalidates_the_active_conn
             relay_node.id,
             relay_node.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: true,
                 disabled: true,
             },
@@ -494,11 +499,140 @@ async fn disable_is_revision_checked_and_immediately_invalidates_the_active_conn
             relay_node.id,
             relay_node.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: false,
                 disabled: false,
             },
         )
         .await
         .is_err());
+    fixture.close().await;
+}
+
+#[tokio::test]
+async fn bandwidth_pressure_stops_new_assignments_and_retains_current_homes() {
+    let fixture = Fixture::new().await;
+    let (relay_node, credential) = fixture.create_relay().await;
+    let epoch = fixture.nodes.begin_runtime().await.unwrap();
+    let configured = fixture
+        .relay_nodes
+        .configure(
+            &fixture.admin,
+            relay_node.id,
+            relay_node.revision,
+            RelayNodeConfiguration {
+                draining: false,
+                disabled: false,
+                bandwidth_capacity_mbps: Some(10),
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(configured.bandwidth_capacity_mbps, Some(10));
+    let connection = fixture
+        .relay_nodes
+        .open_connection(epoch, &credential, &token())
+        .await
+        .unwrap();
+    let mut current_report = report(1, false);
+    current_report.iroh_qad_port = Some(4605);
+    current_report.max_rooms = None;
+    current_report.current_rooms = None;
+    let first = fixture
+        .relay_nodes
+        .report(&connection, &current_report)
+        .await
+        .unwrap();
+    assert_eq!(first.forwarded_rate_bps, None);
+    let candidate_url = format!("https://{}:4602/", relay_node.public_host);
+    assert!(!fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    assert!(fixture
+        .relay_nodes
+        .retained_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    sqlx::query("UPDATE pixels.relay_nodes SET last_seen=clock_timestamp()-interval '2 seconds' WHERE id=$1")
+        .bind(relay_node.id).execute(&fixture.owner).await.unwrap();
+    current_report.sequence = 2;
+    current_report.forwarded_bytes += 4_000_000;
+    let busy = fixture
+        .relay_nodes
+        .report(&connection, &current_report)
+        .await
+        .unwrap();
+    assert!(busy.forwarded_rate_bps.unwrap() >= 9_000_000);
+    assert!(!fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    assert!(fixture
+        .relay_nodes
+        .retained_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    sqlx::query("UPDATE pixels.relay_nodes SET last_seen=clock_timestamp()-interval '2 seconds' WHERE id=$1")
+        .bind(relay_node.id).execute(&fixture.owner).await.unwrap();
+    current_report.sequence = 3;
+    let idle = fixture
+        .relay_nodes
+        .report(&connection, &current_report)
+        .await
+        .unwrap();
+    assert_eq!(idle.forwarded_rate_bps, Some(0));
+    assert!(fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    current_report.sequence = 4;
+    current_report.forwarded_bytes = 0;
+    let reset = fixture
+        .relay_nodes
+        .report(&connection, &current_report)
+        .await
+        .unwrap();
+    assert_eq!(reset.forwarded_rate_bps, None);
+    let restored = fixture
+        .relay_nodes
+        .configure(
+            &fixture.admin,
+            relay_node.id,
+            configured.revision,
+            RelayNodeConfiguration {
+                draining: false,
+                disabled: false,
+                bandwidth_capacity_mbps: None,
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(restored.bandwidth_capacity_mbps, None);
+    assert!(fixture
+        .relay_nodes
+        .available_iroh_relays()
+        .await
+        .unwrap()
+        .iter()
+        .any(|relay| relay.url == candidate_url));
+    fixture
+        .relay_nodes
+        .close_connection(&connection)
+        .await
+        .unwrap();
     fixture.close().await;
 }

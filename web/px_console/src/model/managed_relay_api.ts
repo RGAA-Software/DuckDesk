@@ -22,6 +22,8 @@ export interface ManagedRelay {
     iroh_qad_port: number | null;
     uploaded_bytes: number | null;
     forwarded_bytes: number | null;
+    bandwidth_capacity_mbps: number | null;
+    forwarded_rate_bps: number | null;
     fresh: boolean;
 }
 
@@ -59,13 +61,13 @@ export async function createManagedRelay(
 
 export async function configureManagedRelay(
     relay: ManagedRelay,
-    configuration: { draining: boolean; disabled: boolean },
+    configuration: { draining: boolean; disabled: boolean; bandwidth_capacity_mbps?: number | null },
 ): Promise<ManagedRelay> {
     const response = await axiosHttp.patch<ManagedRelay>(
         `/api/console/managed/relays/${encodeURIComponent(relay.id)}`,
         {
             revision: relay.revision,
-            configuration,
+            configuration: { bandwidth_capacity_mbps: relay.bandwidth_capacity_mbps, ...configuration },
         },
     );
     return response.data;

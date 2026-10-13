@@ -100,6 +100,9 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     void PostMiscTask(std::function<void()>&& task);
 
     std::shared_ptr<ThunderSdkParams> GetSdkParams();
+    [[nodiscard]] std::optional<IrohTransportStatistics> TransportStatistics() const {
+        return net_client_ && !exit_ ? net_client_->TransportStatistics() : std::nullopt;
+    }
     std::shared_ptr<MessageNotifier> GetMessageNotifier();
     int64_t GetQueuingMediaMsgCount();
     int64_t GetQueuingFtMsgCount();

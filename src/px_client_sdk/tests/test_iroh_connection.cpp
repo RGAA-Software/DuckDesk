@@ -215,6 +215,10 @@ TEST(IrohSdkConnection, ReliableDeliveryAndStopFromDatagramCallback) {
         stopped_promise->set_value();
     });
     adapter->Start();
+    const auto liveStatistics = adapter->TransportStatistics();
+    ASSERT_TRUE(liveStatistics);
+    EXPECT_EQ(liveStatistics->path, transport::PathKind::kDirect);
+    EXPECT_FALSE(liveStatistics->selectedAddress.empty());
     adapter->PostReliableBinaryMessage(Data::From("iroh-sdk-control"), [sent_promise](bool delivered) { sent_promise->set_value(delivered); });
     const auto received = (*server_channel)->Receive(5000);
     ASSERT_TRUE(received);
@@ -224,6 +228,7 @@ TEST(IrohSdkConnection, ReliableDeliveryAndStopFromDatagramCallback) {
     ASSERT_TRUE(server_connection->SendDatagram(transport::Bytes{5, 6, 7}));
     ASSERT_EQ(stopped.wait_for(std::chrono::seconds(3)), std::future_status::ready);
     EXPECT_FALSE(adapter->IsAlive());
+    EXPECT_FALSE(adapter->TransportStatistics());
     adapter->Start();
     EXPECT_FALSE(adapter->IsAlive());
     adapter.reset();

@@ -90,7 +90,12 @@ int main() {
     }
     px::client::imgui::ClientPanelReporter panelReporter{*config};
     panelReporter.Start();
-    const bool english = config->language == "en-US";
+    const auto settingsDirectory = px::FolderUtil::GetProgramDataPath(std::string{px::ui::StorageDirectoryName()});
+    const auto databaseDirectory = settingsDirectory.empty() ? std::filesystem::path{} : std::filesystem::path{settingsDirectory} / "px_data";
+    const auto databaseName = px::client::imgui::ClientUiSettings::DatabaseName(PROJECT_PRODUCT, config->consoleOrigin,
+                                                                                px::client::imgui::ClientSettingsTarget(*config), config->rdpAccount);
+    auto uiSettings = px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName);
+    const bool english = uiSettings.LoadPreference(px::client::imgui::ClientUiPreference::English).value_or(config->language == "en-US");
     auto instanceAcquisition = px::client::imgui::ClientInstanceGuard::Acquire(
         config->remoteDeviceId,
         config->fileTransferOnly ? px::client::imgui::ClientInstanceMode::FileTransfer : px::client::imgui::ClientInstanceMode::Desktop);
@@ -143,7 +148,7 @@ int main() {
             px::client::imgui::ClientTextValue(px::client::imgui::ClientText::ClientInstanceUnavailable, english), english ? "OK" : "确定", true));
         return 5;
     }
-    const bool darkTheme{!config->lightTheme};
+    const bool darkTheme{uiSettings.LoadPreference(px::client::imgui::ClientUiPreference::DarkTheme).value_or(!config->lightTheme)};
     static_cast<void>(shell.SetTheme(darkTheme ? px::ui::Theme::Dark : px::ui::Theme::Light));
     auto session = px::client::imgui::ClientSession::Create(*config, shell.VideoResources(config->decoder), shell.VideoFrameReadyCallback());
     if (!session) {
@@ -154,6 +159,8 @@ int main() {
             english ? "OK" : "确定", true));
         return 4;
     }
+    if (!uiSettings.LoadPreference(px::client::imgui::ClientUiPreference::AudioEnabled).value_or(true))
+        static_cast<void>(session->SetAudioEnabled(false));
     session->Start();
     std::optional<px::client::imgui::ClientAudioAcceptance> audioAcceptance{};
     if (config->audioAcceptance) {
@@ -175,15 +182,7 @@ int main() {
             },
             [&window](const px::desktop::DesktopInputEvent& event) { window.HandleInput(event); });
     } else {
-        const auto settingsDirectory = px::FolderUtil::GetProgramDataPath(std::string{px::ui::StorageDirectoryName()});
-        const auto databaseDirectory = settingsDirectory.empty() ? std::filesystem::path{} : std::filesystem::path{settingsDirectory} / "px_data";
-        const auto databaseName =
-            px::client::imgui::ClientUiSettings::DatabaseName(PROJECT_PRODUCT, config->consoleOrigin, config->remoteDeviceId, config->rdpAccount);
-        px::client::imgui::ClientWindow window{std::ref(shell),
-                                               session,
-                                               english,
-                                               darkTheme,
-                                               px::client::imgui::ClientUiSettings::Open(databaseDirectory, databaseName)};
+        px::client::imgui::ClientWindow window{std::ref(shell), session, english, darkTheme, std::move(uiSettings)};
         result = shell.Run(
             [&window, &audioAcceptance, &fileTransferAcceptance, &panelReporter, session] {
                 if (panelReporter.NeedsObservation()) panelReporter.Observe(session->Snapshot());

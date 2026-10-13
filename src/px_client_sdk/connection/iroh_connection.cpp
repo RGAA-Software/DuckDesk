@@ -1,5 +1,7 @@
 #include "iroh_connection.h"
 
+#include <nlohmann/json.hpp>
+
 #include "media_transport/packet_timing.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
@@ -15,6 +17,22 @@ IrohConnection::IrohConnection(const std::shared_ptr<MessageNotifier>& notifier,
     : Connection(notifier), connection_(std::move(connection)), channels_(std::move(channels)) {}
 
 IrohConnection::~IrohConnection() { Stop(); }
+
+std::optional<IrohTransportStatistics> IrohConnection::TransportStatistics() const {
+    if (stop_requested_ || !connection_ || connection_->IsClosed()) return std::nullopt;
+    const auto snapshot = connection_->Snapshot();
+    IrohTransportStatistics result{.path = snapshot.path};
+    if (snapshot.rtt_us != 0) result.roundTripMilliseconds = snapshot.rtt_us / 1000.0;
+    if (const auto selected = connection_->SelectedPath()) {
+        const auto address = nlohmann::json::parse(*selected, nullptr, false);
+        if (address.is_object()) {
+            const auto key = snapshot.path == transport::PathKind::kRelay ? "Relay" : "Ip";
+            if (address.contains(key) && address[key].is_string()) result.selectedAddress = address[key].get<std::string>();
+        }
+    }
+    // A concurrent close must not publish the retired connection as currently selected.
+    return stop_requested_ || connection_->IsClosed() ? std::nullopt : std::optional{std::move(result)};
+}
 
 void IrohConnection::ObserveVideo(const media::VideoFrame& frame) {
     const auto now_us = media::MediaSteadyMicros();

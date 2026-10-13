@@ -4,6 +4,7 @@
 #include "encoded_video_delivery.h"
 #include "px_transport/media_datagrams.h"
 #include "px_transport/message_session.h"
+#include "sdk_transport_statistics.h"
 
 namespace px {
 // Adopts an admitted business connection; dialing/authorization belong to the session workflow.
@@ -20,6 +21,7 @@ public:
     void PostReliableBinaryMessage(std::shared_ptr<Data> payload, std::function<void(bool)> completion) override;
     [[nodiscard]] FileTransferSendResult PostFileTransferMessage(std::shared_ptr<Data> payload) override;
     bool IsAlive() override;
+    [[nodiscard]] std::optional<IrohTransportStatistics> TransportStatistics() const;
     void SetDatagramCallback(std::function<void(transport::Bytes)> callback);
     void SetMediaCallbacks(std::function<void(EncodedVideoDelivery)> video, std::function<void(std::shared_ptr<Message>)> audio);
     void SetVoiceCallback(std::function<void(std::shared_ptr<Message>)> voice);

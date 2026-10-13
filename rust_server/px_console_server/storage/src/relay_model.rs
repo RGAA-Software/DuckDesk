@@ -39,6 +39,7 @@ impl RelayNodeSpec {
 pub struct RelayNodeConfiguration {
     pub draining: bool,
     pub disabled: bool,
+    pub bandwidth_capacity_mbps: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -161,5 +162,7 @@ pub struct RelayNodeProfile {
     pub iroh_qad_port: Option<i32>,
     pub uploaded_bytes: Option<i64>,
     pub forwarded_bytes: Option<i64>,
+    pub bandwidth_capacity_mbps: Option<i32>,
+    pub forwarded_rate_bps: Option<i64>,
     pub fresh: bool,
 }

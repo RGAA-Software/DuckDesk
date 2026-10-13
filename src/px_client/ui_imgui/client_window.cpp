@@ -63,13 +63,20 @@ ClientWindow::ClientWindow(std::reference_wrapper<px::desktop::DesktopShell> she
                            const bool darkTheme, ClientUiSettings settings)
     : shell_{shell},
       session_{std::move(session)},
-      toolbar_{std::make_unique<ClientToolbar>(std::move(settings))},
+      settings_{std::move(settings)},
+      toolbar_{std::make_unique<ClientToolbar>(settings_)},
       english_{english},
       darkTheme_{darkTheme} {
     if (session_->UsesRdp()) rdpClipboard_ = std::make_unique<px::rdp::WindowsClipboard>();
+    if (settings_.LoadPreference(ClientUiPreference::Fullscreen).value_or(false) && !shell_.get().IsFullscreen())
+        static_cast<void>(shell_.get().ToggleFullscreen());
 }
 
 ClientWindow::~ClientWindow() = default;
+
+void ClientWindow::SavePreference(const ClientUiPreference preference, const bool enabled) {
+    toolbar_->SavePreference(preference, enabled, english_);
+}
 
 void ClientWindow::Draw() {
     shell_.get().SetLanguage(english_ ? px::ui::Language::English : px::ui::Language::SimplifiedChinese);
@@ -115,12 +122,19 @@ void ClientWindow::Draw() {
     const auto toolbar_started = std::chrono::steady_clock::now();
     const auto toolbarAction = toolbar_->Draw(session_, shell_.get().Logo(), english_, darkTheme_, shell_.get().IsFullscreen());
     LogSlowVideoUiOperation("toolbar", toolbar_started);
-    if (toolbarAction.toggleLanguage) english_ = !english_;
+    if (toolbarAction.toggleLanguage) {
+        english_ = !english_;
+        SavePreference(ClientUiPreference::English, english_);
+    }
     if (toolbarAction.toggleTheme) {
         darkTheme_ = !darkTheme_;
         static_cast<void>(shell_.get().SetTheme(darkTheme_ ? px::ui::Theme::Dark : px::ui::Theme::Light));
+        SavePreference(ClientUiPreference::DarkTheme, darkTheme_);
     }
-    if (toolbarAction.toggleFullscreen) static_cast<void>(shell_.get().ToggleFullscreen());
+    if (toolbarAction.toggleFullscreen) {
+        static_cast<void>(shell_.get().ToggleFullscreen());
+        SavePreference(ClientUiPreference::Fullscreen, shell_.get().IsFullscreen());
+    }
     if (toolbarAction.requestExit) openExitConfirmation_ = true;
 
     DrawExitConfirmation();
@@ -179,8 +193,10 @@ void ClientWindow::Draw() {
         mediaWarningPopupOpened_ = false;
     }
 
-    if (snapshot.state == ClientConnectionState::Disconnected) {
+    if (snapshot.state == ClientConnectionState::Recovering) {
         px::ui::InlineAlert(text(ClientText::Disconnected), text(ClientText::DisconnectedDetail), px::ui::FeedbackVariant::Warning);
+    } else if (snapshot.state == ClientConnectionState::Disconnected) {
+        px::ui::InlineAlert(text(ClientText::StatisticsEnded), text(ClientText::SessionEnded), px::ui::FeedbackVariant::Warning);
     }
 
     const ImVec2 available{ImGui::GetContentRegionAvail()};

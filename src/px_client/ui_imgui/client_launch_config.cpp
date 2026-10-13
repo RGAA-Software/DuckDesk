@@ -61,6 +61,7 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
                                   .streamName = Value<std::string>(values, "stream_name"),
                                   .localDeviceId = Value<std::string>(values, "device_id"),
                                   .remoteDeviceId = Value<std::string>(values, "remote_device_id"),
+                                  .applicationId = Value<std::string>(values, "application_id"),
                                   .consoleOrigin = Value<std::string>(values, "console_origin"),
                                   .remotePlatform = Value<std::string>(values, "remote_platform"),
                                   .remotePasswordHash = Value<std::string>(values, "remote_password_hash"),
@@ -150,9 +151,9 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
         const bool consoleFrontend = result.frontendToken && !result.frontendToken->Bytes().empty();
         const bool validConsoleFrontend =
             consoleFrontend && !result.frontendSessionId.empty() && result.frontendSessionRevision > 0 && result.streamId == result.frontendSessionId;
-        if (result.host.empty() || result.port <= 0 || result.port > 65535 || result.streamId.empty() || result.localDeviceId.empty() ||
-            result.remoteDeviceId.empty() || result.nonce.empty() || (hasConsoleFrontendFields && !validConsoleFrontend) ||
-            (!hasConsoleFrontendFields && result.remotePasswordHash.empty())) {
+        if ((!result.applicationId.empty() && !px::IsCanonicalUUID(result.applicationId)) || result.host.empty() || result.port <= 0 ||
+            result.port > 65535 || result.streamId.empty() || result.localDeviceId.empty() || result.remoteDeviceId.empty() || result.nonce.empty() ||
+            (hasConsoleFrontendFields && !validConsoleFrontend) || (!hasConsoleFrontendFields && result.remotePasswordHash.empty())) {
             return std::nullopt;
         }
         if (result.rdp && (!IsRdpAccountName(result.rdpAccount) || !IsWindowsDomain(result.rdpDomain) ||
@@ -166,7 +167,7 @@ std::optional<ClientLaunchConfig> ParseClientLaunchEnvelope(const std::string_vi
 }
 
 std::optional<px::IrohDialParameters> BuildClientIrohParameters(const ClientLaunchConfig& config) {
-    if (!config.iroh || (config.forceTcp && !config.forceRelay)) return std::nullopt;
+    if (!UsesClientIrohTransport(config)) return std::nullopt;
     auto endpointConfiguration = nlohmann::json::parse(config.iroh->endpoint_configuration);
     if (config.forceRelay) endpointConfiguration["relay_only"] = true;
     px::IrohDialParameters parameters{.endpoint_address = config.iroh->endpoint_address,
@@ -184,6 +185,14 @@ std::optional<px::IrohDialParameters> BuildClientIrohParameters(const ClientLaun
         parameters.frontend.emplace("safety_pwd_md5", config.remotePasswordHash);
     }
     return parameters;
+}
+
+std::string ClientSettingsTarget(const ClientLaunchConfig& config) {
+    return config.applicationId.empty() ? config.remoteDeviceId : "application." + config.applicationId;
+}
+
+bool UsesClientIrohTransport(const ClientLaunchConfig& config) noexcept {
+    return config.iroh.has_value() && (!config.forceTcp || config.forceRelay);
 }
 
 std::string BuildClientMediaPath(const ClientLaunchConfig& config) {

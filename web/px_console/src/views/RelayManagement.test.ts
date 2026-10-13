@@ -23,6 +23,7 @@ function relayReport(sequence: number): ManagedRelay {
         product_version_code: 100056, max_connections: 100, current_connections: 2,
         max_rooms: null, current_rooms: null, iroh_qad_port: 4605,
         uploaded_bytes: sequence * 6_250_000, forwarded_bytes: sequence * 12_500_000,
+        bandwidth_capacity_mbps: null, forwarded_rate_bps: null,
         fresh: true,
     };
 }
@@ -53,7 +54,7 @@ function mountRelays(language: string): VueWrapper {
 
 function trafficCell(wrapper: VueWrapper): string {
     const columnIndex = wrapper.findAll("thead th")
-        .findIndex(header => /Mbps/.test(header.text()));
+        .findIndex(header => /forwarded Mbps|转发速率/.test(header.text()));
     return wrapper.findAll('tr[data-row-key="beijing-relay"] td')[columnIndex]!.text();
 }
 
@@ -102,5 +103,18 @@ describe("Relay traffic presentation", () => {
         await refresh();
         await flushPromises();
         expect(trafficCell(wrapper)).toBe("Unknown");
+    });
+
+    it.each(["zh", "en"])("shows measured bandwidth headroom and unknown reset state in %s", async language => {
+        const saturated = { ...relayReport(2), bandwidth_capacity_mbps: 20, forwarded_rate_bps: 18_000_000 };
+        vi.mocked(listManagedRelays).mockResolvedValue([saturated]);
+        const wrapper = mountRelays(language);
+        await flushPromises();
+        expect(wrapper.text()).toContain(language === "zh" ? "带宽余量不足" : "Insufficient bandwidth headroom");
+        expect(wrapper.text()).toContain("20 Mbps");
+        vi.mocked(listManagedRelays).mockResolvedValue([{ ...saturated, report_sequence: 3, forwarded_rate_bps: null }]);
+        await vi.mocked(useManagementRefresh).mock.calls[0]![1]();
+        await flushPromises();
+        expect(wrapper.text()).toContain(language === "zh" ? "带宽负载待确认" : "Bandwidth load awaiting confirmation");
     });
 });

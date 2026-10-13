@@ -10,6 +10,13 @@ SET state = 'ready',
     current_rooms = $10,
     uploaded_bytes = $11,
     forwarded_bytes = $12,
+    forwarded_rate_bps = CASE
+        WHEN report_sequence > 0 AND forwarded_bytes IS NOT NULL AND $12 >= forwarded_bytes
+             AND last_seen < clock_timestamp() AND last_seen > clock_timestamp() - interval '30 seconds'
+        THEN LEAST(9223372036854775807::numeric,
+             (($12::numeric - forwarded_bytes) * 8 / EXTRACT(EPOCH FROM clock_timestamp() - last_seen)))::bigint
+        ELSE NULL
+    END,
     iroh_qad_port = $13
 WHERE connection_hash = $1
     AND generation = $2
@@ -20,5 +27,5 @@ WHERE connection_hash = $1
     AND deleted_at IS NULL
 RETURNING id, name, public_host, public_port, revision, generation, control_epoch, state,
 desired_draining, reported_draining, disabled, report_sequence, last_seen, product_version_code,
-max_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes, iroh_qad_port,
+max_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes, bandwidth_capacity_mbps, forwarded_rate_bps, iroh_qad_port,
 true AS "fresh!"

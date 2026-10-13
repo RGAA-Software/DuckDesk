@@ -1,5 +1,18 @@
 # Workspace delivery rules
 
+- Validation host decision (2026-10-13, latest): do not use Company for further tests. Its owned test Client was
+  stopped and this MCP session disconnected. Use the local machine, 90 (428358431), or XRServer03 (947158375).
+  The user explicitly reauthorized updating Console and small validation on 90, overriding earlier 90 exclusions.
+  Keep 90 development files under D:\112233 and XR files under D:\uploadsoft\rd\pixels.
+
+- Client settings / Relay bandwidth follow-up (2026-10-13): real Client process restarts retained statistics,
+  audio, language, theme, fullscreen and 30 FPS preferences. Console schema42, backup plan and web were incrementally
+  updated on 90, with all 35 Server and 315 Cloud Node manifest entries verified. Healthy held Windows Relay media
+  continued while a new source and 90 Client selected BJ after the configured bandwidth threshold was crossed.
+  Reuse docs/validation/iroh_transport/20261013_settings_bandwidth_rollout_report.md; do not repeat these gates.
+  Bandwidth is candidate filtering, not shaping/reservation or fair distribution. Android and paused stutter/NIC
+  investigations remain outside this batch. All six owned instances/resources and temporary receivers were cleaned.
+
 - Windows/Linux transport closeout (2026-10-13): the follow-up RDP/audio/admission changes are consolidated into
   optimized complete candidates. Full Setup overwrite passed for Server then Cloud Node on 90, and Client on
   Company, followed by one-at-a-time GameHook/Relay, WebView/direct, RDP/Relay and desktop/direct output checks.

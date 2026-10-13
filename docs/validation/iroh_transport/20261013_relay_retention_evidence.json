@@ -1,0 +1,29 @@
+{
+  "capacity_released": true,
+  "cleanup_complete": true,
+  "new_endpoint_restored": true,
+  "phases": [
+    {
+      "datagrams_each_direction": 4,
+      "home": "https://127.0.0.1:45558/",
+      "new_endpoint_denied": true,
+      "phase": "full",
+      "reliable_round_trips": 4,
+      "same_endpoint_identities": true,
+      "same_quic_connections": true,
+      "same_reliable_stream": true
+    },
+    {
+      "datagrams_each_direction": 4,
+      "home": "https://127.0.0.1:45558/",
+      "new_endpoint_denied": true,
+      "phase": "draining",
+      "reliable_round_trips": 4,
+      "same_endpoint_identities": true,
+      "same_quic_connections": true,
+      "same_reliable_stream": true
+    }
+  ],
+  "remote_deployment": false,
+  "scope": "isolated-loopback-real-relay-console-service-heartbeat"
+}

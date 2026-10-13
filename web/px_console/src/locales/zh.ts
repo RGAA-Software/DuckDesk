@@ -299,6 +299,10 @@ export default {
         validation: { device: "请选择尚未绑定节点的设备" },
     },
     relays: {
+        bandwidthCapacity: "可用转发带宽（Mbps）",
+        bandwidthUnconfigured: "未设置",
+        saveFailed: "Relay 配置保存失败，请刷新状态后重试。",
+        bandwidthHelp: "按 Relay 实际可用链路填写，留空按连接容量选择。转发达到 90% 时停止新分配，保留已连接会话；不限制现有流量。",
         qadPort: "QAD / UDP 端口",
         notApplicable: "不适用",
         connections: "连接数",
@@ -331,8 +335,10 @@ export default {
         unknown: "未知",
         version: "版本码",
         messages: { copied: "Relay 令牌已复制" },
-        validation: { identity: "名称和公网主机不能为空" },
+        validation: { identity: "名称和公网主机不能为空", bandwidth: "带宽须为 1–100000 Mbps 的整数，或留空。" },
         reasons: {
+            bandwidthUnknown: "带宽负载待确认",
+            bandwidthBusy: "带宽余量不足",
             desiredDraining: "正在排空",
             disabled: "已禁用",
             eligible: "可分配",

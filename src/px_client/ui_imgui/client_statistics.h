@@ -4,12 +4,21 @@
 #include <optional>
 #include <string>
 
+#include "client_connection_failure.h"
+
 namespace px::client::imgui {
 
 enum class ClientStatisticsTransport : std::uint8_t { DirectUdp, DirectWebSocket, RelayWebSocket, Rdp, Iroh, RdpIroh };
+enum class ClientStatisticsPath : std::uint8_t { Unknown, Direct, Relay };
+enum class ClientStatisticsState : std::uint8_t { Connecting, Connected, Recovering, MediaUnavailable, Ended, Rejected };
 
 struct ClientStatisticsSnapshot final {
     ClientStatisticsTransport transport{ClientStatisticsTransport::DirectUdp};
+    ClientStatisticsPath path{ClientStatisticsPath::Unknown};
+    ClientStatisticsState state{ClientStatisticsState::Connecting};
+    ClientConnectionFailure failure{ClientConnectionFailure::None};
+    std::string selectedAddress{};
+    std::optional<double> transportRoundTripMilliseconds{};
     int frameWidth{};
     int frameHeight{};
     int decodedFps{};

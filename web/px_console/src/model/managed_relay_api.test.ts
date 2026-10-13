@@ -37,7 +37,7 @@ function relayProfile(id: string, revision = 1): ManagedRelay {
         current_rooms: null,
         iroh_qad_port: null,
         uploaded_bytes: null,
-        forwarded_bytes: null,
+        forwarded_bytes: null, bandwidth_capacity_mbps: null, forwarded_rate_bps: null,
         fresh: false,
     };
 }
@@ -79,7 +79,22 @@ describe("managed Relay API", () => {
         });
         expect(axiosHttp.patch).toHaveBeenCalledWith(`/api/console/managed/relays/${relay.id}`, {
             revision: 7,
-            configuration: { draining: false, disabled: false },
+            configuration: { bandwidth_capacity_mbps: null, draining: false, disabled: false },
+        });
+    });
+
+    it("preserves bandwidth when toggling maintenance and explicitly clears it when requested", async () => {
+        const relay = { ...relayProfile("00000000-0000-0000-0000-000000000001", 7), bandwidth_capacity_mbps: 20 };
+        vi.mocked(axiosHttp.patch).mockResolvedValue({ data: relay } as never);
+        await configureManagedRelay(relay, { draining: true, disabled: false });
+        expect(axiosHttp.patch).toHaveBeenLastCalledWith(`/api/console/managed/relays/${relay.id}`, {
+            revision: 7,
+            configuration: { bandwidth_capacity_mbps: 20, draining: true, disabled: false },
+        });
+        await configureManagedRelay(relay, { draining: false, disabled: false, bandwidth_capacity_mbps: null });
+        expect(axiosHttp.patch).toHaveBeenLastCalledWith(`/api/console/managed/relays/${relay.id}`, {
+            revision: 7,
+            configuration: { bandwidth_capacity_mbps: null, draining: false, disabled: false },
         });
     });
 });

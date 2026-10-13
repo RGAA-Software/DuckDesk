@@ -65,17 +65,16 @@ void ClientSession::Stop() {
     }
     std::shared_ptr<px::rdp::RdpSession> rdpSession{};
     std::shared_ptr<px::rdp::RdpClientEndpoint> rdpEndpoint{};
+    std::shared_ptr<px::NetClient> rdpNetwork{};
     {
         const std::scoped_lock lock{mutex_};
         rdpSession = std::move(rdpSession_);
         rdpEndpoint = std::move(rdpEndpoint_);
+        rdpNetwork = std::move(rdpNetwork_);
     }
     if (rdpSession) rdpSession->Stop();
     if (rdpEndpoint) rdpEndpoint->Stop();
-    if (rdpNetwork_) {
-        rdpNetwork_->Exit();
-        rdpNetwork_.reset();
-    }
+    if (rdpNetwork) rdpNetwork->Exit();
     std::shared_ptr<px::VoiceCallController> voice{};
     std::shared_ptr<px::ft::FtAsyncSession> fileTransfer{};
     std::shared_ptr<px::RecordingSession> recording{};

@@ -26,6 +26,7 @@ struct NativeLaunchRequest final {
     NativeConnectionKind connectionKind{NativeConnectionKind::IpDirect};
     std::string displayName{};
     std::string remoteDeviceId{};
+    std::string applicationId{};
     px::ui::DevicePlatform remotePlatform{px::ui::DevicePlatform::Unknown};
     std::string instanceId{};
     std::string nonce{};

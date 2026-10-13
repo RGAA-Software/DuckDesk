@@ -1,0 +1,44 @@
+[
+  {
+    "product": "client",
+    "binary": "px_client.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_client.exe",
+    "sha256": "90703A5B796D9D8184952A1CCD198E19726D7E8834A57E102755247E004D42E0"
+  },
+  {
+    "product": "client",
+    "binary": "px_panel.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\client\\dist\\px_panel.exe",
+    "sha256": "A96F421B547F64D931D932F332F49992F04210EAB992B340E404D7A2C329045B"
+  },
+  {
+    "product": "cloud_node",
+    "binary": "px_client.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_client.exe",
+    "sha256": "2C460E5C5757E558F0F4F2F50AA3033EDD794DD3876E62D333FC0BF262C7F152"
+  },
+  {
+    "product": "cloud_node",
+    "binary": "px_panel.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\dist\\px_panel.exe",
+    "sha256": "0745F02583E8D0C324D367B23B6DC56790D7C632CDE047D927B5272B224E311A"
+  },
+  {
+    "product": "remote",
+    "binary": "px_client.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\remote\\cmake\\src\\px_deps\\px_client.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\remote\\dist\\px_client.exe",
+    "sha256": "A72B1F46C7A64143AD13FFF78C108351CA4123F6D2FDFDF097E4E9C7EF28252A"
+  },
+  {
+    "product": "remote",
+    "binary": "px_panel.exe",
+    "source": "D:\\GoCloud\\GammaRayPremium\\build_official\\remote\\cmake\\src\\px_deps\\px_panel.exe",
+    "dist": "D:\\GoCloud\\GammaRayPremium\\build_official\\remote\\dist\\px_panel.exe",
+    "sha256": "5BD8735824048177560DF6EE5B3D1958BEC35C7B7BCE5CA7D94947D8CEF5E43F"
+  }
+]

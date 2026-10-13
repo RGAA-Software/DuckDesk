@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, public_host, public_port, revision, generation, control_epoch, state,\r\ndesired_draining, reported_draining, disabled, report_sequence, last_seen, product_version_code,\r\nmax_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes, iroh_qad_port,\r\n(connection_hash IS NOT NULL AND NOT disabled AND deleted_at IS NULL\r\n    AND control_epoch = (SELECT epoch FROM pixels.control_runtime)\r\n    AND last_seen > clock_timestamp() - interval '30 seconds') AS \"fresh!\"\r\nFROM pixels.relay_nodes\r\nWHERE id = $1 AND deleted_at IS NULL\r\nFOR UPDATE\r\n",
+  "query": "SELECT id, name, public_host, public_port, revision, generation, control_epoch, state,\r\ndesired_draining, reported_draining, disabled, report_sequence, last_seen, product_version_code,\r\nmax_connections, current_connections, max_rooms, current_rooms, uploaded_bytes, forwarded_bytes, bandwidth_capacity_mbps, forwarded_rate_bps, iroh_qad_port,\r\n(connection_hash IS NOT NULL AND NOT disabled AND deleted_at IS NULL\r\n    AND control_epoch = (SELECT epoch FROM pixels.control_runtime)\r\n    AND last_seen > clock_timestamp() - interval '30 seconds') AS \"fresh!\"\r\nFROM pixels.relay_nodes\r\nWHERE deleted_at IS NULL AND ($1::uuid IS NULL OR id > $1)\r\nORDER BY id\r\nLIMIT $2\r\n",
   "describe": {
     "columns": [
       {
@@ -105,18 +105,29 @@
       },
       {
         "ordinal": 20,
-        "name": "iroh_qad_port",
+        "name": "bandwidth_capacity_mbps",
         "type_info": "Int4"
       },
       {
         "ordinal": 21,
+        "name": "forwarded_rate_bps",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 22,
+        "name": "iroh_qad_port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 23,
         "name": "fresh!",
         "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Int8"
       ]
     },
     "nullable": [
@@ -141,8 +152,10 @@
       true,
       true,
       true,
+      true,
+      true,
       null
     ]
   },
-  "hash": "10ce87e3ca007ea52839fdff2d244e29ac6f41622dcc82d53e652123c1cb8c66"
+  "hash": "a1ce593c5a3e659b60ed676237a0ea6f8cfd4626f3c8c19adb5abc39e9b10377"
 }

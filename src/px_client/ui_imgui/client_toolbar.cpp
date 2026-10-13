@@ -70,11 +70,47 @@ px::ui::ToastMessage ScreenshotToast(const ScreenshotResult& result, const bool 
 
 }  // namespace
 
-ClientToolbar::ClientToolbar(ClientUiSettings settings)
-    : settings_{std::move(settings)}, launcherPosition_{settings_.LoadControllerPosition()} {}
+ClientToolbar::ClientToolbar(ClientUiSettings settings) : settings_{std::move(settings)}, launcherPosition_{settings_.LoadControllerPosition()} {
+    showStatistics_ = settings_.LoadPreference(ClientUiPreference::StatisticsVisible).value_or(false);
+    audioEnabled_ = settings_.LoadPreference(ClientUiPreference::AudioEnabled).value_or(true);
+    pendingFrameRate_ = settings_.LoadFrameRate();
+    frameRate_ = pendingFrameRate_.value_or(60);
+    pendingResolution_ = settings_.LoadResolution();
+}
 
 bool ClientToolbar::Bounds::Contains(const float pointX, const float pointY) const noexcept {
     return width > 0.0F && height > 0.0F && pointX >= x && pointY >= y && pointX < x + width && pointY < y + height;
+}
+
+void ClientToolbar::SavePreference(const ClientUiPreference preference, const bool enabled, const bool english) {
+    if (settings_.SavePreference(preference, enabled)) return;
+    LOGW("event=client.settings outcome=save_failed preference={}", static_cast<int>(preference));
+    NotifySettingsSaveFailure(english);
+}
+
+void ClientToolbar::NotifySettingsSaveFailure(const bool english) {
+    captureToasts_.Push({.title = std::string{ClientTextValue(ClientText::SettingsSaveFailed, english)},
+                         .description = std::string{ClientTextValue(ClientText::SettingsSaveFailedDetail, english)},
+                         .variant = px::ui::FeedbackVariant::Error});
+}
+
+void ClientToolbar::ApplyDisplayPreferences(const std::shared_ptr<ClientSession>& session, const ClientSessionSnapshot& snapshot) {
+    if (snapshot.state != ClientConnectionState::Connected || !session->CanConfigureDisplay()) return;
+    if (pendingFrameRate_ && (session->UsesRdp() || session->SetFrameRate(*pendingFrameRate_))) pendingFrameRate_.reset();
+    if (!pendingResolution_ || !snapshot.frame || snapshot.resolutions.empty()) return;
+    const auto supported = std::ranges::find_if(snapshot.resolutions, [resolution = *pendingResolution_](const ClientResolution& candidate) {
+        return candidate.width == resolution.width && candidate.height == resolution.height;
+    });
+    if (supported == snapshot.resolutions.end()) {
+        LOGI("event=client.settings outcome=resolution_unavailable width={} height={}", pendingResolution_->width, pendingResolution_->height);
+        pendingResolution_.reset();
+        return;
+    }
+    if (session->ChangeResolution(pendingResolution_->width, pendingResolution_->height)) {
+        resolutionWidth_ = pendingResolution_->width;
+        resolutionHeight_ = pendingResolution_->height;
+        pendingResolution_.reset();
+    }
 }
 
 bool ClientToolbar::CapturesPointer(const float x, const float y) const noexcept {
@@ -145,6 +181,7 @@ ClientToolbarAction ClientToolbar::Draw(const std::shared_ptr<ClientSession>& se
     ClientToolbarAction action{};
     bool hovered{DrawLauncher(logo)};
     const auto snapshot = session->Snapshot();
+    ApplyDisplayPreferences(session, snapshot);
     if (expanded_) {
         hovered = DrawNavigation(snapshot, logo, english, action) || hovered;
         if (sectionExpanded_) {
@@ -355,11 +392,21 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                 const auto& resolution = snapshot.resolutions[static_cast<std::size_t>(selected)];
                 resolutionWidth_ = resolution.width;
                 resolutionHeight_ = resolution.height;
-                static_cast<void>(session->ChangeResolution(resolution.width, resolution.height));
+                if (session->ChangeResolution(resolution.width, resolution.height) &&
+                    !settings_.SaveResolution({resolution.width, resolution.height})) {
+                    LOGW("event=client.settings outcome=save_failed preference=resolution");
+                    NotifySettingsSaveFailure(english);
+                }
             }
         }
-        px::ui::FieldLabel(text(ClientText::FrameRate));
-        if (px::ui::SelectField({"client-frame-rate"}, frameRate_, kFrameRateOptions)) static_cast<void>(session->SetFrameRate(frameRate_));
+        if (!session->UsesRdp()) {
+            px::ui::FieldLabel(text(ClientText::FrameRate));
+            if (px::ui::SelectField({"client-frame-rate"}, frameRate_, kFrameRateOptions) && session->SetFrameRate(frameRate_) &&
+                !settings_.SaveFrameRate(frameRate_)) {
+                LOGW("event=client.settings outcome=save_failed preference=frame_rate");
+                NotifySettingsSaveFailure(english);
+            }
+        }
         // Read actual window state every frame; a failed transition must not leave the switch in a fictional state.
         bool requestedFullscreen{fullscreen};
         if (px::ui::ToggleSwitch({"client-fullscreen"}, text(ClientText::Fullscreen), requestedFullscreen, false,
@@ -390,8 +437,10 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
         px::ui::SectionTitle(text(ClientText::Control));
         px::ui::HorizontalSeparator();
         if (px::ui::ToggleSwitch({"client-audio"}, text(ClientText::Audio), audioEnabled_, false,
-                                 audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff))
+                                 audioEnabled_ ? px::ui::VectorIcon::Volume : px::ui::VectorIcon::VolumeOff)) {
             static_cast<void>(session->SetAudioEnabled(audioEnabled_));
+            SavePreference(ClientUiPreference::AudioEnabled, audioEnabled_, english);
+        }
         if (px::ui::ActionButton({"client-secure-attention"}, text(ClientText::SecureAttention),
                                  {.variant = px::ui::ButtonVariant::Secondary,
                                   .icon = px::ui::VectorIcon::Shield,
@@ -435,8 +484,8 @@ bool ClientToolbar::DrawSection(const std::shared_ptr<ClientSession>& session, c
                                      .duration = std::chrono::seconds{6}});
             }
         }
-        static_cast<void>(
-            px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_, false, px::ui::VectorIcon::Activity));
+        if (px::ui::ToggleSwitch({"client-statistics"}, text(ClientText::Statistics), showStatistics_, false, px::ui::VectorIcon::Activity))
+            SavePreference(ClientUiPreference::StatisticsVisible, showStatistics_, english);
     } else if (section_ == Section::Voice) {
         px::ui::SectionTitle(text(ClientText::Voice));
         px::ui::HorizontalSeparator();

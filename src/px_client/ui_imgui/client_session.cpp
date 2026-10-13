@@ -279,7 +279,7 @@ bool ClientSession::Initialize() {
     });
     listener_->Listen<px::SdkMsgNetworkDisConnected>([weakSelf](const auto&) {
         if (const auto self = weakSelf.lock(); self && !self->stopped_.load()) {
-            self->SetState(ClientConnectionState::Disconnected, "Connection lost; retrying");
+            self->SetState(ClientConnectionState::Recovering, "Connection lost; retrying");
         }
     });
     listener_->Listen<px::SdkMsgUdpMediaUnavailable>([weakSelf](const auto&) {

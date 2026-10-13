@@ -40,7 +40,9 @@ impl RelayNodeStore {
              AND NOT disabled AND reported_draining IS NOT NULL AND deleted_at IS NULL \
              AND current_connections IS NOT NULL AND max_connections IS NOT NULL \
              AND ($1 OR (NOT desired_draining AND reported_draining=false \
-                 AND current_connections + 2 <= max_connections)) \
+                 AND current_connections + 2 <= max_connections \
+                 AND (bandwidth_capacity_mbps IS NULL OR (forwarded_rate_bps IS NOT NULL \
+                     AND forwarded_rate_bps < bandwidth_capacity_mbps::bigint * 900000)))) \
              ORDER BY current_connections::numeric / max_connections, id LIMIT 32",
         )
         .bind(retain_existing)
@@ -142,12 +144,23 @@ impl RelayNodeStore {
         revision: i64,
         configuration: RelayNodeConfiguration,
     ) -> Result<RelayNodeProfile, StoreError> {
+        let bandwidth_capacity = configuration
+            .bandwidth_capacity_mbps
+            .map(|capacity| {
+                if (1..=100_000).contains(&capacity) {
+                    Ok(capacity as i32)
+                } else {
+                    Err(StoreError::InvalidInput)
+                }
+            })
+            .transpose()?;
         let mut transaction = self.pool.begin().await?;
         control::write_gate(&mut transaction).await?;
         let actor = control::authorize(&mut transaction, admin, true).await?;
         let previous = Self::lock(&mut transaction, relay_node_id, revision).await?;
         if previous.desired_draining == configuration.draining
             && previous.disabled == configuration.disabled
+            && previous.bandwidth_capacity_mbps == bandwidth_capacity
         {
             transaction.commit().await?;
             return Ok(previous);
@@ -157,7 +170,8 @@ impl RelayNodeStore {
             "queries/configure_relay_node.sql",
             relay_node_id,
             configuration.draining,
-            configuration.disabled
+            configuration.disabled,
+            bandwidth_capacity
         )
         .fetch_one(&mut *transaction)
         .await?;

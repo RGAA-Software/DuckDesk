@@ -32,8 +32,11 @@ public:
                                            bool darkTheme, bool fullscreen);
     [[nodiscard]] bool CapturesPointer(float x, float y) const noexcept;
     [[nodiscard]] bool HandlePointerEvent(const px::desktop::DesktopInputEvent& event);
+    void SavePreference(ClientUiPreference preference, bool enabled, bool english);
 
 private:
+    void ApplyDisplayPreferences(const std::shared_ptr<ClientSession>& session, const ClientSessionSnapshot& snapshot);
+    void NotifySettingsSaveFailure(bool english);
     enum class Section : std::uint8_t { Display, Control, Tools, Voice, Settings, Exit };
 
     [[nodiscard]] bool DrawLauncher(const px::desktop::BrandLogo& logo);
@@ -70,6 +73,8 @@ private:
     px::ui::ToastHost captureToasts_{};
     std::optional<std::chrono::steady_clock::time_point> recordingStartedAt_{};
     int frameRate_{60};
+    std::optional<int> pendingFrameRate_{};
+    std::optional<ClientDisplayResolution> pendingResolution_{};
     int resolutionWidth_{};
     int resolutionHeight_{};
     float launcherX_{};

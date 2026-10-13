@@ -1,0 +1,436 @@
+{
+  "scope": "incremental-client-settings-console-schema42-and-two-relay-functional-acceptance",
+  "date": "2026-10-13",
+  "base_git_revision": "3ec1370467bed86e1a96c097bab1f3eeacc83eb7",
+  "worktree_committed": false,
+  "authorized_hosts": [
+    "local",
+    "90",
+    "XRServer03"
+  ],
+  "company_excluded_after_user_steering": true,
+  "distribution": "incremental development after installed complete baseline; no new Setup acceptance",
+  "local_runtime_pairs": [
+    {
+      "product": "client",
+      "runtime": "build_official\\client\\dist\\px_client.exe",
+      "build": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "sha256": "90703a5b796d9d8184952a1ccd198e19726d7e8834a57e102755247e004d42e0",
+      "matching": true
+    },
+    {
+      "product": "client",
+      "runtime": "build_official\\client\\dist\\px_panel.exe",
+      "build": "build_official\\client\\cmake\\src\\px_deps\\px_panel.exe",
+      "sha256": "a96f421b547f64d931d932f332f49992f04210eab992b340e404d7a2c329045b",
+      "matching": true
+    },
+    {
+      "product": "cloud_node",
+      "runtime": "build_official\\cloud_node\\dist\\px_client.exe",
+      "build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "sha256": "2c460e5c5757e558f0f4f2f50aa3033edd794dd3876e62d333fc0bf262c7f152",
+      "matching": true
+    },
+    {
+      "product": "cloud_node",
+      "runtime": "build_official\\cloud_node\\dist\\px_panel.exe",
+      "build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_panel.exe",
+      "sha256": "0745f02583e8d0c324d367b23b6dc56790d7c632cde047d927b5272b224e311a",
+      "matching": true
+    },
+    {
+      "product": "remote",
+      "runtime": "build_official\\remote\\dist\\px_client.exe",
+      "build": "build_official\\remote\\cmake\\src\\px_deps\\px_client.exe",
+      "sha256": "a72b1f46c7a64143ad13fff78c108351ca4123f6d2fdfdf097e4e9c7ef28252a",
+      "matching": true
+    },
+    {
+      "product": "remote",
+      "runtime": "build_official\\remote\\dist\\px_panel.exe",
+      "build": "build_official\\remote\\cmake\\src\\px_deps\\px_panel.exe",
+      "sha256": "5bd8735824048177560df6ee5b3d1958bec35c7b7bce5ca7d94947d8cef5e43f",
+      "matching": true
+    }
+  ],
+  "remote_final_inventory": {
+    "products": [
+      {
+        "product": "console",
+        "verified_files": 35,
+        "manifest_sha256": "CB79DC1C22FBE67EB6A3B615E699685E5088B4B6D03B43ABE8659E46F140CB60",
+        "manifest_expected": "CB79DC1C22FBE67EB6A3B615E699685E5088B4B6D03B43ABE8659E46F140CB60",
+        "runtime_hashes": [
+          {
+            "path": "bin/px_console.exe",
+            "sha256": "B50A9530996525E64D2B6B8F591946B64811144B5121BD4071F2A64FD54A6FC9"
+          },
+          {
+            "path": "bin/px_console_admin.exe",
+            "sha256": "15B1F00DC52BF8EB2E1315ED7E8CE982768596A4472E8B74AABAC9DCAF5C4811"
+          },
+          {
+            "path": "bin/px_db.exe",
+            "sha256": "931EC67705465134B14EC2B75FFC799041D657413E8EC811A118806EA5FE4C29"
+          },
+          {
+            "path": "static/console/assets/index-CSfyqPO1.js",
+            "sha256": "35D9CA8D31761B92DC5D213EEF38929A3876EBF2F84298C11BFA77112126E83C"
+          },
+          {
+            "path": "static/console/index.html",
+            "sha256": "6AC48D9B433DED96757054AB093DFD9B8874362A78F11DFA1006443DEBA7DB77"
+          }
+        ]
+      },
+      {
+        "product": "node",
+        "verified_files": 315,
+        "manifest_sha256": "3787B897A2417474665873335BA6EF218DF49E34B6C5E9B5049950101F313CA2",
+        "manifest_expected": "3787B897A2417474665873335BA6EF218DF49E34B6C5E9B5049950101F313CA2",
+        "runtime_hashes": [
+          {
+            "path": "px_client.exe",
+            "sha256": "2C460E5C5757E558F0F4F2F50AA3033EDD794DD3876E62D333FC0BF262C7F152"
+          },
+          {
+            "path": "px_panel.exe",
+            "sha256": "0745F02583E8D0C324D367B23B6DC56790D7C632CDE047D927B5272B224E311A"
+          },
+          {
+            "path": "product-manifest.json",
+            "sha256": "46C7B49E3DC3A8FE4BC858817F7369ACB2A6640F753C6F7E8F3381238AB60679"
+          }
+        ]
+      }
+    ],
+    "backup_schema": 42,
+    "services": [
+      {
+        "Name": "Pixels.Backup.2f5b1d676dba",
+        "status": "Running"
+      },
+      {
+        "Name": "Pixels.Console",
+        "status": "Running"
+      },
+      {
+        "Name": "Pixels.Relay",
+        "status": "Running"
+      },
+      {
+        "Name": "px_service",
+        "status": "Running"
+      }
+    ],
+    "clients_remaining": [],
+    "panel": [
+      {
+        "Id": 16188,
+        "Path": "C:\\Program Files\\Pixels Cloud Node\\px_panel.exe",
+        "SessionId": 2
+      }
+    ]
+  },
+  "schema_upgrade": {
+    "before": 41,
+    "after": 42,
+    "backup_plan_schema": 42,
+    "snapshot_sha256": "902CE368554001418A6F4590A44C7933BFE4277C40C74196C64ED332512B7553",
+    "backup_config_sha256": "72786F0A918DB0B5561E21BEF5FD5FB92D76EFD0C2BB4300DD130AF5F595EEB6"
+  },
+  "settings_real_restart": {
+    "local_process_ids": [
+      53348,
+      22628,
+      85880
+    ],
+    "stable_application_id": "fd896668-cd07-424b-8e87-fb9fe5404277",
+    "retained": [
+      "statistics",
+      "audio muted",
+      "English",
+      "light theme",
+      "fullscreen",
+      "30 FPS"
+    ],
+    "resolution_change_accepted": false,
+    "resolution_reason": "only 1920x1080 advertised"
+  },
+  "live_bandwidth": {
+    "configured_mbps": 1,
+    "threshold_fraction": 0.9,
+    "paced_reliable_bytes": 6291456,
+    "paced_duration_ms": 30000,
+    "busy": {
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "name": "Single Server Relay",
+      "revision": 35,
+      "fresh": true,
+      "state": "ready",
+      "disabled": false,
+      "desired_draining": false,
+      "reported_draining": false,
+      "bandwidth_capacity_mbps": 1,
+      "forwarded_rate_bps": 1155992,
+      "current_connections": 5,
+      "max_connections": 4096,
+      "last_seen": "2026-10-13T09:27:30.437051Z"
+    },
+    "idle": {
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "name": "Single Server Relay",
+      "revision": 35,
+      "fresh": true,
+      "state": "ready",
+      "disabled": false,
+      "desired_draining": false,
+      "reported_draining": false,
+      "bandwidth_capacity_mbps": 1,
+      "forwarded_rate_bps": 355368,
+      "current_connections": 5,
+      "max_connections": 4096,
+      "last_seen": "2026-10-13T09:28:05.437516Z"
+    },
+    "node_policy_observed_at": "2026-10-13T09:27:44.980969Z",
+    "loads": [
+      {
+        "duration_ms": 10000,
+        "reliable_bytes_verified": 2097152
+      },
+      {
+        "duration_ms": 10000,
+        "reliable_bytes_verified": 2097152
+      },
+      {
+        "duration_ms": 10000,
+        "reliable_bytes_verified": 2097152
+      }
+    ],
+    "held_connection": {
+      "admission_scope": "console-candidate-filter",
+      "datagrams_each_direction": 4,
+      "home": "https://39.71.45.66:4605/",
+      "new_endpoint_denied": false,
+      "phase": "bandwidth",
+      "reliable_round_trips": 4,
+      "same_endpoint_identities": true,
+      "same_quic_connections": true,
+      "same_reliable_stream": true
+    },
+    "new_instance_id": "29439251-17aa-4277-8106-f12308e105fd",
+    "new_resource_id": "e1b59c30-827d-4641-b961-7bc1b6200754",
+    "source_home": "https://49.232.233.61:4605/",
+    "new_client": {
+      "host": "90",
+      "pid": 76044,
+      "native_windows_session": 2,
+      "selected_path_samples": 24,
+      "bj_selected_samples": 24,
+      "selected_first": "[2026-10-13 17:27:59.431][thread 64792][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://49.232.233.61:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+      "selected_last": "[2026-10-13 17:29:54.652][thread 64792][iroh_connection.cpp:65][info] : event=iroh.path_detail selected={\"Relay\":\"https://49.232.233.61:4605/\"} cwnd_bytes=12000 datagram_buffer_space=65536 congestion_events=0 log_overruns=0",
+      "presentation_windows": 24,
+      "presented_frames": 7166,
+      "elapsed_us": 120269306,
+      "observed_fps": 59.583,
+      "first_window": "[2026-10-13 17:27:59.515][thread 76904][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=252 elapsed_us=5016678 fps=50.23 maximum_gap_us=846821 maximum_upload_age_us=140 maximum_render_us=126 log_overruns=0",
+      "last_window": "[2026-10-13 17:29:54.768][thread 76904][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=299 elapsed_us=5006633 fps=59.72 maximum_gap_us=87492 maximum_upload_age_us=444 maximum_render_us=419 log_overruns=0"
+    },
+    "old_local_client": {
+      "pid": 85880,
+      "retained_path": "https://39.71.45.66:4605/",
+      "screenshot_received_total_mib": 10.62,
+      "screenshot_received_fps": 29,
+      "screenshot_decoded_fps": 30
+    },
+    "configuration_restored": true,
+    "probe_cleanup_complete": true,
+    "maximum_throughput_or_scale_acceptance": false,
+    "public_idle_candidate_reallocation_acceptance": false
+  },
+  "cleanup": {
+    "resources": [
+      {
+        "id": "db90e7ed-751c-4572-abb4-cfc173ff8070",
+        "state": "closed"
+      },
+      {
+        "id": "4d1686fd-535a-451d-9d3b-51854b891534",
+        "state": "closed"
+      },
+      {
+        "id": "0b8578d1-3cc9-4e28-976e-a61499e4ad9c",
+        "state": "closed"
+      },
+      {
+        "id": "bf02af92-1cdb-4acc-9d15-a2823abbb963",
+        "state": "closed"
+      },
+      {
+        "id": "13e2a6c1-c695-4288-b61b-965f957dc7e9",
+        "state": "closed"
+      },
+      {
+        "id": "e1b59c30-827d-4641-b961-7bc1b6200754",
+        "state": "closed"
+      }
+    ],
+    "instances": [
+      {
+        "id": "919df6d6-c8b9-441c-a5f3-141add40592b",
+        "state": "stopped"
+      },
+      {
+        "id": "edf19f79-1bdb-484f-89f5-94bbaafc20e6",
+        "state": "stopped"
+      },
+      {
+        "id": "780d6f73-42cc-46e1-bf67-96807fb2e8e1",
+        "state": "stopped"
+      },
+      {
+        "id": "9f06bdc5-0da8-4b84-9017-65221ce1e623",
+        "state": "stopped"
+      },
+      {
+        "id": "29439251-17aa-4277-8106-f12308e105fd",
+        "state": "stopped"
+      },
+      {
+        "id": "2e7dc857-e554-49ab-8898-811e9d895051",
+        "state": "stopped"
+      }
+    ],
+    "instance_summary": [],
+    "original_application_specs_equal": true,
+    "original_deployment_configuration_equal": true,
+    "relays": [
+      {
+        "bandwidth_capacity_mbps": null,
+        "control_epoch": 75,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1924679729,
+        "forwarded_rate_bps": 0,
+        "fresh": true,
+        "generation": 21,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T09:36:00.731042Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 657,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1925796957
+      },
+      {
+        "bandwidth_capacity_mbps": null,
+        "control_epoch": 75,
+        "current_connections": 1,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 178527381,
+        "forwarded_rate_bps": 0,
+        "fresh": true,
+        "generation": 96,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T09:36:00.440936Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 657,
+        "reported_draining": false,
+        "revision": 36,
+        "state": "ready",
+        "uploaded_bytes": 178590889
+      }
+    ],
+    "license": {
+      "license_id": "02b71f36-09f4-48ab-a9cd-0a0d0d45f338",
+      "revision": 1,
+      "expires_at": 1823351187,
+      "max_streams": 80,
+      "services": [
+        "cloud_applications",
+        "desktop",
+        "rdp"
+      ],
+      "starter_license": false
+    },
+    "owned_fixture_disabled": true,
+    "guest_logout_status": 204,
+    "schema": 42
+  },
+  "evidence_images": [
+    {
+      "path": ".cache\\client-settings-rollout-20261013\\ui\\audio-restored-second.png",
+      "bytes": 128528,
+      "sha256": "1ddfee0d3bce1cc0117e218c384536b1adf7f69208a2bc9b262fefe7266f4038"
+    },
+    {
+      "path": ".cache\\client-settings-rollout-20261013\\ui\\restored-display-third.png",
+      "bytes": 153066,
+      "sha256": "cd870177a18cc3efdb4be255e78fb432efa6bff3f78c96023e1cf21702c56b68"
+    },
+    {
+      "path": ".cache\\client-settings-rollout-20261013\\ui\\retained-after-bj-90.png",
+      "bytes": 135618,
+      "sha256": "b1df9f7e73b675c32ec7492e700b219375cb35f1051f5d9834fc7bf98cb3342d"
+    },
+    {
+      "path": ".cache\\client-settings-rollout-20261013\\ui\\node-client-bj.jpg",
+      "bytes": 55297,
+      "sha256": "a747b9a726a170217542d35b0aea73d4903e5024f63ed3c8eecbc95adbf5bc3f"
+    }
+  ],
+  "compressed_node_log": {
+    "path": ".cache\\client-settings-rollout-20261013\\node-client.log.gz",
+    "raw_bytes": 3706732,
+    "compressed_bytes": 257752,
+    "sha256": "dedef25e65a74101382edc832dfd796da84bfd17bce7a30699fc2b1bf2b6245f",
+    "remote_download_hash_matches": true
+  },
+  "company_update_before_exclusion": {
+    "client_sha256": "90703A5B796D9D8184952A1CCD198E19726D7E8834A57E102755247E004D42E0",
+    "panel_sha256": "A96F421B547F64D931D932F332F49992F04210EAB992B340E404D7A2C329045B",
+    "manifest_sha256": "3AA681355D4E0A72FA7D8E4809FB2D0045A590A94C2492B92A8CC25F188270CE",
+    "verified_manifest_entries": 42,
+    "owned_client_stopped": true,
+    "mcp_session_disconnected": true,
+    "actual_relay_selection_not_accepted": true
+  },
+  "validation_limits": [
+    "No new Linux image or Android work",
+    "Strict Clippy existing diagnostics remain",
+    "Friendly Relay name mapping not implemented",
+    "No bandwidth shaping, reservation, equal distribution, capacity or long-duration stability claim",
+    "Paused stutter/NIC/saturated mixed-load investigation not resumed"
+  ],
+  "invalid_harness_samples": [
+    "First sample waited six seconds but node refresh is fifteen seconds",
+    "Second helper rejected existing local Client before preparing remote source",
+    "Third pending source was not launched in time and was stopped",
+    "Company selected path not checked before user exclusion; receiver stopped",
+    "Invalid desktop wait field rejected before input",
+    "90 foreground activation refused; click skipped",
+    "Desktop bbox captured unrelated local windows; contaminated image discarded, own-window capture used",
+    "Screenshot saved on MCP caller disk; attempted remote download confirmed failed, local hash-checked copy retained",
+    "Cleanup license route 404; disabled application blocked guest instance read403; corrected license/guest routes and native READ ONLY query confirmed six stopped instances",
+    "First read-only query used public migrations table; corrected to pixels._sqlx_migrations",
+    "rustfmt edition2021 mismatch; actual workspace edition2024 check passed"
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "base_revision": "3ec1370467bed86e1a96c097bab1f3eeacc83eb7",
+  "distribution": "development",
+  "build_jobs": 18,
+  "schema_version": 42,
+  "console": {
+    "source": "D:\\GoCloud\\GammaRayPremium\\.cache\\console-dev\\release\\px_console.exe",
+    "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\px_console.exe",
+    "sha256": "B50A9530996525E64D2B6B8F591946B64811144B5121BD4071F2A64FD54A6FC9"
+  },
+  "web_artifacts": [
+    {
+      "relative_path": "assets\\index-CkWZd6ct.css",
+      "sha256": "119BFC04AC3382F178A632A4A2B223C21DAC59EFC8A87CF93C9CA0360542E49B",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\assets\\index-CkWZd6ct.css",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\assets\\index-CkWZd6ct.css"
+    },
+    {
+      "relative_path": "assets\\index-CSfyqPO1.js",
+      "sha256": "35D9CA8D31761B92DC5D213EEF38929A3876EBF2F84298C11BFA77112126E83C",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\assets\\index-CSfyqPO1.js",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\assets\\index-CSfyqPO1.js"
+    },
+    {
+      "relative_path": "favicon.ico",
+      "sha256": "EA8A86BDEE6E0E6A6100EDF803D6BEFC120161C5C6401324646315DC914354B3",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\favicon.ico",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\favicon.ico"
+    },
+    {
+      "relative_path": "index.html",
+      "sha256": "6AC48D9B433DED96757054AB093DFD9B8874362A78F11DFA1006443DEBA7DB77",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\index.html",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\index.html"
+    },
+    {
+      "relative_path": "pixels-logo-45.svg",
+      "sha256": "EBD4B5784028F12CF3C71FFA756E42B05805E399A16956D7821BB9A750EB3F3F",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\pixels-logo-45.svg",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\pixels-logo-45.svg"
+    },
+    {
+      "relative_path": "webview-test.html",
+      "sha256": "9D591969BA27B8E1BE0BB92C97851F8F5942865135ED0380F9BAAC7A96E7DC46",
+      "source": "D:\\GoCloud\\GammaRayPremium\\web\\px_console\\dist\\webview-test.html",
+      "published": "D:\\GoCloud\\GammaRayPremium\\output\\px_console\\dev\\static\\webview-test.html"
+    }
+  ],
+  "test_helpers": {
+    "PIXELS_TEST_TRANSPORT_PROBE_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\rust_transport\\target\\release\\px_transport_probe.exe",
+      "sha256": "D6E39C616462CE30215DE2EBBAAE139F13D67AF87773FA6FF23D9D735EE43675"
+    },
+    "PIXELS_TEST_SERVICE_POLICY_BINARY": {
+      "path": "D:\\GoCloud\\GammaRayPremium\\build_official\\cloud_node\\cargo\\target\\release\\deps\\px_service-c1bb3805df7c551b.exe",
+      "sha256": "E9C4F7675AA2289F93FDAB1B97F53E2639544C71C26805B86641394E7B6BBC6F"
+    }
+  },
+  "acceptance": {
+    "sqlx_prepare": "pg-20261013-152635-4d20f86d",
+    "relay_nodes": "pg-20261013-152826-9c6da7ae",
+    "relay_retention": "pg-20261013-155845-18edf7a1",
+    "relay_retention_invalid_initial": "pg-20261013-155631-0046fa06",
+    "web_test_files": 5,
+    "web_test_cases": 24,
+    "strict_clippy": "failed-existing-warnings"
+  },
+  "remote_deployment": false,
+  "linux_new_image": false,
+  "new_installer": false,
+  "committed": false
+}

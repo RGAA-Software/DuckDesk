@@ -203,6 +203,7 @@ private:
         const auto launched = runtime->Launcher()->Launch({.connectionKind = rdp ? NativeConnectionKind::Rdp : NativeConnectionKind::IpDirect,
                                                            .displayName = request.applicationName,
                                                            .remoteDeviceId = connection.device_id,
+                                                           .applicationId = request.applicationId,
                                                            .instanceId = connection.instance_id,
                                                            .nonce = request.requestId,
                                                            .directHost = connection.host,

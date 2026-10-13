@@ -5,15 +5,17 @@
 #ifndef TC_CLIENT_PC_WS_CLIENT_H
 #define TC_CLIENT_PC_WS_CLIENT_H
 
-#include "px_message.pb.h"
-#include "encoded_video_delivery.h"
 #include <atomic>
-#include <mutex>
-#include "sdk_connection_params.h"
 #include <functional>
 #include <memory>
-#include "px_common/file_transfer_send_result.h"
+#include <mutex>
+
 #include "connection/udp_media_state.h"
+#include "encoded_video_delivery.h"
+#include "px_common/file_transfer_send_result.h"
+#include "px_message.pb.h"
+#include "sdk_connection_params.h"
+#include "sdk_transport_statistics.h"
 
 namespace asio2 {
 class ws_client;
@@ -50,6 +52,7 @@ class NetClient : public std::enable_shared_from_this<NetClient> {
 
     void Start();
     void Exit();
+    [[nodiscard]] std::optional<IrohTransportStatistics> TransportStatistics() const;
 
     void PostMediaMessage(std::shared_ptr<Data> payload);
     [[nodiscard]] bool PostReliableControlMessage(

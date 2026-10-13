@@ -484,14 +484,14 @@ try {
             Invoke-Checked 'docker' @('exec',$container,'psql','-X','-v','ON_ERROR_STOP=1','-U','pixels_admin','-d','pixels_desk','-c',
                 "CREATE TABLE pixels.pg_fixture(id uuid PRIMARY KEY,version text NOT NULL,created_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP); ALTER TABLE pixels.pg_fixture OWNER TO pixels_desk_owner; GRANT SELECT,INSERT,UPDATE,DELETE ON pixels.pg_fixture TO pixels_desk_runtime") | Out-Null
         }
-        $suiteCounts = @{unit=20;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=4;deployments=7;instances=19;commands=16;workspaces=7;database=2;sessions=21;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
+        $suiteCounts = @{unit=20;identity=12;control=9;devices=8;applications=8;guests=9;nodes=14;'relay-nodes'=5;deployments=7;instances=19;commands=16;workspaces=7;database=2;sessions=21;transfers=8;recordings=6;preferences=7;files=8;backup=61;'backup-pg'=1;cache=17;activity=11;updates=7;desk=8;catalog=4;'update-authority'=6;lease=6;postgres=15;accounts=9}
         $suiteCounts['console-api'] = 6
         $suiteCounts['directory-api'] = 8
         $suiteCounts['cn-license'] = 1
         $suiteCounts['distribution-isolation'] = 1
         $suiteCounts['node-control'] = 3
         $suiteCounts['relay-control'] = 1
-        $suiteCounts['relay-retention'] = 1
+        $suiteCounts['relay-retention'] = 2
         $suiteCounts['relay-distribution'] = 1
         $suiteCounts['console-process'] = 1
         $suiteCounts['console-admin'] = 4
@@ -554,7 +554,7 @@ try {
         if ($Suite -eq 'relay-distribution') {
             $suiteArgs += @('--','relay_distribution::windows_linux_relays_allocate_new_endpoints_without_disrupting_existing_connections','--exact','--test-threads=1')
         } elseif ($Suite -eq 'relay-retention') {
-            $suiteArgs += @('--','actual_relay_preserves_existing_streams_and_datagrams_when_full_or_draining','--exact','--test-threads=1')
+            $suiteArgs += @('--','actual_relay_','--test-threads=1')
         } else { $suiteArgs += @('--','--test-threads=1') }
         $result = Invoke-Checked 'cargo' $suiteArgs
         Write-Host $result

@@ -189,13 +189,55 @@ async fn relay_profile(
 }
 
 async fn configure_relay(router: &axum::Router, admin: &str, profile: &Value, draining: bool) {
-    let (status, response) = call(router, "PATCH", &format!("/api/console/managed/relays/{}", profile["id"].as_str().unwrap()),
-        "admin_web", Some(admin), json!({"revision":profile["revision"],"configuration":{"draining":draining,"disabled":false}})).await;
+    configure_relay_bandwidth(
+        router,
+        admin,
+        profile,
+        draining,
+        profile["bandwidth_capacity_mbps"].clone(),
+    )
+    .await;
+}
+
+async fn configure_relay_bandwidth(
+    router: &axum::Router,
+    admin: &str,
+    profile: &Value,
+    draining: bool,
+    capacity: Value,
+) {
+    let (status, response) = call(
+        router,
+        "PATCH",
+        &format!(
+            "/api/console/managed/relays/{}",
+            profile["id"].as_str().unwrap()
+        ),
+        "admin_web",
+        Some(admin),
+        json!({"revision":profile["revision"],"configuration":{"draining":draining,"disabled":false,
+            "bandwidth_capacity_mbps":capacity}}),
+    )
+    .await;
     assert_eq!(status.as_u16(), 200, "{response}");
 }
 
 #[tokio::test]
 async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_draining() {
+    run_retention(false).await;
+}
+
+#[tokio::test]
+async fn actual_relay_bandwidth_filters_candidates_without_disrupting_existing_connections() {
+    run_retention(true).await;
+}
+
+async fn run_retention(check_bandwidth: bool) {
+    let fixture_name = if check_bandwidth {
+        "bandwidth"
+    } else {
+        "retention"
+    };
     let runtime = fixture::start_with_iroh().await;
     let router = runtime.router();
     let admin = login(&router, "initial-admin", PASSWORD, "admin_web").await;
@@ -214,7 +256,7 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
         console_managed: true,
         certificate_file: directory.path().join("relay.pem"),
         private_key_file: directory.path().join("relay-key.pem"),
-        max_connections: 2,
+        max_connections: if check_bandwidth { 16 } else { 2 },
     };
     std::fs::write(
         &relay_configuration.certificate_file,
@@ -227,7 +269,7 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
     )
     .unwrap();
     let (status, registration) = call(&router, "POST", "/api/console/managed/relays", "admin_web", Some(&admin),
-        json!({"name":"real-retained-home","public_host":"127.0.0.1","public_port":relay_configuration.https_bind.port()})).await;
+        json!({"name":format!("real-{fixture_name}-home"),"public_host":"127.0.0.1","public_port":relay_configuration.https_bind.port()})).await;
     assert_eq!(status.as_u16(), 201, "{registration}");
     configure_relay(&router, &admin, &registration["relay"], false).await;
     let relay_id = registration["relay"]["id"].as_str().unwrap();
@@ -266,7 +308,7 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
         "/api/console/managed/devices",
         "admin_web",
         Some(&admin),
-        json!({"name":"real-retention-node","platform":"windows"}),
+        json!({"name":format!("real-{fixture_name}-node"),"platform":"windows"}),
     )
     .await;
     assert_eq!(status.as_u16(), 201);
@@ -301,7 +343,12 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
     let mut probe = Probe::start(&configuration_path, &errors_path);
     let description = probe.marker("RETENTION_READY ").await;
     let mut observations = Vec::new();
-    for (phase_index, phase) in ["full", "draining"].into_iter().enumerate() {
+    let phases: &[&str] = if check_bandwidth {
+        &[]
+    } else {
+        &["full", "draining"]
+    };
+    for (phase_index, phase) in phases.iter().enumerate() {
         let full = relay_profile(&router, &admin, relay_id, 2, phase_index > 0).await;
         let mut request = telemetry_report(phase_index as u64 + 2, phase_index as u64 + 1, 100);
         request["report"]["render_iroh_endpoints"] =
@@ -326,6 +373,40 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
         } else {
             configure_relay(&router, &admin, &full, false).await;
         }
+    }
+    if check_bandwidth {
+        let profile = relay_profile(&router, &admin, relay_id, 2, false).await;
+        configure_relay_bandwidth(&router, &admin, &profile, false, json!(1)).await;
+        let load = probe
+            .command(json!({"phase":"bandwidth-load"}), "RETENTION_LOAD ")
+            .await;
+        assert_eq!(load["reliable_bytes_verified"], 2 * 1024 * 1024);
+        let busy = wait_bandwidth(&router, &admin, relay_id, true).await;
+        assert_eq!(busy["max_connections"], 16);
+        assert_eq!(busy["current_connections"], 2);
+        let mut request = telemetry_report(2, 1, 100);
+        request["report"]["render_iroh_endpoints"] =
+            json!([{"port":4601,"instance_id":null,"launch_id":null,"description":description}]);
+        let reported = exchange(&mut socket, request).await;
+        assert_eq!(reported["type"], "reported", "{reported}");
+        assert_eq!(reported["iroh_relays"], json!([]));
+        assert_eq!(reported["iroh_retained_relays"], home);
+        let policy = service_policy(directory.path(), reported, &description).await;
+        assert_eq!(policy["new_endpoint_candidates"], json!([]));
+        assert_eq!(policy["relays"], home);
+        let held = probe
+            .command(
+                json!({"phase":"bandwidth","relays":policy["relays"]}),
+                "RETENTION_PHASE ",
+            )
+            .await;
+        let idle = wait_bandwidth(&router, &admin, relay_id, false).await;
+        let available = exchange(&mut socket, telemetry_report(3, 2, 100)).await;
+        assert_eq!(available["iroh_relays"], home);
+        observations.push(
+            json!({"busy_profile":busy,"held_connection":held,"idle_profile":idle,
+            "new_candidates_restored":true,"load":load}),
+        );
     }
     relay_profile(&router, &admin, relay_id, 2, false).await;
     probe
@@ -362,9 +443,32 @@ async fn actual_relay_preserves_existing_streams_and_datagrams_when_full_or_drai
     let result = json!({"scope":"isolated-loopback-real-relay-console-service-heartbeat","phases":observations,
         "capacity_released":true,"new_endpoint_restored":true,"cleanup_complete":true,"remote_deployment":false});
     if let Some(result_path) = std::env::var_os("PIXELS_TEST_RELAY_RETENTION_RESULT") {
+        let result_path = std::path::PathBuf::from(result_path);
+        let result_path = if check_bandwidth {
+            result_path.with_file_name("bandwidth-result.json")
+        } else {
+            result_path
+        };
         std::fs::write(result_path, serde_json::to_vec_pretty(&result).unwrap()).unwrap();
     }
     println!("RETENTION_RESULT {result}");
+}
+
+async fn wait_bandwidth(router: &axum::Router, admin: &str, relay_id: &str, busy: bool) -> Value {
+    tokio::time::timeout(WAIT, async {
+        loop {
+            let profile = relay_profile(router, admin, relay_id, 2, false).await;
+            if profile["forwarded_rate_bps"]
+                .as_i64()
+                .is_some_and(|rate| (rate >= 900_000) == busy)
+            {
+                return profile;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    })
+    .await
+    .expect("actual Relay bandwidth report did not converge")
 }
 
 async fn exchange<S>(socket: &mut S, request: Value) -> Value

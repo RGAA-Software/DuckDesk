@@ -8,6 +8,11 @@
 #include "sdk_statistics.h"
 
 namespace px {
+std::optional<IrohTransportStatistics> NetClient::TransportStatistics() const {
+    const auto connection = std::dynamic_pointer_cast<IrohConnection>(CurrentMediaConnection());
+    return connection ? connection->TransportStatistics() : std::nullopt;
+}
+
 bool NetClient::PostIrohVoice(const Message& message) {
     const auto connection = std::dynamic_pointer_cast<IrohConnection>(CurrentMediaConnection());
     return connection && connection->IsAlive() && connection->SendVoice(message);

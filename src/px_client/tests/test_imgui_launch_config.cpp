@@ -106,6 +106,35 @@ TEST(ClientImguiLaunchConfigTest, ParsesDirectPasswordLaunch) {
     EXPECT_FALSE(config->forceRelay);
 }
 
+TEST(ClientImguiLaunchConfigTest, ApplicationSettingsSurviveNewInstancesAndNodesWithoutChangingTransportIdentity) {
+    const auto config = ParseClientLaunchEnvelope(R"({"schema":1,"host":"127.0.0.1","port":4613,"stream_id":"session",
+        "device_id":"client","remote_device_id":"first-instance","connection_nonce":"nonce","remote_password_hash":"hash",
+        "application_id":"743f6b5d-410a-404b-aad9-fa17b1e7fae3"})");
+    ASSERT_TRUE(config);
+    auto nextVisit = *config;
+    nextVisit.remoteDeviceId = "second-instance";
+    nextVisit.instanceId = "second-launch";
+    nextVisit.host = "another-node";
+    EXPECT_EQ(ClientSettingsTarget(*config), ClientSettingsTarget(nextVisit));
+    EXPECT_EQ(config->remoteDeviceId, "first-instance");
+    EXPECT_EQ(nextVisit.remoteDeviceId, "second-instance");
+    nextVisit.applicationId = "8d0b029a-a211-4a67-8ad4-25fd65357a08";
+    EXPECT_NE(ClientSettingsTarget(*config), ClientSettingsTarget(nextVisit));
+    nextVisit.applicationId.clear();
+    EXPECT_EQ(ClientSettingsTarget(nextVisit), nextVisit.remoteDeviceId);
+}
+
+TEST(ClientImguiLaunchConfigTest, StatisticsAndDialerChooseTheSameExplicitTransport) {
+    ClientLaunchConfig configuration{};
+    EXPECT_FALSE(UsesClientIrohTransport(configuration));
+    configuration.iroh = px::IrohConnectionDescription{};
+    EXPECT_TRUE(UsesClientIrohTransport(configuration));
+    configuration.forceTcp = true;
+    EXPECT_FALSE(UsesClientIrohTransport(configuration));
+    configuration.forceRelay = true;
+    EXPECT_TRUE(UsesClientIrohTransport(configuration));
+}
+
 TEST(ClientImguiLaunchConfigTest, ExplicitTcpUsesDirectEndpointWithoutRelayConfiguration) {
     const auto config = ParseClientLaunchEnvelope(R"({
         "schema":1,"host":"192.168.31.90","port":4601,"stream_id":"direct-tcp","device_id":"client-uuid",

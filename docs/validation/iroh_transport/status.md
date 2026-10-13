@@ -4,6 +4,29 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 接续安排：2026-10-13，用户要求规划下一阶段
+
+下一阶段顺序为：保存并提交本轮已验收基线 → 新增Console/schema42/Web的Linux交付准备 → 实际Relay友好名称与预算状态展示 → 同应用两Client设置协作核对 → 少量正常使用及交付汇总。当前仅完成规划，没有执行新的提交/push、构建或部署。详见[后续安排](20261013_next_network_development_plan.md)。主线已完成证据复用；本机/90/XR可用、Company禁用，Android和暂停专项保持原范围。Linux候选与实机升级分别记状态，不把BJ Relay机器擅自改成Console。
+
+## 最新接续：2026-10-13，设置真实重启与公网双 Relay 带宽筛选收尾
+
+- 用户明确恢复90更新及少量验证；最新指示排除Company，后续只使用本机/90/XR。Company本批Client已关闭、owned资源停止并断开本MCP会话；其此前完成的增量更新保留。90开发文件仍在D:\112233，XR仍为D:\uploadsoft\rd\pixels。
+- 本机三个独立Client进程、同一application_id的三个新实例真实重启：统计显示、静音、英文、浅色、全屏、30FPS持久化恢复；只提供1920×1080的源未验证分辨率切换，不把此项列为真机通过。六个Client/Panel build-tree与dist SHA再核对一致。
+- 90 Server按授权增量更新Console B50A…、admin15B1…、db931E…与Web index-CSfyqPO1.js，迁移41→42/Backup计划42；迁移前只读dump902CE368…保留。35项Server/315项Node文件及manifest SHA全部通过，Console/Backup/Relay/Service Running，Panel恢复session2；Node只改Client2C460…/Panel0745…与元数据，Service/Render沿用。
+- 公网Windows Relay临时预算1Mbps，可靠负载6MiB/30s，实际1.155992Mbps时停止新候选；等待15s节点上报刷新后，新源及90 Client实际选择BJ（24次selected-path日志），24个呈现窗口/120s出图。原本机连接保持Windows Relay并继续出图；held QUIC身份/可靠流/双向数据报保持，负载回落后预算恢复null，空闲恢复候选实际API证据复用隔离回归。此为两路功能验证，不声称吞吐上限、均匀分配或长稳。
+- 六owned实例stopped/六资源closed、guest注销204、应用/部署禁用，本机/90 owned Client0、临时listener0；双Relay fresh/ready/未排空，Windows默认1/BJ0，原9应用spec与9部署配置相等、授权80/RDP10保持。Client日志3.71MB先gzip至257752bytes再下载，SHA DEDEF25E…一致。
+- PS两修改脚本解析、Rust2024 rustfmt及diff检查通过；严格Clippy原告警沿用前批限制，没有压制或宣称全通过。窗口聚焦拒绝/夹具等待或路由错误均保留，未当网络缺陷或有效测试。完整身份、失败样本与边界见[上线与验收报告](20261013_settings_bandwidth_rollout_report.md)。工作树未提交；本批配套上线与少量真实验收收尾完成。下一可选项是实际Relay友好名称映射/同应用多客户端设置交互，复杂NAT/规模/长稳仍记缺口，不能自动重开暂停调查。
+
+## 历史接续：2026-10-13，设置持久化、实际连接展示和 Relay 带宽筛选开发交付
+
+- 当前新增任务为实际连接展示 → 可用带宽参与 Relay 新端点分配 → 少量真实验收；第0.9节历史核心交付继续复用，Android及短顿/NIC/饱和混传专项不启动。
+- 统计、声音、语言、主题、全屏、Native帧率/分辨率接入既有LevelDB；云应用使用稳定application_id，桌面仍设备/RDP再区分账号。独占文件句柄仅在操作期间持有，独立子进程共同数据库测试通过，保存失败日志和中英文Toast齐全。
+- SDK/Client读取当前selected直连/Relay、地址和RTT；恢复/结束分开，不保留关闭连接的旧路径；RDP不依赖视频回调。当前显示实际URL，友好Relay名称映射尚未实现。
+- 6个Client CTest及Panel产品目标通过；拨号/统计共用实际传输选择判断，明确TCP不误标iroh，最终配置/统计两目标通过。focused Release18jobs三产品Client/Panel同步dist，SHA一致：client90703A5B…/A96F421B…，Node2C460E5C…/0745F025…，RemoteA72B1F46…/5BD87358…。见[客户端报告](20261013_client_settings_report.md)。
+- Console schema42新增可选Relay可用转发带宽及认证报告差分速率；配置后达到90%或负载未知停止新候选，原健康home保留，低负载恢复。网页中英文及保留配置齐全。候选内home仍由iroh探测选择；不声称平均分配、带宽预留/整形或规模压测通过。
+- 隔离PG5用例/SQLx prepare通过；真实产品Relay+Console+Service心跳+held QUIC两用例通过。实际2MiB校验、2/16端点、3.462547Mbps/1Mbps预算时新候选为空但原可靠流/双向数据报保持，2100bps恢复候选；初批重复fixture名409失败已修正并保留。网页5文件24用例通过。Console开发exe B50A9530…/静态资源已发布SHA一致；无新Setup、远端更新或Linux新镜像。见[带宽报告](20261013_relay_bandwidth_report.md)。
+- Rust严格Clippy在既有未改动的backup/resource_sessions/transport/probe代码告警失败，未压制或称全检查通过，详情留在带宽报告。工作树未提交。下一未完成步骤为配套远端上线、客户端真实界面偏好重启验收和可控跨主机候选分流；当前90不可用约束下未启动远端批次。友好Relay名称、真实规模/长期稳定性仍是后续项，暂停短顿和Android保持原范围。
+
 ## 最新接续：2026-10-13，追加改动完整包覆盖与主线收尾完成
 
 - Release/正式优化/显式18jobs汇总候选`transport-final-20261013-9beb4f595`：Server1.0.56、CloudNode3.3.97、Client3.3.81、Remote3.3.79。90按Server→Node、Company再Client，三次Setup exit0/35、314、41项载荷SHA通过。Remote仅生成76项完整候选，未单独安装；发布树与开发dist分离、未升版本或发布更新源。完整身份见本批delivery.json。

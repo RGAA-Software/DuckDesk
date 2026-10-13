@@ -5,6 +5,7 @@
 
 #include "client_session.h"
 #include "px_client_sdk/sdk_statistics.h"
+#include "px_client_sdk/thunder_sdk.h"
 
 namespace px::client::imgui {
 namespace {
@@ -28,8 +29,9 @@ std::optional<float> RecentAverage(const std::vector<float>& samples) {
 
 ClientStatisticsSnapshot ClientSession::StatisticsSnapshot() const {
     const auto session = Snapshot();
-    ClientStatisticsSnapshot result{.transport = config_.iroh ? (config_.rdp ? ClientStatisticsTransport::RdpIroh : ClientStatisticsTransport::Iroh)
-                                                 : config_.rdp          ? ClientStatisticsTransport::Rdp
+    const bool usesIroh = UsesClientIrohTransport(config_);
+    ClientStatisticsSnapshot result{.transport = usesIroh      ? (config_.rdp ? ClientStatisticsTransport::RdpIroh : ClientStatisticsTransport::Iroh)
+                                                 : config_.rdp ? ClientStatisticsTransport::Rdp
                                                  : config_.forceRelay ? ClientStatisticsTransport::RelayWebSocket
                                                  : config_.forceTcp   ? ClientStatisticsTransport::DirectWebSocket
                                                                       : ClientStatisticsTransport::DirectUdp,
@@ -41,13 +43,51 @@ ClientStatisticsSnapshot ClientSession::StatisticsSnapshot() const {
                                     .decodedAudioFrames = session.decodedAudioFrames,
                                     .decodedAudioBytes = session.decodedAudioBytes,
                                     .decoder = session.decoder};
+    result.failure = session.failure;
+    switch (session.state) {
+        case ClientConnectionState::Connecting:
+            result.state = ClientStatisticsState::Connecting;
+            break;
+        case ClientConnectionState::Connected:
+            result.state = ClientStatisticsState::Connected;
+            break;
+        case ClientConnectionState::MediaUnavailable:
+            result.state = ClientStatisticsState::MediaUnavailable;
+            break;
+        case ClientConnectionState::Rejected:
+            result.state = ClientStatisticsState::Rejected;
+            break;
+        case ClientConnectionState::Disconnected:
+            result.state = ClientStatisticsState::Ended;
+            break;
+        case ClientConnectionState::Recovering:
+            result.state = ClientStatisticsState::Recovering;
+            break;
+    }
+    if (stopped_) result.state = ClientStatisticsState::Ended;
+    std::shared_ptr<px::NetClient> rdpNetwork{};
+    std::shared_ptr<px::ThunderSdk> sdk{};
+    {
+        const std::scoped_lock lock{mutex_};
+        rdpNetwork = rdpNetwork_;
+        sdk = sdk_;
+    }
+    const auto transportStatistics =
+        config_.rdp ? (rdpNetwork ? rdpNetwork->TransportStatistics() : std::nullopt) : (sdk ? sdk->TransportStatistics() : std::nullopt);
+    if (transportStatistics) {
+        result.path = transportStatistics->path == transport::PathKind::kDirect  ? ClientStatisticsPath::Direct
+                      : transportStatistics->path == transport::PathKind::kRelay ? ClientStatisticsPath::Relay
+                                                                                 : ClientStatisticsPath::Unknown;
+        result.selectedAddress = transportStatistics->selectedAddress;
+        result.transportRoundTripMilliseconds = transportStatistics->roundTripMilliseconds;
+    }
     std::shared_ptr<px::SdkStatistics> statistics{};
     {
         const std::scoped_lock lock{mutex_};
         statistics = statistics_;
     }
     if (!statistics) return result;
-    if (!config_.rdp && !config_.forceRelay && statistics->media_transport_.load() == px::SdkMediaTransport::kWebSocket) {
+    if (!usesIroh && !config_.rdp && !config_.forceRelay && statistics->media_transport_.load() == px::SdkMediaTransport::kWebSocket) {
         result.transport = ClientStatisticsTransport::DirectWebSocket;
     }
     result.receivedFps = LastSample(MonitorSamples(statistics->GetVideoRecvFps(), session.monitorName));

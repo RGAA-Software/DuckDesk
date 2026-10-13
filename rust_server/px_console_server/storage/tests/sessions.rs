@@ -1019,6 +1019,7 @@ async fn ready_relay(
             created.id,
             created.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: false,
                 disabled: false,
             },
@@ -1129,6 +1130,7 @@ async fn relay_selection_uses_hard_capacity_filters_and_keeps_the_original_bindi
             selected_relay.id,
             selected_relay.revision,
             RelayNodeConfiguration {
+                bandwidth_capacity_mbps: None,
                 draining: true,
                 disabled: false,
             },

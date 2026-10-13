@@ -12,6 +12,7 @@ import {
 } from "@/model/managed_relay_api";
 import { copyText } from "@/util/clipboard";
 import { RelayTrafficTracker, type RelayTrafficRate } from "@/model/relay_traffic";
+import { relayBandwidthState } from "@/model/relay_bandwidth";
 
 const { locale, t } = useI18n();
 const relays = ref<ManagedRelay[]>([]);
@@ -35,6 +36,7 @@ const form = reactive({
     publicPort: 4605,
     draining: true,
     disabled: false,
+    bandwidthCapacityMbps: null as number | null,
 });
 
 async function refresh(): Promise<void> {
@@ -62,6 +64,7 @@ function create(): void {
         publicPort: 4605,
         draining: true,
         disabled: false,
+        bandwidthCapacityMbps: null,
     });
     editorOpen.value = true;
 }
@@ -74,6 +77,7 @@ function edit(relay: ManagedRelay): void {
         publicPort: relay.public_port,
         draining: relay.desired_draining,
         disabled: relay.disabled,
+        bandwidthCapacityMbps: relay.bandwidth_capacity_mbps ?? null,
     });
     editorOpen.value = true;
 }
@@ -83,12 +87,18 @@ async function save(): Promise<void> {
         message.error(t("relays.validation.identity"));
         return;
     }
+    if (form.bandwidthCapacityMbps !== null && form.bandwidthCapacityMbps !== undefined &&
+        (!Number.isSafeInteger(form.bandwidthCapacityMbps) || form.bandwidthCapacityMbps < 1 || form.bandwidthCapacityMbps > 100000)) {
+        message.error(t("relays.validation.bandwidth"));
+        return;
+    }
     saving.value = true;
     try {
         if (editing.value) {
             await configureManagedRelay(editing.value, {
                 draining: form.draining,
                 disabled: form.disabled,
+                bandwidth_capacity_mbps: form.bandwidthCapacityMbps ?? null,
             });
         }
         else {
@@ -98,6 +108,9 @@ async function save(): Promise<void> {
         }
         editorOpen.value = false;
         await refresh();
+    }
+    catch {
+        message.error(t("relays.saveFailed"));
     }
     finally {
         saving.value = false;
@@ -129,6 +142,11 @@ function eligibilityKey(relay: ManagedRelay): string {
         (relay.iroh_qad_port === null && relay.current_rooms !== null && relay.max_rooms !== null && relay.current_rooms + 1 > relay.max_rooms)
     ) {
         return "relays.reasons.full";
+    }
+    if (relay.iroh_qad_port !== null) {
+        const bandwidth = relayBandwidthState(relay);
+        if (bandwidth === "unknown") return "relays.reasons.bandwidthUnknown";
+        if (bandwidth === "busy") return "relays.reasons.bandwidthBusy";
     }
     return "relays.reasons.eligible";
 }
@@ -223,6 +241,12 @@ useManagementRefresh(["relays"], refresh);
                     }}
                 </template>
             </a-table-column>
+            <a-table-column :title="t('relays.bandwidthCapacity')">
+                <template #default="{ record }">
+                    {{ record.bandwidth_capacity_mbps === null || record.bandwidth_capacity_mbps === undefined
+                        ? t('relays.bandwidthUnconfigured') : `${record.bandwidth_capacity_mbps} Mbps` }}
+                </template>
+            </a-table-column>
             <a-table-column :title="t('relays.rooms')">
                 <template #default="{ record }">
                     {{
@@ -300,6 +324,9 @@ useManagementRefresh(["relays"], refresh);
             </a-form-item>
             <a-form-item v-if="editing" :label="t('relays.draining')">
                 <a-switch v-model:checked="form.draining" />
+            </a-form-item>
+            <a-form-item v-if="editing" :label="t('relays.bandwidthCapacity')" :help="t('relays.bandwidthHelp')">
+                <a-input-number v-model:value="form.bandwidthCapacityMbps" :min="1" :max="100000" :precision="0" />
             </a-form-item>
             <a-form-item v-if="editing" :label="t('relays.disabled')">
                 <a-switch v-model:checked="form.disabled" />

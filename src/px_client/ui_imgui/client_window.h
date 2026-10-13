@@ -9,6 +9,7 @@
 
 #include "client_input_mapper.h"
 #include "client_session.h"
+#include "client_ui_settings.h"
 #include "px_desktop_shell/desktop_shell.h"
 #include "rdp/rdp_windows_clipboard.h"
 
@@ -31,9 +32,11 @@ private:
     void ReleasePressedInput();
     void SynchronizeClipboard();
     void DrawExitConfirmation();
+    void SavePreference(ClientUiPreference preference, bool enabled);
 
     std::reference_wrapper<px::desktop::DesktopShell> shell_;
     std::shared_ptr<ClientSession> session_{};
+    ClientUiSettings settings_;
     std::unique_ptr<ClientToolbar> toolbar_{};
     std::unique_ptr<px::rdp::WindowsClipboard> rdpClipboard_{};
     std::optional<px::rdp::ClipboardContent> pendingRemoteClipboard_{};
