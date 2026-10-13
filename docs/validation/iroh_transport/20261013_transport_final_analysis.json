@@ -1,0 +1,167 @@
+{
+  "game502": {
+    "batch": 502,
+    "archive_sha256": "4B223C00C2114BE37E20AC12133DB52F66913DD031B3E401EF1789D05C8821E2",
+    "archive_bytes": 282197,
+    "selected_text_sha256": "0CFBCBACF71CA84BA04D2CB19ECFF41B2FDEC6C8563FAD2AEF8FADC5976FF1C7",
+    "paths": [
+      2
+    ],
+    "accepted": true,
+    "hello_enqueue_failures": 0,
+    "admission_rejections": 0,
+    "reconnects": 0,
+    "reliable_error_lines": [],
+    "audio_open": true,
+    "first_pcm": true,
+    "first_window": {
+      "frames": 298,
+      "elapsed_us": 5017580,
+      "maximum_gap_us": 33135
+    },
+    "presented_frames": 2970,
+    "window_elapsed_us": 50107804,
+    "max_rdp_published": 0,
+    "rdp_display_channel": false,
+    "remaining_clients": [],
+    "client_report": {
+      "instance_id": "8f067007-4f31-4811-a6ec-dc2f92ce3f95",
+      "session_id": "867149a9-df4d-4eaf-8115-b850e6a3e451",
+      "state": "closed",
+      "pid": 21480,
+      "started_at_utc": "2026-10-13T05:19:37.4472409+00:00",
+      "process_created_utc": "2026-10-13T05:19:37.4351976Z",
+      "hold_seconds": 45.0468225,
+      "closed_at_utc": "2026-10-13T05:20:32.6246772+00:00"
+    },
+    "steady_window_fps": 59.258965,
+    "steady_window_elapsed_us": 45090224,
+    "steady_maximum_gap_us": 33879
+  },
+  "web503": {
+    "batch": 503,
+    "archive_sha256": "D1AA58991BB2FAA380B67D5E628FDCD509C5BCA3D4D3C7758DD1B00C455158E9",
+    "archive_bytes": 162667,
+    "selected_text_sha256": "CC8E90D391EA557DC23F5BF884F7F783158A9EB46499310E3C71FFE0F8F83C31",
+    "paths": [
+      1
+    ],
+    "accepted": true,
+    "hello_enqueue_failures": 0,
+    "admission_rejections": 0,
+    "reconnects": 0,
+    "reliable_error_lines": [],
+    "audio_open": true,
+    "first_pcm": true,
+    "first_window": {
+      "frames": 270,
+      "elapsed_us": 5001105,
+      "maximum_gap_us": 534088
+    },
+    "presented_frames": 2670,
+    "window_elapsed_us": 45068981,
+    "max_rdp_published": 0,
+    "rdp_display_channel": false,
+    "remaining_clients": [],
+    "client_report": {
+      "pid": 37952,
+      "instance_id": "647abb41-d650-48fa-b9dc-38702e7189f4",
+      "session_id": "60d44f08-5216-4e25-bda8-2230e28e9f09",
+      "state": "closed",
+      "started_at_utc": "2026-10-13T05:25:41.6434133+00:00",
+      "process_created_utc": "2026-10-13T05:25:41.6336407Z",
+      "closed_at_utc": "2026-10-13T05:26:29.0751029+00:00"
+    },
+    "steady_window_fps": 59.898358,
+    "steady_window_elapsed_us": 40067876,
+    "steady_maximum_gap_us": 54630
+  },
+  "rdp504": {
+    "batch": 504,
+    "archive_sha256": "26EB80261D67B04E3FB1D0C4BF6276F3E9784F1B428A87B1CEDB53827C24B8C1",
+    "archive_bytes": 1557,
+    "selected_text_sha256": "6A7BA762C98F9BF241C1EC1EFC2EDB4DDC4B2F66F68D0360F9D213FFC3E9F198",
+    "paths": [
+      2
+    ],
+    "accepted": true,
+    "hello_enqueue_failures": 0,
+    "admission_rejections": 0,
+    "reconnects": 0,
+    "reliable_error_lines": [],
+    "audio_open": false,
+    "first_pcm": false,
+    "first_window": {
+      "frames": 23,
+      "elapsed_us": 6220896,
+      "maximum_gap_us": 4893591
+    },
+    "presented_frames": 23,
+    "window_elapsed_us": 6220896,
+    "max_rdp_published": 53,
+    "rdp_display_channel": true,
+    "remaining_clients": [],
+    "client_report": {
+      "pid": 48932,
+      "instance_id": "161202d4-0195-40e3-b418-2834b8cff2a2",
+      "session_id": "5c743252-0415-402b-b578-5d924bd3ab95",
+      "account_name": "pxrdp_2c3153bd5fff41",
+      "state": "closed",
+      "started_at_utc": "2026-10-13T05:30:53.4018743+00:00",
+      "process_created_utc": "2026-10-13T05:30:53.3888107Z",
+      "closed_at_utc": "2026-10-13T05:31:33.8600612+00:00"
+    }
+  },
+  "desktop505": {
+    "batch": 505,
+    "archive_sha256": "C193952710975C8BAA4B1BA1FA4EDBB7EE51289D87D17511A9B11D5523CF87A5",
+    "archive_bytes": 29748,
+    "selected_text_sha256": "7BD8C3962900B65D9E512394A5BC0ADD0DB795DF42B78F450D8DB250A4E78863",
+    "paths": [
+      1
+    ],
+    "accepted": true,
+    "hello_enqueue_failures": 0,
+    "admission_rejections": 0,
+    "reconnects": 0,
+    "reliable_error_lines": [],
+    "audio_open": false,
+    "first_pcm": false,
+    "first_window": {
+      "frames": 45,
+      "elapsed_us": 5804206,
+      "maximum_gap_us": 2058572
+    },
+    "presented_frames": 203,
+    "window_elapsed_us": 26321383,
+    "max_rdp_published": 0,
+    "rdp_display_channel": false,
+    "remaining_clients": [],
+    "client_report": {
+      "instance_id": null,
+      "session_id": "b0197763-b0b1-4f7f-85b8-6fb7469a3684",
+      "state": "closed",
+      "pid": 52352,
+      "started_at_utc": "2026-10-13T05:34:08.5072546+00:00",
+      "process_created_utc": "2026-10-13T05:34:08.4986618Z",
+      "hold_seconds": 30.370867599999997,
+      "closed_at_utc": "2026-10-13T05:34:49.0241708+00:00"
+    },
+    "steady_window_fps": 7.700865,
+    "steady_window_elapsed_us": 20517177,
+    "steady_maximum_gap_us": 5234554
+  },
+  "source_archive": {
+    "archive_sha256": "BB7A60B1B13BE920A571F0BF6927DD85F4003BC6FB570BC9122FE5BADD12C856",
+    "archive_bytes": 606123,
+    "written_lines": 17986,
+    "remaining_page_listener": []
+  },
+  "configuration": {
+    "all_application_specs_unchanged": true,
+    "all_deployment_configuration_unchanged": true,
+    "active_instances": [],
+    "license_id": "02b71f36-09f4-48ab-a9cd-0a0d0d45f338",
+    "licensed_streams": 80
+  }
+}

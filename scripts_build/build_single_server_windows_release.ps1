@@ -3,7 +3,8 @@
 param(
     [Parameter(Mandatory)] [string]$PostgreSqlClientRoot,
     [Parameter(Mandatory)] [string]$OutputDirectory,
-    [Parameter(Mandatory)] [string]$SuiteVersion
+    [Parameter(Mandatory)] [string]$SuiteVersion,
+    [ValidateRange(1, 256)] [int]$Jobs = 18
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +23,7 @@ $env:CARGO_PROFILE_RELEASE_INCREMENTAL = 'false'
 if ($LASTEXITCODE -ne 0) { throw 'Console Web dependency installation failed.' }
 & npm.cmd --prefix (Join-Path $repositoryRoot 'web/px_console') run build
 if ($LASTEXITCODE -ne 0) { throw 'Console Web build failed.' }
-& cargo.exe build --locked --release --manifest-path (Join-Path $repositoryRoot 'rust_server/Cargo.toml') `
+& cargo.exe build --locked --release --jobs $Jobs --manifest-path (Join-Path $repositoryRoot 'rust_server/Cargo.toml') `
     -p px_console_runtime --bin px_console --bin px_console_admin `
     -p px_pg --bin px_db -p px_relay_server --bin px_relay -p px_backup --bin px_backup `
     -p px_server_tray --bin px_server_tray `

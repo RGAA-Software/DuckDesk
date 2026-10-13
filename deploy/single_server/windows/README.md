@@ -1,5 +1,9 @@
 # Pixels Official Single Server · Windows
 
+2026-10-13网络主线汇总候选已按Server→Cloud Node→Client完成实际Setup覆盖，数据库schema41保持，现有授权与私有配置保留。
+完整候选/运行SHA及实际直连、Relay、RDP消费者证据见[本批收尾](../../../docs/validation/iroh_transport/20261013_transport_final_report.md)。
+正式优化构建可用`build_single_server_windows_release.ps1 -Jobs 18`；开发快速候选继续使用下方独立入口。
+
 Official 是安装包发行身份，不是固定服务器地址。官方自用与私有部署使用同一包；服务器访问地址、数据库和证书在首次初始化时配置，访问地址可以是局域网 IP 或内网域名，不要求公网 IP。
 
 运行版本化 `PixelsServer_<version>_Setup.exe`；安装器使用固定默认安装、配置和数据目录，不要求逐项填写。Windows 会显示“未知发布者”；本产品按决定不做 Authenticode 签名。Setup 内含 Console、Relay、Backup、Console Web、PostgreSQL 18 **客户端**工具以及初始化程序，不含 PostgreSQL 服务、Auth、Desk 或许可证私钥。

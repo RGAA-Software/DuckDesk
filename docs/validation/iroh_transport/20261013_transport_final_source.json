@@ -1,0 +1,42 @@
+{
+  "archive_path": "D:\\112233\\transport-final-20261013-source\\source.log.gz",
+  "archive_sha256": "BB7A60B1B13BE920A571F0BF6927DD85F4003BC6FB570BC9122FE5BADD12C856",
+  "archive_bytes": 606123,
+  "written_lines": 17986,
+  "remaining_page_listener": [],
+  "node_processes": [
+    {
+      "ProcessId": 54300,
+      "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_service.exe"
+    },
+    {
+      "ProcessId": 35724,
+      "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    },
+    {
+      "ProcessId": 75152,
+      "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_panel.exe"
+    }
+  ],
+  "windows_sessions": [
+    " SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE ",
+    ">services                                    0  Disc                        ",
+    " console           Administrator             2  Active                      ",
+    "                   pxrdp_2c3153bd5fff41      3  Disc                        ",
+    "                   pxrdp_b0f36cef23c348      4  Disc                        ",
+    "                   pxrdp_705dbd09276447      5  Disc                        ",
+    "                   pxrdp_3bf8b1c584864c      6  Disc                        ",
+    "                   pxrdp_dfb3fa187c384e      7  Disc                        ",
+    "                   pxrdp_a1def23ad7af4b      8  Disc                        ",
+    "                   pxrdp_b42f5c027f424d      9  Disc                        ",
+    "                   pxrdp_36a5bae934654d     10  Disc                        ",
+    "                   pxrdp_6ce0e0bf5efc41     11  Disc                        ",
+    "                   pxrdp_e993834d943549     12  Disc                        ",
+    "                   pxrdp_cbe0d56affed42     13  Disc                        ",
+    "                   pxrdp_77533ce822bd40     14  Disc                        ",
+    "                   pxrdp_cba09bbd94cd4e     15  Disc                        ",
+    "                   pxrdp_f854966f911541     16  Disc                        ",
+    "                   pxrdp_d04c0bb8790c40     17  Disc                        ",
+    " rdp-tcp                                 65536  Listen                      "
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "configuration_hashes": [
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\console.env",
+      "sha256": "872CAC22E6D6B4849D7A314BC7F2311D349D3B7960E75CCD57E530F007B26C8D"
+    },
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\relay.env",
+      "sha256": "3DCBB74703D4843427E7C92ADDBC2CB8FFE1E60B98ABB05B7420AAEB172BDBB1"
+    },
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\iroh-relay.json",
+      "sha256": "415C64CB9FDC508068DBE6F43035D8F3FB6B57B2BAE9EBBCFFD33BD2AD283EA8"
+    },
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\workspace.key",
+      "sha256": "FA81C9C43C4B9861B244E32D9CFB0793FABBA869FDED38FB15BA4BFAD01CCC9B"
+    },
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\console\\license\\console.license",
+      "sha256": "90882AA859F0BC84AA5358548674D01770E5E5F3D36BEE1BEDE2E52D9D61457E"
+    },
+    {
+      "path": "C:\\ProgramData\\Pixels\\Server\\config\\database-upgrade\\console-owner.url",
+      "sha256": "AE585D3D77B6F56B1C402397B408AC9E7516EF7965709426D35819C2C17F983A"
+    }
+  ],
+  "node_generation_processes": [
+    {
+      "ProcessId": 54300,
+      "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_service.exe"
+    },
+    {
+      "ProcessId": 35724,
+      "ExecutablePath": "C:\\Program Files\\Pixels Cloud Node\\px_render.exe"
+    }
+  ],
+  "server_ready_services": [
+    {
+      "Name": "Pixels.Backup.2f5b1d676dba",
+      "Status": 4
+    },
+    {
+      "Name": "Pixels.Console",
+      "Status": 4
+    },
+    {
+      "Name": "Pixels.Relay",
+      "Status": 4
+    }
+  ]
+}

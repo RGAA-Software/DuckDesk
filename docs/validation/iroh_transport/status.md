@@ -4,6 +4,15 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，追加改动完整包覆盖与主线收尾完成
+
+- Release/正式优化/显式18jobs汇总候选`transport-final-20261013-9beb4f595`：Server1.0.56、CloudNode3.3.97、Client3.3.81、Remote3.3.79。90按Server→Node、Company再Client，三次Setup exit0/35、314、41项载荷SHA通过。Remote仅生成76项完整候选，未单独安装；发布树与开发dist分离、未升版本或发布更新源。完整身份见本批delivery.json。
+- 90Console10119C3F…/Relay2583B875…/Service4CE0F74B…/RenderFEE6ED1F…/ClientEBFD48B7…，Company Client4CF79FFA…。schema41→41，授权90882A…/80路及Server私有环境/密钥哈希保持；节点TOML更新为包内默认38363D…，端口/范围、持久绑定和管理员session2保留，RDP10/Windows会话3–17保留。BJ和XR运行载荷不更新，复用既有安装/恢复证据。
+- Company每次1路，Game502实际Relay59.259FPS/45.09s正常窗口/最大33.879ms，Web503实际UDP直连59.898FPS/40.07s/最大54.630ms；两者音频打开/PCM确认，Web真实点击启动声音。Web启动534ms单列。RDP504可靠Relay、published53/display_channel，原用户/session3复用；Desktop505直连统计窗口203帧、静态更新稀疏，不称60FPS或运动流畅。四路无hello失败/接入拒绝/重连/可靠发送错误，FreeRDP初始化警告如实保留。
+- 正式Client树3CTest/30用例、4PS脚本解析与修改检查通过。501脚本空字段、初次PSObject序列化大对象、前端注销后管理403均记录并修正，不当通过样本。源/客户端5份gzip下载SHA一致。
+- 最终4实例stopped/5资源closed/guest及user注销/2测试应用及部署禁用/临时授权恢复/信封删除/Company Client0，页面cancelled/listener0，90仅默认Render。原9应用spec及9部署配置相等；节点90gen470/XR26/epoch74、双Relayfresh/ready/未排空，Windows默认1/BJ0。
+- 第0.9节Windows/Linux主线及本次追加交付收尾完成，不自动扩成附属验收。基本双NAT已通过；复杂NAT/CGNAT、更多UDP受限环境、规模上限、长稳继续记缺口，短顿保持阶段性暂缓、NIC/饱和混传和Android不启动。见[完整包与主线汇总](20261013_transport_final_report.md)。
+
 ## 最新接续：2026-10-13，Game407接入失败已定位，Client无效hello重试已修复
 
 - 90数据库/Render同端时间线确认407连接信息11:07:29生成、待接入资源11:08:00关闭、接入11:08:01才到达，返回ADMISSION_REJECTED。夹具延迟超过现有待接入期限，不是UDP丢包证据；本机/90旧时钟相差约8.7s不直接相减。408信息生成后1.362s已connected，原媒体/声音证据继续有效。

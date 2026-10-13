@@ -1,0 +1,41 @@
+{
+  "client_report": {
+    "pid": 48932,
+    "instance_id": "161202d4-0195-40e3-b418-2834b8cff2a2",
+    "session_id": "5c743252-0415-402b-b578-5d924bd3ab95",
+    "account_name": "pxrdp_2c3153bd5fff41",
+    "state": "closed",
+    "started_at_utc": "2026-10-13T05:30:53.4018743+00:00",
+    "process_created_utc": "2026-10-13T05:30:53.3888107Z",
+    "closed_at_utc": "2026-10-13T05:31:33.8600612+00:00"
+  },
+  "archive_path": "D:\\112233\\transport-final-20261013-rdp504\\client.log.gz",
+  "archive_sha256": "26EB80261D67B04E3FB1D0C4BF6276F3E9784F1B428A87B1CEDB53827C24B8C1",
+  "archive_bytes": 1557,
+  "written_lines": 48,
+  "evidence_lines": [
+    "[2026-10-13 13:30:53.940][thread 40792][iroh_dialer.cpp:158][info] : event=iroh.connect outcome=accepted reconnect=false",
+    "[2026-10-13 13:30:53.968][thread 46872][message_session.cpp:257][info] : event=iroh.reliable_send kind=5 local_accepted_bytes=106 queued_bytes=106 max_queue_us=11 max_write_us=16 slow_writes=0 path=2 rtt_us=1861 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:30:53.993][thread 35936][rdp_session.cpp:524][info] : event=rdp.frame.progress published=0 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-13 13:30:54.580][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=104 queued_bytes=104 max_queue_us=14 max_write_us=19 slow_writes=0 path=2 rtt_us=1265 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:30:55.653][thread 43708][video_presentation_progress.cpp:11][info] : event=video.present phase=gap backend=d3d11 generation=7 gap_us=764795 upload_age_us=796",
+    "[2026-10-13 13:30:59.597][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=48 max_write_us=92 slow_writes=0 path=2 rtt_us=1428 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:00.942][thread 46872][message_session.cpp:257][info] : event=iroh.reliable_send kind=5 local_accepted_bytes=15410 queued_bytes=115 max_queue_us=56 max_write_us=91 slow_writes=0 path=2 rtt_us=1275 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:00.964][thread 43708][video_presentation_progress.cpp:11][info] : event=video.present phase=gap backend=d3d11 generation=23 gap_us=4893591 upload_age_us=1825",
+    "[2026-10-13 13:31:00.964][thread 43708][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=23 elapsed_us=6220896 fps=3.70 maximum_gap_us=4893591 maximum_upload_age_us=2303 maximum_render_us=997 log_overruns=0",
+    "[2026-10-13 13:31:04.020][thread 35936][rdp_session.cpp:524][info] : event=rdp.frame.progress published=31 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-13 13:31:04.499][thread 43708][video_presentation_progress.cpp:11][info] : event=video.present phase=gap backend=d3d11 generation=25 gap_us=3448945 upload_age_us=540",
+    "[2026-10-13 13:31:04.648][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=23 max_write_us=40 slow_writes=0 path=2 rtt_us=1275 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:05.143][thread 43708][video_presentation_progress.cpp:11][info] : event=video.present phase=gap backend=d3d11 generation=34 gap_us=367163 upload_age_us=1044",
+    "[2026-10-13 13:31:05.572][thread 43708][video_presentation_progress.cpp:11][info] : event=video.present phase=gap backend=d3d11 generation=37 gap_us=338108 upload_age_us=763",
+    "[2026-10-13 13:31:09.689][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=27 max_write_us=26 slow_writes=0 path=2 rtt_us=1506 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:14.087][thread 35936][rdp_session.cpp:524][info] : event=rdp.frame.progress published=53 in_flight=0 dirty=false display_channel=false",
+    "[2026-10-13 13:31:14.728][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=60 max_write_us=64 slow_writes=0 path=2 rtt_us=2102 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:15.096][thread 46872][message_session.cpp:257][info] : event=iroh.reliable_send kind=5 local_accepted_bytes=3433 queued_bytes=99 max_queue_us=42 max_write_us=44 slow_writes=0 path=2 rtt_us=2243 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:19.763][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=35 max_write_us=69 slow_writes=0 path=2 rtt_us=2316 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:24.089][thread 35936][rdp_session.cpp:524][info] : event=rdp.frame.progress published=53 in_flight=0 dirty=false display_channel=true",
+    "[2026-10-13 13:31:24.809][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=34 max_write_us=41 slow_writes=0 path=2 rtt_us=2575 cwnd_bytes=12000 tx_lost=0 error=0",
+    "[2026-10-13 13:31:29.848][thread 50068][message_session.cpp:257][info] : event=iroh.reliable_send kind=1 local_accepted_bytes=530 queued_bytes=106 max_queue_us=78 max_write_us=81 slow_writes=0 path=2 rtt_us=5272 cwnd_bytes=12000 tx_lost=0 error=0"
+  ],
+  "remaining_clients": []
+}

@@ -1,0 +1,133 @@
+{
+  "candidate": "transport-final-20261013-9beb4f595",
+  "runtime_base_revision": "9beb4f59508369a6f25e809a9067e9a14b3ca870",
+  "server": {
+    "version": "1.0.56",
+    "profile": "optimized-release",
+    "jobs": 18,
+    "setup_path": "build_official/private_server/candidates/transport-final-20261013-9beb4f595/PixelsServer_1.0.56_Setup.exe",
+    "setup_sha256": "43C34F0FEA9BD24D872EDAFF597D6EEE11E881D1D9C998D8CF43D0856F92398F",
+    "setup_bytes": 13730926,
+    "manifest_sha256": "0052746F7A34BEB7EB0C49816FA2214E4670EE95B1465DFB20A9D1E0FF587305",
+    "artifact_count": 35,
+    "installed_on": "90",
+    "runtime_hashes": {
+      "px_console.exe": "10119C3F1AC9B14549053BF77AF5AF7AFEAC101D8BF15F2194CBD8EEED2D9833",
+      "px_relay.exe": "2583B8755F7DB0819657D6AAC4275DA9DDB266FE48AB41BF424F1C9F0BEFAE17",
+      "px_backup.exe": "2DF0164FF9A929399161C0F5513AD726A6FF1C180BA5FB5F045954A24BBC9687",
+      "px_db.exe": "052A59950D4D120575E8E275FDA80D4FCCF0C38398053A77DC7DB9D3680061E6",
+      "px_console_admin.exe": "C290D400229327A55BE5AA76F71EB1CE75F7AB0E5A9EB4E271DC5095551A3C94",
+      "px_server_tray.exe": "7DD3E771755DF4ECC4BF7B7A9145D50A12A1331E526F8405F58278A859D75548"
+    }
+  },
+  "products": [
+    {
+      "product": "client",
+      "version": "3.3.81",
+      "profile": "optimized-release",
+      "jobs": 18,
+      "setup_path": "build_official/client/official/candidates/transport-final-20261013-9beb4f595/installer/3.3.81/PixelsClient_official_3.3.81_Setup.exe",
+      "setup_sha256": "5D21694A51E66BA6ED6BC0C8E63D60C7B364FBB8B074C13BD6D6112250F80489",
+      "setup_bytes": 47963273,
+      "manifest_sha256": "5AA9465E3D9B28FF8D85DF3CF31317A174A73AC5991CBC3BDB4A365FC6ACA5DF",
+      "artifact_count": 41,
+      "runtime_artifacts": [
+        {
+          "path": "px_client.exe",
+          "sha256": "4CF79FFA06068C2BBA86B85273455D7452A4C54EB126D59038513E454D888FD8",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "17A16E24E4B6DDCE37393860F3AB694DD22129DEEDFDB0EE63180B408EA2A3D7",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": "Company"
+    },
+    {
+      "product": "cloud_node",
+      "version": "3.3.97",
+      "profile": "optimized-release",
+      "jobs": 18,
+      "setup_path": "build_official/cloud_node/official/candidates/transport-final-20261013-9beb4f595/installer/3.3.97/PixelsCloudNode_official_3.3.97_Setup.exe",
+      "setup_sha256": "FA4D323F49C758378DC54CBBCE52914683F6D5F4A34429455437D02188E7D01A",
+      "setup_bytes": 278551685,
+      "manifest_sha256": "8B7CC19A8B8BFA4E8D40F05BFB06ED5B3AF8F469C0FEEBA0AC4C7C61BF246A82",
+      "artifact_count": 314,
+      "runtime_artifacts": [
+        {
+          "path": "px_client.exe",
+          "sha256": "EBFD48B791804C5B37C8D143EE3D33A6C48613AC00249CFFD077D2BB89C1A3A7",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "C63B173E2F169D5A5C966AEA2086E7C793C844715D621E053D87A1A30A8B508F",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_render.exe",
+          "sha256": "FEE6ED1F2C8DF7C9E36028D7E724C7F892F56B10DBFABCFAA5AFA25EDFF4D5B0",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_service.exe",
+          "sha256": "4CE0F74BE753B4B380E9B57569C8B7217BF31DB1E57D35CCF511853351D8BB4D",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": "90"
+    },
+    {
+      "product": "remote",
+      "version": "3.3.79",
+      "profile": "optimized-release",
+      "jobs": 18,
+      "setup_path": "build_official/remote/official/candidates/transport-final-20261013-9beb4f595/installer/3.3.79/PixelsRemote_official_3.3.79_Setup.exe",
+      "setup_sha256": "3EA65664F7F749FC43D6E44C0242032D66D6F8D65EB54A9D30C3560B0AF2B191",
+      "setup_bytes": 92189126,
+      "manifest_sha256": "C1CF35532C1BE97855EE44060FEC3CF6FD7A1AEA39309758EAA3C8EB392FA57F",
+      "artifact_count": 76,
+      "runtime_artifacts": [
+        {
+          "path": "px_client.exe",
+          "sha256": "84B3860740967E78697AE78733E68ED7BC0D4A77F4EF6699B23C31E7965C079E",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_panel.exe",
+          "sha256": "CB6028485B625164CE064F48FBCC964A332F0C645E51F5D782BF216B273B9D03",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_render.exe",
+          "sha256": "61CB41DB47529154DD6539E30857AB3434A4D50562AF40907D6C54DDF2E0900A",
+          "build_tree_matches_dist": true
+        },
+        {
+          "path": "px_service.exe",
+          "sha256": "4CE0F74BE753B4B380E9B57569C8B7217BF31DB1E57D35CCF511853351D8BB4D",
+          "build_tree_matches_dist": true
+        }
+      ],
+      "installed_on": null
+    }
+  ],
+  "installation_order": [
+    "90 Server",
+    "90 Cloud Node",
+    "Company Client"
+  ],
+  "new_remote_product_installation": false,
+  "development_dist_unchanged_by_publication": true,
+  "android": false,
+  "new_short_lived_transport_authorization": false,
+  "focused_ctest_targets": [
+    "sdk_hello_lifecycle",
+    "client_audio_output",
+    "client_imgui_launch_config"
+  ],
+  "gtest_cases": 30,
+  "focused_tests_passed": true
+}

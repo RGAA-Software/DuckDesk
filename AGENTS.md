@@ -1,5 +1,14 @@
 # Workspace delivery rules
 
+- Windows/Linux transport closeout (2026-10-13): the follow-up RDP/audio/admission changes are consolidated into
+  optimized complete candidates. Full Setup overwrite passed for Server then Cloud Node on 90, and Client on
+  Company, followed by one-at-a-time GameHook/Relay, WebView/direct, RDP/Relay and desktop/direct output checks.
+  Remote has a verified complete candidate, without a separate installation in this batch. Reuse the installed
+  identities and evidence in docs/validation/iroh_transport/20261013_transport_final_report.md. Section 0.9 and
+  these follow-up deliveries are closed; do not restart completed gates or expand ancillary acceptance.
+  Basic two-NAT connectivity already passed; complex NAT, scale and long stability remain explicit gaps.
+  Android and the paused short-stutter/NIC/saturated mixed-load investigations remain excluded or stopped.
+
 - Game first-admission follow-up (2026-10-13): failed batch407 was a delayed test handoff; the existing pending
   resource session closed before Render admission. Client now suppresses hello while disconnected/unready and
   reports final dial failure as terminal, with separate localized admission-rejection text. Reuse the database

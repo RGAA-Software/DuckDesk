@@ -1,0 +1,38 @@
+[
+  {
+    "product": "server",
+    "device_code": "428358431",
+    "request_id": "d91d94c6-deb9-4ae9-9bf5-ef4c6c4e711c",
+    "task_id": "e6197ec4-6139-4ad3-91d3-723b7e728c11",
+    "exit_code": 0,
+    "task_state": "succeeded",
+    "verified_artifact_count": 35,
+    "stdout": "SETUP_VERIFIED server 1.0.56\r\nSETUP_STARTED server pid=45924\r\nSETUP_EXIT server code=0\r\nSERVICE_RUNNING Pixels.Console\r\nSERVICE_RUNNING Pixels.Relay\r\nSERVICE_RUNNING Pixels.Backup.2f5b1d676dba\r\nINSTALLED_VERIFIED server 1.0.56\r\n",
+    "started_at_unix_ms": 1791867573999,
+    "finished_at_unix_ms": 1791867587723
+  },
+  {
+    "product": "cloud_node",
+    "device_code": "428358431",
+    "request_id": "721ef73e-a5b2-4a43-be02-c7e32fb116cd",
+    "task_id": "4f680ca5-c673-45e9-af8b-b27c30f5cdaa",
+    "exit_code": 0,
+    "task_state": "succeeded",
+    "verified_artifact_count": 314,
+    "stdout": "SETUP_VERIFIED cloud_node 3.3.97\r\nSETUP_STARTED cloud_node pid=42076\r\nSETUP_EXIT cloud_node code=0\r\nSERVICE_RUNNING px_service\r\nINSTALLED_VERIFIED cloud_node 3.3.97\r\n",
+    "started_at_unix_ms": 1791867947944,
+    "finished_at_unix_ms": 1791867963842
+  },
+  {
+    "product": "client",
+    "device_code": "559038160",
+    "request_id": "fb8e900b-104f-4f9d-8b80-1c8345d5cde4",
+    "task_id": "41b31ea7-c5ed-4a73-ac3a-bdfcb3174d98",
+    "exit_code": 0,
+    "task_state": "succeeded",
+    "verified_artifact_count": 41,
+    "stdout": "SETUP_VERIFIED client 3.3.81\r\nSETUP_STARTED client pid=19220\r\nSETUP_EXIT client code=0\r\nINSTALLED_VERIFIED client 3.3.81\r\n",
+    "started_at_unix_ms": 1791868043030,
+    "finished_at_unix_ms": 1791868048801
+  }
+]

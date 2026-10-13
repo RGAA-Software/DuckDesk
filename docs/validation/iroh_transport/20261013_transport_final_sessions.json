@@ -1,0 +1,33 @@
+[
+  {
+    "batch": 502,
+    "kind": "game_hook",
+    "instance_id": "8f067007-4f31-4811-a6ec-dc2f92ce3f95",
+    "session_id": "867149a9-df4d-4eaf-8115-b850e6a3e451",
+    "account_name": null,
+    "prepared_at_unix": 1791868766.436089
+  },
+  {
+    "batch": 503,
+    "kind": "webview",
+    "instance_id": "647abb41-d650-48fa-b9dc-38702e7189f4",
+    "session_id": "60d44f08-5216-4e25-bda8-2230e28e9f09",
+    "account_name": null,
+    "prepared_at_unix": 1791869130.539164
+  },
+  {
+    "batch": 504,
+    "kind": "rdp",
+    "instance_id": "161202d4-0195-40e3-b418-2834b8cff2a2",
+    "session_id": "5c743252-0415-402b-b578-5d924bd3ab95",
+    "account_name": "pxrdp_2c3153bd5fff41",
+    "prepared_at_unix": 1791869442.4792163
+  },
+  {
+    "batch": 505,
+    "kind": "desktop",
+    "session_id": "b0197763-b0b1-4f7f-85b8-6fb7469a3684",
+    "device_id": "b8298e0b-712d-490e-9936-29f6c07333b2",
+    "prepared_at_unix": 1791869637.7593586
+  }
+]

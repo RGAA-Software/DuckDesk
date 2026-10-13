@@ -4,7 +4,11 @@
 iroh-relay 1.3.0. Windows Server Setup and Linux Compose installation, Console
 control/reporting, live Relay candidate updates and two-host recovery have existing
 validation evidence. See `docs/validation/iroh_transport/status.md` for installed
-identities and remaining performance/NAT/stability work. Android is scheduled last.
+identities and remaining performance/NAT/stability work. Android is excluded from
+the current Windows/Linux delivery. The consolidated Windows Setup overwrite and
+actual direct/Relay consumer checks are recorded in
+`docs/validation/iroh_transport/20261013_transport_final_report.md`; reuse the passed
+Linux installation/upgrade evidence rather than reinstalling BJ for Windows-only changes.
 
 ## Build and start
 

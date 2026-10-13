@@ -1,5 +1,11 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13完整包收尾：RDP用户池、声音与接入终止等追加改动已汇总为正式优化Windows完整候选，
+90 Server→CloudNode、Company Client三次Setup覆盖/SHA通过，四类安装后接入有真实输出，资源及临时授权已清理。
+正式Client树30项聚焦回归通过；Remote候选已生成但本批未单独安装，BJ/XR既有交付复用。
+第0.9节Windows/Linux主线及本次追加交付已收尾；基本双NAT已通过，复杂NAT/CGNAT、规模/长稳缺口和暂停短顿继续保留，Android排除。
+后续不重复已通过主线、不自动扩展附属业务验收。见[收尾汇总](validation/iroh_transport/20261013_transport_final_report.md)。
+
 2026-10-13接入收尾：407因测试夹具延迟超过既有待接入会话期限被拒，已由90数据库/Render同端时间线确认；
 SDK修复未连接/断开后的hello重试及终止日志，业务拒绝独立中英文提示。单路409准备后立即启动并接入、60秒视频/PCM输出确认、清理完成；
 26项聚焦回归通过，三个Windows产品Client Release18jobs同步dist。未改授权期限/协议、不新增票据，短顿/NIC/饱和混传及Android仍暂停或排除。
@@ -234,6 +240,10 @@ Relay 必须支持 Windows 和 Linux，复用 Windows Service、Linux systemd/�
 无需重新做 iroh 选型、首个 Relay 原型、BJ 登记或整套旧容量测试。
 
 ### 0.9 本次完整任务：Windows/Linux iroh 网络交付（不含 Android）
+
+2026-10-13追加收束：在10-11功能基线上，补齐真实双NAT、双Relay负载/分配、RDP多用户池及小规模业务、Native声音/接入终止修复；
+最终Server/Node/Client完整候选覆盖与四类网络消费者验收通过，当前安装身份和限制见[最终追加报告](validation/iroh_transport/20261013_transport_final_report.md)。
+本次任务当前可执行交付已完成；下方10-11“真实NAT未验收”等文字保留为当日历史，不覆盖10-12新增基本双NAT证据。
 
 执行结果（2026-10-11）：A–F 本次功能交付已完成，实现及证据 `bf5ebc03a` 已推送；详细身份和证据见
 [本轮报告](validation/iroh_transport/20261011_windows_completion.md)。追加修复独立文件入口仍占控制席的 409，

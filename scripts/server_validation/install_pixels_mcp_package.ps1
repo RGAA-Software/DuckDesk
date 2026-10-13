@@ -1,7 +1,7 @@
 #requires -Version 5.1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)] [ValidateSet('server', 'cloud_node')] [string]$Product,
+    [Parameter(Mandatory)] [ValidateSet('server', 'cloud_node', 'client', 'remote')] [string]$Product,
     [Parameter(Mandatory)] [string]$SetupPath,
     [Parameter(Mandatory)] [string]$SetupSha256,
     [Parameter(Mandatory)] [string]$ManifestSha256,
@@ -57,13 +57,13 @@ if ($Product -eq 'server') {
     if ($backupServices.Count -ne 1) { throw 'Expected exactly one Server Backup service.' }
     $requiredServiceNames += $backupServices[0].Name
 } else {
-    if ($installedManifest.product -cne 'cloud_node' -or
+    if ($installedManifest.product -cne $Product -or
         $installedManifest.distribution -cne 'official' -or
-        $installedManifest.product_version -cne $ExpectedVersion) { throw 'Installed Cloud Node identity mismatch.' }
+        $installedManifest.product_version -cne $ExpectedVersion) { throw 'Installed Windows product identity mismatch.' }
     foreach ($runtimeArtifact in $installedManifest.artifacts) {
         Assert-FileHash (Join-Path $InstallRoot $runtimeArtifact.path) ([string]$runtimeArtifact.sha256).ToLowerInvariant()
     }
-    $requiredServiceNames = @('px_service')
+    $requiredServiceNames = if ($Product -eq 'client') { @() } else { @('px_service') }
 }
 foreach ($serviceName in $requiredServiceNames) {
     $installedService = Get-Service -Name $serviceName
