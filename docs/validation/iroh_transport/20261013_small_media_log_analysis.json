@@ -1,0 +1,222 @@
+{
+  "local": {
+    "compressed_sha256": "606d44e401915b4a7c64ec2201cc089306eea2c904950119d1e3da3a92b2b7df",
+    "compressed_bytes": 684518,
+    "selected_sha256": "d4144d89e0c9cdbc8e4ad9119083f6883e63be268f67745a2865cfbedde7bb76",
+    "lines": 21717,
+    "presentation_threads": {
+      "89704": {
+        "frames": 29035,
+        "elapsed_us": 490834001,
+        "fps_min": 57.87,
+        "fps_max": 60.16,
+        "maximum_gap_us": 314592,
+        "windows": 98,
+        "over_100ms_windows": 1,
+        "first": "2026-10-13 10:11:34.304",
+        "last": "2026-10-13 10:19:40.136",
+        "weighted_fps": 59.154
+      },
+      "69272": {
+        "frames": 18923,
+        "elapsed_us": 315685546,
+        "fps_min": 58.26,
+        "fps_max": 60.25,
+        "maximum_gap_us": 48851,
+        "windows": 63,
+        "over_100ms_windows": 0,
+        "first": "2026-10-13 10:11:34.823",
+        "last": "2026-10-13 10:16:45.485",
+        "weighted_fps": 59.943
+      },
+      "32244": {
+        "frames": 8051,
+        "elapsed_us": 135166590,
+        "fps_min": 54.69,
+        "fps_max": 60.17,
+        "maximum_gap_us": 472557,
+        "windows": 27,
+        "over_100ms_windows": 2,
+        "first": "2026-10-13 10:17:30.919",
+        "last": "2026-10-13 10:19:41.076",
+        "weighted_fps": 59.564
+      }
+    },
+    "selected_relays": [
+      "https://39.71.45.66:4605/",
+      "https://49.232.233.61:4605/"
+    ],
+    "audio_lines_count": 0,
+    "audio_summary_lines": [],
+    "reconnect_count": 0,
+    "reliable_error_count": 0,
+    "presentation_over_100ms_lines": [
+      "[2026-10-13 10:17:30.919][thread 32244][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=274 elapsed_us=5009629 fps=54.69 maximum_gap_us=472557 maximum_upload_age_us=1154 maximum_render_us=1127 log_overruns=0",
+      "[2026-10-13 10:18:10.964][thread 32244][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=276 elapsed_us=5000904 fps=55.19 maximum_gap_us=397522 maximum_upload_age_us=767 maximum_render_us=739 log_overruns=0",
+      "[2026-10-13 10:18:14.949][thread 89704][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=293 elapsed_us=5017311 fps=58.40 maximum_gap_us=314592 maximum_upload_age_us=965 maximum_render_us=933 log_overruns=0"
+    ]
+  },
+  "company": {
+    "compressed_sha256": "4300f13b13bd41fdc42d07870f8f530cc0ef7f3af8217b846cc908d3014e3e40",
+    "compressed_bytes": 338551,
+    "selected_sha256": "e0d6cad2e1b4858faa683567c0e3283c5c86bd29f721f6db4c4b1c5cafe3af00",
+    "lines": 11568,
+    "presentation_threads": {
+      "49500": {
+        "frames": 30010,
+        "elapsed_us": 500954598,
+        "fps_min": 54.3,
+        "fps_max": 60.1,
+        "maximum_gap_us": 511962,
+        "windows": 100,
+        "over_100ms_windows": 2,
+        "first": "2026-10-13 10:11:06.265",
+        "last": "2026-10-13 10:19:22.210",
+        "weighted_fps": 59.906
+      }
+    },
+    "selected_relays": [
+      "https://39.71.45.66:4605/"
+    ],
+    "audio_lines_count": 0,
+    "audio_summary_lines": [],
+    "reconnect_count": 0,
+    "reliable_error_count": 0,
+    "presentation_over_100ms_lines": [
+      "[2026-10-13 10:11:06.265][thread 49500][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=272 elapsed_us=5009450 fps=54.30 maximum_gap_us=511962 maximum_upload_age_us=2018 maximum_render_us=1870 log_overruns=0",
+      "[2026-10-13 10:16:11.853][thread 49500][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=d3d11 frames=293 elapsed_us=5014980 fps=58.42 maximum_gap_us=149856 maximum_upload_age_us=16853 maximum_render_us=16828 log_overruns=0"
+    ]
+  },
+  "source": {
+    "compressed_sha256": "1e1037e5ec609413ad08a8e2cda43f4569b17eee904c274019b43f84f45efea1",
+    "compressed_bytes": 1943335,
+    "selected_sha256": "b4ae811f317bb75e23fbb2a1850dbcb1429093bb82dc5bc57f7af78525826185",
+    "lines": 57476,
+    "presentation_threads": {},
+    "selected_relays": [
+      "https://39.71.45.66:4605/",
+      "https://49.232.233.61:4605/"
+    ],
+    "audio_lines_count": 2914,
+    "audio_summary_lines": [
+      "[2026-10-13 10:10:43.278][thread 36272][rd_main.cpp:290][info] : capture_audio: true",
+      "[2026-10-13 10:10:43.278][thread 36272][rd_main.cpp:291][info] : capture_audio_type: global",
+      "[2026-10-13 10:10:43.278][thread 36272][rd_main.cpp:297][info] : capture audio device: <os-default>",
+      "[2026-10-13 10:10:43.278][thread 36272][rd_main.cpp:313][info] : audio enabled: true",
+      "[2026-10-13 10:10:43.584][thread 73140][opus_encoder_processor.cpp:130][info] : event=processor.start component=opus_encoder outcome=success",
+      "[2026-10-13 10:10:43.584][thread 73140][was_audio_capture_source.cpp:115][info] : event=source.start component=was_audio_capture outcome=success",
+      "[2026-10-13 10:10:43.720][thread 36272][rd_app.cpp:1318][info] : game-hook audio: defer until inject (PID process-loopback)",
+      "[2026-10-13 10:10:43.728][thread 36272][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=73292: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0",
+      "[2026-10-13 10:10:43.847][thread 35796][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=73292: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0",
+      "[2026-10-13 10:10:43.847][thread 14212][rd_app.cpp:1902][info] : PrepareGameHookBoot pid=73292: prefer_pid_loopback=true, force_hook=false, os_supported=true, enable_hook_audio=0",
+      "[2026-10-13 10:10:43.872][thread 36272][was_audio_capture_runtime.cpp:82][info] : [WasAudioCaptureRuntime] loopback pid=73292",
+      "[2026-10-13 10:10:43.872][thread 54604][rd_app.cpp:945][info] : PID audio worker: Stop+Start begin pid=73292 CoInitializeEx=0x00000000"
+    ],
+    "reconnect_count": 0,
+    "reliable_error_count": 0,
+    "presentation_over_100ms_lines": [],
+    "events": {
+      "pipeline.performance": 332,
+      "iroh.media_budget": 320,
+      "iroh.send_window": 320,
+      "iroh.diag_tx_recent": 1920
+    },
+    "source_window_samples": [
+      "[2026-10-13 10:19:52.196][thread 73684][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=1156824 video_datagram_bps=1508477 opus_bps=0 audio_datagram_bps=0 flight_bytes=6600 flight_limited=0",
+      "[2026-10-13 10:19:52.196][thread 73684][media_datagrams.cpp:61][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=12706 path=2 rtt_us=1892 tx_packets=143529 tx_lost=0",
+      "[2026-10-13 10:19:55.700][thread 34216][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.98 video_mbps=1.187 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled",
+      "[2026-10-13 10:19:57.217][thread 73684][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=1156732 video_datagram_bps=1484293 opus_bps=0 audio_datagram_bps=0 flight_bytes=2200 flight_limited=0",
+      "[2026-10-13 10:19:57.217][thread 73684][media_datagrams.cpp:61][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=46 path=2 rtt_us=1683 tx_packets=144885 tx_lost=0",
+      "[2026-10-13 10:20:00.703][thread 34216][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=59.97 video_mbps=1.138 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled",
+      "[2026-10-13 10:20:02.227][thread 73684][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=1179591 video_datagram_bps=1512302 opus_bps=0 audio_datagram_bps=0 flight_bytes=0 flight_limited=0",
+      "[2026-10-13 10:20:02.227][thread 73684][media_datagrams.cpp:61][info] : event=iroh.send_window offered=301 idr=0 busy=0 completed=301 failed=0 max_send_us=8925 path=2 rtt_us=2012 tx_packets=146256 tx_lost=0",
+      "[2026-10-13 10:20:05.705][thread 34216][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=56.18 video_mbps=1.112 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled",
+      "[2026-10-13 10:20:07.283][thread 73684][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=733194 video_datagram_bps=939975 opus_bps=0 audio_datagram_bps=0 flight_bytes=39600 flight_limited=0",
+      "[2026-10-13 10:20:07.283][thread 73684][media_datagrams.cpp:61][info] : event=iroh.send_window offered=191 idr=0 busy=0 completed=190 failed=1 max_send_us=250219 path=2 rtt_us=2134 tx_packets=147107 tx_lost=0",
+      "[2026-10-13 10:20:10.708][thread 34216][pipeline_statistics_observer.cpp:225][info] : event=pipeline.performance component=pipeline_statistics video_fps=0.40 video_mbps=0.024 encoded_audio_pps=0.00 captured_video_fps=0.00 captured_video_mbps=0.000 clients=1 outcome=sampled"
+    ],
+    "send_failure_windows": [
+      "[2026-10-13 10:17:05.220][thread 61280][media_datagrams.cpp:61][info] : event=iroh.send_window offered=28 idr=0 busy=0 completed=26 failed=2 max_send_us=251600 path=2 rtt_us=8194 tx_packets=98967 tx_lost=0",
+      "[2026-10-13 10:19:55.637][thread 46916][media_datagrams.cpp:61][info] : event=iroh.send_window offered=249 idr=0 busy=0 completed=248 failed=1 max_send_us=250537 path=2 rtt_us=27394 tx_packets=37512 tx_lost=0",
+      "[2026-10-13 10:20:01.420][thread 46916][media_datagrams.cpp:61][info] : event=iroh.send_window offered=1 idr=0 busy=0 completed=0 failed=1 max_send_us=250753 path=2 rtt_us=27394 tx_packets=37516 tx_lost=0",
+      "[2026-10-13 10:20:07.283][thread 73684][media_datagrams.cpp:61][info] : event=iroh.send_window offered=191 idr=0 busy=0 completed=190 failed=1 max_send_us=250219 path=2 rtt_us=2134 tx_packets=147107 tx_lost=0"
+    ],
+    "audio_budget_samples": [
+      "[2026-10-13 10:19:33.679][thread 21472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2811981 video_datagram_bps=3203266 opus_bps=45757 audio_datagram_bps=88932 flight_bytes=30800 flight_limited=0",
+      "[2026-10-13 10:19:38.683][thread 21472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2753420 video_datagram_bps=3142736 opus_bps=44163 audio_datagram_bps=87565 flight_bytes=6600 flight_limited=0",
+      "[2026-10-13 10:19:43.701][thread 21472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2798379 video_datagram_bps=3189995 opus_bps=45849 audio_datagram_bps=90135 flight_bytes=11000 flight_limited=0",
+      "[2026-10-13 10:19:48.716][thread 21472][media_datagrams.cpp:57][info] : event=iroh.media_budget encoded_bps=2729490 video_datagram_bps=3104378 opus_bps=45460 audio_datagram_bps=88425 flight_bytes=20900 flight_limited=0"
+    ]
+  },
+  "relay_counter_intervals": [
+    {
+      "from": "2026-10-13T02:11:47.009848+00:00",
+      "to": "2026-10-13T02:17:20.360379+00:00",
+      "elapsed_seconds": 333.350531,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "forwarded_bytes_delta": 0,
+          "average_forwarded_mbps": 0.0
+        },
+        {
+          "relay": "Single Server Relay",
+          "forwarded_bytes_delta": 271353432,
+          "average_forwarded_mbps": 6.512
+        }
+      ]
+    },
+    {
+      "from": "2026-10-13T02:17:20.360379+00:00",
+      "to": "2026-10-13T02:18:14.261758+00:00",
+      "elapsed_seconds": 53.901379,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "forwarded_bytes_delta": 9182546,
+          "average_forwarded_mbps": 1.363
+        },
+        {
+          "relay": "Single Server Relay",
+          "forwarded_bytes_delta": 35425142,
+          "average_forwarded_mbps": 5.258
+        }
+      ]
+    },
+    {
+      "from": "2026-10-13T02:18:14.261758+00:00",
+      "to": "2026-10-13T02:18:37.929617+00:00",
+      "elapsed_seconds": 23.667859,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "forwarded_bytes_delta": 5010659,
+          "average_forwarded_mbps": 1.694
+        },
+        {
+          "relay": "Single Server Relay",
+          "forwarded_bytes_delta": 16181252,
+          "average_forwarded_mbps": 5.469
+        }
+      ]
+    },
+    {
+      "from": "2026-10-13T02:18:37.929617+00:00",
+      "to": "2026-10-13T02:20:07.567631+00:00",
+      "elapsed_seconds": 89.638014,
+      "rates": [
+        {
+          "relay": "BJ-200M Relay",
+          "forwarded_bytes_delta": 13692347,
+          "average_forwarded_mbps": 1.222
+        },
+        {
+          "relay": "Single Server Relay",
+          "forwarded_bytes_delta": 46364511,
+          "average_forwarded_mbps": 4.138
+        }
+      ]
+    }
+  ],
+  "scope": "Normal bounded native video and Relay maintenance; counters include controls and endpoint traffic. Audio was enabled but the animation fixture was silent."
+}

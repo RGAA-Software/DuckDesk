@@ -1,0 +1,467 @@
+[
+  {
+    "observed_at_utc": "2026-10-13T02:11:47.009848+00:00",
+    "instances": [
+      {
+        "id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+        "state": "running",
+        "revision": 3
+      }
+    ],
+    "resources": [
+      {
+        "id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+        "state": "connected",
+        "revision": 2
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877634450,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:11:55.538291Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 7354,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878676555
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 7,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 311516267,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:11:55.332824Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 7356,
+        "reported_draining": false,
+        "revision": 24,
+        "state": "ready",
+        "uploaded_bytes": 311629912
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T02:17:20.360379+00:00",
+    "instances": [
+      {
+        "id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+        "state": "stopped",
+        "revision": 4
+      },
+      {
+        "id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+        "state": "running",
+        "revision": 3
+      }
+    ],
+    "resources": [
+      {
+        "id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+        "state": "closed",
+        "revision": 3
+      },
+      {
+        "id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+        "state": "connected",
+        "revision": 2
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 2,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1877634450,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:17:25.537333Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 7420,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1878676555
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 5,
+        "current_rooms": null,
+        "desired_draining": true,
+        "disabled": false,
+        "forwarded_bytes": 582869699,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:17:25.335279Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 7423,
+        "reported_draining": true,
+        "revision": 25,
+        "state": "ready",
+        "uploaded_bytes": 583044591
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T02:18:14.261758+00:00",
+    "instances": [
+      {
+        "id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+        "state": "stopped",
+        "revision": 4
+      },
+      {
+        "id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "28235a19-b81f-4347-9605-1fef84ad1ff5",
+        "state": "running",
+        "revision": 3
+      }
+    ],
+    "resources": [
+      {
+        "id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+        "state": "closed",
+        "revision": 3
+      },
+      {
+        "id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "f38aca33-c629-4ae4-b16f-a90005f61b61",
+        "state": "connected",
+        "revision": 2
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 4,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1886816996,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:18:20.537658Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 7431,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1887859101
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 5,
+        "current_rooms": null,
+        "desired_draining": true,
+        "disabled": false,
+        "forwarded_bytes": 618294841,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:18:20.335922Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 7434,
+        "reported_draining": true,
+        "revision": 25,
+        "state": "ready",
+        "uploaded_bytes": 618469733
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T02:18:37.929617+00:00",
+    "instances": [
+      {
+        "id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+        "state": "stopped",
+        "revision": 4
+      },
+      {
+        "id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+        "state": "running",
+        "revision": 3
+      },
+      {
+        "id": "28235a19-b81f-4347-9605-1fef84ad1ff5",
+        "state": "running",
+        "revision": 3
+      }
+    ],
+    "resources": [
+      {
+        "id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+        "state": "closed",
+        "revision": 3
+      },
+      {
+        "id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+        "state": "connected",
+        "revision": 2
+      },
+      {
+        "id": "f38aca33-c629-4ae4-b16f-a90005f61b61",
+        "state": "connected",
+        "revision": 2
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 4,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1891827655,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:18:45.537421Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 7436,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1892869760
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 5,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 634476093,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:18:45.336240Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 7440,
+        "reported_draining": false,
+        "revision": 26,
+        "state": "ready",
+        "uploaded_bytes": 634650985
+      }
+    ]
+  },
+  {
+    "observed_at_utc": "2026-10-13T02:20:07.567631+00:00",
+    "instances": [
+      {
+        "id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+        "state": "stopped",
+        "revision": 5
+      },
+      {
+        "id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+        "state": "stopped",
+        "revision": 4
+      },
+      {
+        "id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+        "state": "stopped",
+        "revision": 5
+      },
+      {
+        "id": "28235a19-b81f-4347-9605-1fef84ad1ff5",
+        "state": "stopped",
+        "revision": 4
+      }
+    ],
+    "resources": [
+      {
+        "id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+        "state": "closed",
+        "revision": 5
+      },
+      {
+        "id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+        "state": "closed",
+        "revision": 3
+      },
+      {
+        "id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+        "state": "closed",
+        "revision": 5
+      },
+      {
+        "id": "f38aca33-c629-4ae4-b16f-a90005f61b61",
+        "state": "closed",
+        "revision": 4
+      }
+    ],
+    "relays": [
+      {
+        "control_epoch": 73,
+        "current_connections": 0,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 1905520002,
+        "fresh": true,
+        "generation": 19,
+        "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:20:15.537143Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "BJ-200M Relay",
+        "product_version_code": 3002001,
+        "public_host": "49.232.233.61",
+        "public_port": 4605,
+        "report_sequence": 7454,
+        "reported_draining": false,
+        "revision": 32,
+        "state": "ready",
+        "uploaded_bytes": 1906600466
+      },
+      {
+        "control_epoch": 73,
+        "current_connections": 1,
+        "current_rooms": null,
+        "desired_draining": false,
+        "disabled": false,
+        "forwarded_bytes": 680840604,
+        "fresh": true,
+        "generation": 94,
+        "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+        "iroh_qad_port": 4605,
+        "last_seen": "2026-10-13T02:20:15.336208Z",
+        "max_connections": 4096,
+        "max_rooms": null,
+        "name": "Single Server Relay",
+        "product_version_code": 3002001,
+        "public_host": "39.71.45.66",
+        "public_port": 4605,
+        "report_sequence": 7458,
+        "reported_draining": false,
+        "revision": 26,
+        "state": "ready",
+        "uploaded_bytes": 681129831
+      }
+    ]
+  }
+]

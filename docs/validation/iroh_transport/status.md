@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，2＋1 Native视频双Relay维护已验证
+
+- 本机2/Company1，独立Game4000kbps＋两Web3000kbps，源90 loopback动画；原应用spec逐项保持，RDP10/授权80不改。复用Client C39本机SHA一致/CompanyFE8与90既有包，无编译安装。
+- 初始三路selected90；90排空rev25保留旧Game/Company资源和实际画面，只关闭并替换本机Web。新源homeBJ且selectedBJ出图；90恢复rev26/report false，三路保持。Windows/BJ稳定区间实际转发5.469/1.694Mbps，不当均衡或容量上限；Endpoint计数包含两端和默认Render。
+- 统计Game59.154FPS/491s，原本机Web59.943/316s，Company59.906/501s，BJ新Web59.564/135s。用户确认刚连接不稳定正常，启动473/512ms单列、不作强制验收；运行期150/315/398ms保留，不称长期流畅或根因确定，不重开暂停专项。源有Opus数据报，客户端音频解码/听音无证据；输入sent=true/Pointer变化，仅聚焦部分证据。
+- 4owned实例stopped/4资源closed/guest注销，2owned应用及部署禁用，Client两端0、页面任务cancelled/listener0、Relay原Windows1/BJ0，仅默认Render。先压缩Company339KB/源1.94MB再下载SHA相等；守护任务因提前清理failed，不当900秒验收。夹具400、kind错误、禁用后403均保留在报告。
+- 下一项少量可控输入及音频端到端；真实NAT/规模/长稳仍缺，Android不做。见[本批报告](20261013_small_media_report.md)及`20261013_small_media_*`。
+
 ## 最新接续：2026-10-13，3＋2真实RDP双Relay维护已验证
 
 - 用户新授权本机最多3/Company最多2，覆盖此前Company排除仅限本轮小规模。复用90 Console8DAC/Service6E3/RenderC276及Company FE8；本机开发Client C39C17…与build-tree/dist SHA匹配，无编译、安装或持久节点配置变化。

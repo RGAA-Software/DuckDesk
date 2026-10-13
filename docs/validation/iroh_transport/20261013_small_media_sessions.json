@@ -1,0 +1,54 @@
+[
+  {
+    "batch": 301,
+    "kind": "game_hook",
+    "application_id": "860e3e17-fd59-4358-81b6-3c9a47dcbd4f",
+    "instance_id": "ca6da3f5-b314-4855-8dd9-03cc66fca325",
+    "session_id": "aeba4296-3e47-4417-b61a-ed30e6091b27",
+    "codec": "h264",
+    "bitrate_kbps": 4000,
+    "endpoint_id": "7cc1ef544c0341d30347e68942c988afff0b9fc95104e50f1e3f5294755f881a",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 302,
+    "kind": "webview",
+    "application_id": "99a9066f-13d8-40fe-80b3-08a93564f2cb",
+    "instance_id": "cad552e5-7898-411e-bb59-f1f4dad97e27",
+    "session_id": "75f76d9f-7168-4ff8-a5f1-d28c675e39d4",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "bf6305c5e7e89de93d549b403e68b9d709ed79dc82178fa78f7719022288ea30",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 303,
+    "kind": "webview",
+    "application_id": "99a9066f-13d8-40fe-80b3-08a93564f2cb",
+    "instance_id": "cec69fc8-d928-4955-8bd6-1e712f1f1d48",
+    "session_id": "4424d3f7-3667-4c69-a59d-831d4ac59424",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "b9728b2014ad333ac3c08c7f154f8f333758b05cb7ab06b2a5a56fd57c36e9f8",
+    "advertised_homes": [
+      "https://39.71.45.66:4605/"
+    ]
+  },
+  {
+    "batch": 304,
+    "kind": "webview",
+    "application_id": "99a9066f-13d8-40fe-80b3-08a93564f2cb",
+    "instance_id": "28235a19-b81f-4347-9605-1fef84ad1ff5",
+    "session_id": "f38aca33-c629-4ae4-b16f-a90005f61b61",
+    "codec": "h264",
+    "bitrate_kbps": 3000,
+    "endpoint_id": "2d50dc499202be2af7567f5ba7359a9289758bcb37a5a6f8320dd737b2ffe4ed",
+    "advertised_homes": [
+      "https://49.232.233.61:4605/"
+    ]
+  }
+]

@@ -1,5 +1,15 @@
 # Workspace delivery rules
 
+- Connection warm-up decision (2026-10-13): the user accepts temporary picture instability immediately after
+  connection. Record startup and first-frame statistics separately; do not require them to meet steady-state
+  smoothness thresholds. Continue to report gaps during established, normally rendering sessions honestly.
+
+- Small media validation (2026-10-13): the user authorized GameHook/WebView validation with at most two local
+  Clients and one Company Client, roughly 10 Mbps total configured video ceiling. Use owned test applications
+  and a loopback animation page to avoid changing existing application settings or confusing website load with
+  media transport. Keep RDP capacity 10 and the 80-stream license. Relay draining is a temporary maintenance test;
+  restore its baseline and clean only the owned test processes, resources and applications after validation.
+
 - Distributed validation update (2026-10-13): the user reauthorized a small test with at most three Client
   processes on the local machine and two on Company. This supersedes the Company exclusion only for this bounded
   batch; do not increase either receiver's count. Stop Company clients if the user reports load again. The RDP

@@ -1,5 +1,11 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13 10:20追加：本机2/Company1正常Native视频，90排空保留旧Game/Company画面，
+替换本机Web新源与实际路径均BJ，恢复双候选及owned清理完成。显示平均约59–60FPS，
+仍有运行期150–398ms短间隔；用户接受启动阶段波动，473/512ms单独记录、不作稳态强制条件；不称长期零卡顿，不重开暂停专项。
+音频仅源侧Opus数据报、输入为部分证据，下一项补可控输入/音频端到端；
+见[本批报告](validation/iroh_transport/20261013_small_media_report.md)。Android、NAT和规模缺口维持原边界。
+
 2026-10-13小规模验收追加：用户允许本机3/Company2。五路真实RDP Relay接入、90排空保留旧连接、
 新源转BJ、恢复双候选和清理通过；只替换一路，接收端上限未提高。见[报告](validation/iroh_transport/20261013_five_rdp_report.md)。
 静态RDP可靠流不能代替GameHook/WebView数据报、高运动、吞吐或长稳；后续保持同样或更小规模，

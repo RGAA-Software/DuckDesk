@@ -1,0 +1,14 @@
+{
+  "companyStop": {
+    "exit_code": 0,
+    "summary": "process exited successfully"
+  },
+  "companyRemaining": "",
+  "sourceRemaining": "{\"page_listeners\":0,\"renders\":[{\"ProcessId\":13524,\"ExecutablePath\":\"C:\\\\Program Files\\\\Pixels Cloud Node\\\\px_render.exe\"}]}\r\n",
+  "guestClosed": true,
+  "ownedInstancesStopped": 4,
+  "ownedResourcesClosed": 4,
+  "pageOperation": "cancelled",
+  "companyRunner": "failed after authorized early cleanup; not full 900-second pass",
+  "localScreenshotSha256": "988615ecdf489fc2b557b17170a18ba356d6e2fd1355f9d4105ad294a52afc3b"
+}
