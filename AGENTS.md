@@ -1,5 +1,14 @@
 # Workspace delivery rules
 
+- Unified acceptance live checkpoint (2026-10-13 night): T1/T2 passed; Company Client E849DAD0… and Panel0BBF191A…
+  are incrementally aligned,44 candidate files checked and317 settings-file hashes retained. T3a original command
+  136e708d-1a3b-4c14-b233-5d43949fb70a/task f3aac060-0f9a-43dd-a808-607906832969 remains running for1800 seconds.
+  Supervisor49200/Client53952, client creation2026-10-13T15:06:25.473789Z, actualLAN UDP10.0.0.90:4613, not NAT evidence.
+  Source90 owned page65500/created15:03:30Z/port48778 and prior owned app145233…/deployment2a244… are active;
+  normal close/own resource cleanup and fixture-disable restoration remain required. Never restart because a poll expires.
+  Use bounded64KiB log reads during live samples; initial GetContent tail timed out without a network failure.
+  PAB commands support service/user selections; desktop_user is for dedicated desktop tools, not process.exec.
+
 - Unified acceptance long-task decision (2026-10-13 evening): the user requested one continuous, complete
   acceptance task. Execute docs/iroh_transport_acceptance_task_20261013.md; resume from
   docs/validation/iroh_transport/20261013_acceptance_task_state.json and status.md. T1 Company identity preparation

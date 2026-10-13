@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13夜间，T1/T2通过，Company单路UDP直连30分钟样本正在运行
+
+Company完整候选比对44文件，仅Client/Panel及两清单共4文件变化；37,617,005字节差异ZIP上传7.159秒/SHA相等，复用40文件。增量verify/publish exit0，44文件最终SHA通过、317个Public设置文件SHA相等，旧文件保留delta/before-e3b6…；原Uninstall/edition及日志保留，不称新Setup安装。ClientE849DAD0…/Panel0BBF191A…已运行。90四服务Running、两Relayfresh/ready/未排空，原19Server配置及Node配置基线已存，授权80/RDP10保持。签名策略拒绝首次helper与desktop_user命令参数拒绝都发生于对应操作前，改当前进程策略/正确user选择后通过，全局策略不变。
+
+T3a原操作136e708d…/task f3aac060…确认running，Company supervisor49200/Client53952/session1，Client创建2026-10-13T15:06:25.473789Z、instance c52120e4…/resource0a0aa0e1…connected，目标1800秒，预计23:36后完成观察。日志实际selected Ip10.0.0.90:4613，为LAN UDP直连，不称新NAT打洞；初步23:07:57–23:09:12呈现59.96–60.06FPS/最大29.855ms，仅中途样本。已核对owned窗口出图。第一次GetContent整段尾读15秒超时，测试/Client未重启；改64KiB有界读取通过。90自有页面PID65500/创建15:03:30Z/loopback48778/HTTP200，owned应用145233…/部署2a244…暂启用，结束必须恢复禁用。
+
+XR只读检查service6E3…/RenderC276…/原配置38363D…、px_service运行/40324，无Render/Client；未更新或改其配置，留作后续BJ路径准备。当前唯一动作继续原T3a采样及正常关闭/压缩取证；随后T3b，不能凭尚未完成样本结项。详见[台账](20261013_acceptance_task_state.json)与[Company增量身份](20261013_acceptance_company_alignment.json)。本机无Client/probe/编译负载，Android/暂停专项不使用。
+
 ## 最新接续：2026-10-13晚间，统一验收长任务已建立并开始T1
 
 用户要求一个完整长任务、一次性验收。已建立持续目标，合并为[统一任务](../../iroh_transport_acceptance_task_20261013.md)及[阶段台账](20261013_acceptance_task_state.json)：T1 Company只读身份/负载 → T2必要增量 → T3直连/Windows Relay/BJ Relay各30分钟 → T4程序级UDP受限自动Relay → T5最多Company2＋XR1的30分钟观察 → T6单路连续4小时 → T7按实际失败修复/受影响复验 → T8统一清理和报告。Company连接/初步inventory exit0，20逻辑核/CPU6%/可用内存约13GiB/px进程0，已有D:\112233；Client90703A5B…/PanelA96F421B…不同于最新候选。见[只读证据](20261013_acceptance_company_inventory.json)，尚无更新或新测试。下一步补齐T1清单/配置与90/BJ健康，再T2逐项对齐；workspace D:\112233\unified-acceptance-20261013。本机不参加测试；必测缺环境不得勾通过，Remote独立Setup/复杂NAT/规模/外部发行单列条件，已有证据复用。阶段自动接续，Android/暂停专项不启动。

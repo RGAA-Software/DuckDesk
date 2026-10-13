@@ -4,40 +4,161 @@
   "source_base_revision": "58594d64a",
   "continuous_execution": true,
   "status": "active",
-  "current_step": "T1",
-  "next_action": "Finish T1 product-manifest/configuration baseline and90/BJ health checks, then compare complete candidate artifacts for T2 incremental alignment",
+  "current_step": "T3a",
+  "next_action": "Keep original T3a supervisor/client until full1800 seconds; verify later logs and normal close, while preparing isolated next-path tooling",
   "hosts": {
-    "primary_receiver": {"name": "Company", "device_code": "559038160", "maximum_clients": 2},
-    "source": {"name": "90", "device_code": "428358431", "workspace": "D:\\112233"},
-    "optional_peer": {"name": "XRServer03", "device_code": "947158375", "workspace": "D:\\uploadsoft\\rd\\pixels"},
-    "linux_relay": {"name": "BJ", "address": "49.232.233.61:4605"},
-    "independent_server": {"name": "CN", "address": "49.232.190.218:4600", "evidence_reused": true},
+    "primary_receiver": {
+      "name": "Company",
+      "device_code": "559038160",
+      "maximum_clients": 2
+    },
+    "source": {
+      "name": "90",
+      "device_code": "428358431",
+      "workspace": "D:\\112233"
+    },
+    "optional_peer": {
+      "name": "XRServer03",
+      "device_code": "947158375",
+      "workspace": "D:\\uploadsoft\\rd\\pixels"
+    },
+    "linux_relay": {
+      "name": "BJ",
+      "address": "49.232.233.61:4605"
+    },
+    "independent_server": {
+      "name": "CN",
+      "address": "49.232.190.218:4600",
+      "evidence_reused": true
+    },
     "local_validation_enabled": false
   },
   "stages": [
-    {"id": "T1", "status": "in_progress", "action": "Company connected; read-only inventory exit0: no px processes,20 logical CPUs/load6%,13600036KiB free RAM, existing D:\\112233; product/configuration baseline and90/BJ checks remain", "evidence": "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json"},
-    {"id": "T2", "status": "planned"},
-    {"id": "T3a", "status": "planned", "observation_seconds": 1800},
-    {"id": "T3b", "status": "planned", "observation_seconds": 1800},
-    {"id": "T3c", "status": "planned", "observation_seconds": 1800},
-    {"id": "T4", "status": "planned", "maximum_observation_seconds": 600},
-    {"id": "T5", "status": "planned", "observation_seconds": 1800},
-    {"id": "T6", "status": "planned", "observation_seconds": 14400},
-    {"id": "T7", "status": "planned", "condition": "Repair only evidenced new functional failures; repeat affected acceptance"},
-    {"id": "T8", "status": "planned"}
+    {
+      "id": "T1",
+      "status": "passed",
+      "action": "Company identity/configuration baseline and90/BJ health checked; existing full Client baseline;44 source artifacts checked; Company317 settings hashes captured",
+      "evidence": "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json"
+    },
+    {
+      "id": "T2",
+      "status": "passed",
+      "evidence": "docs/validation/iroh_transport/20261013_acceptance_company_alignment.json"
+    },
+    {
+      "id": "T3a",
+      "status": "running",
+      "observation_seconds": 1800,
+      "operation_id": "136e708d-1a3b-4c14-b233-5d43949fb70a",
+      "task_id": "f3aac060-0f9a-43dd-a808-607906832969",
+      "instance_id": "c52120e4-94e4-4897-9d6e-cbccbf22f852",
+      "resource_id": "0a0aa0e1-ab9b-4352-a81d-fe8582515e2d",
+      "client_pid": 53952,
+      "advertised": [
+        "https://39.71.45.66:4605/",
+        "10.0.0.90:4613",
+        "39.71.45.66:4613"
+      ],
+      "actual_path": "UDP direct10.0.0.90:4613",
+      "visible_output_verified": true,
+      "process_created_utc": "2026-10-13T15:06:25.4737890Z",
+      "started_at_utc": "2026-10-13T15:06:25.4854583+00:00",
+      "supervisor_pid": 49200,
+      "supervisor_created_utc": "2026-10-13T15:06:24.2580312Z",
+      "initial_present_fps": "59.96\u201360.06",
+      "initial_steady_maximum_gap_us": 29855,
+      "initial_interval_scope": "23:07:57\u201323:09:12; partial sample only"
+    },
+    {
+      "id": "T3b",
+      "status": "planned",
+      "observation_seconds": 1800
+    },
+    {
+      "id": "T3c",
+      "status": "planned",
+      "observation_seconds": 1800
+    },
+    {
+      "id": "T4",
+      "status": "planned",
+      "maximum_observation_seconds": 600
+    },
+    {
+      "id": "T5",
+      "status": "planned",
+      "observation_seconds": 1800
+    },
+    {
+      "id": "T6",
+      "status": "planned",
+      "observation_seconds": 14400
+    },
+    {
+      "id": "T7",
+      "status": "planned",
+      "condition": "Repair only evidenced new functional failures; repeat affected acceptance"
+    },
+    {
+      "id": "T8",
+      "status": "planned"
+    }
   ],
   "conditional_items": [
-    {"id": "Remote independent Setup", "status": "unvalidated", "condition": "Available independent Windows target without mutually exclusive installed products"},
-    {"id": "complex NAT/CGNAT", "status": "unvalidated", "condition": "Actual additional topology"},
-    {"id": "capacity limits", "status": "unvalidated", "condition": "Additional independent peers, bandwidth and test window"},
-    {"id": "external publication", "status": "not_started", "condition": "Separate concrete release candidate and publication decision"},
-    {"id": "existing strict Clippy warnings", "status": "retained_limitation"}
+    {
+      "id": "Remote independent Setup",
+      "status": "unvalidated",
+      "condition": "Available independent Windows target without mutually exclusive installed products"
+    },
+    {
+      "id": "complex NAT/CGNAT",
+      "status": "unvalidated",
+      "condition": "Actual additional topology"
+    },
+    {
+      "id": "capacity limits",
+      "status": "unvalidated",
+      "condition": "Additional independent peers, bandwidth and test window"
+    },
+    {
+      "id": "external publication",
+      "status": "not_started",
+      "condition": "Separate concrete release candidate and publication decision"
+    },
+    {
+      "id": "existing strict Clippy warnings",
+      "status": "retained_limitation"
+    }
   ],
   "android_enabled": false,
   "paused_investigations_enabled": false,
   "new_transport_tokens": false,
-  "company_updated_this_task": false,
-  "validation_started": false,
-  "owned_resources": [],
-  "evidence": ["docs/validation/iroh_transport/20261013_acceptance_company_inventory.json"]
+  "company_updated_this_task": true,
+  "validation_started": true,
+  "owned_resources": [
+    {
+      "kind": "source_page",
+      "device_code": "428358431",
+      "pid": 65500,
+      "created_utc": "2026-10-13T15:03:30.0252770Z",
+      "port": 48778
+    },
+    {
+      "kind": "client",
+      "device_code": "559038160",
+      "pid": 53952,
+      "sample": "T3a",
+      "created_utc": "2026-10-13T15:06:25.4737890Z"
+    },
+    {
+      "kind": "fixture",
+      "application_id": "145233fd-fee5-4b2d-99ce-b311bd8f4a59",
+      "deployment_id": "2a2443ab-fe7b-42f5-b5e0-4634c1d1c36c",
+      "originally_disabled": true
+    }
+  ],
+  "evidence": [
+    "docs/validation/iroh_transport/20261013_acceptance_company_inventory.json",
+    "docs/validation/iroh_transport/20261013_acceptance_company_alignment.json"
+  ]
 }
