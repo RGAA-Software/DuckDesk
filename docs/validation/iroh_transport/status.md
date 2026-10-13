@@ -4,6 +4,14 @@
 早期 P0–P7/Android 总路线保留为历史；Android 迁移及依赖它的全局旧栈退役不属于本次完成条件。
 90 工作区为 `D:\112233`，不向桌面复制文件。
 
+## 最新接续：2026-10-13，Game407接入失败已定位，Client无效hello重试已修复
+
+- 90数据库/Render同端时间线确认407连接信息11:07:29生成、待接入资源11:08:00关闭、接入11:08:01才到达，返回ADMISSION_REJECTED。夹具延迟超过现有待接入期限，不是UDP丢包证据；本机/90旧时钟相差约8.7s不直接相减。408信息生成后1.362s已connected，原媒体/声音证据继续有效。
+- SDK仅连接回调后发送hello、断开/退出后停止，保留已连接未配置时重试；iroh最终失败日志明确不可恢复/结束会话。业务拒绝独立中英文提示，避免误报网络或设备密码。未改Console授权协议/期限或新增票据。
+- 聚焦Release18jobs，2个CTest/26用例、所有权/命名/修改格式通过；三个产品Client同步开发dist、SHA相等，最终身份见本批delivery.json。Company仍上批B7；Console、90/XR服务/Render和BJ镜像不变，没有新Setup。
+- 409单路同脚本准备后立即启动487ms/connected观察2444ms、保持60s，hello失败0/接入拒绝0，实际Relay路径及音频打开/PCM、3476帧可用。平均57.824FPS/最大281.563ms，13个>100ms间隔保留；本机同时18jobs构建，只作功能证据，不重开暂停短顿调查。
+- owned资源closed/实例stopped/guest注销/Client0，测试应用和部署禁用、原应用spec不变、RDP10/授权80保持，Relay90默认1/BJ0且fresh/ready/未排空。下一项汇总Windows正式候选和必要Setup覆盖验收；复杂NAT、规模/长稳限制继续保留，Android排除。见[接入收尾报告](20261013_game_admission_report.md)。
+
 ## 最新接续：2026-10-13，Native声音输出缺陷已修复并验证
 
 - 定位Client未初始化SDL音频子系统，播放流打开失败且旧返回值被忽略。新增显式Start/UI线程初始化、RAII引用释放及初始化/打开/首PCM/失败日志；静音恢复保留引用，RDP原生流程不改。

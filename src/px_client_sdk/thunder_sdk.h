@@ -166,6 +166,7 @@ class ThunderSdk : public std::enable_shared_from_this<ThunderSdk> {
     std::map<std::string, DecoderOutputProgress> decoder_output_progress_{};
 
     std::atomic_bool has_config_msg_ = false;
+    std::atomic_bool hello_transport_ready_{};
     std::atomic_bool has_video_frame_msg_ = false;
 
     std::atomic_bool need_clear_video_tasks_{false};

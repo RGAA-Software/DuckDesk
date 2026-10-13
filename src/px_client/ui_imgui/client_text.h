@@ -48,6 +48,7 @@ enum class ClientText : std::uint8_t {
     Skip,
     ConnectionRejected,
     AuthorizationRejected,
+    AdmissionRejected,
     RemoteAccessDisabled,
     DeviceOccupied,
     SessionPolicyRejected,

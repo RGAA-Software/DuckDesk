@@ -35,7 +35,7 @@ void NetClient::StartIrohConnection() {
             return;
         }
         if (!result.connection) {
-            LOGW("event=iroh.connect outcome=failed code={}", result.error_code);
+            LOGW("event=iroh.connect outcome=failed code={} recoverable=false action=end_session", result.error_code);
             if (client->dis_conn_cbk_) client->dis_conn_cbk_();
             if (client->msg_notifier_) client->msg_notifier_->SendAppMessage(SdkMsgIrohConnectionFailed{result.error_code});
             return;

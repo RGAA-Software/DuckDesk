@@ -1,0 +1,78 @@
+{
+  "sessions": [
+    {
+      "id": "3790fa9d-ac21-404d-bc88-c2ec38e754c0",
+      "state": "closed",
+      "revision": 3,
+      "created_at": "2026-10-13T11:07:28.601843+08:00",
+      "closed_at": "2026-10-13T11:08:00.249008+08:00",
+      "node_generation": 468,
+      "control_epoch": 73
+    },
+    {
+      "id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "state": "closed",
+      "revision": 5,
+      "created_at": "2026-10-13T11:11:58.718362+08:00",
+      "closed_at": "2026-10-13T11:14:21.254528+08:00",
+      "node_generation": 468,
+      "control_epoch": 73
+    }
+  ],
+  "events": [
+    {
+      "session_id": "3790fa9d-ac21-404d-bc88-c2ec38e754c0",
+      "revision": 1,
+      "kind": "created",
+      "created_at": "2026-10-13T11:07:28.602399+08:00"
+    },
+    {
+      "session_id": "3790fa9d-ac21-404d-bc88-c2ec38e754c0",
+      "revision": 2,
+      "kind": "descriptor",
+      "created_at": "2026-10-13T11:07:29.893938+08:00"
+    },
+    {
+      "session_id": "3790fa9d-ac21-404d-bc88-c2ec38e754c0",
+      "revision": 3,
+      "kind": "closed",
+      "created_at": "2026-10-13T11:08:00.249377+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 1,
+      "kind": "created",
+      "created_at": "2026-10-13T11:11:58.718863+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 2,
+      "kind": "descriptor",
+      "created_at": "2026-10-13T11:11:59.24188+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 2,
+      "kind": "connected",
+      "created_at": "2026-10-13T11:12:00.604342+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 3,
+      "kind": "closing",
+      "created_at": "2026-10-13T11:14:17.063166+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 4,
+      "kind": "closing",
+      "created_at": "2026-10-13T11:14:17.253979+08:00"
+    },
+    {
+      "session_id": "bb3c8b66-9d39-41f8-a43e-b4ce1e906480",
+      "revision": 5,
+      "kind": "closed",
+      "created_at": "2026-10-13T11:14:21.254692+08:00"
+    }
+  ]
+}

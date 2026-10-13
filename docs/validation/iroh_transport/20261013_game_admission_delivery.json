@@ -1,0 +1,45 @@
+{
+  "products": [
+    {
+      "product": "client",
+      "configuration": "Release",
+      "profile": "fast-release",
+      "jobs": 18,
+      "build": "build_official\\client\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "build_official\\client\\dist\\px_client.exe",
+      "sha256": "9DA46ABD97E07CA68519D4011A78316687B20A3DF6E42AF3A6FF96205A43C352",
+      "hashes_match": true
+    },
+    {
+      "product": "remote",
+      "configuration": "Release",
+      "profile": "fast-release",
+      "jobs": 18,
+      "build": "build_official\\remote\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "build_official\\remote\\dist\\px_client.exe",
+      "sha256": "04747A6A4912668E834FF77F367A54C30CEAD9AFFAADB5020BCCBE92C95E726B",
+      "hashes_match": true
+    },
+    {
+      "product": "cloud_node",
+      "configuration": "Release",
+      "profile": "fast-release",
+      "jobs": 18,
+      "build": "build_official\\cloud_node\\cmake\\src\\px_deps\\px_client.exe",
+      "dist": "build_official\\cloud_node\\dist\\px_client.exe",
+      "sha256": "78809FA5AF2EF6F55A2339F8E3C5C2C8CB400298674054C43E96B87734C36139",
+      "hashes_match": true
+    }
+  ],
+  "focused_ctest_targets": [
+    "sdk_hello_lifecycle",
+    "client_imgui_launch_config"
+  ],
+  "gtest_cases": 26,
+  "passed": true,
+  "remote_updates_this_batch": [],
+  "company_client_sha256": "B7DEB80B2B8CA270AA80559BB81FFB12165565041452B8A259F5F368853C0272",
+  "source_node_service_sha256": "6E3C56A6FB7F05B1AA41A9B6288CC7BC9877287781CB6E5623E2357D471B912B",
+  "source_render_sha256": "C276FAB5F8263CBB32C70D0087C785C941127996FCE27C0F21A61F09C49D8931",
+  "local_client_processes": []
+}

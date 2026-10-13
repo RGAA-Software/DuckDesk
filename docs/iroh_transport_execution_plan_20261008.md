@@ -1,5 +1,11 @@
 # 媒体恢复修复与 iroh 统一传输开发计划
 
+2026-10-13接入收尾：407因测试夹具延迟超过既有待接入会话期限被拒，已由90数据库/Render同端时间线确认；
+SDK修复未连接/断开后的hello重试及终止日志，业务拒绝独立中英文提示。单路409准备后立即启动并接入、60秒视频/PCM输出确认、清理完成；
+26项聚焦回归通过，三个Windows产品Client Release18jobs同步dist。未改授权期限/协议、不新增票据，短顿/NIC/饱和混传及Android仍暂停或排除。
+下一交付项汇总Windows正式候选及必要Setup覆盖升级；复杂NAT、规模容量、长稳缺口继续如实记录。
+见[接入收尾报告](validation/iroh_transport/20261013_game_admission_report.md)。
+
 2026-10-13 11:15追加：定位并修复Native Client未初始化SDL音频、播放失败不记录的问题。
 WebView实际Relay/UDP声音频率与输入往返、Company增量更新后的PCM播放提交、Game408声音输出确认；
 三个Windows产品Client Release18jobs/dist SHA核对、4聚焦回归通过。清理owned及用户要求的旧测试编译产物11.811GiB。

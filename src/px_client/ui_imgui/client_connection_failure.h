@@ -10,6 +10,7 @@ namespace px::client::imgui {
 enum class ClientConnectionFailure : std::uint8_t {
     None,
     Authorization,
+    Admission,
     RemoteAccessDisabled,
     Occupied,
     SessionPolicy,
@@ -25,6 +26,7 @@ inline ClientConnectionFailure IrohConnectionFailure(const std::string_view code
     if (code == "SESSION_OCCUPIED") return ClientConnectionFailure::Occupied;
     if (code == "REMOTE_ACCESS_DISABLED") return ClientConnectionFailure::RemoteAccessDisabled;
     if (code == "SESSION_ADMISSION_DENIED" || code == "SESSION_CAPABILITY_DENIED") return ClientConnectionFailure::SessionPolicy;
+    if (code == "ADMISSION_REJECTED") return ClientConnectionFailure::Admission;
     if (code == "AUTHORIZATION_REJECTED" || code == "SESSION_PASSWORD_REJECTED") return ClientConnectionFailure::Authorization;
     return ClientConnectionFailure::Transport;
 }
@@ -33,6 +35,8 @@ inline ClientText ConnectionFailureText(const ClientConnectionFailure failure) n
     switch (failure) {
         case ClientConnectionFailure::Authorization:
             return ClientText::AuthorizationRejected;
+        case ClientConnectionFailure::Admission:
+            return ClientText::AdmissionRejected;
         case ClientConnectionFailure::RemoteAccessDisabled:
             return ClientText::RemoteAccessDisabled;
         case ClientConnectionFailure::Occupied:

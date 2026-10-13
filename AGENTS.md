@@ -1,5 +1,12 @@
 # Workspace delivery rules
 
+- Game first-admission follow-up (2026-10-13): failed batch407 was a delayed test handoff; the existing pending
+  resource session closed before Render admission. Client now suppresses hello while disconnected/unready and
+  reports final dial failure as terminal, with separate localized admission-rejection text. Reuse the database
+  timeline and bounded batch409 evidence in docs/validation/iroh_transport/20261013_game_admission_report.md.
+  Complete build/transfer preparation before requesting connection information, then launch immediately in the
+  same script. Do not treat this fixture failure as UDP loss or restart the paused video/NIC stress investigation.
+
 - Native audio completion (2026-10-13): SDL audio initialization and owned subsystem lifetime are fixed in
   Client. WebView output frequencies/input passed over actual Relay and UDP direct; GameHook playback and
   Company installed-Client PCM submission were verified. Reuse `docs/validation/iroh_transport/20261013_native_audio_input_report.md`.

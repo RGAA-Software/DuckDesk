@@ -207,6 +207,7 @@ void ThunderSdk::Start() {
 
     net_client_->SetOnConnectCallback([weak_self]() {
         if (const auto self = weak_self.lock()) {
+            self->hello_transport_ready_.store(true, std::memory_order_release);
             self->SendHelloMessage();
             self->msg_notifier_->SendAppMessage(SdkMsgNetworkConnected{});
         }
@@ -214,6 +215,7 @@ void ThunderSdk::Start() {
 
     net_client_->SetOnDisconnectedCallback([weak_self]() {
         if (const auto self = weak_self.lock()) {
+            self->hello_transport_ready_.store(false, std::memory_order_release);
             self->media_generation_.fetch_add(1);
             self->has_config_msg_.store(false, std::memory_order_release);
             self->decoder_resync_requested_.store(true, std::memory_order_release);
@@ -597,7 +599,7 @@ void ThunderSdk::RegisterEventListeners() {
 }
 
 void ThunderSdk::SendHelloMessage() {
-    if (!net_client_) {
+    if (exit_.load() || !hello_transport_ready_.load(std::memory_order_acquire) || !net_client_) {
         return;
     }
     px::Message hello_message;

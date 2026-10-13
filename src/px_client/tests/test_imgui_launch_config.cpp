@@ -12,7 +12,9 @@ TEST(ClientConnectionFailureTest, TerminalRecoveryFailuresHaveChineseAndEnglishM
     EXPECT_EQ(IrohConnectionFailure("IROH_RECONNECT_EXPIRED"), ClientConnectionFailure::ReconnectExpired);
     EXPECT_EQ(IrohConnectionFailure("IROH_SESSION_ENDED"), ClientConnectionFailure::SessionEnded);
     EXPECT_EQ(IrohConnectionFailure("IROH_REMOTE_CLOSED"), ClientConnectionFailure::SessionEnded);
-    for (const auto failure : {ClientConnectionFailure::ReconnectExpired, ClientConnectionFailure::SessionEnded}) {
+    EXPECT_EQ(IrohConnectionFailure("ADMISSION_REJECTED"), ClientConnectionFailure::Admission);
+    for (const auto failure :
+         {ClientConnectionFailure::ReconnectExpired, ClientConnectionFailure::SessionEnded, ClientConnectionFailure::Admission}) {
         const auto key = ConnectionFailureText(failure);
         EXPECT_FALSE(ClientTextValue(key, false).empty());
         EXPECT_FALSE(ClientTextValue(key, true).empty());

@@ -1,0 +1,88 @@
+{
+  "batch": 409,
+  "receiver_limit": 1,
+  "errors": [],
+  "cleanup_errors": [],
+  "instance_id": "da573465-531a-4587-8e85-a9a495da76ea",
+  "session_id": "23f6cca6-24ee-499a-9638-c173801fd973",
+  "pid": 67464,
+  "descriptor_to_launch_ms": 487.337,
+  "client_sha256": "9657B85211C317BE0C94236A54D2B9FE90F0E96E11B1102C3122B68E5D7EB460",
+  "advertised_relays": [
+    "https://39.71.45.66:4605/"
+  ],
+  "descriptor_to_connected_ms": 2443.793,
+  "hold_seconds": 60.415,
+  "final_resource_state": "connected",
+  "hello_enqueue_failures": 0,
+  "admission_rejections": 0,
+  "transport_connected_lines": [
+    "[2026-10-13 11:56:22.350][thread 64316][iroh_dialer.cpp:158][info] : event=iroh.connect outcome=accepted reconnect=false"
+  ],
+  "media_evidence_lines": [
+    "[2026-10-13 11:56:21.952][thread 51932][client_audio_output.cpp:58][info] : event=client.audio_output phase=initialize outcome=success driver=wasapi",
+    "[2026-10-13 11:56:22.473][thread 22468][client_audio_output.cpp:85][info] : event=client.audio_output phase=open outcome=success sample_rate=48000 channels=2",
+    "[2026-10-13 11:56:22.473][thread 22468][client_audio_output.cpp:96][info] : event=client.audio_output phase=first_write outcome=success bytes=3840",
+    "[2026-10-13 11:56:27.559][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=293 elapsed_us=5022026 fps=58.34 maximum_gap_us=82191 maximum_upload_age_us=4136 maximum_render_us=4115 log_overruns=0",
+    "[2026-10-13 11:56:32.567][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=295 elapsed_us=5008554 fps=58.90 maximum_gap_us=42602 maximum_upload_age_us=2803 maximum_render_us=2773 log_overruns=0",
+    "[2026-10-13 11:56:37.580][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=294 elapsed_us=5012268 fps=58.66 maximum_gap_us=42009 maximum_upload_age_us=864 maximum_render_us=837 log_overruns=0",
+    "[2026-10-13 11:56:42.584][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=297 elapsed_us=5004874 fps=59.34 maximum_gap_us=43115 maximum_upload_age_us=1103 maximum_render_us=1068 log_overruns=0",
+    "[2026-10-13 11:56:47.596][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=285 elapsed_us=5011716 fps=56.87 maximum_gap_us=123857 maximum_upload_age_us=903 maximum_render_us=872 log_overruns=0",
+    "[2026-10-13 11:56:52.606][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=299 elapsed_us=5009605 fps=59.69 maximum_gap_us=45359 maximum_upload_age_us=1081 maximum_render_us=1050 log_overruns=0",
+    "[2026-10-13 11:56:57.618][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=281 elapsed_us=5011763 fps=56.07 maximum_gap_us=165754 maximum_upload_age_us=1033 maximum_render_us=1006 log_overruns=0",
+    "[2026-10-13 11:57:02.621][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=299 elapsed_us=5003890 fps=59.75 maximum_gap_us=44613 maximum_upload_age_us=910 maximum_render_us=886 log_overruns=0",
+    "[2026-10-13 11:57:07.625][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=276 elapsed_us=5003257 fps=55.16 maximum_gap_us=129561 maximum_upload_age_us=784 maximum_render_us=758 log_overruns=0",
+    "[2026-10-13 11:57:12.633][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=286 elapsed_us=5008687 fps=57.10 maximum_gap_us=281563 maximum_upload_age_us=969 maximum_render_us=912 log_overruns=0",
+    "[2026-10-13 11:57:17.640][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=301 elapsed_us=5006851 fps=60.12 maximum_gap_us=34034 maximum_upload_age_us=1324 maximum_render_us=1287 log_overruns=0",
+    "[2026-10-13 11:57:22.650][thread 51932][video_presentation_progress.cpp:19][info] : event=video.present phase=window backend=vulkan frames=270 elapsed_us=5010029 fps=53.89 maximum_gap_us=213483 maximum_upload_age_us=663 maximum_render_us=635 log_overruns=0"
+  ],
+  "log_sha256": "36DD25F18365D4E7A72937FAF2AA4832E5CB0F0BFE6E22809140255942464FAB",
+  "cleaned_resource-sessions": [
+    {
+      "id": "23f6cca6-24ee-499a-9638-c173801fd973",
+      "state": "closed"
+    }
+  ],
+  "cleaned_instances": [
+    {
+      "id": "da573465-531a-4587-8e85-a9a495da76ea",
+      "state": "stopped"
+    }
+  ],
+  "restored_application_disabled": true,
+  "restored_deployment_disabled": true,
+  "client_stopped": true,
+  "video_summary": {
+    "frames": 3476,
+    "elapsed_us": 60113520,
+    "maximum_gap_us": 281563,
+    "presentation_gap_events": 13,
+    "concurrent_local_build_jobs": 18,
+    "fps": 57.824
+  },
+  "guest_closed": true,
+  "final_relays": [
+    {
+      "id": "3314f150-27be-42cb-ac2e-bf3e0e68b3c7",
+      "name": "BJ-200M Relay",
+      "fresh": true,
+      "state": "ready",
+      "current_connections": 0,
+      "desired_draining": false,
+      "reported_draining": false
+    },
+    {
+      "id": "7153ff11-4cdc-40d5-8bea-054fd4f2d6d3",
+      "name": "Single Server Relay",
+      "fresh": true,
+      "state": "ready",
+      "current_connections": 1,
+      "desired_draining": false,
+      "reported_draining": false
+    }
+  ],
+  "original_application_specs_unchanged": true,
+  "rdp_deployment_capacities": [
+    10
+  ]
+}
