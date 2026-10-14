@@ -10,8 +10,10 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="client" if /I not "%~1"=="remote
     exit /b 2
 )
 set "RUST_PRODUCT=%~1"
-set "RUST_BUILD_JOBS=18"
+set "RUST_BUILD_JOBS=10"
 if not "%~3"=="" set "RUST_BUILD_JOBS=%~3"
+call "%~dp0..\scripts\configure_build_jobs.bat" "%RUST_BUILD_JOBS%"
+if errorlevel 1 exit /b %errorlevel%
 set "RUST_DISTRIBUTION=development"
 if not "%~4"=="" set "RUST_DISTRIBUTION=%~4"
 if /I not "%RUST_DISTRIBUTION%"=="development" if /I not "%RUST_DISTRIBUTION%"=="official" exit /b 2

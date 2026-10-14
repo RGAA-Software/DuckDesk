@@ -27,9 +27,9 @@
 
 namespace px {
 
-class RdContext;
-class RdSettings;
-class RdApplication;
+class PxContext;
+class PxSettings;
+class PxApplication;
 class Data;
 class RenderEventIngress;
 class EncodedVideoFanout;
@@ -66,9 +66,9 @@ struct RenderModuleInfo final {
 
 class RenderModuleRegistry : public std::enable_shared_from_this<RenderModuleRegistry> {
 public:
-    static std::shared_ptr<RenderModuleRegistry> Make(const std::shared_ptr<RdApplication>& app);
+    static std::shared_ptr<RenderModuleRegistry> Make(const std::shared_ptr<PxApplication>& app);
 
-    explicit RenderModuleRegistry(const std::shared_ptr<RdApplication>& app);
+    explicit RenderModuleRegistry(const std::shared_ptr<PxApplication>& app);
     ~RenderModuleRegistry();
 
     void StartModules();
@@ -161,9 +161,9 @@ private:
 
     // Process-lifetime settings singleton, represented as a non-null
     // reference so composition never carries a nullable borrowed pointer.
-    RdSettings& settings_;
-    std::shared_ptr<RdApplication> app_ = nullptr;
-    std::shared_ptr<RdContext> context_ = nullptr;
+    PxSettings& settings_;
+    std::shared_ptr<PxApplication> app_ = nullptr;
+    std::shared_ptr<PxContext> context_ = nullptr;
     // Guards the explicit module composition. Visitors take a shared lock;
     // StopModules atomically detaches every owner under an exclusive lock.
     mutable std::shared_mutex modules_mtx_;

@@ -1,0 +1,3509 @@
+{
+  "kind": "rename_inventory_and_delivery",
+  "base_revision": "e68a2af4cdb0320c0775ad827dd73aec02d0f075",
+  "scope": "Project-maintained source only; exclude Rdp identifiers, third-party sources, backup archives, generated outputs and local build trees",
+  "identifier_match": "\\bRd(?!p)[A-Za-z0-9_]*\\b",
+  "file_match": "basename starts with rd_",
+  "scanned_project_source_files": 2741,
+  "summary": {
+    "cpp_classes": 4,
+    "protobuf_message_types": 5,
+    "source_resource_file_renames": 10,
+    "affected_project_reference_files": 63,
+    "destination_file_collisions": 0
+  },
+  "type_renames": [
+    {
+      "old_name": "RdApplication",
+      "definitions": [
+        {
+          "kind": "class",
+          "path": "src/px_render/rd_app.h",
+          "line": 110,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 28,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 40,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 72,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 107,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 113,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/architecture/network/network_transport_hub.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/architecture/pipeline/captured_media_pipeline.h",
+          "line": 54,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/architecture/runtime/render_composition_root.h",
+          "line": 20,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 31,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 40,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 114,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 34,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 135,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 180,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 213,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 243,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 283,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 289,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 433,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 81,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 85,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 165,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 412,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 32,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 69,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 71,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 165,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 66,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 28,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 108,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.h",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.h",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 145,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/webrtc/local/rtc_server.h",
+          "line": 215,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 28,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 34,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 110,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 112,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 114,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 195,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 324,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 327,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 89,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 177,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 182,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 193,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 204,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 214,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 216,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 219,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 237,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 239,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 250,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 616,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 768,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 779,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 818,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 823,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 828,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 842,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 869,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1225,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1298,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1338,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1346,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1348,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1350,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1359,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1366,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1395,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1489,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1493,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1497,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1501,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1564,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1572,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1578,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1582,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1599,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1658,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1693,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1697,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1769,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1808,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1832,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1842,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1853,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1873,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1877,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1879,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1921,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1939,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1955,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1963,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2065,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2077,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2081,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2099,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2105,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2109,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2149,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2151,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2156,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2165,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2169,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2176,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2264,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2274,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2281,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2313,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2331,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2345,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2357,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2370,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2402,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2422,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2444,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2465,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2472,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2496,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2524,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2531,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2548,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2550,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2571,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2592,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2597,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2602,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2609,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2616,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2623,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2651,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2668,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2690,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2703,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2745,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2749,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2837,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2849,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2853,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2857,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2875,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2907,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2910,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2926,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2929,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2939,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 2953,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.h",
+          "line": 75,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 145,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 53,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 90,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 410,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 64,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxApplication",
+      "current_definitions": [
+        {
+          "path": "src/px_render/px_app.h",
+          "line": 110
+        }
+      ]
+    },
+    {
+      "old_name": "RdContext",
+      "definitions": [
+        {
+          "kind": "class",
+          "path": "src/px_render/rd_context.h",
+          "line": 41,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_render/app/app_manager_factory.h",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager_factory.h",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.h",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.h",
+          "line": 23,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.h",
+          "line": 36,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.cpp",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager_factory.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.h",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.h",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.h",
+          "line": 35,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.h",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.h",
+          "line": 31,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.h",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 49,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 71,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.cpp",
+          "line": 46,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_shared_info.cpp",
+          "line": 50,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/steam_game.h",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/steam_game.h",
+          "line": 22,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/steam_game.h",
+          "line": 31,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.h",
+          "line": 33,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/steam_game.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.cpp",
+          "line": 12,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.cpp",
+          "line": 23,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.h",
+          "line": 7,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.h",
+          "line": 12,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.h",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_desktop_manager.h",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.h",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.h",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.h",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.h",
+          "line": 31,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.cpp",
+          "line": 21,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.cpp",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.h",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.h",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.h",
+          "line": 20,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.h",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 33,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 115,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 35,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 30,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 166,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 109,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.h",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.h",
+          "line": 18,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.h",
+          "line": 20,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.h",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.cpp",
+          "line": 12,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.h",
+          "line": 41,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.h",
+          "line": 43,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.h",
+          "line": 45,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.h",
+          "line": 46,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 23,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 41,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 71,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 75,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 79,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 83,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 87,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 91,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 95,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 99,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 103,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 107,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 111,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 115,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 119,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 123,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 131,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 135,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 139,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 143,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 147,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 151,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 155,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 159,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 163,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 167,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 171,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 175,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 179,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 183,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 196,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 205,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 212,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 230,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 236,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 240,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 237,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 69,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 41,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 245,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 288,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 317,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 795,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 91,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 23,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 25,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxContext",
+      "current_definitions": [
+        {
+          "path": "src/px_render/px_context.h",
+          "line": 41
+        }
+      ]
+    },
+    {
+      "old_name": "RdHardwareCpu",
+      "definitions": [
+        {
+          "kind": "message",
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 280,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 280,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 309,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxHardwareCpu",
+      "current_definitions": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 280
+        }
+      ]
+    },
+    {
+      "old_name": "RdHardwareDisk",
+      "definitions": [
+        {
+          "kind": "message",
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 301,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 301,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 312,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxHardwareDisk",
+      "current_definitions": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 301
+        }
+      ]
+    },
+    {
+      "old_name": "RdHardwareGpu",
+      "definitions": [
+        {
+          "kind": "message",
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 292,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 292,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 311,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxHardwareGpu",
+      "current_definitions": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 292
+        }
+      ]
+    },
+    {
+      "old_name": "RdHardwareInfo",
+      "definitions": [
+        {
+          "kind": "message",
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 279,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_client_sdk/sdk_statistics.h",
+          "line": 122,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 279,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 334,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxHardwareInfo",
+      "current_definitions": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 279
+        }
+      ]
+    },
+    {
+      "old_name": "RdHardwareMemory",
+      "definitions": [
+        {
+          "kind": "message",
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 287,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 287,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 310,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxHardwareMemory",
+      "current_definitions": [
+        {
+          "path": "src/px_deps/px_message/px_message.proto",
+          "line": 287
+        }
+      ]
+    },
+    {
+      "old_name": "RdSettings",
+      "definitions": [
+        {
+          "kind": "class",
+          "path": "src/px_render/settings/rd_settings.h",
+          "line": 127,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 50,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 65,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 114,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 227,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.h",
+          "line": 23,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.h",
+          "line": 76,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 112,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 122,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 289,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 85,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 31,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.h",
+          "line": 164,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 217,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 246,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 662,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws/ws_transport.h",
+          "line": 176,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 50,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 234,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 68,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 41,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 61,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 205,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.h",
+          "line": 127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.h",
+          "line": 129,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.h",
+          "line": 130,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 94,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 162,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 167,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 169,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 94,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 133,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 278,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 345,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 61,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxSettings",
+      "current_definitions": [
+        {
+          "path": "src/px_render/settings/px_settings.h",
+          "line": 128
+        }
+      ]
+    },
+    {
+      "old_name": "RdStatistics",
+      "definitions": [
+        {
+          "kind": "class",
+          "path": "src/px_render/rd_statistics.h",
+          "line": 44,
+          "scope": "maintained",
+          "forward_declaration": false
+        }
+      ],
+      "references": [
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 69,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 117,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.h",
+          "line": 113,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 18,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.h",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 293,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 67,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.h",
+          "line": 107,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 147,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_media_router.cpp",
+          "line": 55,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_media_router.cpp",
+          "line": 77,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 145,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 65,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 252,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.h",
+          "line": 67,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 43,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.h",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 242,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1786,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1922,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1940,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 44,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 47,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 48,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 52,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 60,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 64,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 70,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 80,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 90,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 94,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 98,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 105,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 113,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 119,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 127,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 133,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 285,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 289,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 294,
+          "scope": "maintained"
+        }
+      ],
+      "new_name": "PxStatistics",
+      "current_definitions": [
+        {
+          "path": "src/px_render/px_statistics.h",
+          "line": 44
+        }
+      ]
+    }
+  ],
+  "file_renames": [
+    {
+      "old_path": "src/px_render/rd_app.cpp",
+      "new_path": "src/px_render/px_app.cpp",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 524,
+          "scope": "maintained"
+        },
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 527,
+          "scope": "maintained"
+        },
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 532,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 9,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 48,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 36,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/udp/udp_transport.h",
+          "line": 123,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 9,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "web/px_web_client/src/App.vue",
+          "line": 637,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_app.h",
+      "new_path": "src/px_render/px_app.h",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 524,
+          "scope": "maintained"
+        },
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 527,
+          "scope": "maintained"
+        },
+        {
+          "path": "scripts/test_render_architecture_boundaries.ps1",
+          "line": 532,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 38,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 9,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 25,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 48,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 36,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 13,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/udp/udp_transport.h",
+          "line": 123,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 9,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 1,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 19,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "web/px_web_client/src/App.vue",
+          "line": 637,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_context.cpp",
+      "new_path": "src/px_render/px_context.cpp",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 49,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.cpp",
+          "line": 7,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 5,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 81,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 20,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 7,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 2,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_context.h",
+      "new_path": "src/px_render/px_context.h",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_timer.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/app_manager.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_loop.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/win/win_render_message_window.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 26,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 49,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 37,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/server_cast.cpp",
+          "line": 7,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 6,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_context.cpp",
+          "line": 5,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.h",
+          "line": 29,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 81,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 20,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 7,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+          "line": 2,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_icon.rc.in",
+      "new_path": "src/px_render/px_icon.rc.in",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "scripts/validate_product_branding.py",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 32,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 33,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 96,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 98,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_main.cpp",
+      "new_path": "src/px_render/px_main.cpp",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "scripts/start_render_hook.ps1",
+          "line": 143,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 96,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 98,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 89,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_statistics.cpp",
+      "new_path": "src/px_render/px_statistics.cpp",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 40,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 50,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 28,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_media_router.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 82,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 5,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/rd_statistics.h",
+      "new_path": "src/px_render/px_statistics.h",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/CMakeLists.txt",
+          "line": 40,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 24,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/render_event_ingress.cpp",
+          "line": 27,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 50,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/net_message_maker.cpp",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 28,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_media_router.cpp",
+          "line": 8,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 16,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 10,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 82,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 5,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/settings/rd_settings.cpp",
+      "new_path": "src/px_render/settings/px_settings.cpp",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 22,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 51,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 30,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/webrtc/local/rtc_video_encoder.cpp",
+          "line": 12,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 84,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 5,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 44,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 21,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/CMakeLists.txt",
+          "line": 3,
+          "scope": "maintained"
+        }
+      ]
+    },
+    {
+      "old_path": "src/px_render/settings/rd_settings.h",
+      "new_path": "src/px_render/settings/px_settings.h",
+      "destination_exists": false,
+      "references": [
+        {
+          "path": "src/px_render/app/win/app_manager_win.cpp",
+          "line": 17,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.h",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/app/encoder_thread.cpp",
+          "line": 22,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/ingress/network_event_ingress.cpp",
+          "line": 51,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/modules/render_module_registry.cpp",
+          "line": 39,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/render_service_client.cpp",
+          "line": 30,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/webrtc/local/rtc_video_encoder.cpp",
+          "line": 12,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+          "line": 15,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/network/ws_panel_client.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rdp/rdp_application.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_app.cpp",
+          "line": 84,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 5,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/rd_settings.cpp",
+          "line": 44,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.h",
+          "line": 14,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_main.cpp",
+          "line": 21,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/rd_statistics.cpp",
+          "line": 11,
+          "scope": "maintained"
+        },
+        {
+          "path": "src/px_render/settings/CMakeLists.txt",
+          "line": 3,
+          "scope": "maintained"
+        }
+      ]
+    }
+  ],
+  "affected_project_reference_files": [
+    {
+      "path": "scripts/start_render_hook.ps1",
+      "matched_names": [
+        "rd_main.cpp"
+      ]
+    },
+    {
+      "path": "scripts/test_render_architecture_boundaries.ps1",
+      "matched_names": [
+        "rd_app.cpp",
+        "rd_app.h"
+      ]
+    },
+    {
+      "path": "scripts/validate_product_branding.py",
+      "matched_names": [
+        "rd_icon.rc.in"
+      ]
+    },
+    {
+      "path": "src/px_client_sdk/sdk_statistics.h",
+      "matched_names": [
+        "RdHardwareInfo"
+      ]
+    },
+    {
+      "path": "src/px_deps/px_message/px_message.proto",
+      "matched_names": [
+        "RdHardwareCpu",
+        "RdHardwareDisk",
+        "RdHardwareGpu",
+        "RdHardwareInfo",
+        "RdHardwareMemory"
+      ]
+    },
+    {
+      "path": "src/px_render/CMakeLists.txt",
+      "matched_names": [
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_icon.rc.in",
+        "rd_main.cpp",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_manager.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_manager.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_manager_factory.cpp",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_manager_factory.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_shared_info.cpp",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_shared_info.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_timer.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/app_timer.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/encoder_thread.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/encoder_thread.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings",
+        "RdStatistics",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/steam_game.cpp",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/steam_game.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/app_manager_win.cpp",
+      "matched_names": [
+        "RdContext",
+        "RdSettings",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/app_manager_win.h",
+      "matched_names": [
+        "RdContext",
+        "RdSettings"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_desktop_manager.cpp",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_desktop_manager.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_render_message_loop.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_render_message_loop.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_render_message_window.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/app/win/win_render_message_window.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/architecture/network/network_transport_hub.h",
+      "matched_names": [
+        "RdApplication"
+      ]
+    },
+    {
+      "path": "src/px_render/architecture/pipeline/captured_media_pipeline.h",
+      "matched_names": [
+        "RdApplication"
+      ]
+    },
+    {
+      "path": "src/px_render/architecture/runtime/render_composition_root.h",
+      "matched_names": [
+        "RdApplication"
+      ]
+    },
+    {
+      "path": "src/px_render/ingress/network_event_ingress.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/ingress/network_event_ingress.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings",
+        "RdStatistics"
+      ]
+    },
+    {
+      "path": "src/px_render/ingress/render_event_ingress.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/ingress/render_event_ingress.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdStatistics"
+      ]
+    },
+    {
+      "path": "src/px_render/modules/render_module_registry.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/modules/render_module_registry.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings"
+      ]
+    },
+    {
+      "path": "src/px_render/network/net_message_maker.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/net_message_maker.h",
+      "matched_names": [
+        "RdApplication"
+      ]
+    },
+    {
+      "path": "src/px_render/network/render_service_client.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/render_service_client.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdStatistics"
+      ]
+    },
+    {
+      "path": "src/px_render/network/server_cast.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/server_cast.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/network/udp/udp_transport.h",
+      "matched_names": [
+        "rd_app.cpp",
+        "rd_app.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/webrtc/local/rtc_server.h",
+      "matched_names": [
+        "RdApplication"
+      ]
+    },
+    {
+      "path": "src/px_render/network/webrtc/local/rtc_video_encoder.cpp",
+      "matched_names": [
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/ws/ws_transport.h",
+      "matched_names": [
+        "RdSettings"
+      ]
+    },
+    {
+      "path": "src/px_render/network/ws_media_router.cpp",
+      "matched_names": [
+        "RdStatistics",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/ws_panel_client.cpp",
+      "matched_names": [
+        "RdContext",
+        "RdSettings",
+        "RdStatistics",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/network/ws_panel_client.h",
+      "matched_names": [
+        "RdContext",
+        "RdSettings",
+        "RdStatistics"
+      ]
+    },
+    {
+      "path": "src/px_render/pipeline/encoded_video_fanout.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/pipeline/encoded_video_fanout.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdStatistics"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_app.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_app.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings",
+        "RdStatistics",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_context.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_context.h",
+      "matched_names": [
+        "RdContext"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_main.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_statistics.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "RdStatistics",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_context.cpp",
+        "rd_context.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rd_statistics.h",
+      "matched_names": [
+        "RdApplication",
+        "RdContext",
+        "RdSettings",
+        "RdStatistics",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/rdp/rdp_application.cpp",
+      "matched_names": [
+        "RdApplication",
+        "rd_app.cpp",
+        "rd_app.h",
+        "rd_settings.cpp",
+        "rd_settings.h",
+        "rd_statistics.cpp",
+        "rd_statistics.h"
+      ]
+    },
+    {
+      "path": "src/px_render/settings/CMakeLists.txt",
+      "matched_names": [
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.cpp",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings",
+        "rd_main.cpp",
+        "rd_settings.cpp",
+        "rd_settings.h"
+      ]
+    },
+    {
+      "path": "src/px_render/settings/rd_settings.h",
+      "matched_names": [
+        "RdApplication",
+        "RdSettings"
+      ]
+    },
+    {
+      "path": "src/px_render/tests/unit/test_render_context_shutdown.cpp",
+      "matched_names": [
+        "RdContext",
+        "rd_context.cpp",
+        "rd_context.h"
+      ]
+    },
+    {
+      "path": "web/px_web_client/src/App.vue",
+      "matched_names": [
+        "rd_app.cpp",
+        "rd_app.h"
+      ]
+    }
+  ],
+  "additional_updates": [
+    {
+      "path": "src/px_render/CMakeLists.txt",
+      "reason": "Rename source entries, resource template and generated rd_icon.rc to px_icon.rc"
+    },
+    {
+      "path": "src/px_render/settings/CMakeLists.txt",
+      "reason": "Rename rd_settings.cpp source entry"
+    },
+    {
+      "path": "scripts/test_render_architecture_boundaries.ps1",
+      "reason": "Rename source paths and assertions containing old class names"
+    },
+    {
+      "path": "scripts/validate_product_branding.py",
+      "reason": "Rename resource template path"
+    },
+    {
+      "path": "scripts/start_render_hook.ps1",
+      "reason": "Update rd_main source-name reference in diagnostic text"
+    },
+    {
+      "path": "src/px_deps/px_message/px_message.proto",
+      "reason": "Rename authoritative hardware message types; regenerate generated code, retain field names/numbers"
+    },
+    {
+      "path": "src/px_client_sdk/sdk_statistics.h",
+      "reason": "Update px::RdHardwareInfo reference"
+    },
+    {
+      "path": "web/px_web_client/src/App.vue",
+      "reason": "Update rd_app.cpp source-name reference in comment"
+    }
+  ],
+  "generation_notes": [
+    "RdHardwareInfo.RdHardwareCpu/Memory/Gpu/Disk are nested protobuf types; generated C++ flattened names change with the authoritative schema.",
+    "Generated px_message.pb.h/.cc and generated rd_icon.rc are regenerated from sources rather than hand-edited.",
+    "Constructor/destructor names, forward declarations, inheritance, smart-pointer type arguments, implementation qualifiers, includes and test assertions follow each class rename."
+  ],
+  "product_code_renamed": true,
+  "builds_executed": true,
+  "application": {
+    "state": "completed_and_development_dist_sha_verified",
+    "changed_reference_file_count": 63,
+    "file_renames_applied": 10,
+    "Rdp_identifiers_renamed": false,
+    "third_party_or_archives_modified": false,
+    "excluded_false_positive": {
+      "path": "src/px_render/architecture/processors/frame_resizer/resize_common_types.h",
+      "reason": "Microsoft reference D3D member RdContext is not the project class; preserved unchanged"
+    },
+    "validation": "docs/validation/rd_px_rename_20261014.json",
+    "maximum_build_jobs": 10,
+    "additional_excluded_false_positive": {
+      "path": "src/px_render/architecture/encoders/nvenc/nvencoder/12/NvEncoder.h",
+      "reason": "NVIDIA third-party header has old class names only in comments; restored original file intact before commit"
+    }
+  }
+}

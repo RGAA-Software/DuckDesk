@@ -173,7 +173,7 @@ private:
     FrontendAuthorizer frontend_authorizer_;
     DirectStreamAuthorizer direct_stream_authorizer_{};
     LogicalLeaseRenewer logical_lease_renewer_;
-    // exe 侧通过插件参数下发("app_mode");DLL 内的 RdSettings
+    // exe 侧通过插件参数下发("app_mode");DLL 内的 PxSettings
     // 单例是独立副本不可用
     bool game_hook_mode_ = false;
     bool console_frontend_admission_required_ = false;

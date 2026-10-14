@@ -16,9 +16,9 @@
 #include "px_common/process_util.h"
 #include "px_common/string_util.h"
 #include "px_common/win32/render_instance_lease.h"
-#include "rd_app.h"
-#include "rd_context.h"
-#include "settings/rd_settings.h"
+#include "px_app.h"
+#include "px_context.h"
+#include "settings/px_settings.h"
 #include "version_config.h"
 #include "webview/webview_runtime.h"
 
@@ -130,7 +130,7 @@ bool ReadAndClearPrivateEnvironment(const std::wstring& environment_name, std::s
 
 }  // namespace
 
-bool UpdateSettings(RdSettings& settings) {
+bool UpdateSettings(PxSettings& settings) {
     if (FLAGS_steam_app_id > 0) {
         settings.app_.steam_app_.app_id_ = FLAGS_steam_app_id;
         settings.app_.steam_app_.steam_url_ = std::format("steam://rungameid/{}", FLAGS_steam_app_id);
@@ -275,7 +275,7 @@ bool UpdateSettings(RdSettings& settings) {
 }
 
 void PrintInputArgs() {
-    auto& settings = *RdSettings::Instance();
+    auto& settings = *PxSettings::Instance();
     LOGI("--------------In args begin--------------");
     LOGI("steam_app_id: {}", FLAGS_steam_app_id);
     LOGI("logfile: {}", FLAGS_logfile);
@@ -342,7 +342,7 @@ int main(int argc, char** argv) {
     // 1. settings.toml defaults (application.mode / game-path / capture-method)
     // 2. CLI overrides (panel: --app_mode=desktop; game-hook script: --app_mode=game-hook)
     // 3. ApplyApplicationMode syncs capture path + whether to launch game-path
-    auto& settings = *RdSettings::Instance();
+    auto& settings = *PxSettings::Instance();
     if (!settings.LoadSettings("settings.toml") && std::filesystem::exists("settings.toml")) {
         LOGE("Cannot load Render configuration");
         return 1;
@@ -407,8 +407,8 @@ int main(int argc, char** argv) {
 
     // start application
     px::AppParams params = {};
-    auto app = px::RdApplication::Make(params);
-    app->Init(argc, argv);
+    auto app = px::PxApplication::Make(params);
+    app->Init();
     app->CaptureControlC();
 
     // hardware

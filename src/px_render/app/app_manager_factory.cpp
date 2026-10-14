@@ -13,7 +13,7 @@
 namespace px
 {
 
-    std::shared_ptr<AppManager> AppManagerFactory::Make(const std::shared_ptr<RdContext>& ctx) {
+    std::shared_ptr<AppManager> AppManagerFactory::Make(const std::shared_ptr<PxContext>& ctx) {
 #ifdef WIN32
         auto mgr = std::make_shared<AppManagerWinImpl>(ctx);
         mgr->Init();

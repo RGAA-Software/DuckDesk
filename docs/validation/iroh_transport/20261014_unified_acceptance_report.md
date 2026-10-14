@@ -59,7 +59,7 @@ Company两份独立接收运行目录在进程退出、44文件身份和压缩�
 
 90的19个Server配置文件及4个产品程序SHA与基线一致，90/XR两个Node TOML、XR Service/Render及Company Client/Panel核对一致。317个Company设置文件的字节相等仅指增量更新前后，不扩大为随后全部运行期间所有文件均未写入。
 
-90默认桌面Render从56256变为49192，创建于02:07:39，父进程仍为原Service74748。旧4601日志02:07:37记录无人连接时重启；[既有实现](../../../src/px_render/rd_app.cpp)每360次一分钟计时、无人连接时重启，排除GameHook/WebView/RDP。Service随后记录desktop render missing/start desktop finished。这是既有默认桌面生命周期，四小时业务为独立4613实例，未被该重启结束；新默认进程保留，没有冒称所有基线PID不变，也没有按进程名清扫。
+90默认桌面Render从56256变为49192，创建于02:07:39，父进程仍为原Service74748。旧4601日志02:07:37记录无人连接时重启；[既有实现](../../../src/px_render/px_app.cpp)每360次一分钟计时、无人连接时重启，排除GameHook/WebView/RDP。Service随后记录desktop render missing/start desktop finished。这是既有默认桌面生命周期，四小时业务为独立4613实例，未被该重启结束；新默认进程保留，没有冒称所有基线PID不变，也没有按进程名清扫。
 
 压缩证据和完整480采样保留在本地`.cache/unified-acceptance-20261013`及远端授权工作区，公开JSON仅保留必要指标、SHA和操作身份，不提交登录凭据或完整连接descriptor。
 

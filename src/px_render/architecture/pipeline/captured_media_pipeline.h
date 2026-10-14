@@ -51,7 +51,7 @@ struct CapturedMediaPipelineSnapshot final {
 };
 
 // Lifetime:
-// - Owned by RdApplication/composition.
+// - Owned by PxApplication/composition.
 // - Source ports and subscriptions retain only weak ownership.
 // - Processor entries retain callbacks through weak_ptr; the plug-in owns its
 //   callback and ScopedSubscription.

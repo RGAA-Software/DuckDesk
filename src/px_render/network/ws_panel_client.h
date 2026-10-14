@@ -23,10 +23,10 @@ class RenderCompositionRoot;
 }
 
 class Data;
-class RdContext;
-class RdStatistics;
+class PxContext;
+class PxStatistics;
 class MessageListener;
-class RdSettings;
+class PxSettings;
 class RenderModuleRegistry;
 class PxReconnectSupervisor;
 template <typename Client> class PxReconnectAdapterSlot;
@@ -34,7 +34,7 @@ template <typename T> class PxAsyncMailbox;
 
 class WsPanelClient : public std::enable_shared_from_this<WsPanelClient> {
   public:
-    explicit WsPanelClient(const std::shared_ptr<RdContext>& ctx);
+    explicit WsPanelClient(const std::shared_ptr<PxContext>& ctx);
     ~WsPanelClient();
     void Start();
     void Exit();
@@ -64,9 +64,9 @@ class WsPanelClient : public std::enable_shared_from_this<WsPanelClient> {
     static PxAwaitable<void> RunIncomingMessageLoop(std::weak_ptr<WsPanelClient> weak_client, std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
 
   private:
-    std::shared_ptr<RdStatistics> statistics_{};
-    std::reference_wrapper<RdSettings> settings_;
-    std::shared_ptr<RdContext> context_{};
+    std::shared_ptr<PxStatistics> statistics_{};
+    std::reference_wrapper<PxSettings> settings_;
+    std::shared_ptr<PxContext> context_{};
     std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
     std::shared_ptr<MessageListener> msg_listener_{};
     std::shared_ptr<MessageListener> state_msg_listener_{};

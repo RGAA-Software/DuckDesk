@@ -3,7 +3,7 @@
 //
 
 #include "encoded_video_fanout.h"
-#include "rd_context.h"
+#include "px_context.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_capture/capture_message.h"
 #include "px_common/log.h"
@@ -12,9 +12,9 @@
 #include "app/app_messages.h"
 #include "px_render/architecture/events/render_event.h"
 #include "network/net_message_maker.h"
-#include "settings/rd_settings.h"
-#include "rd_statistics.h"
-#include "rd_app.h"
+#include "settings/px_settings.h"
+#include "px_statistics.h"
+#include "px_app.h"
 #include "px_common/message_notifier.h"
 #include "px_common/time_util.h"
 #include "px_common/thread.h"
@@ -25,17 +25,17 @@
 namespace px
 {
     std::shared_ptr<EncodedVideoFanout> EncodedVideoFanout::Make(
-        const std::shared_ptr<RdApplication>& app) {
+        const std::shared_ptr<PxApplication>& app) {
         auto fanout = std::make_shared<EncodedVideoFanout>(app);
         fanout->InitListener();
         return fanout;
     }
 
-    EncodedVideoFanout::EncodedVideoFanout(const std::shared_ptr<RdApplication>& app) {
+    EncodedVideoFanout::EncodedVideoFanout(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         context_ = app->GetContext();
         module_registry_ = context_->GetRenderModuleRegistry();
-        statistics_ = RdStatistics::Instance();
+        statistics_ = PxStatistics::Instance();
     }
 
     void EncodedVideoFanout::InitListener() {
@@ -142,7 +142,7 @@ namespace px
                                                           msg.monitor_left_, msg.monitor_top_, msg.monitor_right_, msg.monitor_bottom_,
                                                           img_format, last_capture_video_frame_.monitor_index_);
         // statistics
-        //RdStatistics::Instance()->AppendMediaBytes(net_msg.size());
+        //PxStatistics::Instance()->AppendMediaBytes(net_msg.size());
 
         module_registry_->BroadcastNetworkMessage(net_msg, false);
 

@@ -10,8 +10,8 @@
 #include "px_common/hardware.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
-#include "rd_app.h"
-#include "rd_statistics.h"
+#include "px_app.h"
+#include "px_statistics.h"
 #include "architecture/sources/monitor_capture_source.h"
 #include "architecture/encoders/video_encoder_module.h"
 #include "px_common/num_formatter.h"
@@ -63,8 +63,8 @@ namespace px
         return msg->SerializeAsString();
     }
 
-    std::shared_ptr<Data> NetMessageMaker::MakeOnHeartBeatMsg(const std::shared_ptr<RdApplication>& app, uint64_t index, int64_t timestamp) {
-        auto stat = RdStatistics::Instance();
+    std::shared_ptr<Data> NetMessageMaker::MakeOnHeartBeatMsg(const std::shared_ptr<PxApplication>& app, uint64_t index, int64_t timestamp) {
+        auto stat = PxStatistics::Instance();
 
         auto msg = std::make_shared<Message>();
         msg->set_type(px::kOnHeartBeat);

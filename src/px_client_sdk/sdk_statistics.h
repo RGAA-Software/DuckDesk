@@ -119,7 +119,7 @@ namespace px
         ConcurrentString remote_os_name_;
 
         // remote detailed hardware information
-        ConcurrentType<px::RdHardwareInfo> remote_hd_info_;
+        ConcurrentType<px::PxHardwareInfo> remote_hd_info_;
 
         // render type [opengl / vulkan / d3d11] 
         ConcurrentString render_type_;

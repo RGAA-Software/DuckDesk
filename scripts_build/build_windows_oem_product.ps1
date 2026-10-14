@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+& (Join-Path $PSScriptRoot '../scripts/limit_build_cpu.ps1')
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $python = Get-Command python -ErrorAction Stop
@@ -144,7 +145,7 @@ try {
     $env:CPP_DISTRIBUTION = 'oem'
     $env:CPP_OEM_ID = $oemId
     $env:CPP_BUILD_DIR = "build_official\$Product\oem\$oemId\cmake"
-    $env:CPP_BUILD_JOBS = '18'
+    $env:CPP_BUILD_JOBS = '10'
     $env:CPP_CMAKE_DISTRIBUTION_ARGS = `
         "-DPX_UPDATE_ROOT_FILE:FILEPATH=`"$updateRootCmakePath`" -DPX_OEM_RELEASE_PROFILE:FILEPATH=`"$profileCmakePath`""
     try {

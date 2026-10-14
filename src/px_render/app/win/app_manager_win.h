@@ -20,7 +20,7 @@
 namespace px
 {
 
-    class RdSettings;
+    class PxSettings;
 
     struct OwnedGameTextTarget final {
         CaptureTextCommand command{};
@@ -30,7 +30,7 @@ namespace px
     class AppManagerWinImpl : public AppManager {
     public:
 
-        explicit AppManagerWinImpl(const std::shared_ptr<RdContext>& ctx);
+        explicit AppManagerWinImpl(const std::shared_ptr<PxContext>& ctx);
         ~AppManagerWinImpl() override;
 
         void Init() override;
@@ -73,7 +73,7 @@ namespace px
         static WindowInfo GetTargetWindowInfo(const WindowInfos& infos);
 
     private:
-        RdSettings& settings_;
+        PxSettings& settings_;
         std::atomic_ulong target_pid_ = 0;
         WindowInfo target_window_info_{};
         mutable std::mutex target_window_mutex_{};

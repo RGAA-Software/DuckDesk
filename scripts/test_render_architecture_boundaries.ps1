@@ -521,15 +521,15 @@ foreach ($relativePath in @(
 }
 
 $applicationSource = Get-Content -LiteralPath `
-    (Join-Path $RepoRoot "src\px_render\rd_app.cpp") -Raw
+    (Join-Path $RepoRoot "src\px_render\px_app.cpp") -Raw
 foreach ($required in @("shutdown_deadline", "StopApplicationNetworkClients", "future.wait_until(shutdown_deadline)")) {
     if ($applicationSource -notmatch [regex]::Escape($required)) {
-        $violations.Add("rd_app.cpp: absolute-deadline application shutdown is missing $required")
+        $violations.Add("px_app.cpp: absolute-deadline application shutdown is missing $required")
     }
 }
 foreach ($required in @("ApplicationShutdownDispatcher", "StopApplicationWebRtcLibraries", "webrtc.callback_quiescence")) {
     if ($applicationSource -notmatch [regex]::Escape($required)) {
-        $violations.Add("rd_app.cpp: root shutdown continuation is missing $required")
+        $violations.Add("px_app.cpp: root shutdown continuation is missing $required")
     }
 }
 

@@ -13,16 +13,16 @@
 
 namespace px {
 
-class RdContext;
-class RdApplication;
-class RdStatistics;
+class PxContext;
+class PxApplication;
+class PxStatistics;
 class RenderModuleRegistry;
 class NetworkEventIngress;
 class MessageNotifier;
 
 class RenderEventIngress : public std::enable_shared_from_this<RenderEventIngress> {
 public:
-    explicit RenderEventIngress(const std::shared_ptr<RdApplication>& app);
+    explicit RenderEventIngress(const std::shared_ptr<PxApplication>& app);
     void ProcessWebRtcEvent(const std::string& source_id, const WebRtcEvent& event);
     void ProcessRenderEvent(const RenderEventEnvelope& event);
 
@@ -31,12 +31,12 @@ private:
     void ReportRelayAlive(const std::string& device_id, int64_t timestamp);
 
 private:
-    std::shared_ptr<RdApplication> app_ = nullptr;
-    std::shared_ptr<RdContext> context_ = nullptr;
+    std::shared_ptr<PxApplication> app_ = nullptr;
+    std::shared_ptr<PxContext> context_ = nullptr;
     std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
     std::shared_ptr<NetworkEventIngress> network_ingress_ = nullptr;
     std::shared_ptr<MessageNotifier> msg_notifier_ = nullptr;
-    std::shared_ptr<RdStatistics> stat_ = nullptr;
+    std::shared_ptr<PxStatistics> stat_ = nullptr;
 };
 
 }  // namespace px

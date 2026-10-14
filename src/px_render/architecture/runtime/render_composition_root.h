@@ -17,7 +17,7 @@ namespace px::render {
 using CompositionCompletion = std::function<void(ModuleLifecycleResult)>;
 
 // Lifetime:
-// - Owned by RdApplication in production and by the test fixture in isolation.
+// - Owned by PxApplication in production and by the test fixture in isolation.
 // - lifecycle_scope_ owns every lifecycle coroutine.
 // - Coroutine factories capture weak_ptr; running coroutines promote it to a
 //   shared owner for the duration of the operation.

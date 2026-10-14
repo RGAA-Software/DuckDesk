@@ -11,7 +11,7 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
 
     enum AppTimerDuration {
         kTimerDuration1000 = 1000,
@@ -28,7 +28,7 @@ namespace px
 
     class AppTimer : public std::enable_shared_from_this<AppTimer> {
     public:
-        explicit AppTimer(const std::shared_ptr<RdContext>& ctx);
+        explicit AppTimer(const std::shared_ptr<PxContext>& ctx);
         void StartTimers();
         void StopTimers();
 
@@ -36,7 +36,7 @@ namespace px
         void NotifyTimeout(AppTimerDuration duration) const;
 
     private:
-        std::weak_ptr<RdContext> context_;
+        std::weak_ptr<PxContext> context_;
         std::shared_ptr<asio2::timer> timer_ = nullptr;
     };
 

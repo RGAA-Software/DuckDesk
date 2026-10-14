@@ -6,8 +6,8 @@ param(
 
     [switch]$Incremental,
 
-    [ValidateRange(1, 256)]
-    [int]$Jobs = 18,
+    [ValidateRange(1, 10)]
+    [int]$Jobs = 10,
 
     [ValidatePattern('^[a-z0-9][a-z0-9-]{0,63}$')]
     [string]$CandidateId
@@ -15,6 +15,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+& (Join-Path $PSScriptRoot '../scripts/limit_build_cpu.ps1')
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $buildRoot = Join-Path $repoRoot "build_official\$Product"

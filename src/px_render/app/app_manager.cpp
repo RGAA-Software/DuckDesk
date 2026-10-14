@@ -3,14 +3,14 @@
 //
 
 #include "app_manager.h"
-#include "rd_context.h"
+#include "px_context.h"
 #include "px_common/log.h"
 #include "px_steam_manager/steam_manager.h"
 
 namespace px
 {
 
-    AppManager::AppManager(const std::shared_ptr<RdContext>& ctx) {
+    AppManager::AppManager(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
     }
 

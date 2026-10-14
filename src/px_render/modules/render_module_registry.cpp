@@ -33,10 +33,10 @@
 #include "px_render/network/iroh/iroh_transport.h"
 #include "px_render/network/ws/ws_transport.h"
 #include "px_render/pipeline/encoded_video_fanout.h"
-#include "rd_app.h"
-#include "rd_context.h"
+#include "px_app.h"
+#include "px_context.h"
 #include "session/logical_session_registry.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 
 namespace px {
 namespace {
@@ -78,11 +78,11 @@ WebRtcTransportSettings MakeWebRtcSettings(const RenderRuntimeSettings& info) {
 
 }  // namespace
 
-std::shared_ptr<RenderModuleRegistry> RenderModuleRegistry::Make(const std::shared_ptr<RdApplication>& app) {
+std::shared_ptr<RenderModuleRegistry> RenderModuleRegistry::Make(const std::shared_ptr<PxApplication>& app) {
     return std::make_shared<RenderModuleRegistry>(app);
 }
 
-RenderModuleRegistry::RenderModuleRegistry(const std::shared_ptr<RdApplication>& app) : settings_(*RdSettings::Instance()) {
+RenderModuleRegistry::RenderModuleRegistry(const std::shared_ptr<PxApplication>& app) : settings_(*PxSettings::Instance()) {
     this->app_ = app;
     this->context_ = app->GetContext();
 }
@@ -162,7 +162,7 @@ void RenderModuleRegistry::StartModules() {
             return sessions && sessions->RenewLease(grant, now_ms);
         });
     };
-    const std::weak_ptr<RdApplication> weak_application = app_;
+    const std::weak_ptr<PxApplication> weak_application = app_;
     const auto configure_frontend_authorizer = [weak_application](const std::shared_ptr<WsTransport>& transport) {
         if (!transport) {
             return;
@@ -409,7 +409,7 @@ void RenderModuleRegistry::BindIngressCallbacks() {
             if (!self || self->exiting_) {
                 return;
             }
-            std::shared_ptr<RdApplication> app;
+            std::shared_ptr<PxApplication> app;
             std::shared_ptr<RenderEventIngress> router;
             {
                 std::scoped_lock lock(self->routing_mtx_);

@@ -10,13 +10,13 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
     class AppManager;
 
     class AppManagerFactory {
     public:
 
-        static std::shared_ptr<AppManager> Make(const std::shared_ptr<RdContext>& ctx);
+        static std::shared_ptr<AppManager> Make(const std::shared_ptr<PxContext>& ctx);
 
     };
 

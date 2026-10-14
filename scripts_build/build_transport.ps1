@@ -1,12 +1,14 @@
 param(
     [ValidateSet('Build', 'Test')]
     [string]$Action = 'Build',
-    [int]$Jobs = 8,
+    [ValidateRange(1, 10)]
+    [int]$Jobs = 10,
     [ValidateSet('Release', 'Publication')]
     [string]$Profile = 'Release'
 )
 
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot '../scripts/limit_build_cpu.ps1')
 $transportRoot = Join-Path (Split-Path $PSScriptRoot -Parent) 'rust_transport'
 & python (Join-Path $PSScriptRoot '../scripts/tests/verify_iroh_vendor.py')
 if ($LASTEXITCODE -ne 0) { throw 'Isolated iroh source verification failed.' }

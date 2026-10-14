@@ -16,23 +16,23 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
 
     // Writes hook bootstrap config for the injected DLL (ipc port + DXGI offsets).
     // Uses a small file under Public\Pixels\hook_boot\ — NOT shared memory.
     // Ongoing frame IPC is plain WebSocket /ipc.
     class AppSharedInfo {
     public:
-        static std::shared_ptr<AppSharedInfo> Make(const std::shared_ptr<RdContext>& ctx);
+        static std::shared_ptr<AppSharedInfo> Make(const std::shared_ptr<PxContext>& ctx);
         static std::filesystem::path BootConfigPath(uint32_t pid);
 
-        explicit AppSharedInfo(const std::shared_ptr<RdContext>& ctx);
+        explicit AppSharedInfo(const std::shared_ptr<PxContext>& ctx);
         // Caller supplies a process pinned by private Job + exact executable admission.
         bool WriteBootConfig(const UniqueWinHandle& admitted_process, const std::string& data);
         void Exit();
 
     private:
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
     };
 
 }

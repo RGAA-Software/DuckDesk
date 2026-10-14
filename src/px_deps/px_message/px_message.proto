@@ -276,20 +276,20 @@ message IsolatedMonitorStatisticsInfoInRender {
 }
 
 // remote device hardware information
-message RdHardwareInfo {
-  message RdHardwareCpu {
+message PxHardwareInfo {
+  message PxHardwareCpu {
     string name = 1;
     string id = 2;
     uint32 num_cores = 3;
     uint32 max_clock_speed = 4;
   }
 
-  message RdHardwareMemory {
+  message PxHardwareMemory {
     uint64 total_size = 1;
     uint64 used_size = 2;
   }
 
-  message RdHardwareGpu {
+  message PxHardwareGpu {
     string name = 1;
     uint64 size_in_bytes = 2;
     // GB
@@ -298,7 +298,7 @@ message RdHardwareInfo {
     string pnp_device_id = 5;
   }
 
-  message RdHardwareDisk {
+  message PxHardwareDisk {
     string name = 1;
     string model = 2;
     string status = 3;
@@ -306,10 +306,10 @@ message RdHardwareInfo {
     string interface_type = 5;
   }
 
-  RdHardwareCpu cpu = 1;
-  RdHardwareMemory memory = 2;
-  repeated RdHardwareGpu gpus = 3;
-  repeated RdHardwareDisk disks = 4;
+  PxHardwareCpu cpu = 1;
+  PxHardwareMemory memory = 2;
+  repeated PxHardwareGpu gpus = 3;
+  repeated PxHardwareDisk disks = 4;
 }
 
 message OnHeartBeat {
@@ -331,7 +331,7 @@ message OnHeartBeat {
   string pc_info = 90;
   string desktop_name = 91;
   string os_name = 92;
-  RdHardwareInfo device_info = 100;
+  PxHardwareInfo device_info = 100;
 }
 
 message VideoFrame {

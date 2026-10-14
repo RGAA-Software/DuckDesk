@@ -11,7 +11,7 @@
 #include <functional>
 #include <optional>
 #include "px_capture/capture_message.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "px_encoder/encoder_config.h"
 #include "frame_rate_policy.h"
 #include "encoder_frame_sequence.h"
@@ -22,10 +22,10 @@ namespace px
     class Image;
     class File;
     class Thread;
-    class RdContext;
-    class RdStatistics;
+    class PxContext;
+    class PxStatistics;
     class VideoEncoderModule;
-    class RdApplication;
+    class PxApplication;
     class RenderModuleRegistry;
     class MessageListener;
     namespace render {
@@ -35,9 +35,9 @@ namespace px
 
     class EncoderThread : public std::enable_shared_from_this<EncoderThread> {
     public:
-        static std::shared_ptr<EncoderThread> Make(const std::shared_ptr<RdApplication>& app);
+        static std::shared_ptr<EncoderThread> Make(const std::shared_ptr<PxApplication>& app);
 
-        explicit EncoderThread(const std::shared_ptr<RdApplication>& app);
+        explicit EncoderThread(const std::shared_ptr<PxApplication>& app);
         ~EncoderThread();
 
         void Encode(const CaptureVideoFrame& captured_frame);
@@ -62,14 +62,14 @@ namespace px
             const std::string& monitor_name);
 
     private:
-        RdSettings& settings_;
+        PxSettings& settings_;
         std::atomic_int frame_rate_{60};
         std::map<std::string, render::FrameRateAdmission> frame_admission_{};
         std::map<std::string, render::EncoderFrameSequence> game_hook_frame_sequences_{};
-        std::shared_ptr<RdStatistics> stat_ = nullptr;
+        std::shared_ptr<PxStatistics> stat_ = nullptr;
         std::shared_ptr<Thread> enc_thread_ = nullptr;
-        std::shared_ptr<RdContext> context_ = nullptr;
-        std::shared_ptr<RdApplication> app_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
+        std::shared_ptr<PxApplication> app_ = nullptr;
         Encoder::EncoderFormat encoder_format_ = Encoder::EncoderFormat::kH264;
 
         // debug

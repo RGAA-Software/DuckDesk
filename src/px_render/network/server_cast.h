@@ -10,19 +10,19 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
 
     class ServerCast {
     public:
 
-        static std::shared_ptr<ServerCast> Make(std::shared_ptr<RdContext>& ctx);
+        static std::shared_ptr<ServerCast> Make(std::shared_ptr<PxContext>& ctx);
 
-        explicit ServerCast(const std::shared_ptr<RdContext>& ctx);
+        explicit ServerCast(const std::shared_ptr<PxContext>& ctx);
         void Start();
         void Stop();
 
     private:
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
 
     };
 

@@ -6,13 +6,13 @@
 #include "px_common/win32/win_helper.h"
 #include "px_rdp/rdp_control_lease.h"
 #include "px_rdp/rdp_proxy_process.h"
-#include "rd_app.h"
-#include "rd_statistics.h"
-#include "settings/rd_settings.h"
+#include "px_app.h"
+#include "px_statistics.h"
+#include "settings/px_settings.h"
 
 namespace px {
 
-int RdApplication::RunRdp() {
+int PxApplication::RunRdp() {
     // Establish the message queue before any worker can request shutdown or
     // post UI work. PostThreadMessage otherwise silently loses an early wakeup.
     main_thread_id_ = GetCurrentThreadId();

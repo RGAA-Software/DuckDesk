@@ -5,7 +5,7 @@
 #include "ws_media_router.h"
 #include "px_common/data.h"
 #include "px_common/log.h"
-#include "rd_statistics.h"
+#include "px_statistics.h"
 
 namespace px
 {
@@ -52,7 +52,7 @@ void WsMediaRouter::PostBinaryMessage(const std::string& payload) {
                 if (!self) {
                     return;
                 }
-                RdStatistics::Instance()->AppendMediaBytes(bytes_sent);
+                PxStatistics::Instance()->AppendMediaBytes(bytes_sent);
                 self->queuing_message_count_--;
             });
         });
@@ -74,7 +74,7 @@ void WsMediaRouter::PostTextMessage(const std::string& message) {
                 if (!self) {
                     return;
                 }
-                RdStatistics::Instance()->AppendMediaBytes(bytes_sent);
+                PxStatistics::Instance()->AppendMediaBytes(bytes_sent);
                 self->queuing_message_count_--;
             });
         });

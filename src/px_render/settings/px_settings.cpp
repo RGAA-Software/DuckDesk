@@ -2,7 +2,7 @@
 // Created by RGAA on 2023-12-17.
 //
 
-#include "rd_settings.h"
+#include "px_settings.h"
 
 #include <sstream>
 #include <string_view>
@@ -14,7 +14,7 @@
 
 namespace px {
 
-bool RdSettings::LoadSettings(const std::string& path) {
+bool PxSettings::LoadSettings(const std::string& path) {
     toml::parse_result result{};
     try {
         result = toml::parse_file(path);
@@ -41,7 +41,7 @@ bool RdSettings::LoadSettings(const std::string& path) {
 
     // NOTE: encoder/capture are no longer read from this file.
     // Desktop mode: the panel passes them as command line args (see UpdateSettings).
-    // Standalone: built-in defaults in rd_settings.h are used.
+    // Standalone: built-in defaults in px_settings.h are used.
 
     // TargetApplication
     auto mode = result["application"]["mode"].value_or("desktop");
@@ -86,12 +86,12 @@ bool RdSettings::LoadSettings(const std::string& path) {
     // Explicitly separate voice permission from desktop-audio capture.
     voice_call_enabled_ = result["voice"]["enabled"].value_or(true);
 
-    // Mode drives capture type; rd_main re-applies after CLI UpdateSettings.
+    // Mode drives capture type; px_main re-applies after CLI UpdateSettings.
     ApplyApplicationMode();
     return true;
 }
 
-void RdSettings::ApplyApplicationMode() {
+void PxSettings::ApplyApplicationMode() {
     if (IsRdpMode()) {
         capture_.enable_audio_ = false;
         capture_.enable_video_ = false;
@@ -124,7 +124,7 @@ void RdSettings::ApplyApplicationMode() {
     }
 }
 
-std::string RdSettings::Dump() {
+std::string PxSettings::Dump() {
     std::stringstream ss;
     ss << "Description: \n";
     ss << "  - author: " << desc_.author_ << std::endl;
@@ -142,7 +142,7 @@ std::string RdSettings::Dump() {
     ss << "  - capture video type: " << capture_.capture_video_type_ << " (0 => Hook 1 => Primary Screen) " << std::endl;
     ss << "Transmission: \n";
     ss << "  - listening port: " << transmission_.listening_port_ << std::endl;
-    ss << "RdApplication: \n";
+    ss << "PxApplication: \n";
     const std::string application_mode = IsRdpMode() ? "rdp"
                                          : application_mode_ == ApplicationMode::kGameHook
                                              ? "game-hook"
@@ -159,14 +159,14 @@ std::string RdSettings::Dump() {
     return ss.str();
 }
 
-void RdSettings::LoadSettingsFromDatabase() {
+void PxSettings::LoadSettingsFromDatabase() {
     auto sp = SharedPreference::Instance();
     enable_full_color_mode_ = sp->GetInt(kFullColorModeKey, 0);
 }
 
-bool RdSettings::EnableFullColorMode() { return enable_full_color_mode_; }
+bool PxSettings::EnableFullColorMode() { return enable_full_color_mode_; }
 
-void RdSettings::SetFullColorMode(bool enable) {
+void PxSettings::SetFullColorMode(bool enable) {
     enable_full_color_mode_ = enable;
     auto sp = SharedPreference::Instance();
     sp->PutInt(kFullColorModeKey, enable ? 1 : 0);

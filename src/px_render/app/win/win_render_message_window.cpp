@@ -3,7 +3,7 @@
 #include <atomic>
 #include <shellapi.h>
 #include "px_common/log.h"
-#include "rd_context.h"
+#include "px_context.h"
 #include "px_render/modules/render_module_registry.h"
 #include "win_render_message_loop.h"
 
@@ -18,11 +18,11 @@ namespace px
     std::atomic<bool> WinMessageWindow::class_registered_ = false;
     std::mutex WinMessageWindow::register_mutex_;
 
-    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(const std::shared_ptr<RdContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
+    std::shared_ptr<WinMessageWindow> WinMessageWindow::Make(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
         return std::make_shared<WinMessageWindow>(ctx, message_loop);
     }
 
-    WinMessageWindow::WinMessageWindow(const std::shared_ptr<RdContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
+    WinMessageWindow::WinMessageWindow(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop) {
         context_ = ctx;
         module_registry_ = ctx->GetRenderModuleRegistry();
         message_loop_ = message_loop;

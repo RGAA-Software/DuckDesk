@@ -28,7 +28,7 @@ export CARGO_PROFILE_RELEASE_INCREMENTAL=true
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=256
 
 cd "$source_root/rust_server"
-cargo build --locked --release --jobs 18 \
+cargo build --locked --release --jobs 10 \
     -p px_console_runtime --bin px_console --bin px_console_admin \
     -p px_pg --bin px_db \
     -p px_relay_server --bin px_relay \

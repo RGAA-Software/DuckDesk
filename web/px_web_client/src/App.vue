@@ -634,7 +634,7 @@ const lastClipboardAck = ref('')
 const dcReassembler = new TlvReassembler()
 
 // ---------- 远端显示器配置(kServerConfiguration,含可用分辨率列表)----------
-// dc 打开后本端发 kHello,render 回推 config(rd_app.cpp:SendConfigurationBack)
+// dc 打开后本端发 kHello,render 回推 config(px_app.cpp:SendConfigurationBack)
 interface RemoteMonitor {
   name: string
   resolutions: Array<{ width: number; height: number }>

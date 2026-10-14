@@ -8,7 +8,7 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
     class RenderModuleRegistry;
     class WinMessageLoop;
 
@@ -16,8 +16,8 @@ namespace px
 
     class WinMessageWindow {
     public:
-        static std::shared_ptr<WinMessageWindow> Make(const std::shared_ptr<RdContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
-        explicit WinMessageWindow(const std::shared_ptr<RdContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
+        static std::shared_ptr<WinMessageWindow> Make(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
+        explicit WinMessageWindow(const std::shared_ptr<PxContext>& ctx, std::shared_ptr<WinMessageLoop> message_loop);
         ~WinMessageWindow();
         bool Create(const std::string& window_name);
         HWND GetHwnd() const;
@@ -34,7 +34,7 @@ namespace px
         void OnDisplayChange();
 
     private:
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
         MessageCallback message_callback_;
         HWND mHwnd = nullptr;

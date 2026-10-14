@@ -120,7 +120,7 @@ class UdpTransport final : public RenderModule {
     // 跨帧锚定的速率控制起点(Sunshine ratecontrol_next_frame_start)
     std::chrono::steady_clock::time_point ratecontrol_next_frame_start_{};
 
-    // 音频包序号(PostProtoMessage 由 rd_app 单线程调用,无需原子);
+    // 音频包序号(PostProtoMessage 由 px_app 单线程调用,无需原子);
     // 50pps 小包,不走帧内 pacing
     media::AudioPacketizer audio_packetizer_{};
     std::uint16_t audio_datagram_size_{};

@@ -26,7 +26,7 @@ struct NetworkTransportHubSnapshot final {
 };
 
 // Lifetime:
-// - Owned by RdApplication for the complete Render runtime.
+// - Owned by PxApplication for the complete Render runtime.
 // - Callbacks capture only weak application ownership.
 // - Payloads and routes are owned values; the hub retains no request state.
 //

@@ -14,7 +14,7 @@ namespace px
 {
 
     class Data;
-    class RdApplication;
+    class PxApplication;
 
     class NetMessageMaker {
     public:
@@ -22,7 +22,7 @@ namespace px
         static std::string MakeHelloMsg();
         static std::string MakeAckMsg();
         static std::string MakeHeartBeatMsg();
-        static std::shared_ptr<Data> MakeOnHeartBeatMsg(const std::shared_ptr<RdApplication>& app, uint64_t index, int64_t timestamp);
+        static std::shared_ptr<Data> MakeOnHeartBeatMsg(const std::shared_ptr<PxApplication>& app, uint64_t index, int64_t timestamp);
         static std::shared_ptr<Data> MakeVideoFrameMsg(const px::VideoType& vt, const std::shared_ptr<Data>& data,
                                              uint64_t frame_index, int frame_width, int frame_height, bool key,
                                              const std::string& display_name, int mon_left,

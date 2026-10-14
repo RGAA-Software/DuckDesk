@@ -1,4 +1,4 @@
-#include "rd_app.h"
+#include "px_app.h"
 
 #include <windows.h>
 
@@ -78,15 +78,15 @@
 #include "px_render/modules/render_module_registry.h"
 #include "px_render_panel_message.pb.h"
 #include "px_service_message.pb.h"
-#include "rd_context.h"
-#include "rd_statistics.h"
+#include "px_context.h"
+#include "px_statistics.h"
 #include "session/logical_session_registry.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "webview/webview_runtime.h"
 
 namespace px {
 
-std::shared_ptr<RdApplication> rdApp;
+std::shared_ptr<PxApplication> rdApp;
 
 static FpsStat timer_fps;
 
@@ -174,12 +174,12 @@ public:
         }
     }
 
-    [[nodiscard]] bool Submit(const std::shared_ptr<RdApplication>& application) const {
+    [[nodiscard]] bool Submit(const std::shared_ptr<PxApplication>& application) const {
         return scope_ && scope_->Spawn("application-root-shutdown", [application] { return Run(application); });
     }
 
 private:
-    static PxAwaitable<void> Run(std::shared_ptr<RdApplication> application) {
+    static PxAwaitable<void> Run(std::shared_ptr<PxApplication> application) {
         application->Exit();
         co_return;
     }
@@ -190,7 +190,7 @@ private:
 
 }  // namespace
 
-std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
+std::shared_ptr<PxApplication> PxApplication::Make(const AppParams& args) {
     struct WinApplicationEnabler final : WinApplication {
         explicit WinApplicationEnabler(const AppParams& app_args) : WinApplication(app_args) {}
     };
@@ -201,8 +201,8 @@ std::shared_ptr<RdApplication> RdApplication::Make(const AppParams& args) {
     // Linux
 }
 
-RdApplication::RdApplication(const AppParams& args)
-    : settings_(*RdSettings::Instance()), application_idle_lifecycle_(std::chrono::seconds{settings_.application_disconnect_grace_seconds_}) {
+PxApplication::PxApplication(const AppParams& args)
+    : settings_(*PxSettings::Instance()), application_idle_lifecycle_(std::chrono::seconds{settings_.application_disconnect_grace_seconds_}) {
     logical_session_registry_ = std::make_shared<LogicalSessionRegistry>();
     logical_session_registry_->SetIncomingAccessEnabled(
         ResolveIncomingAccessEnabled(settings_.IncomingAccessProduct(), settings_.incoming_remote_access_enabled_));
@@ -211,12 +211,12 @@ RdApplication::RdApplication(const AppParams& args)
     // MessageBoxA(0, "", "debug", 0);
 }
 
-RdApplication::~RdApplication() {
+PxApplication::~PxApplication() {
     Exit();
-    LOGI("RdApplication dtor");
+    LOGI("PxApplication dtor");
 }
 
-void RdApplication::Init(int argc, char** argv) {
+void PxApplication::Init() {
     init_failed_ = false;
     init_error_.clear();
 
@@ -234,20 +234,20 @@ void RdApplication::Init(int argc, char** argv) {
     }
 }
 
-int RdApplication::Run() {
+int PxApplication::Run() {
     if (init_failed_) {
-        LOGE("RdApplication init failed, abort run: {}", init_error_);
+        LOGE("PxApplication init failed, abort run: {}", init_error_);
         return -1;
     }
-    statistics_ = RdStatistics::Instance();
+    statistics_ = PxStatistics::Instance();
 
     // context
-    context_ = std::make_shared<RdContext>();
+    context_ = std::make_shared<PxContext>();
     context_->Init();
     if (settings_.IsRdpMode()) {
         return RunRdp();
     }
-    const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+    const std::weak_ptr<PxApplication> weak_application = weak_from_this();
 
     const auto builtin_catalog = render::BuiltinModuleCatalog::Create();
     composition_root_ = render::RenderCompositionRoot::Create(context_->GetAsyncRuntime(), builtin_catalog);
@@ -285,7 +285,7 @@ int RdApplication::Run() {
                                          .output_directory = std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_data" / L"render",
                                          .raw_log_interval = std::chrono::seconds(1),
                                      });
-    const std::weak_ptr<RdContext> weak_context = context_;
+    const std::weak_ptr<PxContext> weak_context = context_;
     auto record_directory = settings_.record_dir_;
     if (record_directory.empty()) {
         record_directory = (std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"px_render_records").string();
@@ -314,7 +314,7 @@ int RdApplication::Run() {
                                               }
                                           });
     pipeline_statistics_observer_ = render::PipelineStatisticsObserver::Create(encoded_media_bus_);
-    frame_carrier_processor_ = render::FrameCarrierProcessor::Create(RdContext::GetCurrentExeFolder());
+    frame_carrier_processor_ = render::FrameCarrierProcessor::Create(PxContext::GetCurrentExeFolder());
     frame_resizer_processor_ = render::FrameResizerProcessor::Create();
     network_transport_hub_ = render::NetworkTransportHub::Create(
         [weak_application](const render::TransportRoute& route, const std::shared_ptr<Data>& message, const bool run_through) {
@@ -613,7 +613,7 @@ int RdApplication::Run() {
     }
 
     // shared_from_this() below requires this object to be created by
-    // RdApplication::Make(). Assign early so net_ws /ipc can late-bind
+    // PxApplication::Make(). Assign early so net_ws /ipc can late-bind
     // OnIpcVideoFrame during module Start().
     rdApp = shared_from_this();
     module_registry_ = RenderModuleRegistry::Make(shared_from_this());
@@ -765,7 +765,7 @@ int RdApplication::Run() {
     }
 
     if (init_failed_) {
-        LOGE("RdApplication abort after game-hook start failure: {}", init_error_);
+        LOGE("PxApplication abort after game-hook start failure: {}", init_error_);
         Exit();
         return -1;
     }
@@ -776,7 +776,7 @@ int RdApplication::Run() {
     return RunMessageLoop();
 }
 
-int RdApplication::RunMessageLoop() {
+int PxApplication::RunMessageLoop() {
     main_thread_id_ = GetCurrentThreadId();
 
     MSG windows_message{};
@@ -792,7 +792,7 @@ int RdApplication::RunMessageLoop() {
         TranslateMessage(&windows_message);
         DispatchMessage(&windows_message);
 
-        // Execute pending UI tasks from RdContext
+        // Execute pending UI tasks from PxContext
         if (context_) {
             context_->ExecutePendingUITasks();
         }
@@ -815,17 +815,17 @@ int RdApplication::RunMessageLoop() {
     return static_cast<int>(process_exit_status_.load());
 }
 
-void RdApplication::InitAppTimer() {
+void PxApplication::InitAppTimer() {
     app_timer_ = std::make_shared<AppTimer>(context_);
     app_timer_->StartTimers();
 }
 
-void RdApplication::StartApplicationIdleLifecycle() {
+void PxApplication::StartApplicationIdleLifecycle() {
     LOGI("event=application.idle_policy disconnect_grace_seconds={} startup_grace_seconds=45", settings_.application_disconnect_grace_seconds_);
     if (const auto deadline = application_idle_lifecycle_.ArmStartup(ApplicationIdleLifecycle::Clock::now())) ScheduleApplicationIdleExit(*deadline);
 }
 
-void RdApplication::ScheduleApplicationIdleExit(const ApplicationIdleLifecycle::Deadline deadline) {
+void PxApplication::ScheduleApplicationIdleExit(const ApplicationIdleLifecycle::Deadline deadline) {
     const auto weak_self = weak_from_this();
     const auto remaining = std::chrono::ceil<std::chrono::milliseconds>(deadline.expires_at - ApplicationIdleLifecycle::Clock::now());
     const int delay_ms{static_cast<int>(std::max<std::int64_t>(1, remaining.count()))};
@@ -839,7 +839,7 @@ void RdApplication::ScheduleApplicationIdleExit(const ApplicationIdleLifecycle::
         delay_ms);
 }
 
-void RdApplication::InitConnectionLifecycle() {
+void PxApplication::InitConnectionLifecycle() {
     if (!settings_.IsGameHookMode() && !settings_.IsWebViewMode() && !settings_.IsRdpMode()) return;
     const auto weak_self = weak_from_this();
     msg_listener_->Listen<MsgClientConnected>([weak_self](const MsgClientConnected& message) {
@@ -866,7 +866,7 @@ void RdApplication::InitConnectionLifecycle() {
     });
 }
 
-void RdApplication::InitMessages() {
+void PxApplication::InitMessages() {
     InitConnectionLifecycle();
     auto weak_self = weak_from_this();
     msg_listener_->Listen<MsgBeforeInject>([weak_self](const MsgBeforeInject& msg) {
@@ -1222,7 +1222,7 @@ void RdApplication::InitMessages() {
     });
 }
 
-void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
+void PxApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
     auto weak_self = weak_from_this();
     if (exit_app_ || !encoded_media_bus_) {
         return;
@@ -1295,7 +1295,7 @@ void RdApplication::OnCapturedAudioFrame(const CaptureAudioFrame& frame) {
     }
 }
 
-void RdApplication::InitAudioCapture() {
+void PxApplication::InitAudioCapture() {
     auto weak_self = weak_from_this();
     // WebView audio is delivered by CefAudioHandler, never by the OS
     // default device or another process's loopback stream.
@@ -1335,7 +1335,7 @@ void RdApplication::InitAudioCapture() {
     }
 }
 
-void RdApplication::PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg) {
+void PxApplication::PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg) {
     {
         std::lock_guard<std::mutex> lock(task_mutex_);
         pending_tasks_.push(std::move(msg));
@@ -1343,11 +1343,11 @@ void RdApplication::PostGlobalAppMessage(std::shared_ptr<AppMessage>&& msg) {
     PostThreadMessage(main_thread_id_, WM_NULL, 0, 0);
 }
 
-void RdApplication::PostGlobalTask(std::function<void()>&& task) { PostGlobalAppMessage(AppMessageMaker::MakeTaskMessage(std::move(task))); }
+void PxApplication::PostGlobalTask(std::function<void()>&& task) { PostGlobalAppMessage(AppMessageMaker::MakeTaskMessage(std::move(task))); }
 
-void RdApplication::PostIpcMessage(std::shared_ptr<Data>&& payload) {}
+void PxApplication::PostIpcMessage(std::shared_ptr<Data>&& payload) {}
 
-void RdApplication::PostIpcMessage(const std::string& payload) const {
+void PxApplication::PostIpcMessage(const std::string& payload) const {
     if (!settings_.capture_.IsVideoInnerCapture() || payload.empty()) {
         return;
     }
@@ -1356,14 +1356,14 @@ void RdApplication::PostIpcMessage(const std::string& payload) const {
     module_registry_->PostWsIpcBinaryMessage(ipc_payload);
 }
 
-void RdApplication::PostNetMessage(std::shared_ptr<Data> payload) const {
+void PxApplication::PostNetMessage(std::shared_ptr<Data> payload) const {
     if (!payload) {
         return;
     }
     module_registry_->BroadcastNetworkMessage(payload, true);
 }
 
-void RdApplication::StartProcessWithHook() {
+void PxApplication::StartProcessWithHook() {
     // Frames arrive via /ipc through the typed WS media ingress and enter
     // the same capture/encode path as desktop sources.
     if (!settings_.IsGameHookMode()) {
@@ -1392,7 +1392,7 @@ void RdApplication::StartProcessWithHook() {
     }
 }
 
-void RdApplication::StartWebView() {
+void PxApplication::StartWebView() {
     if (!settings_.IsWebViewMode()) {
         return;
     }
@@ -1486,19 +1486,19 @@ void RdApplication::StartWebView() {
     webview_runtime_->SetActive(true);
 }
 
-void RdApplication::SendWebViewMouseEvent(const MouseEvent& event) {
+void PxApplication::SendWebViewMouseEvent(const MouseEvent& event) {
     if (webview_runtime_) webview_runtime_->SendMouseEvent(event);
 }
 
-void RdApplication::SendWebViewKeyEvent(const KeyEvent& event) {
+void PxApplication::SendWebViewKeyEvent(const KeyEvent& event) {
     if (webview_runtime_) webview_runtime_->SendKeyEvent(event);
 }
 
-void RdApplication::SendWebViewTextInput(const TextInput& event) {
+void PxApplication::SendWebViewTextInput(const TextInput& event) {
     if (webview_runtime_) webview_runtime_->SendTextInput(event);
 }
 
-ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
+ApplicationTextBackend PxApplication::CreateApplicationTextBackend() {
     if (!settings_.IsWebViewMode() && !settings_.IsGameHookMode()) {
         return {};
     }
@@ -1561,7 +1561,7 @@ ApplicationTextBackend RdApplication::CreateApplicationTextBackend() {
     };
 }
 
-void RdApplication::HandleGameTextReply(const std::uint32_t pid, const CaptureTextReply& reply) {
+void PxApplication::HandleGameTextReply(const std::uint32_t pid, const CaptureTextReply& reply) {
     PostGlobalTask([weak = weak_from_this(), pid, reply] {
         if (const auto self{weak.lock()}; self && !self->exit_app_ && self->game_text_backend_) {
             self->game_text_backend_->HandleReply(pid, reply);
@@ -1569,17 +1569,17 @@ void RdApplication::HandleGameTextReply(const std::uint32_t pid, const CaptureTe
     });
 }
 
-void RdApplication::SetWebViewClipboardText(std::string text) {
+void PxApplication::SetWebViewClipboardText(std::string text) {
     if (webview_runtime_) {
         webview_runtime_->SetClipboardText(std::move(text));
     }
 }
 
-void RdApplication::SendWebViewFocusEvent(bool focused) {
+void PxApplication::SendWebViewFocusEvent(bool focused) {
     if (webview_runtime_) webview_runtime_->SendFocusEvent(focused);
 }
 
-void RdApplication::StartProcessWithScreenCapture() {
+void PxApplication::StartProcessWithScreenCapture() {
     if (capture_source_) {
         LOGI("Will start capturing by using: {}", capture_source_->Name());
         auto capture_started = capture_source_->StartCapturing();
@@ -1596,7 +1596,7 @@ void RdApplication::StartProcessWithScreenCapture() {
     app_manager_->StartProcess();
 }
 
-void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
+void PxApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
     if (captured_media_pipeline_ && captured_media_pipeline_->HasVideoProcessors() && frame.raw_image_ && frame.raw_image_->data) {
         auto pixel_format = render::VideoPixelFormat::kBgra8;
         switch (frame.raw_image_->raw_img_type_) {
@@ -1655,7 +1655,7 @@ void RdApplication::OnCapturedVideoFrame(const CaptureVideoFrame& frame) const {
     DeliverCapturedVideoFrame(frame);
 }
 
-void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const {
+void PxApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) const {
     if (exit_app_) {
         return;
     }
@@ -1690,11 +1690,11 @@ void RdApplication::DeliverCapturedVideoFrame(const CaptureVideoFrame& frame) co
     encoder_thread_->Encode(frame);
 }
 
-std::shared_ptr<render::MediaSourcePort> RdApplication::CreateMediaSourcePort() const {
+std::shared_ptr<render::MediaSourcePort> PxApplication::CreateMediaSourcePort() const {
     return captured_media_pipeline_ ? captured_media_pipeline_->CreateSourcePort() : std::shared_ptr<render::MediaSourcePort>{};
 }
 
-render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(const std::shared_ptr<const render::CapturedVideoFrame>& frame) const {
+render::MediaSubmitResult PxApplication::DeliverExtensionVideoFrame(const std::shared_ptr<const render::CapturedVideoFrame>& frame) const {
     if (!frame || !frame->Payload()) {
         return std::unexpected(render::RenderError{
             .code = render::RenderErrorCode::kPipelineInvalidFrame,
@@ -1766,7 +1766,7 @@ render::MediaSubmitResult RdApplication::DeliverExtensionVideoFrame(const std::s
     return {};
 }
 
-render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(const std::shared_ptr<const render::CapturedAudioFrame>& frame,
+render::MediaSubmitResult PxApplication::DeliverCapturedAudioFrame(const std::shared_ptr<const render::CapturedAudioFrame>& frame,
                                                                    const std::shared_ptr<Data>& source_audio_payload) {
     if (!frame || !frame->payload) {
         return std::unexpected(render::RenderError{
@@ -1783,7 +1783,7 @@ render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(const std::sh
     const auto channels = static_cast<int>(frame->channels);
     const auto bits_per_sample = static_cast<int>(frame->bits_per_sample);
     const auto audio_payload = source_audio_payload ? source_audio_payload : Data::From(render::ImmutableByteBufferAsString(frame->payload));
-    auto statistics = RdStatistics::Instance();
+    auto statistics = PxStatistics::Instance();
     statistics->audio_samples_ = sample_rate_hz;
     statistics->audio_channels_ = channels;
     statistics->audio_bits_ = bits_per_sample;
@@ -1805,7 +1805,7 @@ render::MediaSubmitResult RdApplication::DeliverCapturedAudioFrame(const std::sh
     return {};
 }
 
-void RdApplication::ReplayLatestGameHookFrame() const {
+void PxApplication::ReplayLatestGameHookFrame() const {
     if (exit_app_ || !settings_.IsGameHookMode() || !HasConnectedPeer()) {
         return;
     }
@@ -1829,7 +1829,7 @@ void RdApplication::ReplayLatestGameHookFrame() const {
     encoder_thread_->Encode(*frame);
 }
 
-void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {
+void PxApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) const {
     // App-owned cursor sources must not be overwritten by the host desktop
     // capture loop.
     if (exit_app_ || settings_.IsWebViewMode() || settings_.IsRdpMode()) {
@@ -1839,7 +1839,7 @@ void RdApplication::OnCapturedCursorBitmap(const CaptureCursorBitmap& cursor) co
                                                           cursor.visible_, cursor.data_, cursor.type_));
 }
 
-void RdApplication::OnIpcVideoFrame(const CaptureVideoFrame& incoming) const {
+void PxApplication::OnIpcVideoFrame(const CaptureVideoFrame& incoming) const {
     if (settings_.IsGameHookMode()) {
         auto frame = incoming;
         if (EnsureGameFrameIdentity(frame.display_name_)) {
@@ -1850,7 +1850,7 @@ void RdApplication::OnIpcVideoFrame(const CaptureVideoFrame& incoming) const {
     OnCapturedVideoFrame(incoming);
 }
 
-void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
+void PxApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
     // In-process media path: do not enqueue high-rate PCM on the application
     // bus.
     if (!context_) {
@@ -1870,13 +1870,13 @@ void RdApplication::OnIpcAudioFrame(const CaptureAudioFrame& frame) {
     OnCapturedAudioFrame(frame);
 }
 
-bool RdApplication::HasConnectedPeer() const {
+bool PxApplication::HasConnectedPeer() const {
     return application_idle_lifecycle_.HasClients() || (module_registry_ && module_registry_->GetTotalMediaConsumersCount() > 0);
 }
 
-void RdApplication::WriteBoostUpInfoForPid(uint32_t pid) { PrepareGameHookBoot(pid); }
+void PxApplication::WriteBoostUpInfoForPid(uint32_t pid) { PrepareGameHookBoot(pid); }
 
-bool RdApplication::PrepareGameHookBoot(uint32_t pid) {
+bool PxApplication::PrepareGameHookBoot(uint32_t pid) {
     if (!app_manager_ || !app_manager_->CanHookProcess(pid)) {
         LOGE("Hook bootstrap refused: pid={} is not an owned executable target", pid);
         return false;
@@ -1918,8 +1918,8 @@ bool RdApplication::PrepareGameHookBoot(uint32_t pid) {
     return true;
 }
 
-void RdApplication::SendAudioSpectrumMessage() const {
-    auto statistics = RdStatistics::Instance();
+void PxApplication::SendAudioSpectrumMessage() const {
+    auto statistics = PxStatistics::Instance();
     auto spectrum_message = std::make_shared<Message>();
     spectrum_message->set_type(px::kRendererAudioSpectrum);
     auto spectrum = spectrum_message->mutable_renderer_audio_spectrum();
@@ -1936,8 +1936,8 @@ void RdApplication::SendAudioSpectrumMessage() const {
     PostNetMessage(network_message);
 }
 
-void RdApplication::ReportAudioSpectrum2Panel() {
-    auto statistics = RdStatistics::Instance();
+void PxApplication::ReportAudioSpectrum2Panel() {
+    auto statistics = PxStatistics::Instance();
     auto spectrum_message = std::make_shared<pxrp::RpMessage>();
     spectrum_message->set_type(pxrp::kRpServerAudioSpectrum);
     auto spectrum = spectrum_message->mutable_renderer_audio_spectrum();
@@ -1952,7 +1952,7 @@ void RdApplication::ReportAudioSpectrum2Panel() {
     PostPanelMessage(panel_buffer);
 }
 
-void RdApplication::SendClipboardMessage(const std::string& clipboard_text) const {
+void PxApplication::SendClipboardMessage(const std::string& clipboard_text) const {
     px::Message clipboard_message;
     clipboard_message.set_type(px::kClipboardInfo);
     clipboard_message.mutable_clipboard_info()->set_msg(clipboard_text);
@@ -1960,7 +1960,7 @@ void RdApplication::SendClipboardMessage(const std::string& clipboard_text) cons
     PostNetMessage(clipboard_buffer);
 }
 
-void RdApplication::SendConfigurationBack() {
+void PxApplication::SendConfigurationBack() {
     std::shared_ptr<MonitorCaptureSource> capture_source;
     {
         std::lock_guard<std::mutex> lk(capture_source_mtx_);
@@ -2062,7 +2062,7 @@ void RdApplication::SendConfigurationBack() {
     PostNetMessage(configuration_buffer);
 }
 
-void RdApplication::RequestRestartMe() const {
+void PxApplication::RequestRestartMe() const {
     if (!ws_panel_client_) {
         LOGW("Cannot request Render restart: Panel client is disabled");
         return;
@@ -2074,11 +2074,11 @@ void RdApplication::RequestRestartMe() const {
     ws_panel_client_->PostNetMessage(restart_buffer);
 }
 
-void RdApplication::ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit) {
+void PxApplication::ReportFileTransferAuditBegin(const render::FileTransferAuditBegin& audit) {
     if (file_transfer_reporter_) {
         file_transfer_reporter_->Begin(audit);
     }
-    const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+    const std::weak_ptr<PxApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
         if (!application || application->exit_app_) {
@@ -2096,17 +2096,17 @@ void RdApplication::ReportFileTransferAuditBegin(const render::FileTransferAudit
     });
 }
 
-void RdApplication::ReportFileTransferAuditProgress(const render::FileTransferAuditProgress& audit) {
+void PxApplication::ReportFileTransferAuditProgress(const render::FileTransferAuditProgress& audit) {
     if (file_transfer_reporter_) {
         file_transfer_reporter_->Progress(audit);
     }
 }
 
-void RdApplication::ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit) {
+void PxApplication::ReportFileTransferAuditEnd(const render::FileTransferAuditEnd& audit) {
     if (file_transfer_reporter_) {
         file_transfer_reporter_->End(audit);
     }
-    const std::weak_ptr<RdApplication> weak_application = weak_from_this();
+    const std::weak_ptr<PxApplication> weak_application = weak_from_this();
     PostGlobalTask([weak_application, audit] {
         const auto application = weak_application.lock();
         if (!application || application->exit_app_) {
@@ -2124,7 +2124,7 @@ void RdApplication::ReportFileTransferAuditEnd(const render::FileTransferAuditEn
     });
 }
 
-void RdApplication::ResetMonitorResolution(const std::string& monitor_name, int width, int height) {
+void PxApplication::ResetMonitorResolution(const std::string& monitor_name, int width, int height) {
     DEVMODE display_mode{};
     display_mode.dmSize = sizeof(display_mode);
     display_mode.dmPelsWidth = width;
@@ -2146,14 +2146,14 @@ void RdApplication::ResetMonitorResolution(const std::string& monitor_name, int 
     PostNetMessage(response_buffer);
 }
 
-std::shared_ptr<RenderModuleRegistry> RdApplication::GetRenderModuleRegistry() { return module_registry_; }
+std::shared_ptr<RenderModuleRegistry> PxApplication::GetRenderModuleRegistry() { return module_registry_; }
 
-std::shared_ptr<MonitorCaptureSource> RdApplication::GetWorkingMonitorCaptureSource() {
+std::shared_ptr<MonitorCaptureSource> PxApplication::GetWorkingMonitorCaptureSource() {
     std::lock_guard<std::mutex> lk(capture_source_mtx_);
     return capture_source_;
 }
 
-void RdApplication::SetFrameRate(int fps) {
+void PxApplication::SetFrameRate(int fps) {
     if (exit_app_ || !render::ValidFrameRate(fps) || !encoder_thread_) return;
     // Hook has no desktop capture module. Admission and encoder configuration
     // still share this target.
@@ -2162,18 +2162,18 @@ void RdApplication::SetFrameRate(int fps) {
     LOGI("Requested media frame rate: {}", fps);
 }
 
-int RdApplication::FrameRate() const noexcept {
+int PxApplication::FrameRate() const noexcept {
     return encoder_thread_ ? encoder_thread_->FrameRate() : render::InitialFrameRate(settings_.encoder_.fps_);
 }
 
-std::map<std::string, std::shared_ptr<VideoEncoderModule>> RdApplication::GetWorkingVideoEncoders() const {
+std::map<std::string, std::shared_ptr<VideoEncoderModule>> PxApplication::GetWorkingVideoEncoders() const {
     if (encoder_thread_) {
         return encoder_thread_->GetWorkingVideoEncoders();
     }
     return {};
 }
 
-bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
+bool PxApplication::GenerateD3DDevice(uint64_t adapter_uid) {
     LOGI("GenerateD3DDevice, adapter_uid = {}", adapter_uid);
     ClearD3DDevice(adapter_uid);
     ClearModuleD3DState(adapter_uid);
@@ -2261,7 +2261,7 @@ bool RdApplication::GenerateD3DDevice(uint64_t adapter_uid) {
     }
 }
 
-void RdApplication::ClearD3DDevice(uint64_t adapter_uid) {
+void PxApplication::ClearD3DDevice(uint64_t adapter_uid) {
     if (!d3d11_devices_.contains(adapter_uid)) {
         return;
     }
@@ -2271,14 +2271,14 @@ void RdApplication::ClearD3DDevice(uint64_t adapter_uid) {
     d3d11_devices_.erase(adapter_uid);
 }
 
-void RdApplication::ClearModuleD3DState(uint64_t adapter_uid) {
+void PxApplication::ClearModuleD3DState(uint64_t adapter_uid) {
     if (!module_registry_) {
         return;
     }
     module_registry_->ClearModuleD3DResources(adapter_uid);
 }
 
-void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason) {
+void PxApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::string& reason) {
     LOGE("HandleD3DDeviceFailure adapter_uid={}, reason={}", adapter_uid, reason);
     ClearD3DDevice(adapter_uid);
     ClearModuleD3DState(adapter_uid);
@@ -2310,7 +2310,7 @@ void RdApplication::HandleD3DDeviceFailure(uint64_t adapter_uid, const std::stri
     });
 }
 
-ComPtr<ID3D11Device> RdApplication::GetD3DDevice(uint64_t adapter_uid) {
+ComPtr<ID3D11Device> PxApplication::GetD3DDevice(uint64_t adapter_uid) {
     if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
         return it->second ? it->second->d3d11_device_ : nullptr;
     }
@@ -2328,7 +2328,7 @@ ComPtr<ID3D11Device> RdApplication::GetD3DDevice(uint64_t adapter_uid) {
     return nullptr;
 }
 
-ComPtr<ID3D11DeviceContext> RdApplication::GetD3DContext(uint64_t adapter_uid) {
+ComPtr<ID3D11DeviceContext> PxApplication::GetD3DContext(uint64_t adapter_uid) {
     if (auto it = d3d11_devices_.find(adapter_uid); it != d3d11_devices_.end()) {
         return it->second ? it->second->d3d11_device_context_ : nullptr;
     }
@@ -2342,7 +2342,7 @@ ComPtr<ID3D11DeviceContext> RdApplication::GetD3DContext(uint64_t adapter_uid) {
     return nullptr;
 }
 
-void RdApplication::ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const {
+void PxApplication::ReqCtrlAltDelete(const std::string& device_id, const std::string& stream_id) const {
     if (!service_client_ || !service_client_->IsAlive()) {
         LOGE("Service client not connected, can't ReqCtrlAltDelete");
         return;
@@ -2354,7 +2354,7 @@ void RdApplication::ReqCtrlAltDelete(const std::string& device_id, const std::st
     service_client_->PostNetMessage(service_message.SerializeAsString());
 }
 
-void RdApplication::RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
+void PxApplication::RequestVirtualDisplay(const std::string& request_id, int operation, uint32_t width, uint32_t height, uint32_t refresh_hz,
                                           std::function<void(const MsgVirtualDisplayServiceResult&)>&& callback) {
     if (!service_client_ || !service_client_->IsAlive()) {
         MsgVirtualDisplayServiceResult result;
@@ -2367,7 +2367,7 @@ void RdApplication::RequestVirtualDisplay(const std::string& request_id, int ope
     service_client_->RequestVirtualDisplay(request_id, operation, width, height, refresh_hz, std::move(callback));
 }
 
-PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
+PxAwaitable<PxResult<ConsoleFrontendGrant>> PxApplication::AdmitConsoleFrontend(ConsoleFrontendAdmissionRequest request,
                                                                                 const std::chrono::steady_clock::time_point deadline) {
     if (!service_client_ || !service_client_->IsAlive()) {
         std::fill(request.frontend_token.begin(), request.frontend_token.end(), '\0');
@@ -2399,7 +2399,7 @@ PxAwaitable<PxResult<ConsoleFrontendGrant>> RdApplication::AdmitConsoleFrontend(
     });
 }
 
-PxAwaitable<PxResult<std::uint32_t>> RdApplication::RequestDirectStream(
+PxAwaitable<PxResult<std::uint32_t>> PxApplication::RequestDirectStream(
     std::string stream_id, const bool release, const std::chrono::steady_clock::time_point deadline) {
     if (!service_client_ || !service_client_->IsAlive()) {
         co_return PxResult<std::uint32_t>::Failure(
@@ -2419,7 +2419,7 @@ PxAwaitable<PxResult<std::uint32_t>> RdApplication::RequestDirectStream(
     co_return PxResult<std::uint32_t>::Success(result.valid_for_ms_);
 }
 
-void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id,
+void PxApplication::OpenConsoleResourceChannel(std::string connection_key, std::string logical_session_id,
                                                const ConsoleResourceChannelKind channel_kind) {
     if (!resource_channel_reporter_) {
         LOGW("event=resource_channel.open component=rd_application outcome=rejected code=REPORTER_UNAVAILABLE");
@@ -2441,7 +2441,7 @@ void RdApplication::OpenConsoleResourceChannel(std::string connection_key, std::
     resource_channel_reporter_->Open(std::move(connection_key), std::move(logical_session_id), static_cast<int>(protocol_kind));
 }
 
-void RdApplication::CloseConsoleResourceChannel(const std::string& connection_key, const ResourceChannelCloseOutcome outcome) {
+void PxApplication::CloseConsoleResourceChannel(const std::string& connection_key, const ResourceChannelCloseOutcome outcome) {
     if (resource_channel_reporter_) {
         const auto service_outcome = [outcome] {
             switch (outcome) {
@@ -2462,14 +2462,14 @@ void RdApplication::CloseConsoleResourceChannel(const std::string& connection_ke
     }
 }
 
-void RdApplication::RecordConsoleResourceTraffic(const std::string& connection_key, const std::uint64_t sent_bytes,
+void PxApplication::RecordConsoleResourceTraffic(const std::string& connection_key, const std::uint64_t sent_bytes,
                                                  const std::uint64_t received_bytes) {
     if (resource_channel_reporter_) {
         resource_channel_reporter_->RecordTraffic(connection_key, sent_bytes, received_bytes);
     }
 }
 
-void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
+void PxApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceResult& result) {
     if (!result.accepted_) {
         LOGW("Ignore failed virtual display status: request={}, code={}", result.request_id_, result.error_code_);
         return;
@@ -2493,7 +2493,7 @@ void RdApplication::UpdateVirtualDisplayStatus(const MsgVirtualDisplayServiceRes
     SendConfigurationBack();
 }
 
-void RdApplication::RefreshVirtualDisplayStatus(const std::string& request_prefix) {
+void PxApplication::RefreshVirtualDisplayStatus(const std::string& request_prefix) {
     if (exit_app_ || !settings_.virtual_display_enabled_ || settings_.IsGameHookMode()) {
         return;
     }
@@ -2521,14 +2521,14 @@ void RdApplication::RefreshVirtualDisplayStatus(const std::string& request_prefi
     });
 }
 
-std::pair<uint32_t, uint64_t> RdApplication::GetVirtualDisplayStatusSnapshot() const {
+std::pair<uint32_t, uint64_t> PxApplication::GetVirtualDisplayStatusSnapshot() const {
     return {
         virtual_display_owned_count_.load(),
         virtual_display_topology_generation_.load(),
     };
 }
 
-void RdApplication::OnServiceRequestedStop() {
+void PxApplication::OnServiceRequestedStop() {
     LOGW(
         "Service requested stop (Console stop instance), notify clients then "
         "exit.");
@@ -2545,9 +2545,9 @@ void RdApplication::OnServiceRequestedStop() {
         400);
 }
 
-std::shared_ptr<WinDesktopManager> RdApplication::GetDesktopManager() { return desktop_mgr_; }
+std::shared_ptr<WinDesktopManager> PxApplication::GetDesktopManager() { return desktop_mgr_; }
 
-bool RdApplication::SwitchGdiCapture() {
+bool PxApplication::SwitchGdiCapture() {
     if (IsCurrentGdiCapture()) {
         return true;
     }
@@ -2568,7 +2568,7 @@ bool RdApplication::SwitchGdiCapture() {
     return true;
 }
 
-bool RdApplication::SwitchDdaCapture() {
+bool PxApplication::SwitchDdaCapture() {
     if (IsCurrentDdaCapture()) {
         return true;
     }
@@ -2589,38 +2589,38 @@ bool RdApplication::SwitchDdaCapture() {
     return true;
 }
 
-bool RdApplication::IsCurrentGdiCapture() {
+bool PxApplication::IsCurrentGdiCapture() {
     std::lock_guard<std::mutex> lk(capture_source_mtx_);
     return capture_source_ && capture_source_->Id() == kGdiCaptureSourceId;
 }
 
-bool RdApplication::IsCurrentDdaCapture() {
+bool PxApplication::IsCurrentDdaCapture() {
     std::lock_guard<std::mutex> lk(capture_source_mtx_);
     return capture_source_ && capture_source_->Id() == kDdaCaptureSourceId;
 }
 
-bool RdApplication::TryInitDdaCapture() {
+bool PxApplication::TryInitDdaCapture() {
     if (!dda_capture_source_) {
         return false;
     }
     return dda_capture_source_->InitializeCapture();
 }
 
-bool RdApplication::PostPanelMessage(std::shared_ptr<Data> payload) {
+bool PxApplication::PostPanelMessage(std::shared_ptr<Data> payload) {
     if (ws_panel_client_ && payload) {
         return ws_panel_client_->PostNetMessage(payload);
     }
     return false;
 }
 
-void RdApplication::PostUserProxyMessage(std::shared_ptr<Data> payload) {
+void PxApplication::PostUserProxyMessage(std::shared_ptr<Data> payload) {
     if (!payload || !module_registry_) {
         return;
     }
     module_registry_->PostWsUserProxyMessage(payload);
 }
 
-void RdApplication::HandleForceGdiEvent(bool force_gdi) {
+void PxApplication::HandleForceGdiEvent(bool force_gdi) {
     // WebView frames come from CEF OSR and do not have a desktop capture
     // module. Relay's legacy RequestControl hint must not try to switch a
     // nonexistent DDA/GDI source.
@@ -2648,7 +2648,7 @@ void RdApplication::HandleForceGdiEvent(bool force_gdi) {
     });
 }
 
-void RdApplication::RequestStaticDesktopFrame() {
+void PxApplication::RequestStaticDesktopFrame() {
     if (settings_.IsWebViewMode()) {
         if (webview_runtime_) {
             webview_runtime_->RequestFrame();
@@ -2665,7 +2665,7 @@ void RdApplication::RequestStaticDesktopFrame() {
     dda->RequestStaticFrame();
 }
 
-void RdApplication::UpdateCapturingMonitorInfo() {
+void PxApplication::UpdateCapturingMonitorInfo() {
     const auto module = this->GetWorkingMonitorCaptureSource();
     if (!module) {
         LOGE("ProcessCapturingMonitorInfoEvent failed, module is null.");
@@ -2687,7 +2687,7 @@ void RdApplication::UpdateCapturingMonitorInfo() {
     }
 }
 
-void RdApplication::ExitForIdle(bool startup) {
+void PxApplication::ExitForIdle(bool startup) {
     const auto status = startup ? ApplicationExitStatus::kStartupIdle : ApplicationExitStatus::kNoClients;
     process_exit_status_.store(static_cast<std::uint32_t>(status));
     if (settings_.IsGameHookMode()) {
@@ -2700,7 +2700,7 @@ void RdApplication::ExitForIdle(bool startup) {
     }
 }
 
-void RdApplication::Exit() {
+void PxApplication::Exit() {
     application_idle_lifecycle_.Stop();
     const auto application_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
     if (application_runtime && application_runtime->IsRuntimeThread()) {
@@ -2742,11 +2742,11 @@ void RdApplication::Exit() {
     // stop the statistics reporting at first: it runs on the context task pool
     // and reads net plugins, so it must be silent before capturing stops
     if (statistics_) {
-        LOGI("RdApplication shutdown: statistics");
+        LOGI("PxApplication shutdown: statistics");
         statistics_->Exit();
     }
     if (app_timer_) {
-        LOGI("RdApplication shutdown: timers");
+        LOGI("PxApplication shutdown: timers");
         app_timer_->StopTimers();
     }
     if (ws_panel_client_ || service_client_ || module_registry_) {
@@ -2834,7 +2834,7 @@ void RdApplication::Exit() {
         }
     }
     if (app_shared_info_) {
-        LOGI("RdApplication shutdown: shared info");
+        LOGI("PxApplication shutdown: shared info");
         app_shared_info_->Exit();
     }
     // Stop audio capture before teardown: otherwise the capture thread keeps
@@ -2846,15 +2846,15 @@ void RdApplication::Exit() {
         audio_capture_thread_->Join();
     }
     if (app_manager_) {
-        LOGI("RdApplication shutdown: app manager");
+        LOGI("PxApplication shutdown: app manager");
         app_manager_->Exit();
     }
     if (encoder_thread_) {
-        LOGI("RdApplication shutdown: encoder");
+        LOGI("PxApplication shutdown: encoder");
         encoder_thread_->Exit();
     }
     if (composition_root_) {
-        LOGI("RdApplication shutdown: built-in modules");
+        LOGI("PxApplication shutdown: built-in modules");
         const auto completion = std::make_shared<std::promise<render::ModuleLifecycleResult>>();
         auto future = completion->get_future();
         static_cast<void>(
@@ -2872,7 +2872,7 @@ void RdApplication::Exit() {
         }
     }
     if (module_registry_) {
-        LOGI("RdApplication shutdown: module event routing");
+        LOGI("PxApplication shutdown: module event routing");
         module_registry_->StopRouting();
         const auto async_runtime = context_ ? context_->GetAsyncRuntime() : std::shared_ptr<PxAsyncRuntime>{};
         if (async_runtime && !async_runtime->IsStopping() && !async_runtime->IsRuntimeThread()) {
@@ -2904,10 +2904,10 @@ void RdApplication::Exit() {
                 "code=ASYNC_RUNTIME_UNAVAILABLE "
                 "operation=stop outcome=deferred recoverable=false");
         }
-        LOGI("RdApplication shutdown: concrete modules and WebRTC libraries");
+        LOGI("PxApplication shutdown: concrete modules and WebRTC libraries");
         module_registry_->StopModules();
     }
-    LOGI("RdApplication shutdown: owners released");
+    LOGI("PxApplication shutdown: owners released");
     LOGI(
         "event=application.shutdown component=rd_application "
         "operation=ordered_shutdown outcome=finished duration_ms={}",
@@ -2923,10 +2923,10 @@ void RdApplication::Exit() {
 
 // ------------------------------------------------------ //
 // Windows
-WinApplication::WinApplication(const AppParams& args) : RdApplication(args) {}
+WinApplication::WinApplication(const AppParams& args) : PxApplication(args) {}
 
 // The base destructor is invoked automatically after this destructor.
-// Calling it explicitly here destroyed the RdApplication subobject twice
+// Calling it explicitly here destroyed the PxApplication subobject twice
 // and could terminate px_render with STATUS_HEAP_CORRUPTION on early exit.
 WinApplication::~WinApplication() { Exit(); }
 
@@ -2936,7 +2936,7 @@ int WinApplication::Run() {
     if (!settings_.IsWebViewMode() && !settings_.IsRdpMode()) {
         LoadDxAddress();
     }
-    return RdApplication::Run();
+    return PxApplication::Run();
 }
 
 static std::function<BOOL(DWORD)> s_ctrl_handler;
@@ -2950,7 +2950,7 @@ static BOOL ConsoleHandler(DWORD signal) {
 void WinApplication::Exit() {
     SetConsoleCtrlHandler(ConsoleHandler, FALSE);
     s_ctrl_handler = {};
-    RdApplication::Exit();
+    PxApplication::Exit();
 }
 
 void WinApplication::CaptureControlC() {

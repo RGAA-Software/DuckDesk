@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "rd_context.h"
+#include "px_context.h"
 #include <chrono>
 #include <memory>
 #include <thread>
@@ -8,7 +8,7 @@ namespace {
 
 TEST(RenderContextShutdown, PendingDelayIsCancelledAndCapturedOwnerReleased) {
     for (int iteration{0}; iteration < 20; ++iteration) {
-        auto context = px::RdContext::Make();
+        auto context = px::PxContext::Make();
         auto token = std::make_shared<int>(0);
         const std::weak_ptr<int> observer{token};
         context->PostDelayTask([token] { ADD_FAILURE() << "Cancelled task executed"; }, 60000);
@@ -20,9 +20,9 @@ TEST(RenderContextShutdown, PendingDelayIsCancelledAndCapturedOwnerReleased) {
 
 TEST(RenderContextShutdown, UiCallbackCanReleaseLastContextOwner) {
     for (int iteration{0}; iteration < 20; ++iteration) {
-        auto context = px::RdContext::Make();
-        const std::weak_ptr<px::RdContext> observer{context};
-        const auto slot = std::make_shared<std::shared_ptr<px::RdContext>>(context);
+        auto context = px::PxContext::Make();
+        const std::weak_ptr<px::PxContext> observer{context};
+        const auto slot = std::make_shared<std::shared_ptr<px::PxContext>>(context);
         context->PostDelayTask(
             [weak_slot = std::weak_ptr{slot}] {
                 if (const auto owner = weak_slot.lock()) {

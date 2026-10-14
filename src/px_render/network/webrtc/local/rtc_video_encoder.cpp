@@ -9,7 +9,7 @@
 #include "px_common/time_util.h"
 #include "px_render/modules/module_ids.h"
 #include "rtc_server.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "video_source_impl.h"
 #include "webrtc_local_transport.h"
 

@@ -11,10 +11,10 @@
 #include "px_common/string_util.h"
 #include "px_common/file_util.h"
 #include "px_common/log.h"
-#include "rd_context.h"
-#include "rd_app.h"
+#include "px_context.h"
+#include "px_app.h"
 #include "network/net_message_maker.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "app/app_messages.h"
 #include "px_common/win32/process_helper.h"
 #include "px_common/win32/win_helper.h"
@@ -46,8 +46,8 @@ namespace px
     constexpr int64_t kGameWatchdogCheckIntervalMs = 1000;
     constexpr int64_t kGameRestartMinIntervalMs = 5000;
 
-    AppManagerWinImpl::AppManagerWinImpl(const std::shared_ptr<RdContext>& ctx)
-        : AppManager(ctx), settings_(*RdSettings::Instance()) {}
+    AppManagerWinImpl::AppManagerWinImpl(const std::shared_ptr<PxContext>& ctx)
+        : AppManager(ctx), settings_(*PxSettings::Instance()) {}
     AppManagerWinImpl::~AppManagerWinImpl() { Exit(); }
 
     void AppManagerWinImpl::Init() {

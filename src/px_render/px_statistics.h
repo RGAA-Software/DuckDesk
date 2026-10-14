@@ -11,7 +11,7 @@
 #include <memory>
 #include <atomic>
 #include "px_common/fps_stat.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "px_common/concurrent_vector.h"
 #include "px_common/concurrent_hashmap.h"
 
@@ -21,10 +21,10 @@ namespace px
     constexpr auto kMaxStatCounts = 180;
 
     class Data;
-    class RdContext;
+    class PxContext;
     class MessageListener;
     class RenderModuleRegistry;
-    class RdApplication;
+    class PxApplication;
 
     // video capture/encode info
     class MsgWorkingCaptureInfo {
@@ -41,16 +41,16 @@ namespace px
 
     };
 
-    class RdStatistics : public std::enable_shared_from_this<RdStatistics> {
+    class PxStatistics : public std::enable_shared_from_this<PxStatistics> {
     public:
 
-        static std::shared_ptr<RdStatistics> Instance() {
-            static const auto st = std::make_shared<RdStatistics>();
+        static std::shared_ptr<PxStatistics> Instance() {
+            static const auto st = std::make_shared<PxStatistics>();
             return st;
         }
 
-        RdStatistics();
-        void SetApplication(const std::shared_ptr<RdApplication>& app);
+        PxStatistics();
+        void SetApplication(const std::shared_ptr<PxApplication>& app);
         void StartMonitor();
         void Exit();
         void IncreaseRunningTime();
@@ -87,11 +87,11 @@ namespace px
         void OnChecking();
 
     public:
-        std::weak_ptr<RdApplication> app_;
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::weak_ptr<PxApplication> app_;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<RenderModuleRegistry> module_registry_ = nullptr;
-        RdSettings* settings_ = nullptr;
+        std::shared_ptr<PxSettings> settings_{};
         // unit: S
         std::atomic_int64_t running_time_{};
         std::atomic_int64_t send_media_bytes_{};

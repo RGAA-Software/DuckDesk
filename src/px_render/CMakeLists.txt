@@ -29,15 +29,15 @@ include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd)
 include_directories(${PX_PROJECT_PATH}/px_3rdparty/asio2/3rd/asio)
 
 configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/rd_icon.rc.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/px_icon.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/px_icon.rc"
         @ONLY
 )
 
 set(SRCS
-        rd_app.cpp
-        rd_context.cpp
-        rd_statistics.cpp
+        px_app.cpp
+        px_context.cpp
+        px_statistics.cpp
         session/logical_session_registry.cpp
         network/ws_media_router.cpp
         network/webrtc_transport_host.cpp
@@ -93,9 +93,9 @@ if(WIN32)
 endif()
 
 if(WIN32)
-    add_executable(${PROJECT_NAME} WIN32 rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
+    add_executable(${PROJECT_NAME} WIN32 px_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/px_icon.rc)
 else()
-    add_executable(${PROJECT_NAME} rd_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/rd_icon.rc)
+    add_executable(${PROJECT_NAME} px_main.cpp ${CMAKE_CURRENT_BINARY_DIR}/px_icon.rc)
 endif()
 SET_TARGET_PROPERTIES(${PROJECT_NAME} PROPERTIES LINK_FLAGS "/MANIFESTUAC:\"level=\'requireAdministrator\' uiAccess=\'false\'\" /ENTRY:mainCRTStartup")
 target_link_libraries(${PROJECT_NAME} settings main px_common px_message px_steam_manager px_vigem)

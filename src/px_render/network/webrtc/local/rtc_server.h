@@ -212,7 +212,7 @@ private:
     std::atomic<int64_t> ice_disconnected_since_ms_{0};
     // ICE can briefly report Disconnected while the same data channel is
     // still recoverable. Confirm it for one second before emitting the
-    // final client-disconnected event; RdApplication then applies the
+    // final client-disconnected event; PxApplication then applies the
     // user-facing five-second no-client grace period.
     // ICE 的 Disconnected 可能只是网卡切换/短暂丢包。给连接 5 秒恢复窗口，
     // 与媒体消费者退出后的采集保活窗口一致，避免监看墙和普通客户端闪断。

@@ -4,16 +4,16 @@
 
 #include "server_cast.h"
 #include "px_common/log.h"
-#include "rd_context.h"
+#include "px_context.h"
 
 namespace px
 {
 
-    std::shared_ptr<ServerCast> ServerCast::Make(std::shared_ptr<RdContext> &ctx) {
+    std::shared_ptr<ServerCast> ServerCast::Make(std::shared_ptr<PxContext> &ctx) {
         return std::make_shared<ServerCast>(ctx);
     }
 
-    ServerCast::ServerCast(const std::shared_ptr<RdContext> &ctx) : context_(ctx) {
+    ServerCast::ServerCast(const std::shared_ptr<PxContext> &ctx) : context_(ctx) {
 
     }
 

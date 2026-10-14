@@ -6,8 +6,8 @@
 #include <d3d11.h>
 #include <memory>
 #include <wrl/client.h>
-#include "rd_app.h"
-#include "rd_context.h"
+#include "px_app.h"
+#include "px_context.h"
 #include "px_common/data.h"
 #include "px_common/image.h"
 #include "px_common/thread.h"
@@ -19,9 +19,9 @@
 #include "px_encoder/video_encoder.h"
 #include "px_encoder/ffmpeg_video_encoder.h"
 #include "px_encoder/nvenc_video_encoder.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "app/app_messages.h"
-#include "rd_statistics.h"
+#include "px_statistics.h"
 #include "px_common/win32/d3d_debug_helper.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/modules/module_ids.h"
@@ -104,17 +104,17 @@ struct EncoderBacklogGuard {
 namespace px
 {
 
-    std::shared_ptr<EncoderThread> EncoderThread::Make(const std::shared_ptr<RdApplication>& app) {
+    std::shared_ptr<EncoderThread> EncoderThread::Make(const std::shared_ptr<PxApplication>& app) {
         auto encoder = std::make_shared<EncoderThread>(app);
         encoder->InitListener();
         return encoder;
     }
 
-    EncoderThread::EncoderThread(const std::shared_ptr<RdApplication>& app)
-        : settings_(*RdSettings::Instance()) {
+    EncoderThread::EncoderThread(const std::shared_ptr<PxApplication>& app)
+        : settings_(*PxSettings::Instance()) {
         frame_rate_.store(render::InitialFrameRate(settings_.encoder_.fps_));
         app_ = app;
-        stat_ = RdStatistics::Instance();
+        stat_ = PxStatistics::Instance();
         context_ = app->GetContext();
         module_registry_ = context_->GetRenderModuleRegistry();
         // 队列过小会频繁丢弃未执行任务;丢弃时若已 ++in_flight 会泄漏并把 backlog 抬飞。
@@ -224,7 +224,7 @@ namespace px
                 });
         }
 
-        auto settings = RdSettings::Instance();
+        auto settings = PxSettings::Instance();
         auto frame_index = cap_video_msg.frame_index_;
         // auto adapter_uid = cap_video_msg.adapter_uid_;
         auto monitor_name = std::string(cap_video_msg.display_name_);

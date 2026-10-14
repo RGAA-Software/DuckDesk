@@ -3,7 +3,7 @@
 //
 
 #include "app_timer.h"
-#include "rd_context.h"
+#include "px_context.h"
 #include "app/app_messages.h"
 #include "px_common/log.h"
 
@@ -13,7 +13,7 @@
 namespace px
 {
 
-    AppTimer::AppTimer(const std::shared_ptr<RdContext>& ctx) {
+    AppTimer::AppTimer(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
     }
 

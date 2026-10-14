@@ -1,0 +1,83 @@
+﻿类别,原名称或路径,新名称或路径,当前定义位置,关联代码文件数
+C++类,RdApplication,PxApplication,src/px_render/px_app.h:110,26
+C++类,RdContext,PxContext,src/px_render/px_context.h:41,34
+Protobuf类型,RdHardwareCpu,PxHardwareCpu,src/px_deps/px_message/px_message.proto:280,1
+Protobuf类型,RdHardwareDisk,PxHardwareDisk,src/px_deps/px_message/px_message.proto:301,1
+Protobuf类型,RdHardwareGpu,PxHardwareGpu,src/px_deps/px_message/px_message.proto:292,1
+Protobuf类型,RdHardwareInfo,PxHardwareInfo,src/px_deps/px_message/px_message.proto:279,2
+Protobuf类型,RdHardwareMemory,PxHardwareMemory,src/px_deps/px_message/px_message.proto:287,1
+C++类,RdSettings,PxSettings,src/px_render/settings/px_settings.h:128,19
+C++类,RdStatistics,PxStatistics,src/px_render/px_statistics.h:44,18
+文件,src/px_render/rd_app.cpp,src/px_render/px_app.cpp,,16
+文件,src/px_render/rd_app.h,src/px_render/px_app.h,,16
+文件,src/px_render/rd_context.cpp,src/px_render/px_context.cpp,,20
+文件,src/px_render/rd_context.h,src/px_render/px_context.h,,20
+文件,src/px_render/rd_icon.rc.in,src/px_render/px_icon.rc.in,,2
+文件,src/px_render/rd_main.cpp,src/px_render/px_main.cpp,,3
+文件,src/px_render/rd_statistics.cpp,src/px_render/px_statistics.cpp,,12
+文件,src/px_render/rd_statistics.h,src/px_render/px_statistics.h,,12
+文件,src/px_render/settings/rd_settings.cpp,src/px_render/settings/px_settings.cpp,,16
+文件,src/px_render/settings/rd_settings.h,src/px_render/settings/px_settings.h,,16
+关联代码文件,scripts/start_render_hook.ps1,,rd_main.cpp,
+关联代码文件,scripts/test_render_architecture_boundaries.ps1,,rd_app.cpp; rd_app.h,
+关联代码文件,scripts/validate_product_branding.py,,rd_icon.rc.in,
+关联代码文件,src/px_client_sdk/sdk_statistics.h,,RdHardwareInfo,
+关联代码文件,src/px_deps/px_message/px_message.proto,,RdHardwareCpu; RdHardwareDisk; RdHardwareGpu; RdHardwareInfo; RdHardwareMemory,
+关联代码文件,src/px_render/CMakeLists.txt,,rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_icon.rc.in; rd_main.cpp; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/app/app_manager.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/app/app_manager.h,,RdContext,
+关联代码文件,src/px_render/app/app_manager_factory.cpp,,RdContext,
+关联代码文件,src/px_render/app/app_manager_factory.h,,RdContext,
+关联代码文件,src/px_render/app/app_shared_info.cpp,,RdContext,
+关联代码文件,src/px_render/app/app_shared_info.h,,RdContext,
+关联代码文件,src/px_render/app/app_timer.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/app/app_timer.h,,RdContext,
+关联代码文件,src/px_render/app/encoder_thread.cpp,,RdApplication; RdSettings; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/app/encoder_thread.h,,RdApplication; RdContext; RdSettings; RdStatistics; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/app/steam_game.cpp,,RdContext,
+关联代码文件,src/px_render/app/steam_game.h,,RdContext,
+关联代码文件,src/px_render/app/win/app_manager_win.cpp,,RdContext; RdSettings; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/app/win/app_manager_win.h,,RdContext; RdSettings,
+关联代码文件,src/px_render/app/win/win_desktop_manager.cpp,,RdContext,
+关联代码文件,src/px_render/app/win/win_desktop_manager.h,,RdContext,
+关联代码文件,src/px_render/app/win/win_render_message_loop.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/app/win/win_render_message_loop.h,,RdContext,
+关联代码文件,src/px_render/app/win/win_render_message_window.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/app/win/win_render_message_window.h,,RdContext,
+关联代码文件,src/px_render/architecture/network/network_transport_hub.h,,RdApplication,
+关联代码文件,src/px_render/architecture/pipeline/captured_media_pipeline.h,,RdApplication,
+关联代码文件,src/px_render/architecture/runtime/render_composition_root.h,,RdApplication,
+关联代码文件,src/px_render/ingress/network_event_ingress.cpp,,RdApplication; RdSettings; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/ingress/network_event_ingress.h,,RdApplication; RdContext; RdSettings; RdStatistics,
+关联代码文件,src/px_render/ingress/render_event_ingress.cpp,,RdApplication; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/ingress/render_event_ingress.h,,RdApplication; RdContext; RdStatistics,
+关联代码文件,src/px_render/modules/render_module_registry.cpp,,RdApplication; RdSettings; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/modules/render_module_registry.h,,RdApplication; RdContext; RdSettings,
+关联代码文件,src/px_render/network/net_message_maker.cpp,,RdApplication; RdStatistics; rd_app.cpp; rd_app.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/network/net_message_maker.h,,RdApplication,
+关联代码文件,src/px_render/network/render_service_client.cpp,,RdApplication; RdSettings; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/network/render_service_client.h,,RdApplication; RdContext; RdStatistics,
+关联代码文件,src/px_render/network/server_cast.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/network/server_cast.h,,RdContext,
+关联代码文件,src/px_render/network/udp/udp_transport.h,,rd_app.cpp; rd_app.h,
+关联代码文件,src/px_render/network/webrtc/local/rtc_server.h,,RdApplication,
+关联代码文件,src/px_render/network/webrtc/local/rtc_video_encoder.cpp,,rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/network/ws/ws_transport.h,,RdSettings,
+关联代码文件,src/px_render/network/ws_media_router.cpp,,RdStatistics; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/network/ws_panel_client.cpp,,RdContext; RdSettings; RdStatistics; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/network/ws_panel_client.h,,RdContext; RdSettings; RdStatistics,
+关联代码文件,src/px_render/pipeline/encoded_video_fanout.cpp,,RdApplication; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/pipeline/encoded_video_fanout.h,,RdApplication; RdContext; RdStatistics,
+关联代码文件,src/px_render/px_app.cpp,,RdApplication; RdContext; RdSettings; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/px_app.h,,RdApplication; RdContext; RdSettings; RdStatistics; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/px_context.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,src/px_render/px_context.h,,RdContext,
+关联代码文件,src/px_render/px_main.cpp,,RdApplication; RdSettings; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/px_statistics.cpp,,RdApplication; RdSettings; RdStatistics; rd_app.cpp; rd_app.h; rd_context.cpp; rd_context.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/px_statistics.h,,RdApplication; RdContext; RdSettings; RdStatistics; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/rdp/rdp_application.cpp,,RdApplication; rd_app.cpp; rd_app.h; rd_settings.cpp; rd_settings.h; rd_statistics.cpp; rd_statistics.h,
+关联代码文件,src/px_render/settings/CMakeLists.txt,,rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/settings/px_settings.cpp,,RdApplication; RdSettings; rd_main.cpp; rd_settings.cpp; rd_settings.h,
+关联代码文件,src/px_render/settings/px_settings.h,,RdApplication; RdSettings,
+关联代码文件,src/px_render/tests/unit/test_render_context_shutdown.cpp,,RdContext; rd_context.cpp; rd_context.h,
+关联代码文件,web/px_web_client/src/App.vue,,rd_app.cpp; rd_app.h,

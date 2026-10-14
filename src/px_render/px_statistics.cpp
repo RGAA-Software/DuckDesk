@@ -2,13 +2,13 @@
 // Created by RGAA on 2024/3/6.
 //
 
-#include "rd_statistics.h"
+#include "px_statistics.h"
 #include "session/logical_session_registry.h"
-#include "rd_context.h"
-#include "rd_app.h"
+#include "px_context.h"
+#include "px_app.h"
 #include "app/app_messages.h"
 #include "px_render/modules/module_ids.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_common/log.h"
 #include "px_common/fps_stat.h"
@@ -57,17 +57,17 @@ namespace px
     }
 
     /// ----
-    RdStatistics::RdStatistics() {
-        settings_ = RdSettings::Instance();
+    PxStatistics::PxStatistics() {
+        settings_ = PxSettings::Instance();
     }
 
-    void RdStatistics::SetApplication(const std::shared_ptr<RdApplication>& app) {
+    void PxStatistics::SetApplication(const std::shared_ptr<PxApplication>& app) {
         app_ = app;
         context_ = app->GetContext();
         module_registry_ = context_->GetRenderModuleRegistry();
     }
 
-    void RdStatistics::StartMonitor() {
+    void PxStatistics::StartMonitor() {
         msg_listener_ = context_->CreateMessageListener(MessageExecutionLane::kState);
         const auto weak_self = weak_from_this();
         msg_listener_->Listen<MsgTimer5000>([weak_self](const MsgTimer5000&) {
@@ -77,7 +77,7 @@ namespace px
         });
     }
 
-    void RdStatistics::Exit() {
+    void PxStatistics::Exit() {
         if (msg_listener_) {
             msg_listener_->UnListenAll();
             msg_listener_.reset();
@@ -87,22 +87,22 @@ namespace px
         app_.reset();
     }
 
-    void RdStatistics::IncreaseRunningTime() {
+    void PxStatistics::IncreaseRunningTime() {
         running_time_++;
     }
 
-    void RdStatistics::AppendMediaBytes(int bytes) {
+    void PxStatistics::AppendMediaBytes(int bytes) {
         send_media_bytes_ += bytes;
     }
 
-    void RdStatistics::AppendAudioFrameGap(uint32_t time) {
+    void PxStatistics::AppendAudioFrameGap(uint32_t time) {
         if (audio_frame_gaps_.Size() >= kMaxStatCounts) {
             audio_frame_gaps_.RemoveFirst();
         }
         audio_frame_gaps_.PushBack(time);
     }
 
-    void RdStatistics::CopyLeftSpectrum(const std::vector<double>& spectrum,
+    void PxStatistics::CopyLeftSpectrum(const std::vector<double>& spectrum,
                                         int sample_count) {
         if (left_spectrum_.Size() < sample_count) {
             left_spectrum_.Resize(sample_count);
@@ -110,13 +110,13 @@ namespace px
         left_spectrum_.CopyMemPartialFrom(spectrum, sample_count);
     }
 
-    std::vector<double> RdStatistics::GetLeftSpectrum() {
+    std::vector<double> PxStatistics::GetLeftSpectrum() {
         std::vector<double> out;
         left_spectrum_.CopyMemTo(out);
         return out;
     }
 
-    void RdStatistics::CopyRightSpectrum(const std::vector<double>& spectrum,
+    void PxStatistics::CopyRightSpectrum(const std::vector<double>& spectrum,
                                          int sample_count) {
         if (right_spectrum_.Size() < sample_count) {
             right_spectrum_.Resize(sample_count);
@@ -124,13 +124,13 @@ namespace px
         right_spectrum_.CopyMemPartialFrom(spectrum, sample_count);
     }
 
-    std::vector<double> RdStatistics::GetRightSpectrum() {
+    std::vector<double> PxStatistics::GetRightSpectrum() {
         std::vector<double> out;
         right_spectrum_.CopyMemTo(out);
         return out;
     }
 
-    std::shared_ptr<Data> RdStatistics::AsProtoMessage() {
+    std::shared_ptr<Data> PxStatistics::AsProtoMessage() {
         pxrp::RpMessage message;
         message.set_type(pxrp::RpMessageType::kRpCaptureStatistics);
 
@@ -282,16 +282,16 @@ namespace px
         return RpProtoAsData(&message);
     }
 
-    void RdStatistics::IncreaseDDAFailedCount() {
+    void PxStatistics::IncreaseDDAFailedCount() {
         dda_failed_count_++;
     }
 
-    void RdStatistics::OnChecking() {
+    void PxStatistics::OnChecking() {
         // Reserved for low-rate state sampling. Keep the timer callback cheap
         // until a concrete statistic is added.
     }
 
-    std::shared_ptr<MsgWorkingCaptureInfo> RdStatistics::CaptureInfo(const std::string& name) {
+    std::shared_ptr<MsgWorkingCaptureInfo> PxStatistics::CaptureInfo(const std::string& name) {
         if (auto info = app_captures_info_.TryGet(name); info.has_value() && info.value()) {
             return info.value();
         }

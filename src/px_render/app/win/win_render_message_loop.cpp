@@ -3,7 +3,7 @@
 #include <wtsapi32.h>
 #include "px_common/log.h"
 #include "win_render_message_window.h"
-#include "rd_context.h"
+#include "px_context.h"
 #include "px_render/modules/render_module_registry.h"
 #include "app/app_messages.h"
 #include "architecture/sources/monitor_capture_source.h"
@@ -20,11 +20,11 @@ namespace px
         }
     }
 
-    std::shared_ptr<WinMessageLoop> WinMessageLoop::Make(const std::shared_ptr<RdContext>& ctx) {
+    std::shared_ptr<WinMessageLoop> WinMessageLoop::Make(const std::shared_ptr<PxContext>& ctx) {
         return std::make_shared<WinMessageLoop>(ctx);
     }
 
-    WinMessageLoop::WinMessageLoop(const std::shared_ptr<RdContext>& ctx) {
+    WinMessageLoop::WinMessageLoop(const std::shared_ptr<PxContext>& ctx) {
         context_ = ctx;
         module_registry_ = context_->GetRenderModuleRegistry();
     }

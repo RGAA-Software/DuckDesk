@@ -41,7 +41,7 @@ source_directory="$build_directory/postgresql-$postgresql_version"
 cd "$source_directory"
 ./configure --prefix=/opt/pixels/postgresql/18 --with-openssl --without-readline --without-icu --without-zstd --without-lz4 \
     >"$build_directory/configure.log"
-make -j"$(nproc)" >"$build_directory/build.log"
+make -j10 >"$build_directory/build.log"
 make install DESTDIR="$build_directory/staged" >"$build_directory/install.log"
 
 staged_directory="$build_directory/staged/opt/pixels/postgresql/18"

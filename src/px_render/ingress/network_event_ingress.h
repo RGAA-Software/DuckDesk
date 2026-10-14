@@ -21,23 +21,23 @@ class JoystickService;
 class FileTransferService;
 class VoiceCallService;
 }  // namespace render
-class RdApplication;
+class PxApplication;
 class ApplicationTextService;
 class ApplicationClipboard;
-class RdSettings;
+class PxSettings;
 class Data;
-class RdStatistics;
+class PxStatistics;
 class MessageListener;
 class MessageNotifier;
 class Message;
-class RdContext;
+class PxContext;
 class RenderModuleRegistry;
 struct VirtualDisplayCoordinator;
 
 class NetworkEventIngress : public std::enable_shared_from_this<NetworkEventIngress> {
 public:
-    static std::shared_ptr<NetworkEventIngress> Make(const std::shared_ptr<RdApplication>& app);
-    explicit NetworkEventIngress(const std::shared_ptr<RdApplication>& app);
+    static std::shared_ptr<NetworkEventIngress> Make(const std::shared_ptr<PxApplication>& app);
+    explicit NetworkEventIngress(const std::shared_ptr<PxApplication>& app);
     void ProcessNetEvent(const std::shared_ptr<NetworkClientEvent>& event, const std::string& source_id);
     void ProcessUdpVoiceFrame(const std::shared_ptr<UdpVoiceFrameEvent>& event);
     void ProcessClientConnectedEvent(const std::shared_ptr<ClientConnectedEvent>& event, const std::string& source_id);
@@ -109,10 +109,10 @@ private:
 
 private:
     // Process-lifetime settings singleton; non-null by construction.
-    RdSettings& settings_;
-    std::shared_ptr<RdStatistics> statistics_ = nullptr;
-    std::shared_ptr<RdApplication> app_ = nullptr;
-    std::shared_ptr<RdContext> context_ = nullptr;
+    PxSettings& settings_;
+    std::shared_ptr<PxStatistics> statistics_ = nullptr;
+    std::shared_ptr<PxApplication> app_ = nullptr;
+    std::shared_ptr<PxContext> context_ = nullptr;
     std::shared_ptr<render::InputReplayService> input_replay_service_;
     std::shared_ptr<render::JoystickService> joystick_service_;
     std::shared_ptr<render::FileTransferService> file_transfer_service_;

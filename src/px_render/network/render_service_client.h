@@ -24,9 +24,9 @@
 
 namespace px {
 
-class RdContext;
-class RdApplication;
-class RdStatistics;
+class PxContext;
+class PxApplication;
+class PxStatistics;
 class MessageListener;
 class PxReconnectSupervisor;
 template <typename Client>
@@ -35,7 +35,7 @@ template <typename T>
 class PxAsyncMailbox;
 class RenderServiceClient : public std::enable_shared_from_this<RenderServiceClient> {
 public:
-    explicit RenderServiceClient(const std::shared_ptr<RdApplication>& app);
+    explicit RenderServiceClient(const std::shared_ptr<PxApplication>& app);
     ~RenderServiceClient();
     void Start();
     void Exit();
@@ -104,9 +104,9 @@ private:
                                                     std::shared_ptr<PxAsyncMailbox<std::string>> mailbox);
 
 private:
-    std::shared_ptr<RdStatistics> statistics_{};
-    std::shared_ptr<RdApplication> app_{};
-    std::shared_ptr<RdContext> context_{};
+    std::shared_ptr<PxStatistics> statistics_{};
+    std::shared_ptr<PxApplication> app_{};
+    std::shared_ptr<PxContext> context_{};
     std::shared_ptr<PxReconnectAdapterSlot<asio2::ws_client>> adapter_slot_{};
     std::shared_ptr<MessageListener> msg_listener_{};
     std::shared_ptr<PxAsyncScope> async_scope_{};

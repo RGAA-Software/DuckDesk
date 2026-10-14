@@ -45,10 +45,10 @@
 #include "px_render/modules/render_module_registry.h"
 #include "px_render/network/ws/ws_user_proxy_router.h"
 #include "px_render_panel_message.pb.h"
-#include "rd_app.h"
-#include "rd_context.h"
-#include "rd_statistics.h"
-#include "settings/rd_settings.h"
+#include "px_app.h"
+#include "px_context.h"
+#include "px_statistics.h"
+#include "settings/px_settings.h"
 
 namespace px {
 
@@ -119,7 +119,7 @@ std::chrono::steady_clock::duration VirtualDisplayServiceResponseTimeout(RemoteV
     }
 }
 
-bool VerifyGuestDeviceCredential(const RdSettings& settings, const std::string& safety_pwd_md5) {
+bool VerifyGuestDeviceCredential(const PxSettings& settings, const std::string& safety_pwd_md5) {
     if (settings.device_safety_pwd_.empty() && settings.device_random_pwd_.empty()) {
         return true;
     }
@@ -132,7 +132,7 @@ bool VerifyGuestDeviceCredential(const RdSettings& settings, const std::string& 
     return !settings.device_random_pwd_.empty() && MD5::Hex(settings.device_random_pwd_) == safety_pwd_md5;
 }
 
-void SendVirtualDisplayResponse(const std::shared_ptr<RdApplication>& app, const std::string& device_id, const std::string& stream_id,
+void SendVirtualDisplayResponse(const std::shared_ptr<PxApplication>& app, const std::string& device_id, const std::string& stream_id,
                                 const VirtualDisplayResponse& response) {
     px::Message message;
     message.set_type(kVirtualDisplayResponse);
@@ -177,7 +177,7 @@ void CacheResponseLocked(VirtualDisplayCoordinator& coordinator, const std::stri
     coordinator.completed[request_id] = std::move(cached);
 }
 
-void CompleteVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+void CompleteVirtualDisplayRequests(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
     std::vector<CachedVirtualDisplayResponse> ready;
     {
         std::scoped_lock lock(coordinator->mutex);
@@ -210,7 +210,7 @@ void CompleteVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, c
     }
 }
 
-void ExpireVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
+void ExpireVirtualDisplayRequests(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator) {
     std::vector<CachedVirtualDisplayResponse> expired;
     const auto now = std::chrono::steady_clock::now();
     {
@@ -240,7 +240,7 @@ void ExpireVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, con
     }
 }
 
-void ReconcileVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator,
+void ReconcileVirtualDisplayRequests(const std::shared_ptr<PxApplication>& app, const std::shared_ptr<VirtualDisplayCoordinator>& coordinator,
                                      const MsgVirtualDisplayServiceResult& status) {
     if (!status.accepted_) {
         return;
@@ -280,17 +280,17 @@ void ReconcileVirtualDisplayRequests(const std::shared_ptr<RdApplication>& app, 
 }
 }  // namespace
 
-std::shared_ptr<NetworkEventIngress> NetworkEventIngress::Make(const std::shared_ptr<RdApplication>& app) {
+std::shared_ptr<NetworkEventIngress> NetworkEventIngress::Make(const std::shared_ptr<PxApplication>& app) {
     auto ingress = std::make_shared<NetworkEventIngress>(app);
     ingress->InitListeners();
     return ingress;
 }
 
-NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<RdApplication>& app) : settings_(*RdSettings::Instance()) {
+NetworkEventIngress::NetworkEventIngress(const std::shared_ptr<PxApplication>& app) : settings_(*PxSettings::Instance()) {
     this->app_ = app;
     this->context_ = app->GetContext();
     this->module_registry_ = app->GetRenderModuleRegistry();
-    this->statistics_ = RdStatistics::Instance();
+    this->statistics_ = PxStatistics::Instance();
     input_replay_service_ = context_->GetInputReplayService();
     joystick_service_ = context_->GetJoystickService();
     file_transfer_service_ = context_->GetFileTransferService();
@@ -430,7 +430,7 @@ void NetworkEventIngress::ProcessClientConnectedEvent(const std::shared_ptr<Clie
     // an Observer can see the application without sending input first.
     app_->ReplayLatestGameHookFrame();
     if (settings_.IsGameHookMode()) {
-        const auto weak_app = std::weak_ptr<RdApplication>(app_);
+        const auto weak_app = std::weak_ptr<PxApplication>(app_);
         for (const auto delay_ms : {250, 1000}) {
             context_->PostDelayTask(
                 [weak_app]() {

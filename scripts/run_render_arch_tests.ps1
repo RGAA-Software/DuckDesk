@@ -6,11 +6,12 @@ param(
     [ValidateSet("quick", "lifecycle", "integration", "hardware", "all", "performance")]
     [string]$Mode = "all",
 
-    [ValidateRange(1, 64)]
+    [ValidateRange(1, 10)]
     [int]$Jobs = 8
 )
 
 $ErrorActionPreference = "Stop"
+& (Join-Path $PSScriptRoot 'limit_build_cpu.ps1')
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $productRoot = Join-Path $repoRoot "build_official/$Product"
 $buildRoot = Join-Path $productRoot "cmake"

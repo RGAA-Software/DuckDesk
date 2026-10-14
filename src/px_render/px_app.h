@@ -26,7 +26,7 @@
 #include "px_common/concurrent_hashmap.h"
 #include "px_common/concurrent_queue.h"
 #include "px_common/concurrent_type.h"
-#include "rd_context.h"
+#include "px_context.h"
 #ifdef WIN32
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -47,7 +47,7 @@ class MessageListener;
 class DesktopCapture;
 class Thread;
 class AppTimer;
-class RdSettings;
+class PxSettings;
 class File;
 class AppSharedMessage;
 class IAudioCapture;
@@ -62,7 +62,7 @@ class ResourceChannelReporter;
 class VigemController;
 class VigemDriverManager;
 
-class RdStatistics;
+class PxStatistics;
 class WsPanelClient;
 class RenderModuleRegistry;
 class MonitorCaptureSource;
@@ -107,13 +107,13 @@ class RenderCompositionRoot;
 class WasAudioCaptureSource;
 }  // namespace render
 
-class RdApplication : public std::enable_shared_from_this<RdApplication> {
+class PxApplication : public std::enable_shared_from_this<PxApplication> {
 public:
-    static std::shared_ptr<RdApplication> Make(const AppParams& args);
+    static std::shared_ptr<PxApplication> Make(const AppParams& args);
 
-    virtual ~RdApplication();
+    virtual ~PxApplication();
 
-    virtual void Init(int argc, char** argv);
+    virtual void Init();
     virtual int Run();
     virtual void Exit();
     void ExitForIdle(bool startup);
@@ -124,7 +124,7 @@ public:
     void PostIpcMessage(std::shared_ptr<Data>&& payload);
     void PostIpcMessage(const std::string& payload) const;
     void PostNetMessage(std::shared_ptr<Data> payload) const;
-    std::shared_ptr<RdContext> GetContext() { return context_; }
+    std::shared_ptr<PxContext> GetContext() { return context_; }
     std::shared_ptr<AppManager> GetAppManager() { return app_manager_; }
     void OnCapturedVideoFrame(const CaptureVideoFrame& frame) const;
     void ReplayLatestGameHookFrame() const;
@@ -192,7 +192,7 @@ public:
     }
 
 protected:
-    explicit RdApplication(const AppParams& args);
+    explicit PxApplication(const AppParams& args);
 
 private:
     void InitAppTimer();
@@ -231,10 +231,10 @@ private:
                                                         const std::shared_ptr<Data>& source_audio_payload = {});
 
 protected:
-    RdSettings& settings_;
+    PxSettings& settings_;
     std::shared_ptr<WsPanelClient> ws_panel_client_ = nullptr;
     std::shared_ptr<AppManager> app_manager_ = nullptr;
-    std::shared_ptr<RdContext> context_ = nullptr;
+    std::shared_ptr<PxContext> context_ = nullptr;
     std::shared_ptr<EncoderThread> encoder_thread_ = nullptr;
     std::shared_ptr<MessageListener> msg_listener_ = nullptr;
     std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
@@ -249,7 +249,7 @@ protected:
     std::shared_ptr<AppSharedInfo> app_shared_info_ = nullptr;
 
     uint64_t last_post_audio_time_ = 0;
-    std::shared_ptr<RdStatistics> statistics_ = nullptr;
+    std::shared_ptr<PxStatistics> statistics_ = nullptr;
     std::shared_ptr<LogicalSessionRegistry> logical_session_registry_ = nullptr;
     std::shared_ptr<SharedPreference> sp_;
 
@@ -321,10 +321,10 @@ protected:
     std::string init_error_;
 };
 
-extern std::shared_ptr<RdApplication> rdApp;
+extern std::shared_ptr<PxApplication> rdApp;
 
 // Windows
-class WinApplication : public RdApplication {
+class WinApplication : public PxApplication {
 public:
     ~WinApplication() override;
 

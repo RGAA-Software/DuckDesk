@@ -140,7 +140,7 @@ if (Test-Path -LiteralPath $LogPath) {
     if ($rawB64Fail -and -not $decodedOk) {
         Write-Host ''
         Write-Host 'ERROR: Render treated app_game_path as raw Base64 (not decoded).'
-        Write-Host 'Rebuild px_render (Base64 decode in rd_main) and retry.'
+        Write-Host 'Rebuild px_render (Base64 decode in px_main) and retry.'
         Write-Host "Log: $LogPath"
         exit 1
     }

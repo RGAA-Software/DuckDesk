@@ -2,7 +2,7 @@
 // Created by RGAA on 2023/12/18.
 //
 
-#include "rd_context.h"
+#include "px_context.h"
 #include <format>
 #include "px_common/blocking_executor.h"
 #include "px_common/message_notifier.h"
@@ -20,11 +20,11 @@
 #include "asio2/asio2.hpp"
 
 namespace px {
-std::shared_ptr<RdContext> RdContext::Make() {
-    return std::make_shared<RdContext>();
+std::shared_ptr<PxContext> PxContext::Make() {
+    return std::make_shared<PxContext>();
 }
 
-RdContext::RdContext() {
+PxContext::PxContext() {
     async_runtime_ = PxAsyncRuntime::Create({.worker_threads = 2});
     async_runtime_->Start();
     msg_notifier_ = std::make_shared<MessageNotifier>(MessageNotifierOptions{
@@ -38,7 +38,7 @@ RdContext::RdContext() {
     delay_timer_ = std::make_shared<asio2::timer>();
 }
 
-RdContext::~RdContext() {
+PxContext::~PxContext() {
     if (exiting_.exchange(true)) {
         return;
     }
@@ -68,119 +68,119 @@ RdContext::~RdContext() {
     }
 }
 
-bool RdContext::Init() {
+bool PxContext::Init() {
     return true;
 }
 
-std::shared_ptr<MessageNotifier> RdContext::GetMessageNotifier() {
+std::shared_ptr<MessageNotifier> PxContext::GetMessageNotifier() {
     return msg_notifier_;
 }
 
-std::shared_ptr<PxAsyncRuntime> RdContext::GetAsyncRuntime() const {
+std::shared_ptr<PxAsyncRuntime> PxContext::GetAsyncRuntime() const {
     return async_runtime_;
 }
 
-std::shared_ptr<MessageListener> RdContext::CreateMessageListener(MessageExecutionLane lane) {
+std::shared_ptr<MessageListener> PxContext::CreateMessageListener(MessageExecutionLane lane) {
     return msg_notifier_->CreateListener(lane);
 }
 
-void RdContext::SetRenderModuleRegistry(const std::shared_ptr<RenderModuleRegistry>& pm) {
+void PxContext::SetRenderModuleRegistry(const std::shared_ptr<RenderModuleRegistry>& pm) {
     module_registry_ = pm;
 }
 
-std::shared_ptr<RenderModuleRegistry> RdContext::GetRenderModuleRegistry() {
+std::shared_ptr<RenderModuleRegistry> PxContext::GetRenderModuleRegistry() {
     return module_registry_.lock();
 }
 
-void RdContext::SetRenderCompositionRoot(const std::shared_ptr<render::RenderCompositionRoot>& root) {
+void PxContext::SetRenderCompositionRoot(const std::shared_ptr<render::RenderCompositionRoot>& root) {
     composition_root_ = root;
 }
 
-std::shared_ptr<render::RenderCompositionRoot> RdContext::GetRenderCompositionRoot() {
+std::shared_ptr<render::RenderCompositionRoot> PxContext::GetRenderCompositionRoot() {
     return composition_root_.lock();
 }
 
-void RdContext::SetFrameDebuggerObserver(const std::shared_ptr<render::FrameDebuggerObserver>& observer) {
+void PxContext::SetFrameDebuggerObserver(const std::shared_ptr<render::FrameDebuggerObserver>& observer) {
     frame_debugger_observer_ = observer;
 }
 
-std::shared_ptr<render::FrameDebuggerObserver> RdContext::GetFrameDebuggerObserver() {
+std::shared_ptr<render::FrameDebuggerObserver> PxContext::GetFrameDebuggerObserver() {
     return frame_debugger_observer_.lock();
 }
 
-void RdContext::SetEncodedMediaBus(const std::shared_ptr<render::EncodedMediaBus>& media_bus) {
+void PxContext::SetEncodedMediaBus(const std::shared_ptr<render::EncodedMediaBus>& media_bus) {
     encoded_media_bus_ = media_bus;
 }
 
-std::shared_ptr<render::EncodedMediaBus> RdContext::GetEncodedMediaBus() {
+std::shared_ptr<render::EncodedMediaBus> PxContext::GetEncodedMediaBus() {
     return encoded_media_bus_.lock();
 }
 
-void RdContext::SetMediaRecorderSink(const std::shared_ptr<render::MediaRecorderSink>& recorder) {
+void PxContext::SetMediaRecorderSink(const std::shared_ptr<render::MediaRecorderSink>& recorder) {
     media_recorder_sink_ = recorder;
 }
 
-std::shared_ptr<render::MediaRecorderSink> RdContext::GetMediaRecorderSink() {
+std::shared_ptr<render::MediaRecorderSink> PxContext::GetMediaRecorderSink() {
     return media_recorder_sink_.lock();
 }
 
-void RdContext::SetFrameCarrierProcessor(const std::shared_ptr<render::FrameCarrierProcessor>& processor) {
+void PxContext::SetFrameCarrierProcessor(const std::shared_ptr<render::FrameCarrierProcessor>& processor) {
     frame_carrier_processor_ = processor;
 }
 
-std::shared_ptr<render::FrameCarrierProcessor> RdContext::GetFrameCarrierProcessor() {
+std::shared_ptr<render::FrameCarrierProcessor> PxContext::GetFrameCarrierProcessor() {
     return frame_carrier_processor_.lock();
 }
 
-void RdContext::SetFrameResizerProcessor(const std::shared_ptr<render::FrameResizerProcessor>& processor) {
+void PxContext::SetFrameResizerProcessor(const std::shared_ptr<render::FrameResizerProcessor>& processor) {
     frame_resizer_processor_ = processor;
 }
 
-std::shared_ptr<render::FrameResizerProcessor> RdContext::GetFrameResizerProcessor() {
+std::shared_ptr<render::FrameResizerProcessor> PxContext::GetFrameResizerProcessor() {
     return frame_resizer_processor_.lock();
 }
 
-void RdContext::SetInputReplayService(const std::shared_ptr<render::InputReplayService>& service) {
+void PxContext::SetInputReplayService(const std::shared_ptr<render::InputReplayService>& service) {
     input_replay_service_ = service;
 }
 
-std::shared_ptr<render::InputReplayService> RdContext::GetInputReplayService() {
+std::shared_ptr<render::InputReplayService> PxContext::GetInputReplayService() {
     return input_replay_service_.lock();
 }
 
-void RdContext::SetJoystickService(const std::shared_ptr<render::JoystickService>& service) {
+void PxContext::SetJoystickService(const std::shared_ptr<render::JoystickService>& service) {
     joystick_service_ = service;
 }
 
-std::shared_ptr<render::JoystickService> RdContext::GetJoystickService() {
+std::shared_ptr<render::JoystickService> PxContext::GetJoystickService() {
     return joystick_service_.lock();
 }
 
-void RdContext::SetFileTransferService(const std::shared_ptr<render::FileTransferService>& service) {
+void PxContext::SetFileTransferService(const std::shared_ptr<render::FileTransferService>& service) {
     file_transfer_service_ = service;
 }
 
-std::shared_ptr<render::FileTransferService> RdContext::GetFileTransferService() {
+std::shared_ptr<render::FileTransferService> PxContext::GetFileTransferService() {
     return file_transfer_service_.lock();
 }
 
-void RdContext::SetNetworkTransportHub(const std::shared_ptr<render::NetworkTransportHub>& hub) {
+void PxContext::SetNetworkTransportHub(const std::shared_ptr<render::NetworkTransportHub>& hub) {
     network_transport_hub_ = hub;
 }
 
-std::shared_ptr<render::NetworkTransportHub> RdContext::GetNetworkTransportHub() {
+std::shared_ptr<render::NetworkTransportHub> PxContext::GetNetworkTransportHub() {
     return network_transport_hub_.lock();
 }
 
-void RdContext::SetVoiceCallService(const std::shared_ptr<render::VoiceCallService>& service) {
+void PxContext::SetVoiceCallService(const std::shared_ptr<render::VoiceCallService>& service) {
     voice_call_service_ = service;
 }
 
-std::shared_ptr<render::VoiceCallService> RdContext::GetVoiceCallService() {
+std::shared_ptr<render::VoiceCallService> PxContext::GetVoiceCallService() {
     return voice_call_service_.lock();
 }
 
-void RdContext::PostTask(std::function<void()>&& task) {
+void PxContext::PostTask(std::function<void()>&& task) {
     const auto task_executor = task_executor_.load();
     if (exiting_ || !task_executor || !task) {
         return;
@@ -193,7 +193,7 @@ void RdContext::PostTask(std::function<void()>&& task) {
     }
 }
 
-void RdContext::PostUITask(std::function<void()>&& task) {
+void PxContext::PostUITask(std::function<void()>&& task) {
     if (exiting_ || !task) {
         return;
     }
@@ -202,14 +202,14 @@ void RdContext::PostUITask(std::function<void()>&& task) {
     }
 }
 
-void RdContext::ExecutePendingUITasks() {
+void PxContext::ExecutePendingUITasks() {
     if (exiting_) {
         return;
     }
     ui_tasks_.Drain();
 }
 
-void RdContext::PostDelayTask(std::function<void()>&& task, int delay) {
+void PxContext::PostDelayTask(std::function<void()>&& task, int delay) {
     if (exiting_ || !delay_timer_ || !task) {
         return;
     }
@@ -227,17 +227,17 @@ void RdContext::PostDelayTask(std::function<void()>&& task, int delay) {
     });
 }
 
-void RdContext::PostMediaTask(std::function<void()>&& task) {
+void PxContext::PostMediaTask(std::function<void()>&& task) {
     if (!exiting_ && media_dispatch_thread_ && task) {
         media_dispatch_thread_->Post(std::move(task));
     }
 }
 
-std::string RdContext::GetCurrentExeFolder() {
+std::string PxContext::GetCurrentExeFolder() {
     return WinHelper::GetExeFolderPath();
 }
 
-void RdContext::DispatchAppEventToModules(const std::shared_ptr<AppBaseEvent>& event) {
+void PxContext::DispatchAppEventToModules(const std::shared_ptr<AppBaseEvent>& event) {
     const auto module_registry = module_registry_.lock();
     if (exiting_ || !module_registry || !event) {
         return;

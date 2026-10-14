@@ -9,11 +9,11 @@
 namespace px
 {
 
-    std::shared_ptr<WinDesktopManager> WinDesktopManager::Make(const std::shared_ptr<RdContext>& ctx) {
+    std::shared_ptr<WinDesktopManager> WinDesktopManager::Make(const std::shared_ptr<PxContext>& ctx) {
         return std::make_shared<WinDesktopManager>(ctx);
     }
 
-    WinDesktopManager::WinDesktopManager(const std::shared_ptr<RdContext>& ctx) {
+    WinDesktopManager::WinDesktopManager(const std::shared_ptr<PxContext>& ctx) {
         message_loop_ = WinMessageLoop::Make(ctx);
         if(message_loop_) {
             message_loop_->Start();

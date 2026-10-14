@@ -23,11 +23,11 @@
 #include "px_common/websocket_reconnect_adapter.h"
 #include "px_service_message.pb.h"
 #include "modules/render_module_registry.h"
-#include "rd_app.h"
-#include "rd_context.h"
-#include "rd_statistics.h"
+#include "px_app.h"
+#include "px_context.h"
+#include "px_statistics.h"
 #include "session/logical_session_registry.h"
-#include "settings/rd_settings.h"
+#include "settings/px_settings.h"
 
 namespace px {
 
@@ -142,9 +142,9 @@ PxAwaitable<void> CompleteLegacyVirtualDisplayRequest(std::weak_ptr<RenderServic
 
 }  // namespace
 
-RenderServiceClient::RenderServiceClient(const std::shared_ptr<RdApplication>& app) {
+RenderServiceClient::RenderServiceClient(const std::shared_ptr<PxApplication>& app) {
     adapter_slot_ = std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>();
-    statistics_ = RdStatistics::Instance();
+    statistics_ = PxStatistics::Instance();
     app_ = app;
     context_ = app_->GetContext();
 }
@@ -214,7 +214,7 @@ void RenderServiceClient::Start() {
         self->HeartBeat();
     });
 
-    auto settings = RdSettings::Instance();
+    auto settings = PxSettings::Instance();
     LOGI("Will connect to service : {}:{}", settings->service_server_host_, settings->service_server_port_);
     const auto adapter_slot = adapter_slot_;
     const auto supervisor = connection_supervisor;
@@ -243,7 +243,7 @@ void RenderServiceClient::Start() {
                         owner->websocket_upgraded_.store(false, std::memory_order_release);
                         current->ws_stream().binary(true);
                         current->set_no_delay(true);
-                        const auto ipc_token = RdSettings::Instance()->service_ipc_token_;
+                        const auto ipc_token = PxSettings::Instance()->service_ipc_token_;
                         current->ws_stream().set_option(websocket::stream_base::decorator(
                             [ipc_token](websocket::request_type& request) { request.set(http::field::authorization, "Bearer " + ipc_token); }));
                     })
@@ -659,7 +659,7 @@ void RenderServiceClient::HeartBeat() {
     msg.set_type(ServiceMessageType::kSrvHeartBeat);
     auto& sub = *msg.mutable_heart_beat();
     sub.set_index(heartbeat_index_.fetch_add(1, std::memory_order_acq_rel));
-    sub.set_from(std::format("render_{}", RdSettings::Instance()->transmission_.listening_port_));
+    sub.set_from(std::format("render_{}", PxSettings::Instance()->transmission_.listening_port_));
     sub.set_logical_sessions_json(BuildLogicalSessionsJson(app_ ? app_->GetLogicalSessionRegistry() : std::shared_ptr<LogicalSessionRegistry>{}));
     if (const auto modules = app_ ? app_->GetRenderModuleRegistry() : std::shared_ptr<RenderModuleRegistry>{}) {
         if (const auto address = modules->IrohEndpointAddress(); !address.empty()) {

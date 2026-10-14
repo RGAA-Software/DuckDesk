@@ -4,10 +4,11 @@ param(
     [Parameter(Mandatory)] [string]$PostgreSqlClientRoot,
     [Parameter(Mandatory)] [string]$OutputDirectory,
     [Parameter(Mandatory)] [string]$SuiteVersion,
-    [ValidateRange(1, 256)] [int]$Jobs = 18
+    [ValidateRange(1, 10)] [int]$Jobs = 10
 )
 
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot '../scripts/limit_build_cpu.ps1')
 if ($SuiteVersion -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Server suite version is invalid.' }
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $resolvedOutput = [IO.Path]::GetFullPath($OutputDirectory)

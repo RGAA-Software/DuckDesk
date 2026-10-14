@@ -1,0 +1,527 @@
+{
+  "status": "completed_with_retained_existing_architecture_guard_failures",
+  "observed_utc": "2026-10-14T01:46:47.319517+00:00",
+  "base_revision": "e68a2af4cdb0320c0775ad827dd73aec02d0f075",
+  "scope": "4 project C++ classes,5 protobuf message names,10 source/resource files; Rdp excluded; no third-party/archive edits",
+  "changed_reference_files": 63,
+  "initial_scan_false_positive_preserved": {
+    "path": "src/px_render/architecture/processors/frame_resizer/resize_common_types.h",
+    "reason": "Microsoft reference D3D member RdContext is not the project class; preserved unchanged"
+  },
+  "source_adjustments": [
+    "PxSettings singleton now returns shared_ptr; PxStatistics holds shared_ptr rather than raw pointer",
+    "Removed unused argc/argv parameters from PxApplication::Init, avoiding a raw-pointer application API; main/gflags OS boundary preserved"
+  ],
+  "cpu_limit": {
+    "maximum_build_jobs": 10,
+    "windows_launcher_affinity": 1023,
+    "logical_processors": 10,
+    "batches_sequential": true,
+    "compiler_samples": [
+      {
+        "pid": 13028,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 46500,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 57740,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 61652,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 67884,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 70580,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 72208,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 75208,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 89348,
+        "name": "cl",
+        "affinity": 1023
+      },
+      {
+        "pid": 49444,
+        "name": "cmake",
+        "affinity": 1023
+      },
+      {
+        "pid": 88476,
+        "name": "cmake",
+        "affinity": 1023
+      },
+      {
+        "pid": 53480,
+        "name": "ninja",
+        "affinity": 1023
+      }
+    ],
+    "invalid_job_counts_rejected": [
+      0,
+      11,
+      18,
+      "abc"
+    ],
+    "cargo_root_default": 10,
+    "shared_build_limit": "scripts/configure_build_jobs.bat",
+    "affinity_controller": "scripts/limit_build_cpu.ps1"
+  },
+  "focused_release_builds": [
+    {
+      "product": "cloud_node",
+      "component": "render",
+      "started_utc": "2026-10-14T01:23:03.8335852Z",
+      "ended_utc": "2026-10-14T01:27:16.9284765Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-cloud_node-render.log"
+    },
+    {
+      "product": "remote",
+      "component": "render",
+      "started_utc": "2026-10-14T01:27:16.9584393Z",
+      "ended_utc": "2026-10-14T01:31:10.0325973Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-remote-render.log"
+    },
+    {
+      "product": "client",
+      "component": "client",
+      "started_utc": "2026-10-14T01:31:10.0364151Z",
+      "ended_utc": "2026-10-14T01:33:31.5947069Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-client-client.log"
+    },
+    {
+      "product": "client",
+      "component": "panel",
+      "started_utc": "2026-10-14T01:33:31.5964179Z",
+      "ended_utc": "2026-10-14T01:33:59.1759474Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-client-panel.log"
+    },
+    {
+      "product": "cloud_node",
+      "component": "client",
+      "started_utc": "2026-10-14T01:33:59.1776246Z",
+      "ended_utc": "2026-10-14T01:35:46.3238196Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-cloud_node-client.log"
+    },
+    {
+      "product": "cloud_node",
+      "component": "panel",
+      "started_utc": "2026-10-14T01:35:46.3253829Z",
+      "ended_utc": "2026-10-14T01:36:09.5668372Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-cloud_node-panel.log"
+    },
+    {
+      "product": "remote",
+      "component": "client",
+      "started_utc": "2026-10-14T01:36:09.5685363Z",
+      "ended_utc": "2026-10-14T01:37:56.3685824Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-remote-client.log"
+    },
+    {
+      "product": "remote",
+      "component": "panel",
+      "started_utc": "2026-10-14T01:37:56.3701356Z",
+      "ended_utc": "2026-10-14T01:38:19.6851761Z",
+      "exit_code": 0,
+      "jobs": 10,
+      "launcher_affinity": 1023,
+      "selected_processors": 10,
+      "log": "D:\\GoCloud\\GammaRayPremium\\.cache\\rd-px-build-remote-panel.log"
+    }
+  ],
+  "runtime_hashes": [
+    {
+      "product": "cloud_node",
+      "source": "build_official/cloud_node/cmake/src/px_deps/px_client.exe",
+      "dist": "build_official/cloud_node/dist/px_client.exe",
+      "sha256": "1357217FDB90C324E0C8F0EF9833B49E0850028C93950DB2022EE6BAC172C9A9",
+      "equal": true
+    },
+    {
+      "product": "cloud_node",
+      "source": "build_official/cloud_node/cmake/src/px_deps/px_panel.exe",
+      "dist": "build_official/cloud_node/dist/px_panel.exe",
+      "sha256": "D07605F402F17AE9ED14ABDB5431617207DE81F82A93F576ABCDE85BE9790950",
+      "equal": true
+    },
+    {
+      "product": "cloud_node",
+      "source": "build_official/cloud_node/cmake/src/px_render/px_render.exe",
+      "dist": "build_official/cloud_node/dist/px_render.exe",
+      "sha256": "90BF513B59B71D1F487D792B7CEC5DDF9505F0E3E069D98C9AB5AA7EF15F20AD",
+      "equal": true
+    },
+    {
+      "product": "cloud_node",
+      "source": "build_official/cloud_node/cmake/src/px_render/network/webrtc/local/px_render_rtc.dll",
+      "dist": "build_official/cloud_node/dist/px_render_rtc.dll",
+      "sha256": "D16E259A04C545BA6676F1AF30B341F84DF59A3B3529F92F7BBCA3BC0756054E",
+      "equal": true
+    },
+    {
+      "product": "client",
+      "source": "build_official/client/cmake/src/px_deps/px_client.exe",
+      "dist": "build_official/client/dist/px_client.exe",
+      "sha256": "6055AA5006B918907BA70907DD0038C2F42616E56968D3E619B85F7E047CC310",
+      "equal": true
+    },
+    {
+      "product": "client",
+      "source": "build_official/client/cmake/src/px_deps/px_panel.exe",
+      "dist": "build_official/client/dist/px_panel.exe",
+      "sha256": "9E3F7FE5C19782DC06EE9EE906A5244264B45A555174CF80956F6B1903E29DB6",
+      "equal": true
+    },
+    {
+      "product": "remote",
+      "source": "build_official/remote/cmake/src/px_deps/px_client.exe",
+      "dist": "build_official/remote/dist/px_client.exe",
+      "sha256": "EA33623E972A7A6CC9D851605AE2BDE69D15140D4F3C000C9D7C4F6D43939978",
+      "equal": true
+    },
+    {
+      "product": "remote",
+      "source": "build_official/remote/cmake/src/px_deps/px_panel.exe",
+      "dist": "build_official/remote/dist/px_panel.exe",
+      "sha256": "1BE4A0860E7EAE35399BC7BC1F8670EA953BA87D18E852EE7368315DA04270F1",
+      "equal": true
+    },
+    {
+      "product": "remote",
+      "source": "build_official/remote/cmake/src/px_render/px_render.exe",
+      "dist": "build_official/remote/dist/px_render.exe",
+      "sha256": "75A32BB0DB886DD9FD8008B0790D8BA9FDE128935C7ADED2CE633560C8607502",
+      "equal": true
+    },
+    {
+      "product": "remote",
+      "source": "build_official/remote/cmake/src/px_render/network/webrtc/local/px_render_rtc.dll",
+      "dist": "build_official/remote/dist/px_render_rtc.dll",
+      "sha256": "1778FEEFF41F46CE32DCB323CEA0F679F42AF9C2FB812F5F6C1DF6092E437DCF",
+      "equal": true
+    }
+  ],
+  "web_asset_hashes": {
+    "favicon.png": "D368282210F0F6A66E72ECD119A8504524DF9D81FA7667A19366F595055BB770",
+    "index.html": "254C2E4FD16B52944B5C00FDEEA6FC8E50744B2D9F5928675B3E6E2B8633C135",
+    "assets/index-6qkOrRzq.js": "12E2FE1C3119985594016EB669714F5484C764294B25A02E7DABA810F52785DD",
+    "assets/index-wC5_h8ud.css": "3E7F434019AC9A64D89C65E570FDE29C0AFF76B71A0B5FBB4963AD4831B88466"
+  },
+  "web_development_destinations_sha_equal": [
+    "cloud_node/web",
+    "cloud_node/dist/web_client",
+    "remote/web",
+    "remote/dist/web_client"
+  ],
+  "lifecycle_suites": [
+    {
+      "product": "cloud_node",
+      "ctest_suites_passed": [
+        "captured_media_pipeline",
+        "render_execution_context_lifecycle",
+        "render_context_shutdown",
+        "common_callback_quiescence"
+      ],
+      "callback_quiescence_followup": "Original selection used callback_quiescence, actual CTest name common_callback_quiescence; focused single-suite followup passed without repeating the other3"
+    },
+    {
+      "product": "remote",
+      "ctest_suites_passed": [
+        "captured_media_pipeline",
+        "render_execution_context_lifecycle",
+        "render_context_shutdown",
+        "common_callback_quiescence"
+      ],
+      "callback_quiescence_followup": "Original selection used callback_quiescence, actual CTest name common_callback_quiescence; focused single-suite followup passed without repeating the other3"
+    }
+  ],
+  "web_unit_tests_passed": 65,
+  "cpp_naming_and_ownership_checks": "passed",
+  "brand_and_script_parse_checks": "passed",
+  "protobuf_field_names_and_numbers": "unchanged; authoritative schema differs only by the5 requested type names",
+  "rdp_identifier_sequences_unchanged": true,
+  "third_party_and_archives_modified": false,
+  "development_dist_manifest_checks": {
+    "cloud_node": 295,
+    "client": 40,
+    "remote": 61
+  },
+  "development_dependency_repair": {
+    "initial_failure": "Web publisher complete-development-dist verification found7 missing RDP host artifacts in cloud_node development tree",
+    "closed": true,
+    "action": "Reuse verified existing isolated RDP SDK runtime files; focused10-job development Release policy builds; both complete dist validations passed",
+    "official_release_artifacts_copied_to_development": false,
+    "files": [
+      {
+        "sha256": "A959BD3ABFDC68B5B964417CC87779F726A1DA7DE26BECA9C05F156F224B311A",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_proxy.exe",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "A7BA8B2EAF6FB8F192846A7A61C25ED04C30A35BEE9FCB0C02160E85AB59FBA4",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_server_proxy.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "99D4B02315216EA2A7EC49FD6530BC4D9C0B121FE6A2E02FD5B25483EC8EE291",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_server.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "21A1A9C3CADB02FD183337AD500CF1CA8B687F58B9DAA5AD2340A6FC9533C3A8",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_client.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "580DA115AAF104AB3FA9AE668B6EF0AD8DC1061FC2AE878F1CC6CEC1F7B065C9",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_core.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "463155B960A9C5A45579C6C97EB53A039262C8A131921D7E4AA3689759F9F352",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/px_rdp_winpr.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "CF0D2AB5C25B1E3414378E92C160DC7EB0386326736F812A97B61C915E6A43B1",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/libusb-1.0.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "3B9486E25861A358DCCDD36BC6524B7554E94D00703704AC2037F34F34C67E1E",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/libssl-3-x64.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "D10718A1EE7A51ACF20D4DF5DAB191E249E715F7AC437BD0637D5D860818D336",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/libcrypto-3-x64.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "885404E26514F02BFC68983183542062E459A324292CAF281785507180EE2CBD",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/zlib1.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "D2F1C0EF73D50CBA70294F947E34BA9B63C9949A8C352DD77E557F55D9B57DC0",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/cjson.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "2D0A349C883F50CBF776C0054EF1B37E24C4D266315C3437362DDE1B774412DF",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/legacy.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "ECBF31FD2691179D5E616F9659D6D72EBA0F8392980158F69567E93FE4C40159",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/openh264-6.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "7F9D3ED67EEC5DBA440E47609E83CF9F6CFECC3F1E1DDD7AB0368E28B7914D9E",
+        "code_modified": false,
+        "product": "cloud_node",
+        "path": "rdp/proxy/px_rdp_policy.dll",
+        "source": "focused development Release/10jobs"
+      },
+      {
+        "sha256": "A959BD3ABFDC68B5B964417CC87779F726A1DA7DE26BECA9C05F156F224B311A",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_proxy.exe",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "A7BA8B2EAF6FB8F192846A7A61C25ED04C30A35BEE9FCB0C02160E85AB59FBA4",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_server_proxy.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "99D4B02315216EA2A7EC49FD6530BC4D9C0B121FE6A2E02FD5B25483EC8EE291",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_server.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "21A1A9C3CADB02FD183337AD500CF1CA8B687F58B9DAA5AD2340A6FC9533C3A8",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_client.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "580DA115AAF104AB3FA9AE668B6EF0AD8DC1061FC2AE878F1CC6CEC1F7B065C9",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_core.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "463155B960A9C5A45579C6C97EB53A039262C8A131921D7E4AA3689759F9F352",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/px_rdp_winpr.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "CF0D2AB5C25B1E3414378E92C160DC7EB0386326736F812A97B61C915E6A43B1",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/libusb-1.0.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "3B9486E25861A358DCCDD36BC6524B7554E94D00703704AC2037F34F34C67E1E",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/libssl-3-x64.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "D10718A1EE7A51ACF20D4DF5DAB191E249E715F7AC437BD0637D5D860818D336",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/libcrypto-3-x64.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "885404E26514F02BFC68983183542062E459A324292CAF281785507180EE2CBD",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/zlib1.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "D2F1C0EF73D50CBA70294F947E34BA9B63C9949A8C352DD77E557F55D9B57DC0",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/cjson.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "2D0A349C883F50CBF776C0054EF1B37E24C4D266315C3437362DDE1B774412DF",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/legacy.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "ECBF31FD2691179D5E616F9659D6D72EBA0F8392980158F69567E93FE4C40159",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/openh264-6.dll",
+        "source": "existing verified isolated SDK"
+      },
+      {
+        "sha256": "80E0524AD80E55BCE7745DE8BF59F7FA8D369EC9D8FEB258227FF2E7271AFF9A",
+        "code_modified": false,
+        "product": "remote",
+        "path": "rdp/proxy/px_rdp_policy.dll",
+        "source": "focused development Release/10jobs"
+      }
+    ],
+    "rdp_protocol_or_policy_implementation_modified": false
+  },
+  "retained_existing_check_failures": {
+    "script": "scripts/test_render_architecture_boundaries.ps1",
+    "before_and_after_failures_equal": true,
+    "source_files_unchanged": true,
+    "failures": [
+      "joystick_service.cpp:217 warning lacks structured diagnostic fields",
+      "client_panel_reporter.cpp automatic-reconnect guard expectation",
+      "ws_server.cpp typed-awaitable admission guard expectation"
+    ],
+    "scope": "Existing unrelated guard failures retained; no false all-checks-green claim or guard weakening"
+  },
+  "installation_or_remote_deployment_performed": false,
+  "release_full_build_executed": false,
+  "scope_notes": [
+    "Rdp class/type names and protocol values remain unchanged; RDP modules update references to the renamed Render classes.",
+    "Historical logs and old-name inventory rows retain their original identities.",
+    "No matching legacy Rd class/message declaration remains in maintained source; Microsoft sample member RdContext is preserved."
+  ],
+  "third_party_comment_restoration": {
+    "path": "src/px_render/architecture/encoders/nvenc/nvencoder/12/NvEncoder.h",
+    "reason": "NVIDIA third-party header has old class names only in comments; restored original file intact before commit",
+    "verification": "Original file restored; all5 reverted lines are comment-only, generated C++ behavior unchanged; no additional compilation"
+  }
+}

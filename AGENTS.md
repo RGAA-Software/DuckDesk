@@ -1,5 +1,10 @@
 # Workspace delivery rules
 
+- Build CPU limit (2026-10-14, supersedes the earlier18-job decision): the user now permits at most10 cores for this project.
+  Use explicit10 build jobs, cap configurable build entry points at10, and run build batches sequentially.
+  On this Windows development machine restrict the build launcher affinity to at most10 logical processors so nested compiler work
+  cannot use the remaining processors. Do not run release/full builds for this naming-only change.
+
 - Unified acceptance completion (2026-10-14): T1–T8 in docs/iroh_transport_acceptance_task_20261013.md are complete.
   Read docs/validation/iroh_transport/20261014_unified_acceptance_report.md and the completed stage ledger before any new work.
   Direct/Windows Relay/BJ each30min, default-auto360s under exact-probe UDP restriction, two Company receivers overlapping1958s,
@@ -222,8 +227,9 @@
   belong under `D:\uploadsoft\rd\pixels`; this does not relocate installed products or runtime logs. Measure actual Relay throughput
   and delivered media performance; poor-network XR acceptance does not require 60 FPS.
 
-- Build parallelism decision (2026-10-11): use 18 build jobs for every subsequent compilation; do not use all available cores.
-  Pass the job count explicitly to focused C++ build entry points and to other compilers when invoked.
+- Build parallelism decision (updated2026-10-14): use at most10 build jobs; the earlier18-job limit is superseded.
+  Pass10 explicitly to focused C++ build entry points and other compilers, limit Windows build affinity to10 logical processors,
+  and run build batches sequentially. Historical18-job evidence records are unchanged.
 
 - Current transport task scope (2026-10-11): complete the Windows/Linux iroh transport delivery as one continuous task.
   Android implementation and acceptance are excluded from this task, rather than a final phase within it.

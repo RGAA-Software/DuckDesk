@@ -13,14 +13,14 @@
 namespace px
 {
 
-    class RdContext;
+    class PxContext;
     class MessageListener;
     class SteamManager;
 
     class AppManager : public std::enable_shared_from_this<AppManager> {
     public:
 
-        explicit AppManager(const std::shared_ptr<RdContext>& ctx);
+        explicit AppManager(const std::shared_ptr<PxContext>& ctx);
         virtual ~AppManager();
 
         virtual void Init();
@@ -33,7 +33,7 @@ namespace px
         virtual void CloseCurrentApp();
 
     protected:
-        std::shared_ptr<RdContext> context_ = nullptr;
+        std::shared_ptr<PxContext> context_ = nullptr;
         std::shared_ptr<MessageListener> msg_listener_ = nullptr;
         std::shared_ptr<MessageListener> state_msg_listener_ = nullptr;
     };

@@ -12,7 +12,7 @@ TEXT_PRODUCT_FILES = (
     "cmake/product_icon.rc.in",
     "src/px_base/icon.rc.in",
     "src/px_client/icon.rc.in",
-    "src/px_render/rd_icon.rc.in",
+    "src/px_render/px_icon.rc.in",
     "src/px_render/network/webrtc/webrtc_transport_types.h",
     "src/px_render/architecture/modules/render_module.cpp",
     "src/px_panel/ui_imgui/about_settings_page.cpp",

@@ -33,7 +33,7 @@ foreach ($binaryName in $binaryPaths.Keys) {
 $savedEnvironment = @{}
 $testEnvironment = $binaryPaths.Clone()
 $testEnvironment['PIXELS_TEST_RELAY_RETENTION_RESULT'] = Join-Path $EvidenceDirectory 'result.json'
-$testEnvironment['CARGO_BUILD_JOBS'] = '18'
+$testEnvironment['CARGO_BUILD_JOBS'] = '10'
 if ($Distribution) {
     $dockerBinary = Join-Path $env:ProgramFiles 'Docker/Docker/resources/bin/docker.exe'
     if (-not (Test-Path -LiteralPath $dockerBinary -PathType Leaf)) { $dockerBinary = (Get-Command docker -ErrorAction Stop).Source }

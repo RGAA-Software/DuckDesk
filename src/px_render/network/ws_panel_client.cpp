@@ -5,10 +5,10 @@
 #include "ws_panel_client.h"
 #include <algorithm>
 #include <px_common/string_util.h>
-#include "rd_context.h"
+#include "px_context.h"
 #include "app/app_messages.h"
-#include "rd_statistics.h"
-#include "settings/rd_settings.h"
+#include "px_statistics.h"
+#include "settings/px_settings.h"
 #include "px_common/log.h"
 #include "px_common/data.h"
 #include "px_common/message_notifier.h"
@@ -38,9 +38,9 @@ const PxReconnectBackoffOptions kPanelReconnectOptions{
     .retry_delay = std::chrono::milliseconds(250),
 };
 
-WsPanelClient::WsPanelClient(const std::shared_ptr<RdContext>& ctx) : settings_(*RdSettings::Instance()) {
+WsPanelClient::WsPanelClient(const std::shared_ptr<PxContext>& ctx) : settings_(*PxSettings::Instance()) {
     adapter_slot_ = std::make_shared<PxReconnectAdapterSlot<asio2::ws_client>>();
-    statistics_ = RdStatistics::Instance();
+    statistics_ = PxStatistics::Instance();
     context_ = ctx;
     module_registry_ = context_->GetRenderModuleRegistry();
     composition_root_ = context_->GetRenderCompositionRoot();
@@ -58,7 +58,7 @@ void WsPanelClient::Start() {
     }
     // Console-scheduled app instances are supervised through px_service
     // and deliberately have no local Panel endpoint.  A zero port is the
-    // explicit disabled value from RdSettings, not a connectable address.
+    // explicit disabled value from PxSettings, not a connectable address.
     // Do this before creating listeners or reconnect state so shutdown
     // remains a no-op and no retry loop is left behind.
     if (settings_.get().panel_server_port_ <= 0) {

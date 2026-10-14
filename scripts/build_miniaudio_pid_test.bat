@@ -15,7 +15,7 @@ if /I not "%~1"=="cloud_node" if /I not "%~1"=="remote" (
 set "PRODUCT=%~1"
 set "BUILD_DIR=build_official\%PRODUCT%\cmake"
 set "JOBS=%~2"
-if "%JOBS%"=="" set "JOBS=18"
+if "%JOBS%"=="" set "JOBS=10"
 
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "VS_INSTALL_DIR="
@@ -45,5 +45,7 @@ if not "%VC_TOOLS_DIR%"=="" (
 cmake -S . -B "%BUILD_DIR%" -G Ninja -DCMAKE_BUILD_TYPE=Release -DPX_FAST_RELEASE=ON -DTARGET_TYPE=Official -DPX_PRODUCT=%PRODUCT% -Wno-dev
 if errorlevel 1 exit /b %errorlevel%
 
+call "%~dp0configure_build_jobs.bat" "%JOBS%"
+if errorlevel 1 exit /b %errorlevel%
 cmake --build "%BUILD_DIR%" --target test_miniaudio_pid_loopback -j%JOBS%
 exit /b %errorlevel%

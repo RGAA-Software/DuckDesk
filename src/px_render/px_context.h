@@ -38,12 +38,12 @@ class PxBlockingExecutor;
 class AppBaseEvent;
 class PxAsyncRuntime;
 
-class RdContext : public std::enable_shared_from_this<RdContext> {
+class PxContext : public std::enable_shared_from_this<PxContext> {
   public:
-    static std::shared_ptr<RdContext> Make();
+    static std::shared_ptr<PxContext> Make();
 
-    RdContext();
-    ~RdContext();
+    PxContext();
+    ~PxContext();
 
     bool Init();
     void SetRenderModuleRegistry(const std::shared_ptr<RenderModuleRegistry>& pm);

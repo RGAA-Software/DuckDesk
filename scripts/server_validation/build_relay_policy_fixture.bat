@@ -18,5 +18,5 @@ set "AWS_LC_SYS_C_STD=11"
 set "GOOS=windows"
 if exist "%ProgramFiles%\Git\usr\bin\perl.exe" set "PATH=%PATH%;%ProgramFiles%\Git\usr\bin"
 cd /d "%RELAY_TEST_REPO%\rust_client" || exit /b 2
-cargo test --locked --release --jobs 18 -p px_service --bin px_service --no-run
+cargo test --locked --release --jobs 10 -p px_service --bin px_service --no-run
 exit /b %errorlevel%

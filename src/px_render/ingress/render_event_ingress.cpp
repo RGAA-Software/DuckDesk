@@ -22,19 +22,19 @@
 #include "px_render/modules/module_ids.h"
 #include "px_render/modules/render_module_registry.h"
 #include "px_render_panel_message.pb.h"
-#include "rd_app.h"
-#include "rd_context.h"
-#include "rd_statistics.h"
+#include "px_app.h"
+#include "px_context.h"
+#include "px_statistics.h"
 
 namespace px {
 
-RenderEventIngress::RenderEventIngress(const std::shared_ptr<RdApplication>& app)
+RenderEventIngress::RenderEventIngress(const std::shared_ptr<PxApplication>& app)
     : app_(app),
       context_(app->GetContext()),
       module_registry_(context_->GetRenderModuleRegistry()),
       network_ingress_(NetworkEventIngress::Make(app)),
       msg_notifier_(context_->GetMessageNotifier()),
-      stat_(RdStatistics::Instance()) {}
+      stat_(PxStatistics::Instance()) {}
 
 void RenderEventIngress::ProcessWebRtcEvent(const std::string& source_id, const WebRtcEvent& event) {
     const auto ingress = std::ref(*this);

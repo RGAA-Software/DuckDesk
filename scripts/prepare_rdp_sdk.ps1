@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param([string]$FreeRdpSource, [string]$BuildDirectory, [string]$SdkDirectory, [string]$VcpkgDirectory,
-    [ValidateRange(1, 256)] [int]$Jobs = 18)
+    [ValidateRange(1, 10)] [int]$Jobs = 10)
 $ErrorActionPreference = 'Stop'
+& (Join-Path $PSScriptRoot 'limit_build_cpu.ps1')
 function Get-SdkHash([string]$Path) {
     $stream = [IO.File]::OpenRead($Path)
     $algorithm = [Security.Cryptography.SHA256]::Create()

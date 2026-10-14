@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 
@@ -72,7 +73,7 @@ struct Transmission {
     int listening_port_ = 4601;
 };
 
-// RdApplication
+// PxApplication
 struct TargetApplication {
     enum InjectMethod {
         kEasyHook,
@@ -124,11 +125,11 @@ enum class InputTarget {
     kRdpProtocol,
 };
 
-class RdSettings {
+class PxSettings {
 public:
-    static RdSettings* Instance() {
-        static RdSettings inst;
-        return &inst;
+    static std::shared_ptr<PxSettings> Instance() {
+        static const auto settings = std::make_shared<PxSettings>();
+        return settings;
     }
 
     bool LoadSettings(const std::string& path);

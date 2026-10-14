@@ -43,11 +43,11 @@ std::filesystem::path AppSharedInfo::BootConfigPath(uint32_t pid) {
     return std::filesystem::path(FolderUtil::GetProgramDataPath()) / L"hook_boot" / std::format(L"application_{}.bin", pid);
 }
 
-std::shared_ptr<AppSharedInfo> AppSharedInfo::Make(const std::shared_ptr<RdContext>& context) {
+std::shared_ptr<AppSharedInfo> AppSharedInfo::Make(const std::shared_ptr<PxContext>& context) {
     return std::make_shared<AppSharedInfo>(context);
 }
 
-AppSharedInfo::AppSharedInfo(const std::shared_ptr<RdContext>& context) : context_(context) {}
+AppSharedInfo::AppSharedInfo(const std::shared_ptr<PxContext>& context) : context_(context) {}
 
 bool AppSharedInfo::WriteBootConfig(const UniqueWinHandle& admitted_process, const std::string& data) {
     if (!admitted_process || data.size() > std::numeric_limits<DWORD>::max()) {

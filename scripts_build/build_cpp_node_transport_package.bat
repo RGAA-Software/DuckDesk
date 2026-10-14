@@ -12,7 +12,7 @@ cd /d "%~dp0.." || exit /b 1
 set "CPP_PRODUCT=%~1"
 set "CPP_DISTRIBUTION=official"
 set "CPP_BUILD_DIR=build_official\%CPP_PRODUCT%\official\cmake"
-set "CPP_BUILD_JOBS=18"
+set "CPP_BUILD_JOBS=10"
 if not "%~3"=="" set "CPP_BUILD_JOBS=%~3"
 if not exist "%CPP_BUILD_DIR%\CMakeCache.txt" exit /b 2
 if not exist "rust_transport\target\publication\px_transport_ffi.lib" exit /b 2

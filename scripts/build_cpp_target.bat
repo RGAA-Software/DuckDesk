@@ -72,7 +72,9 @@ if /I not "%BUILD_DIR%"=="%EXPECTED_BUILD_DIR%" (
     exit /b 2
 )
 set "BUILD_JOBS=%CPP_BUILD_JOBS%"
-if not defined BUILD_JOBS set "BUILD_JOBS=18"
+if not defined BUILD_JOBS set "BUILD_JOBS=10"
+call "%~dp0configure_build_jobs.bat" "%BUILD_JOBS%"
+if errorlevel 1 exit /b %errorlevel%
 set "FAST_RELEASE=OFF"
 if /I "%BUILD_DISTRIBUTION%"=="development" set "FAST_RELEASE=ON"
 
